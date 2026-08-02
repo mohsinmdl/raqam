@@ -8,6 +8,10 @@ import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import DataControls from './components/DataControls.jsx';
 import Dashboard from './screens/Dashboard.jsx';
+import Transactions from './screens/Transactions.jsx';
+import Accounts from './screens/Accounts.jsx';
+import AccountDetail from './screens/AccountDetail.jsx';
+import Cards from './screens/Cards.jsx';
 
 // Placeholder screens — replaced milestone by milestone.
 const Stub = ({ name }) => (
@@ -47,10 +51,10 @@ function Shell() {
           {corrupt ? <LoadError /> : (
             <Routes>
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/transactions" element={<Stub name="Transactions" />} />
-              <Route path="/accounts" element={<Stub name="Accounts" />} />
-              <Route path="/accounts/:id" element={<Stub name="Account detail" />} />
-              <Route path="/cards" element={<Stub name="Cards" />} />
+              <Route path="/transactions" element={<Transactions />} />
+              <Route path="/accounts" element={<Accounts />} />
+              <Route path="/accounts/:id" element={<AccountDetail />} />
+              <Route path="/cards" element={<Cards />} />
               <Route path="/budgets" element={<Stub name="Budgets" />} />
               <Route path="/recurring" element={<Stub name="Recurring" />} />
               <Route path="/reports" element={<Stub name="Reports" />} />
