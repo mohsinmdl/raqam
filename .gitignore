@@ -4,3 +4,11 @@ dist/
 .DS_Store
 .playwright-mcp/
 *.png
+
+# Environment — real keys never committed; .env.example is the template
+.env
+.env.*
+!.env.example
+
+# Supabase CLI local state
+supabase/.temp/
