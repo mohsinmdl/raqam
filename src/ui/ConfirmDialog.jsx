@@ -1,8 +1,17 @@
+import { useEffect } from 'react';
 import FocusTrap from './FocusTrap.jsx';
 
 // Confirm dialog — ported from the prototype (template ~750-761).
 // confirm: { title, body, action, onConfirm }
 export default function ConfirmDialog({ confirm, onCancel }) {
+  // Capture-phase Escape so the confirm (topmost overlay) closes before any
+  // drawer/dialog beneath it can react.
+  useEffect(() => {
+    if (!confirm) return;
+    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); onCancel(); } };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [confirm, onCancel]);
   if (!confirm) return null;
   return (
     <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(8,16,13,.44)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'hsFade .15s ease', zIndex: 50 }}>

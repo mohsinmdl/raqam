@@ -1,9 +1,13 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { StoreProvider, useStore } from './store/StoreProvider.jsx';
+import { MonthProvider } from './store/MonthContext.jsx';
 import { UIProvider } from './ui/UIProvider.jsx';
+import { DrawerProvider } from './ui/DrawerProvider.jsx';
+import { drawerRegistry } from './drawers/index.js';
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import DataControls from './components/DataControls.jsx';
+import Dashboard from './screens/Dashboard.jsx';
 
 // Placeholder screens — replaced milestone by milestone.
 const Stub = ({ name }) => (
@@ -42,7 +46,7 @@ function Shell() {
         <main style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {corrupt ? <LoadError /> : (
             <Routes>
-              <Route path="/dashboard" element={<Stub name="Dashboard" />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/transactions" element={<Stub name="Transactions" />} />
               <Route path="/accounts" element={<Stub name="Accounts" />} />
               <Route path="/accounts/:id" element={<Stub name="Account detail" />} />
@@ -65,9 +69,13 @@ export default function App() {
   return (
     <HashRouter>
       <StoreProvider>
-        <UIProvider>
-          <Shell />
-        </UIProvider>
+        <MonthProvider>
+          <UIProvider>
+            <DrawerProvider registry={drawerRegistry}>
+              <Shell />
+            </DrawerProvider>
+          </UIProvider>
+        </MonthProvider>
       </StoreProvider>
     </HashRouter>
   );
