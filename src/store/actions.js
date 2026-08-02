@@ -4,9 +4,8 @@
 import { accountBalance, cardOutstanding } from '../lib/calc.js';
 import { addMonths, clampDay, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { uid } from '../lib/util.js';
-import { makeDemoStore, freshStore } from './seed.js';
+import { freshStore } from './seed.js';
 
-export const loadDemo = () => makeDemoStore(currentMonth());
 export const resetAll = () => freshStore();
 
 // ---- Submit mutations, ported from the prototype's submit* handlers (script 1250-1367).

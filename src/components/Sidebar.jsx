@@ -57,7 +57,7 @@ export default function Sidebar({ footer }) {
       <div style={{ flex: 1 }} />
       <div style={{ padding: '14px 16px 16px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {footer}
-        <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>Manual entry only · Data stays on this device · Asia/Karachi</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>Manual entry only · Synced to your account · Asia/Karachi</div>
       </div>
     </aside>
   );
