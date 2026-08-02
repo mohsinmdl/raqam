@@ -57,9 +57,12 @@ export function StoreProvider({ userId, children }) {
         // The differ (baseline = server state) pushes them as ordinary inserts.
         const base = server.categories.length ? server : { ...server, categories: CATEGORIES.map(c => ({ ...c })) };
         queueRef.current?.stop();
+        // NOTE: onStatus must NOT be gated on `cancelled` — this effect re-runs
+        // (and flips cancelled) the moment hydration lands, but the queue lives on.
+        // React 18 no-ops setState after unmount, so the raw call is safe.
         queueRef.current = createSyncQueue({
           initialBaseline: server,
-          onStatus: s => { if (!cancelled) setSyncStatus(s); },
+          onStatus: setSyncStatus,
         });
         // Month rollover runs against fresh server data; its changes sync like any edit.
         const rolled = rolloverMonth(base);

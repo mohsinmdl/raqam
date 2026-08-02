@@ -1,6 +1,0 @@
-# Copy to .env.local and fill in from your Supabase project
-# (Dashboard → Project Settings → API). The anon/publishable key is safe to
-# expose in the client bundle — Row Level Security is the security boundary.
-# NEVER put the service_role / sb_secret_ key here or in any VITE_ variable.
-VITE_SUPABASE_URL=https://your-project-ref.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-or-publishable-key

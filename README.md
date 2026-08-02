@@ -26,10 +26,24 @@ React + Vite with real dates and localStorage persistence.
 - **Cards** — wallet with card-face tiles; credit cards track outstanding, available
   credit, utilisation, statement/due dates; paying a bill is a transfer, never a
   second expense. Debit cards link to accounts.
-- **Privacy** — amounts masked by default; only last-4 digits ever stored; all data
-  stays in the browser (`localStorage` key `raqam.v1`).
-- Light/dark theme, month navigation over your data's real months, demo dataset
-  (re-dated to the current month) behind a confirm.
+- **Accounts & sync** — registration/login (email+password or Google), per-user data
+  in Supabase Postgres behind Row Level Security; optimistic UI with a self-healing
+  write-behind sync queue and an unsaved-changes guard.
+- **Privacy** — amounts masked by default; only last-4 digits ever stored; each
+  user's rows are isolated by RLS (`user_id = auth.uid()` on every policy).
+- Light/dark theme, month navigation over your data's real months, one-time import
+  of pre-account localStorage data (original kept as a local backup).
+
+## Setup
+
+1. Create a Supabase project, then copy `.env.example` to `.env.local` and fill in
+   `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (Project Settings → API).
+2. Apply the schema: `npx supabase login`, `npx supabase link --project-ref <ref>`,
+   `npx supabase db push` (runs `supabase/migrations/*.sql`: tables, RLS policies,
+   global catalogue seed).
+3. Auth settings: enable Email (keep "Confirm email" ON) and optionally Google
+   (OAuth client in Google Cloud Console → provider config in Supabase; allowlist
+   your dev/prod URLs under Authentication → URL Configuration).
 
 ## Run
 
@@ -40,19 +54,22 @@ npm run build     # production build (dist/, relative paths — any static host)
 npm run preview
 ```
 
-No backend, no environment variables. Plain JS + JSX; state is React context +
-reducer; routing is react-router (hash mode).
+Plain JS + JSX; state is React context + reducer; routing is react-router (hash
+mode — OAuth uses PKCE so the `?code=` redirect coexists with `#/` routes).
 
 ## Structure
 
 ```
-src/lib/        calc.js (pure PKR math, ported verbatim from the design), dates.js
-                (real-date layer), txRow.js (row presenters), format.js (masking)
-src/store/      seed.js (demo/fresh stores), persistence.js (raqam.v1 + migrations),
-                StoreProvider.jsx, actions.js (pure mutations), MonthContext.jsx
+src/lib/        calc.js (pure PKR math), dates.js (real-date layer), txRow.js,
+                format.js (masking), supabase.js (client init)
+src/store/      seed.js (catalogues + fresh store), sync.js (diff-based sync queue),
+                StoreProvider.jsx (hydrate + mirror), actions.js (pure mutations),
+                PrefsProvider.jsx, MonthContext.jsx, persistence.js (legacy import)
+src/auth/       AuthProvider (session), AuthScreen (login/register gate)
 src/ui/         Drawer/Confirm/Explain/Toast/FocusTrap chrome
 src/drawers/    the six drawer forms + shared fields
 src/screens/    Dashboard, FirstUse, Transactions, Accounts, AccountDetail, Cards, Planned
+supabase/       SQL migrations (schema, RLS, catalogue seed)
 ```
 
 Design docs live in the Claude Design project (`docs/DESIGN_SYSTEM.md`,
