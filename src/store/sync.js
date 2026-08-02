@@ -24,6 +24,7 @@ const COLLECTIONS = [
     name: 'institutions', table: 'institutions', keyOf: r => r.id,
     // Only the user's own Custom institutions are writable; global rows are fetch-only.
     writable: r => r.kind === 'Custom',
+    conflictKey: 'id', // PK is plain id here (shared catalogue), not (user_id, id)
     toRow: r => ({ id: r.id, name: r.name, kind: r.kind }),
     fromRow: r => ({ id: r.id, name: r.name, kind: r.kind }),
   },
