@@ -1,5 +1,9 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { StoreProvider, useStore } from './store/StoreProvider.jsx';
+import { PrefsProvider } from './store/PrefsProvider.jsx';
+import { AuthProvider, useAuth } from './auth/AuthProvider.jsx';
+import AuthScreen from './auth/AuthScreen.jsx';
+import LoadingScreen from './components/LoadingScreen.jsx';
 import { MonthProvider } from './store/MonthContext.jsx';
 import { UIProvider } from './ui/UIProvider.jsx';
 import { DrawerProvider } from './ui/DrawerProvider.jsx';
@@ -65,18 +69,33 @@ function Shell() {
   );
 }
 
+// Auth gate — not a route: the requested #/route survives login untouched.
+function Gate() {
+  const { session, user, authLoading } = useAuth();
+  if (authLoading) return <LoadingScreen message="Checking your session…" />;
+  if (!session) return <AuthScreen />;
+  return (
+    // Keyed by user so switching accounts remounts the store with no stale state.
+    <StoreProvider key={user.id}>
+      <MonthProvider>
+        <UIProvider>
+          <DrawerProvider registry={drawerRegistry}>
+            <Shell />
+          </DrawerProvider>
+        </UIProvider>
+      </MonthProvider>
+    </StoreProvider>
+  );
+}
+
 export default function App() {
   return (
     <HashRouter>
-      <StoreProvider>
-        <MonthProvider>
-          <UIProvider>
-            <DrawerProvider registry={drawerRegistry}>
-              <Shell />
-            </DrawerProvider>
-          </UIProvider>
-        </MonthProvider>
-      </StoreProvider>
+      <PrefsProvider>
+        <AuthProvider>
+          <Gate />
+        </AuthProvider>
+      </PrefsProvider>
     </HashRouter>
   );
 }

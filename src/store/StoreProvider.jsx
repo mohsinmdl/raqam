@@ -1,8 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
 import { loadPersisted, savePersisted, clearPersisted, DEFAULT_PREFS, STORAGE_KEY } from './persistence.js';
+import { useDevicePrefs } from './PrefsProvider.jsx';
 import { rolloverMonth } from './actions.js';
 import { freshStore } from './seed.js';
 import { currentMonth } from '../lib/dates.js';
+
+// Which prefs are device-level (PrefsProvider) vs account-level (persisted with data).
+const DEVICE_PREF_KEYS = ['theme', 'masked'];
 
 const Ctx = createContext(null);
 
@@ -28,6 +32,7 @@ function init() {
 
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, init);
+  const { devicePrefs, setDevicePrefs } = useDevicePrefs();
   const saveTimer = useRef(null);
 
   // Debounced persistence; flush on tab hide/unload.
@@ -77,13 +82,22 @@ export function StoreProvider({ children }) {
   const value = useMemo(() => ({
     corrupt: state.corrupt,
     data: state.data,
-    prefs: state.prefs,
+    // Facade: consumers (Header, format.js, Dashboard) see one flat prefs object;
+    // theme/masked actually live device-side in PrefsProvider.
+    prefs: { ...state.prefs, theme: devicePrefs.theme, masked: devicePrefs.masked },
     // apply a pure action: applyData(store => newStore)
     applyData: fn => dispatch({ type: 'data', fn }),
     replaceData: data => dispatch({ type: 'replaceData', data }),
-    setPrefs: patch => dispatch({ type: 'prefs', patch }),
+    setPrefs: patch => {
+      const device = {}, account = {};
+      Object.entries(patch).forEach(([k, v]) => {
+        (DEVICE_PREF_KEYS.includes(k) ? device : account)[k] = v;
+      });
+      if (Object.keys(device).length) setDevicePrefs(device);
+      if (Object.keys(account).length) dispatch({ type: 'prefs', patch: account });
+    },
     startFresh: () => { clearPersisted(); dispatch({ type: 'replaceData', data: freshStore(), prefs: { ...DEFAULT_PREFS } }); },
-  }), [state]);
+  }), [state, devicePrefs, setDevicePrefs]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
