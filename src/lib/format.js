@@ -3,6 +3,8 @@ import { useCallback } from 'react';
 import { fmtPKR, fmtSigned } from './calc.js';
 import { usePrefs } from '../store/StoreProvider.jsx';
 
+export { parseAmt, uid } from './util.js';
+
 /**
  * useMoney — every amount the UI renders goes through one of these three.
  *
@@ -21,13 +23,4 @@ export function useMoney() {
   const moneyS = useCallback(n => fmtSigned(n, masked), [masked]);
   const moneyRaw = useCallback(n => fmtPKR(n, false), []); // ← contribution site
   return { money, moneyS, moneyRaw, masked };
-}
-
-export function parseAmt(v) {
-  const n = parseFloat(String(v == null ? '' : v).replace(/,/g, '').trim());
-  return isFinite(n) ? Math.round(n) : NaN;
-}
-
-export function uid() {
-  try { return crypto.randomUUID(); } catch { return 'x' + Math.random().toString(36).slice(2, 10); }
 }
