@@ -1,8 +1,11 @@
 // Supabase client — the app's single connection to auth + database.
 import { createClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// import.meta.env is Vite-injected; the fallback keeps this module importable
+// in plain Node (unit tests of pure logic that transitively import it).
+const env = import.meta.env ?? {};
+const url = env.VITE_SUPABASE_URL;
+const anonKey = env.VITE_SUPABASE_ANON_KEY;
 
 // Fail loudly and early with a actionable message rather than a cryptic
 // createClient error — the app cannot function without its backend.

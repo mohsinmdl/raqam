@@ -1,5 +1,6 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { StoreProvider, useStore } from './store/StoreProvider.jsx';
+import ImportLegacy from './components/ImportLegacy.jsx';
 import { PrefsProvider } from './store/PrefsProvider.jsx';
 import { AuthProvider, useAuth } from './auth/AuthProvider.jsx';
 import AuthScreen from './auth/AuthScreen.jsx';
@@ -18,23 +19,8 @@ import AccountDetail from './screens/AccountDetail.jsx';
 import Cards from './screens/Cards.jsx';
 import Planned from './screens/Planned.jsx';
 
-function LoadError() {
-  const { startFresh } = useStore();
-  return (
-    <div style={{ maxWidth: 520, margin: '60px auto 0', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '36px 28px' }}>
-      <div style={{ fontSize: 15, fontWeight: 600 }}>Couldn't load your data</div>
-      <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6 }}>
-        The saved data on this device could not be read. A backup copy of the unreadable data was kept. Reload the page to try again, or start fresh.
-      </div>
-      <button onClick={startFresh} style={{ marginTop: 16, height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-        Start fresh
-      </button>
-    </div>
-  );
-}
-
 function Shell() {
-  const { corrupt, prefs } = useStore();
+  const { prefs } = useStore();
   return (
     <div
       data-theme={prefs.theme}
@@ -48,21 +34,19 @@ function Shell() {
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <Header />
         <main style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          {corrupt ? <LoadError /> : (
-            <Routes>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/transactions" element={<Transactions />} />
-              <Route path="/accounts" element={<Accounts />} />
-              <Route path="/accounts/:id" element={<AccountDetail />} />
-              <Route path="/cards" element={<Cards />} />
-              <Route path="/budgets" element={<Planned />} />
-              <Route path="/recurring" element={<Planned />} />
-              <Route path="/reports" element={<Planned />} />
-              <Route path="/categories" element={<Planned />} />
-              <Route path="/settings" element={<Planned />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          )}
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/transactions" element={<Transactions />} />
+            <Route path="/accounts" element={<Accounts />} />
+            <Route path="/accounts/:id" element={<AccountDetail />} />
+            <Route path="/cards" element={<Cards />} />
+            <Route path="/budgets" element={<Planned />} />
+            <Route path="/recurring" element={<Planned />} />
+            <Route path="/reports" element={<Planned />} />
+            <Route path="/categories" element={<Planned />} />
+            <Route path="/settings" element={<Planned />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </main>
       </div>
     </div>
@@ -76,11 +60,12 @@ function Gate() {
   if (!session) return <AuthScreen />;
   return (
     // Keyed by user so switching accounts remounts the store with no stale state.
-    <StoreProvider key={user.id}>
+    <StoreProvider key={user.id} userId={user.id}>
       <MonthProvider>
         <UIProvider>
           <DrawerProvider registry={drawerRegistry}>
             <Shell />
+            <ImportLegacy />
           </DrawerProvider>
         </UIProvider>
       </MonthProvider>

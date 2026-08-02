@@ -1,59 +1,113 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
-import { loadPersisted, savePersisted, clearPersisted, DEFAULT_PREFS, STORAGE_KEY } from './persistence.js';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useDevicePrefs } from './PrefsProvider.jsx';
+import { useAuth } from '../auth/AuthProvider.jsx';
+import { fetchAll, createSyncQueue } from './sync.js';
 import { rolloverMonth } from './actions.js';
-import { freshStore } from './seed.js';
+import { CATEGORIES } from './seed.js';
 import { currentMonth } from '../lib/dates.js';
+import LoadingScreen from '../components/LoadingScreen.jsx';
 
-// Which prefs are device-level (PrefsProvider) vs account-level (persisted with data).
-const DEVICE_PREF_KEYS = ['theme', 'masked'];
-
+// Server-backed store. The in-memory store + pure actions are unchanged from the
+// localStorage era; persistence is now: hydrate from Supabase once per login, then
+// mirror every change through the diff-sync queue (src/store/sync.js).
 const Ctx = createContext(null);
+
+// Per-user, device-local prefs (currently just the onboarding skip flag).
+const userPrefsKey = uid => `raqam.prefs.u.${uid}`;
+const loadUserPrefs = uid => {
+  try { return { skippedSetup: false, ...JSON.parse(localStorage.getItem(userPrefsKey(uid)) || '{}') }; }
+  catch { return { skippedSetup: false }; }
+};
 
 function reducer(state, act) {
   switch (act.type) {
+    case 'hydrate':
+      return { ...state, status: 'ready', data: act.data };
+    case 'hydrateError':
+      return { ...state, status: 'error', error: act.error };
+    case 'retry':
+      return { ...state, status: 'loading', error: null };
     case 'data': // act.fn: (data) => newData — pure actions from actions.js
-      return { ...state, data: act.fn(state.data) };
+      return state.status === 'ready' ? { ...state, data: act.fn(state.data) } : state;
     case 'replaceData':
-      return { ...state, corrupt: false, data: act.data, prefs: act.prefs ?? state.prefs };
-    case 'prefs':
-      return { ...state, prefs: { ...state.prefs, ...act.patch } };
+      return state.status === 'ready' ? { ...state, data: act.data } : state;
     default:
       return state;
   }
 }
 
-function init() {
-  const loaded = loadPersisted();
-  if (loaded.kind === 'loaded') return { corrupt: false, data: rolloverMonth(loaded.data), prefs: loaded.prefs };
-  if (loaded.kind === 'corrupt') return { corrupt: true, data: null, prefs: { ...DEFAULT_PREFS } };
-  return { corrupt: false, data: freshStore(), prefs: { ...DEFAULT_PREFS } };
-}
-
-export function StoreProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, undefined, init);
+export function StoreProvider({ userId, children }) {
+  const [state, dispatch] = useReducer(reducer, { status: 'loading', data: null, error: null });
   const { devicePrefs, setDevicePrefs } = useDevicePrefs();
-  const saveTimer = useRef(null);
+  const { registerBeforeSignOut } = useAuth();
+  const [userPrefs, setUserPrefs] = useState(() => loadUserPrefs(userId));
+  const [syncStatus, setSyncStatus] = useState('synced');
+  const queueRef = useRef(null);
+  const pushTimer = useRef(null);
 
-  // Debounced persistence; flush on tab hide/unload.
+  // ---- hydrate once per login (StrictMode-safe) ----
   useEffect(() => {
-    if (state.corrupt || !state.data) return;
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => savePersisted(state.data, state.prefs), 250);
-    const flush = () => savePersisted(state.data, state.prefs);
-    const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
-    window.addEventListener('beforeunload', flush);
-    document.addEventListener('visibilitychange', onHide);
-    return () => {
-      clearTimeout(saveTimer.current);
-      window.removeEventListener('beforeunload', flush);
-      document.removeEventListener('visibilitychange', onHide);
+    if (state.status !== 'loading') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const server = await fetchAll();
+        if (cancelled) return;
+        // First login: server has no categories yet — start from the defaults.
+        // The differ (baseline = server state) pushes them as ordinary inserts.
+        const base = server.categories.length ? server : { ...server, categories: CATEGORIES.map(c => ({ ...c })) };
+        queueRef.current?.stop();
+        queueRef.current = createSyncQueue({
+          initialBaseline: server,
+          onStatus: s => { if (!cancelled) setSyncStatus(s); },
+        });
+        // Month rollover runs against fresh server data; its changes sync like any edit.
+        const rolled = rolloverMonth(base);
+        dispatch({ type: 'hydrate', data: rolled });
+        queueRef.current.update(rolled);
+      } catch (e) {
+        console.error('Raqam: hydration failed', e);
+        if (!cancelled) dispatch({ type: 'hydrateError', error: e.message || 'Network error' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [state.status]);
+
+  useEffect(() => () => queueRef.current?.stop(), []);
+
+  // ---- mirror store changes into the sync queue (debounced) ----
+  useEffect(() => {
+    if (state.status !== 'ready' || !queueRef.current) return;
+    clearTimeout(pushTimer.current);
+    pushTimer.current = setTimeout(() => queueRef.current.update(state.data), 300);
+    return () => clearTimeout(pushTimer.current);
+  }, [state.data, state.status]);
+
+  // Unsaved-changes prompt: only when the queue still holds undelivered writes.
+  useEffect(() => {
+    const onBeforeUnload = e => {
+      const q = queueRef.current;
+      if (q && !q.isClean()) { e.preventDefault(); e.returnValue = ''; }
     };
-  }, [state.data, state.prefs, state.corrupt]);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
 
-  // If the app stays open across a month boundary, roll the new month over on re-focus / once a minute.
+  // Sign-out must not race in-flight pushes: drain first.
   useEffect(() => {
-    if (state.corrupt) return;
+    registerBeforeSignOut(async () => {
+      clearTimeout(pushTimer.current);
+      if (queueRef.current && state.status === 'ready') {
+        queueRef.current.update(state.data);
+        await queueRef.current.drain();
+      }
+    });
+    return () => registerBeforeSignOut(null);
+  }, [registerBeforeSignOut, state.data, state.status]);
+
+  // If the app stays open across a month boundary, roll the new month over.
+  useEffect(() => {
+    if (state.status !== 'ready') return;
     let known = currentMonth();
     const check = () => {
       if (currentMonth() !== known) {
@@ -64,41 +118,40 @@ export function StoreProvider({ children }) {
     const t = setInterval(check, 60_000);
     document.addEventListener('visibilitychange', check);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', check); };
-  }, [state.corrupt]);
+  }, [state.status]);
 
-  // Cross-tab safety: adopt another tab's save.
-  useEffect(() => {
-    const onStorage = e => {
-      if (e.key !== STORAGE_KEY || e.newValue == null) return;
-      try {
-        const p = JSON.parse(e.newValue);
-        if (p.data) dispatch({ type: 'replaceData', data: p.data, prefs: { ...DEFAULT_PREFS, ...p.prefs } });
-      } catch { /* another tab wrote something unreadable; keep ours */ }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  const setPrefs = useCallback(patch => {
+    const device = {}, user = {};
+    Object.entries(patch).forEach(([k, v]) => {
+      (k === 'theme' || k === 'masked' ? device : user)[k] = v;
+    });
+    if (Object.keys(device).length) setDevicePrefs(device);
+    if (Object.keys(user).length) {
+      setUserPrefs(p => {
+        const next = { ...p, ...user };
+        try { localStorage.setItem(userPrefsKey(userId), JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+  }, [setDevicePrefs, userId]);
 
   const value = useMemo(() => ({
-    corrupt: state.corrupt,
     data: state.data,
-    // Facade: consumers (Header, format.js, Dashboard) see one flat prefs object;
-    // theme/masked actually live device-side in PrefsProvider.
-    prefs: { ...state.prefs, theme: devicePrefs.theme, masked: devicePrefs.masked },
+    syncStatus,
+    // Facade: consumers (Header, format.js, Dashboard) see one flat prefs object.
+    prefs: { ...userPrefs, theme: devicePrefs.theme, masked: devicePrefs.masked },
+    setPrefs,
     // apply a pure action: applyData(store => newStore)
     applyData: fn => dispatch({ type: 'data', fn }),
     replaceData: data => dispatch({ type: 'replaceData', data }),
-    setPrefs: patch => {
-      const device = {}, account = {};
-      Object.entries(patch).forEach(([k, v]) => {
-        (DEVICE_PREF_KEYS.includes(k) ? device : account)[k] = v;
-      });
-      if (Object.keys(device).length) setDevicePrefs(device);
-      if (Object.keys(account).length) dispatch({ type: 'prefs', patch: account });
-    },
-    startFresh: () => { clearPersisted(); dispatch({ type: 'replaceData', data: freshStore(), prefs: { ...DEFAULT_PREFS } }); },
-  }), [state, devicePrefs, setDevicePrefs]);
+    // Await everything reaching the server (used by the legacy import flow).
+    drainSync: () => (queueRef.current ? queueRef.current.drain() : Promise.resolve(true)),
+  }), [state.data, syncStatus, userPrefs, devicePrefs, setPrefs]);
 
+  if (state.status === 'loading') return <LoadingScreen message="Loading your data…" />;
+  if (state.status === 'error') {
+    return <LoadingScreen error={state.error} onRetry={() => dispatch({ type: 'retry' })} />;
+  }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

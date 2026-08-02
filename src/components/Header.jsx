@@ -18,7 +18,7 @@ const btnStyle = {
 
 export default function Header() {
   const { pathname } = useLocation();
-  const { data: S, prefs, setPrefs, corrupt } = useStore();
+  const { data: S, prefs, setPrefs, syncStatus } = useStore();
   const { month, isPast, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
   const { openDrawer } = useDrawer();
 
@@ -28,7 +28,7 @@ export default function Header() {
     const acc = S?.accounts.find(a => a.id === decodeURIComponent(pathname.split('/')[2]));
     title = acc?.nickname || 'Account';
   }
-  const showMonthSel = !corrupt && (seg === 'dashboard' || seg === 'transactions');
+  const showMonthSel = seg === 'dashboard' || seg === 'transactions';
   const activeAccts = S ? S.accounts.filter(a => a.status === 'active') : [];
   const addDisabled = activeAccts.length === 0;
   const now = nowIso();
@@ -48,28 +48,29 @@ export default function Header() {
         </>
       )}
       <div style={{ flex: 1 }} />
+      {(syncStatus === 'retrying' || syncStatus === 'error') && (
+        <span role="status" title="Changes are kept locally and pushed automatically when the connection recovers" style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
+          Not saved — retrying
+        </span>
+      )}
       <span style={{ fontSize: 12, color: 'var(--muted)' }}>
         {isPast && showMonthSel ? 'Closed month' : 'As of ' + shortDate(now) + ' · ' + timeLabel(now)}
       </span>
-      {!corrupt && (
-        <button onClick={() => setPrefs({ masked: !prefs.masked })} aria-pressed={String(prefs.masked)} className="hv-elev" style={btnStyle}>
-          {prefs.masked ? 'Show amounts' : 'Hide amounts'}
-        </button>
-      )}
+      <button onClick={() => setPrefs({ masked: !prefs.masked })} aria-pressed={String(prefs.masked)} className="hv-elev" style={btnStyle}>
+        {prefs.masked ? 'Show amounts' : 'Hide amounts'}
+      </button>
       <button onClick={() => setPrefs({ theme: theme === 'light' ? 'dark' : 'light' })} aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} className="hv-elev" style={btnStyle}>
         {theme === 'light' ? '◐ Dark' : '◐ Light'}
       </button>
-      {!corrupt && (
-        <button
-          onClick={() => openers.addTx(openDrawer)}
-          disabled={addDisabled}
-          title={addDisabled ? 'Add a bank account first' : 'Record an expense, income, transfer, refund, or adjustment'}
-          className="hv-accent"
-          style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: addDisabled ? 'default' : 'pointer', opacity: addDisabled ? .45 : 1 }}
-        >
-          ＋ Add transaction
-        </button>
-      )}
+      <button
+        onClick={() => openers.addTx(openDrawer)}
+        disabled={addDisabled}
+        title={addDisabled ? 'Add a bank account first' : 'Record an expense, income, transfer, refund, or adjustment'}
+        className="hv-accent"
+        style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: addDisabled ? 'default' : 'pointer', opacity: addDisabled ? .45 : 1 }}
+      >
+        ＋ Add transaction
+      </button>
     </header>
   );
 }
