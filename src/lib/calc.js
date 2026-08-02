@@ -1,0 +1,121 @@
+// Raqam shared calculation + formatting utilities. All money in integer PKR.
+// Ported verbatim from the Hisaab design prototype's calc.js — the financial correctness core.
+const nf = new Intl.NumberFormat('en-PK', { maximumFractionDigits: 0 });
+export function fmtNum(n) { return nf.format(Math.round(Math.abs(n))); }
+export function fmtPKR(n, masked) {
+  if (masked) return 'Rs ••••••';
+  return (n < 0 ? '−' : '') + 'Rs ' + fmtNum(n);
+}
+export function fmtSigned(n, masked) {
+  if (masked) return 'Rs ••••••';
+  return (n > 0 ? '+' : n < 0 ? '−' : '') + 'Rs ' + fmtNum(n);
+}
+export function fmtPct(x) { return x == null ? '—' : Math.round(x * 100) + '%'; }
+const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export function monthLabel(ym) { const [y, m] = ym.split('-'); return MN[+m - 1] + ' ' + y; }
+export function shortDate(iso) {
+  const d = new Date(iso); const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+  return wd + ', ' + d.getDate() + ' ' + MN[d.getMonth()].slice(0, 3);
+}
+export function dayLabel(iso) { const d = new Date(iso); return d.getDate() + ' ' + MN[d.getMonth()].slice(0, 3); }
+export function timeLabel(iso) { const d = new Date(iso); let h = d.getHours(); const am = h < 12 ? 'am' : 'pm'; h = h % 12 || 12; return h + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + am; }
+export function inMonth(t, m) { return t.date.slice(0, 7) === m; }
+export function daysInMonth(ym) { const [y, m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
+export function daysAgo(iso, nowIso) { return Math.floor((new Date(nowIso) - new Date(iso)) / 86400000); }
+export function daysUntil(iso, nowIso) { return Math.ceil((new Date(iso.slice(0, 10)) - new Date(nowIso.slice(0, 10))) / 86400000); }
+
+// Effect of a cleared transaction on a bank account balance.
+export function accountDelta(t, accId) {
+  if (t.status === 'pending') return 0;
+  if (t.type === 'transfer') {
+    let d = 0;
+    if (t.accountId === accId) d -= t.amount + (t.fee || 0);
+    if (t.toAccountId === accId) d += t.amount;
+    return d;
+  }
+  if (t.accountId !== accId) return 0;
+  if (t.type === 'expense') return -t.amount;
+  if (t.type === 'income' || t.type === 'refund') return t.amount;
+  if (t.type === 'adjustment') return t.amount; // signed
+  return 0;
+}
+// Effect on a credit card's outstanding liability.
+export function cardDelta(t, cardId) {
+  if (t.status === 'pending') return 0;
+  if (t.type === 'expense' && t.cardId === cardId) return t.amount;
+  if (t.type === 'refund' && t.cardId === cardId) return -t.amount;
+  if (t.type === 'transfer' && t.toCardId === cardId) return -t.amount; // card payment
+  return 0;
+}
+export function openingOf(acc, snapshots, month) {
+  const s = snapshots.find(x => x.accountId === acc.id && x.month === month);
+  return s ? s.amount : 0;
+}
+export function accountBalance(acc, store, month) {
+  const open = openingOf(acc, store.snapshots, month);
+  return open + store.transactions.filter(t => inMonth(t, month)).reduce((s, t) => s + accountDelta(t, acc.id), 0);
+}
+export function cardOutstanding(card, store, month) {
+  if (card.type !== 'credit') return 0;
+  const open = (card.openingOutstanding && card.openingOutstanding[month] != null) ? card.openingOutstanding[month] : (card.openingOutstanding ? Object.values(card.openingOutstanding).slice(-1)[0] || 0 : 0);
+  return open + store.transactions.filter(t => inMonth(t, month)).reduce((s, t) => s + cardDelta(t, card.id), 0);
+}
+export function lastActivity(acc, store) {
+  const tx = store.transactions.filter(t => t.accountId === acc.id || t.toAccountId === acc.id).sort((a, b) => b.date.localeCompare(a.date));
+  return tx.length ? tx[0].date : acc.createdAt;
+}
+
+// Income = income tx. Expenses = expense tx (bank + card) + transfer fees − refunds. Transfers & card payments excluded.
+export function monthMetrics(store, month) {
+  const mtx = store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending');
+  const income = mtx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const refunds = mtx.filter(t => t.type === 'refund').reduce((s, t) => s + t.amount, 0);
+  const gross = mtx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+    + mtx.filter(t => t.type === 'transfer').reduce((s, t) => s + (t.fee || 0), 0);
+  const expenses = gross - refunds;
+  const net = income - expenses;
+  const active = store.accounts.filter(a => a.status === 'active');
+  const opening = active.reduce((s, a) => s + openingOf(a, store.snapshots, month), 0);
+  const totalBank = active.reduce((s, a) => s + accountBalance(a, store, month), 0);
+  const cardLiability = store.cards.filter(c => c.type === 'credit' && c.status !== 'closed').reduce((s, c) => s + cardOutstanding(c, store, month), 0);
+  const pend = store.transactions.filter(t => inMonth(t, month) && t.status === 'pending');
+  return {
+    income, expenses, net, savings: Math.max(net, 0), rate: income > 0 ? net / income : null,
+    opening, totalBank, change: totalBank - opening, cardLiability, netWorth: totalBank - cardLiability,
+    pendingCount: pend.length, pendingTotal: pend.reduce((s, t) => s + t.amount, 0),
+  };
+}
+export function categorySpending(store, month) {
+  const map = {};
+  store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending').forEach(t => {
+    if (t.type === 'expense') map[t.category] = (map[t.category] || 0) + t.amount;
+    if (t.type === 'refund') map[t.category] = (map[t.category] || 0) - t.amount;
+  });
+  return Object.entries(map).map(([id, amt]) => ({ id, amt, cat: store.categories.find(c => c.id === id) }))
+    .filter(x => x.amt > 0).sort((a, b) => b.amt - a.amt);
+}
+export function dailySpending(store, month) {
+  const n = daysInMonth(month); const out = [];
+  for (let d = 1; d <= n; d++) {
+    const key = month + '-' + String(d).padStart(2, '0');
+    const amt = store.transactions.filter(t => t.date.slice(0, 10) === key && t.status !== 'pending')
+      .reduce((s, t) => s + (t.type === 'expense' ? t.amount : t.type === 'refund' ? -t.amount : 0), 0);
+    out.push({ day: d, amt: Math.max(amt, 0) });
+  }
+  return out;
+}
+export function largestExpenses(store, month, n) {
+  return store.transactions.filter(t => inMonth(t, month) && t.type === 'expense' && t.status !== 'pending')
+    .sort((a, b) => b.amount - a.amount).slice(0, n || 5);
+}
+export function budgetState(pct, spent) {
+  if (spent <= 0) return { label: 'No spending yet', tone: 'muted' };
+  if (pct > 100) return { label: 'Over budget', tone: 'neg' };
+  if (pct >= 90) return { label: 'At limit', tone: 'warn' };
+  if (pct >= 70) return { label: 'Approaching limit', tone: 'warn' };
+  return { label: 'On track', tone: 'pos' };
+}
+export function findDuplicate(store, { amount, merchant, date }) {
+  const day = (date || '').slice(0, 10);
+  return store.transactions.find(t => t.amount === +amount && (t.merchant || '').trim().toLowerCase() === (merchant || '').trim().toLowerCase() && t.date.slice(0, 10) === day);
+}
