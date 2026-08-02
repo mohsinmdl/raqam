@@ -13,6 +13,9 @@ const MIGRATIONS = {
 
 function migrate(persisted) {
   let p = persisted;
+  // Data written by a NEWER app version is unreadable here — treat as corrupt
+  // (kept under a backup key) rather than silently loading a shape we don't know.
+  if (p.version > CURRENT_VERSION) throw new Error(`Data version ${p.version} is newer than this app (${CURRENT_VERSION})`);
   while (p.version < CURRENT_VERSION) {
     const step = MIGRATIONS[p.version];
     if (!step) throw new Error(`No migration from version ${p.version}`);

@@ -12,11 +12,7 @@ import Transactions from './screens/Transactions.jsx';
 import Accounts from './screens/Accounts.jsx';
 import AccountDetail from './screens/AccountDetail.jsx';
 import Cards from './screens/Cards.jsx';
-
-// Placeholder screens — replaced milestone by milestone.
-const Stub = ({ name }) => (
-  <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px', color: 'var(--muted)' }}>{name} — coming in a later milestone.</div>
-);
+import Planned from './screens/Planned.jsx';
 
 function LoadError() {
   const { startFresh } = useStore();
@@ -55,11 +51,11 @@ function Shell() {
               <Route path="/accounts" element={<Accounts />} />
               <Route path="/accounts/:id" element={<AccountDetail />} />
               <Route path="/cards" element={<Cards />} />
-              <Route path="/budgets" element={<Stub name="Budgets" />} />
-              <Route path="/recurring" element={<Stub name="Recurring" />} />
-              <Route path="/reports" element={<Stub name="Reports" />} />
-              <Route path="/categories" element={<Stub name="Categories" />} />
-              <Route path="/settings" element={<Stub name="Settings" />} />
+              <Route path="/budgets" element={<Planned />} />
+              <Route path="/recurring" element={<Planned />} />
+              <Route path="/reports" element={<Planned />} />
+              <Route path="/categories" element={<Planned />} />
+              <Route path="/settings" element={<Planned />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           )}
