@@ -1,0 +1,47 @@
+/* Raqam theme — ported from the Hisaab design prototype (template <helmet> styles). */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+a { color: #0F766E; }
+a:hover { color: #115E59; }
+button { font-family: inherit; }
+input, select, textarea { font-family: inherit; color: inherit; }
+:focus-visible { outline: 2px solid #0F766E; outline-offset: 2px; }
+
+:root {
+  --bg: #F7F7F3; --surface: #FFFFFF; --elev: #FCFCFA; --text: #14201B; --muted: #66736C;
+  --accent: #0F766E; --accent-h: #115E59; --on-accent: #FFFFFF; --soft: #DDF3EC; --border: #DCE4DF;
+  --pos: #15803D; --warn: #B7791F; --neg: #C2413B; --info: #2563EB;
+  --pos-soft: #E3F2E7; --warn-soft: #F6ECD9; --neg-soft: #F8E4E2; --info-soft: #E3EBFC;
+  --shadow: 0 12px 32px rgba(10, 20, 16, .18); --track: #ECEFEA;
+}
+[data-theme="dark"] {
+  --bg: #0F1513; --surface: #161D1A; --elev: #1C2420; --text: #E9F0EC; --muted: #9AABA2;
+  --accent: #3CBFAB; --accent-h: #5ED3C0; --on-accent: #06211D; --soft: #15302B; --border: #28332E;
+  --pos: #5BBE7E; --warn: #D9A852; --neg: #E37A72; --info: #7FA7F2;
+  --pos-soft: #12291A; --warn-soft: #2E2412; --neg-soft: #331715; --info-soft: #16233D;
+  --shadow: 0 12px 32px rgba(0, 0, 0, .5); --track: #232B27;
+}
+
+@keyframes hsFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hsSlide { from { transform: translateX(28px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes hsUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes hsPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* Hover utilities replacing the prototype's style-hover attributes. */
+.hv-elev:hover { background: var(--elev) !important; }
+.hv-soft:hover { background: var(--soft) !important; }
+.hv-accent:hover { background: var(--accent-h) !important; }
+.hv-neg-soft:hover { background: var(--neg-soft) !important; }
+.hv-text:hover { color: var(--text) !important; }
+.hv-accent-fg:hover { color: var(--accent-h) !important; }
+
+/* Shared bits used dozens of times in the prototype's inline styles. */
+.tnum { font-variant-numeric: tabular-nums; }
+.field {
+  height: 40px; width: 100%; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text); font-size: 13.5px;
+}
+textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: vertical; }
