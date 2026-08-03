@@ -4,37 +4,85 @@
 import { accountBalance, cardOutstanding } from '../lib/calc.js';
 import { addMonths, clampDay, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { uid } from '../lib/util.js';
+import { makeAudit, diffFields, stampUpdate } from './audit.js';
 import { freshStore } from './seed.js';
 
 export const resetAll = () => freshStore();
 
-// ---- Submit mutations, ported from the prototype's submit* handlers (script 1250-1367).
-// Validation happens in each drawer's useSubmit; these receive already-validated input
-// and return a new store. All are pure (data, payload) => newData.
+// Fields that participate in transaction update-audit diffs.
+const TX_AUDIT_FIELDS = ['type', 'amount', 'date', 'status', 'accountId', 'toAccountId', 'cardId', 'toCardId', 'category', 'merchant', 'notes', 'fee', 'adjustmentReason'];
 
-// payload: validated addTx form + { amt, fee } parsed amounts.
-export function addTransaction(data, { form: f, type, amt, fee }) {
-  const next = { ...data, transactions: [...data.transactions], categories: [...data.categories], recurring: data.recurring.map(r => ({ ...r })) };
-  let catId = f.category;
-  if (catId === '__new') {
-    const nid = uid();
-    next.categories.push({ id: nid, name: f.newCat.trim(), type: type === 'income' ? 'income' : 'expense', color: '#0F766E' });
-    catId = nid;
-  }
-  const date = (f.date || todayStr()) + 'T12:00';
+// Build a transaction record from scratch from the form — used by add AND edit,
+// so a type change can never leave stale cross-type fields behind (design buildTx).
+export function buildTx(f, type, amt, fee, catId, id) {
+  const date = (f.date || todayStr()) + 'T' + (f.time || '12:00');
   const status = f.pending ? 'pending' : 'cleared';
-  const t = { id: uid(), date, status, notes: f.notes || '', merchant: f.merchant || '' };
+  const t = { id: id || uid(), date, status, notes: f.notes || '', merchant: f.merchant || '' };
   if (type === 'expense' || type === 'refund') {
     t.type = type; t.amount = amt; t.category = catId;
     if (String(f.payWith).startsWith('card:')) t.cardId = f.payWith.slice(5); else t.accountId = f.payWith.slice(4);
   } else if (type === 'income') { t.type = 'income'; t.amount = amt; t.category = catId; t.accountId = f.account.slice(4); }
-  else if (type === 'transfer') { t.type = 'transfer'; t.amount = amt; t.accountId = f.from.slice(4); t.toAccountId = f.to.slice(4); if (fee > 0) t.fee = fee; }
-  else if (type === 'adjustment') { t.type = 'adjustment'; t.amount = f.direction === 'decrease' ? -amt : amt; t.accountId = f.account.slice(4); t.merchant = 'Balance adjustment'; t.notes = f.reason + (f.notes ? ' — ' + f.notes : ''); }
+  else if (type === 'transfer') {
+    t.type = 'transfer'; t.amount = amt; t.accountId = f.from.slice(4);
+    // Destination may be a bank account or a credit card (bill payment).
+    if (String(f.to).startsWith('card:')) { t.toCardId = f.to.slice(5); t.isCardPayment = true; }
+    else t.toAccountId = f.to.slice(4);
+    if (fee > 0) t.fee = fee;
+  } else if (type === 'adjustment') {
+    t.type = 'adjustment'; t.amount = f.direction === 'decrease' ? -amt : amt; t.accountId = f.account.slice(4);
+    t.merchant = 'Balance adjustment'; t.adjustmentReason = f.reason || ''; t.notes = f.notes || '';
+  }
+  return t;
+}
+
+// Inline "__new" category creation shared by add/update — full v2 category record.
+function resolveCategory(next, f, type) {
+  let catId = f.category;
+  if (catId === '__new') {
+    catId = uid();
+    next.categories = [...next.categories, {
+      id: catId, name: f.newCat.trim(), type: type === 'income' ? 'income' : 'expense',
+      color: '#0F766E', icon: 'square', sortOrder: 99, isSystem: false, status: 'active', description: '',
+    }];
+  }
+  return catId;
+}
+
+// payload: validated addTx form + { amt, fee } parsed amounts.
+export function addTransaction(data, { form: f, type, amt, fee }) {
+  const next = { ...data, transactions: [...data.transactions], recurring: data.recurring.map(r => ({ ...r })) };
+  const catId = resolveCategory(next, f, type);
+  const t = buildTx(f, type, amt, fee, catId);
   next.transactions = [t, ...next.transactions];
   if (f.fromRecurring) {
     next.recurring = next.recurring.map(r => (r.id === f.fromRecurring ? { ...r, doneThisMonth: true } : r));
   }
+  next.audit = [makeAudit({ entityType: 'transaction', entityId: t.id, action: 'create', summary: 'Recorded ' + t.type, after: { type: t.type, amount: t.amount, date: t.date } }), ...(next.audit || [])];
   return next;
+}
+
+// Edit: rebuild the record from scratch onto the same id, stamp it, audit the field diff.
+export function updateTransaction(data, { form: f, type, amt, fee }) {
+  const i = data.transactions.findIndex(t => t.id === f.editId);
+  if (i < 0) return data;
+  const before = data.transactions[i];
+  const next = { ...data, transactions: [...data.transactions] };
+  const catId = resolveCategory(next, f, type);
+  const rebuilt = stampUpdate({ ...buildTx(f, type, amt, fee, catId, before.id), editCount: before.editCount || 0 });
+  next.transactions[i] = rebuilt;
+  const d = diffFields(before, rebuilt, TX_AUDIT_FIELDS);
+  next.audit = [makeAudit({ entityType: 'transaction', entityId: before.id, action: 'update', summary: 'Edited ' + rebuilt.type + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+  return next;
+}
+
+export function deleteTransaction(data, { id }) {
+  const t = data.transactions.find(x => x.id === id);
+  if (!t) return data;
+  return {
+    ...data,
+    transactions: data.transactions.filter(x => x.id !== id),
+    audit: [makeAudit({ entityType: 'transaction', entityId: id, action: 'delete', summary: 'Deleted ' + t.type + ' of ' + t.amount, before: { type: t.type, amount: t.amount, date: t.date, merchant: t.merchant } }), ...(data.audit || [])],
+  };
 }
 
 // payload: validated addAccount form + parsed bal. Seeds a pending opening snapshot.
@@ -95,17 +143,128 @@ export function confirmSnapshots(data, { values }) {
   return next;
 }
 
-// payload: { accountId, direction, amt, reason, date }
-export function adjustBalance(data, { accountId, direction, amt, reason, date }) {
+// Target-value balance correction: you type what the bank actually shows; the
+// signed delta becomes a labelled adjustment transaction.
+export function adjustBalance(data, { accountId, delta, reason, date, currentBalance }) {
+  const acc = data.accounts.find(a => a.id === accountId);
+  if (!acc || !delta) return data;
   const t = {
-    id: uid(), type: 'adjustment', amount: direction === 'decrease' ? -amt : amt, accountId,
-    date: (date || todayStr()) + 'T12:00', status: 'cleared', merchant: 'Balance adjustment', notes: reason.trim(),
+    id: uid(), type: 'adjustment', amount: delta, accountId,
+    date: (date || todayStr()) + 'T12:00', status: 'cleared',
+    merchant: 'Balance adjustment', adjustmentReason: reason.trim(), notes: '',
   };
-  return { ...data, transactions: [t, ...data.transactions] };
+  return {
+    ...data,
+    transactions: [t, ...data.transactions],
+    audit: [makeAudit({
+      entityType: 'account', entityId: accountId, action: 'adjust-balance',
+      summary: 'Corrected balance on ' + acc.nickname,
+      before: { balance: currentBalance },
+      after: { balance: currentBalance + delta, adjustment: delta, transactionId: t.id },
+    }), ...(data.audit || [])],
+  };
 }
 
 export function setAccountStatus(data, { accountId, status }) {
-  return { ...data, accounts: data.accounts.map(a => (a.id === accountId ? { ...a, status } : a)) };
+  const acc = data.accounts.find(a => a.id === accountId);
+  if (!acc) return data;
+  const patched = stampUpdate({
+    ...acc, status,
+    archivedAt: status === 'archived' ? nowIso() : undefined,
+  });
+  if (status !== 'archived') delete patched.archivedAt;
+  return {
+    ...data,
+    accounts: data.accounts.map(a => (a.id === accountId ? patched : a)),
+    audit: [makeAudit({
+      entityType: 'account', entityId: accountId,
+      action: status === 'active' ? 'restore' : 'archive',
+      summary: (status === 'active' ? 'Restored ' : 'Archived ') + acc.nickname,
+      before: { status: acc.status }, after: { status },
+    }), ...(data.audit || [])],
+  };
+}
+
+const ACC_AUDIT_FIELDS = ['instId', 'nickname', 'type', 'islamic', 'currency', 'last4', 'notes', 'status'];
+
+// Edit account metadata (balance is NEVER edited here — Adjust balance owns that).
+export function updateAccount(data, { form: f }) {
+  const i = data.accounts.findIndex(a => a.id === f.editId);
+  if (i < 0) return data;
+  const before = data.accounts[i];
+  const next = { ...data, accounts: [...data.accounts], institutions: data.institutions };
+  let instId = f.inst;
+  if (instId === '__custom') {
+    instId = uid();
+    next.institutions = [...next.institutions, { id: instId, name: f.customInst.trim(), kind: 'Custom' }];
+  }
+  const status = f.status || before.status;
+  const patched = stampUpdate({
+    ...before, instId, nickname: f.nickname.trim(), type: f.type || before.type,
+    islamic: f.islamic === 'islamic', last4: f.last4 || '', notes: f.notes || '', status,
+    archivedAt: status === 'archived' ? (before.archivedAt || nowIso()) : undefined,
+  });
+  if (status !== 'archived') delete patched.archivedAt;
+  next.accounts[i] = patched;
+  const d = diffFields(before, patched, ACC_AUDIT_FIELDS);
+  next.audit = [makeAudit({ entityType: 'account', entityId: before.id, action: 'update', summary: 'Edited account ' + patched.nickname + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+  return next;
+}
+
+const CARD_AUDIT_FIELDS = ['instId', 'nickname', 'type', 'network', 'tier', 'last4', 'status', 'limit', 'statementDay', 'dueDate', 'linkedAccountId', 'annualFeeMonth', 'theme'];
+
+// Edit card metadata; type-specific fields are pruned so a debit card carries no
+// credit fields and vice versa. Outstanding is corrected via adjustCardOutstanding.
+export function updateCard(data, { form: f, ctype, limit }) {
+  const i = data.cards.findIndex(c => c.id === f.editId);
+  if (i < 0) return data;
+  const before = data.cards[i];
+  const status = f.status || before.status;
+  const patched = stampUpdate({
+    ...before, instId: f.inst, nickname: f.nickname.trim(), type: ctype,
+    network: f.network || before.network, tier: f.tier || '', last4: f.last4 || '',
+    annualFeeMonth: f.annualFeeMonth || undefined, theme: f.theme || before.theme || 'teal',
+    status, closedAt: status === 'closed' ? (before.closedAt || nowIso()) : undefined,
+  });
+  if (status !== 'closed') delete patched.closedAt;
+  if (ctype === 'credit') {
+    patched.limit = limit;
+    patched.statementDay = parseInt(f.stmtDay, 10) || 25;
+    patched.dueDate = f.due || '';
+    delete patched.linkedAccountId;
+    if (!patched.openingOutstanding) patched.openingOutstanding = { [currentMonth()]: 0 };
+  } else {
+    patched.linkedAccountId = f.linked ? f.linked.slice(4) : '';
+    delete patched.limit; delete patched.statementDay; delete patched.dueDate;
+  }
+  const next = { ...data, cards: [...data.cards] };
+  next.cards[i] = patched;
+  const d = diffFields(before, patched, CARD_AUDIT_FIELDS);
+  next.audit = [makeAudit({ entityType: 'card', entityId: before.id, action: 'update', summary: 'Edited card ' + patched.nickname + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+  return next;
+}
+
+// "Correct outstanding": records a signed cardAdjustment transaction for the delta
+// between the recorded outstanding and what the statement actually shows.
+export function adjustCardOutstanding(data, { cardId, delta, reason, date, currentOutstanding }) {
+  const card = data.cards.find(c => c.id === cardId);
+  if (!card || !delta) return data;
+  const t = {
+    id: uid(), type: 'cardAdjustment', amount: delta, cardId,
+    date: (date || todayStr()) + 'T12:00', status: 'cleared',
+    merchant: 'Outstanding correction', adjustmentReason: reason.trim(), notes: '',
+  };
+  return {
+    ...data,
+    transactions: [t, ...data.transactions],
+    cards: data.cards.map(c => (c.id === cardId ? stampUpdate(c) : c)),
+    audit: [makeAudit({
+      entityType: 'card', entityId: cardId, action: 'adjust-outstanding',
+      summary: 'Corrected outstanding on ' + card.nickname,
+      before: { outstanding: currentOutstanding },
+      after: { outstanding: currentOutstanding + delta, adjustment: delta, transactionId: t.id },
+    }), ...(data.audit || [])],
+  };
 }
 
 /**
@@ -170,4 +329,120 @@ export function rolloverMonth(data) {
   }
 
   return next;
+}
+
+// ---- Categories (design v2 CRUD) -------------------------------------------
+
+const CAT_AUDIT_FIELDS = ['name', 'type', 'icon', 'color', 'description', 'sortOrder'];
+
+// Create or edit a category; budget (monthly amount or '') upserts/removes the
+// matching budgets row in the same atomic store transition.
+export function upsertCategory(data, { form: f, budgetAmt }) {
+  const editing = !!f.editId;
+  const next = { ...data, categories: [...data.categories], budgets: [...data.budgets] };
+  let id = f.editId;
+  let before = null;
+  if (editing) {
+    const i = next.categories.findIndex(c => c.id === id);
+    if (i < 0) return data;
+    before = next.categories[i];
+    next.categories[i] = stampUpdate({
+      ...before, name: f.name.trim(), type: f.type, icon: f.icon || 'square',
+      color: f.color || '#0F766E', description: (f.description || '').trim(),
+      sortOrder: parseInt(f.sortOrder, 10) || 99,
+    });
+  } else {
+    id = uid();
+    next.categories.push({
+      id, name: f.name.trim(), type: f.type, icon: f.icon || 'square', color: f.color || '#0F766E',
+      description: (f.description || '').trim(), sortOrder: parseInt(f.sortOrder, 10) || 99,
+      isSystem: false, status: 'active',
+    });
+  }
+  // Budget upsert keyed on category
+  const bi = next.budgets.findIndex(b => b.category === id);
+  if (budgetAmt > 0) {
+    if (bi >= 0) next.budgets[bi] = { ...next.budgets[bi], amount: budgetAmt };
+    else next.budgets.push({ id: uid(), category: id, amount: budgetAmt });
+  } else if (bi >= 0) {
+    next.budgets.splice(bi, 1);
+  }
+  if (editing) {
+    const after = next.categories.find(c => c.id === id);
+    const d = diffFields(before, after, CAT_AUDIT_FIELDS);
+    next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: 'Edited category ' + after.name + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+  } else {
+    next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'create', summary: 'Created category ' + f.name.trim(), after: { name: f.name.trim(), type: f.type } }), ...(next.audit || [])];
+  }
+  return next;
+}
+
+export function archiveCategory(data, { id }) {
+  const cat = data.categories.find(c => c.id === id);
+  if (!cat) return data;
+  return {
+    ...data,
+    categories: data.categories.map(c => (c.id === id ? stampUpdate({ ...c, status: 'archived', archivedAt: nowIso() }) : c)),
+    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'archive', summary: 'Archived category ' + cat.name, before: { status: cat.status }, after: { status: 'archived' } }), ...(data.audit || [])],
+  };
+}
+
+export function restoreCategory(data, { id }) {
+  const cat = data.categories.find(c => c.id === id);
+  if (!cat) return data;
+  return {
+    ...data,
+    categories: data.categories.map(c => {
+      if (c.id !== id) return c;
+      const restored = stampUpdate({ ...c, status: 'active' });
+      delete restored.archivedAt;
+      return restored;
+    }),
+    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'restore', summary: 'Restored category ' + cat.name, before: { status: cat.status }, after: { status: 'active' } }), ...(data.audit || [])],
+  };
+}
+
+// Hard delete — allowed only for unused custom categories (deletePolicy 'delete').
+export function deleteCategory(data, { id }) {
+  const cat = data.categories.find(c => c.id === id);
+  if (!cat || cat.isSystem) return data;
+  const used = data.transactions.some(t => t.category === id) || data.budgets.some(b => b.category === id) || data.recurring.some(r => r.category === id);
+  if (used) return data; // policy violation — caller should have offered reassign
+  return {
+    ...data,
+    categories: data.categories.filter(c => c.id !== id),
+    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'delete', summary: 'Deleted category ' + cat.name, before: { name: cat.name, type: cat.type } }), ...(data.audit || [])],
+  };
+}
+
+// Reassign-then-delete: repoint every reference, then remove the category — one
+// store transition. The differ pushes the repoints (upserts) BEFORE the delete,
+// keeping the server FK-safe; not one DB transaction, converges on retry.
+export function reassignDeleteCategory(data, { id, replacementId }) {
+  const cat = data.categories.find(c => c.id === id);
+  const repl = data.categories.find(c => c.id === replacementId);
+  if (!cat || !repl || cat.isSystem || id === replacementId) return data;
+  const moved = {
+    transactions: data.transactions.filter(t => t.category === id).length,
+    budgets: data.budgets.filter(b => b.category === id).length,
+    recurring: data.recurring.filter(r => r.category === id).length,
+  };
+  // Budgets are unique per category: if the replacement already has one, the
+  // source's budget is dropped rather than repointed (the replacement's own
+  // budget continues to apply).
+  const replacementHasBudget = data.budgets.some(b => b.category === replacementId);
+  return {
+    ...data,
+    transactions: data.transactions.map(t => (t.category === id ? { ...t, category: replacementId } : t)),
+    budgets: replacementHasBudget
+      ? data.budgets.filter(b => b.category !== id)
+      : data.budgets.map(b => (b.category === id ? { ...b, category: replacementId } : b)),
+    recurring: data.recurring.map(r => (r.category === id ? { ...r, category: replacementId } : r)),
+    categories: data.categories.filter(c => c.id !== id),
+    audit: [makeAudit({
+      entityType: 'category', entityId: id, action: 'reassign-delete',
+      summary: 'Deleted ' + cat.name + ' — ' + (moved.transactions + moved.budgets + moved.recurring) + ' reference(s) moved to ' + repl.name,
+      before: { name: cat.name, refs: moved }, after: { replacementId, replacementName: repl.name },
+    }), ...(data.audit || [])],
+  };
 }

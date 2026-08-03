@@ -5,12 +5,12 @@ const MAIN = [
   { id: 'transactions', label: 'Transactions' },
   { id: 'accounts', label: 'Accounts' },
   { id: 'cards', label: 'Cards' },
+  { id: 'categories', label: 'Categories' },
 ];
 const PLANNED = [
   { id: 'budgets', label: 'Budgets' },
   { id: 'recurring', label: 'Recurring' },
   { id: 'reports', label: 'Reports' },
-  { id: 'categories', label: 'Categories' },
   { id: 'settings', label: 'Settings' },
 ];
 

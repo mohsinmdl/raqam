@@ -3,9 +3,10 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
-import { accountBalance } from '../lib/calc.js';
+import { accountBalance, cardOutstanding, cardRefs } from '../lib/calc.js';
 import { currentMonth } from '../lib/dates.js';
-import { addCard } from '../store/actions.js';
+import { addCard, updateCard } from '../store/actions.js';
+import { validate } from '../lib/validate.js';
 import { useInstGroups } from './AccountForm.jsx';
 import { Label, FieldError, Hint, TextField, SelectField, grid2, grid3, noteBox } from './fields.jsx';
 
@@ -17,10 +18,19 @@ function Body() {
   const f = drawer.form, errors = drawer.errors;
 
   const productOpts = S.cardProducts.filter(p => p.instId === f.inst).map(p => ({ id: p.id, label: p.name + ' · ' + p.type + ' · ' + p.network }));
+  const editing = !!f.editId;
   const showCustom = !f.product || f.product === '__custom';
-  const prod = S.cardProducts.find(p => p.id === f.product);
+  const prod = !editing ? S.cardProducts.find(p => p.id === f.product) : null;
   const resolvedType = prod ? prod.type : (f.ctype || 'debit');
   const isCredit = resolvedType === 'credit';
+  const refs = editing ? cardRefs(S, f.editId, currentMonth()) : null;
+  const typeLocked = editing && refs.transactions > 0;
+  const statusWarn = editing && f.status === 'closed'
+    ? [refs.transactions ? refs.transactions + ' historical transaction' + (refs.transactions === 1 ? '' : 's') : null,
+       refs.recurring ? refs.recurring + ' active recurring item' + (refs.recurring === 1 ? '' : 's') : null,
+       refs.outstanding ? 'outstanding still recorded' : null,
+      ].filter(Boolean).join(', ')
+    : '';
   const month = currentMonth();
   const bankOpts = S.accounts.filter(a => a.status === 'active').map(a => ({ id: 'acc:' + a.id, label: a.nickname + ' — ' + money(accountBalance(a, S, month)) }));
 
@@ -43,25 +53,28 @@ function Body() {
         <FieldError msg={errors.inst} />
       </div>
 
-      <div>
-        <Label htmlFor="c-prod">Card product</Label>
-        <SelectField id="c-prod" field="product">
-          <option value="__custom">Custom card</option>
-          {productOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-        </SelectField>
-        <Hint>Demo catalogue — product names are placeholders, not verified offers.</Hint>
-      </div>
+      {!editing && (
+        <div>
+          <Label htmlFor="c-prod">Card product</Label>
+          <SelectField id="c-prod" field="product">
+            <option value="__custom">Custom card</option>
+            {productOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </SelectField>
+          <Hint>Demo catalogue — product names are placeholders, not verified offers.</Hint>
+        </div>
+      )}
 
-      {showCustom && (
+      {(editing || showCustom) && (
         <div style={grid3}>
           <div>
             <Label htmlFor="c-type">Type</Label>
-            <SelectField id="c-type" field="ctype">
+            <SelectField id="c-type" field="ctype" disabled={typeLocked}>
               <option value="debit">Debit</option>
               <option value="credit">Credit</option>
               <option value="prepaid">Prepaid</option>
               <option value="virtual">Virtual</option>
             </SelectField>
+            {typeLocked && <Hint>Type is locked — this card already has recorded transactions.</Hint>}
           </div>
           <div>
             <Label htmlFor="c-net">Network</Label>
@@ -121,6 +134,43 @@ function Body() {
           <FieldError msg={errors.linked} />
         </div>
       )}
+
+      {editing && (
+        <>
+          <div style={grid3}>
+            <div>
+              <Label htmlFor="c-fee-month">Annual fee month</Label>
+              <TextField id="c-fee-month" field="annualFeeMonth" placeholder="e.g. November" />
+            </div>
+            <div>
+              <Label htmlFor="c-theme">Colour</Label>
+              <SelectField id="c-theme" field="theme">
+                <option value="teal">Teal</option>
+                <option value="ink">Ink</option>
+                <option value="warm">Warm</option>
+              </SelectField>
+            </div>
+            <div>
+              <Label htmlFor="c-status">Status</Label>
+              <SelectField id="c-status" field="status">
+                <option value="active">Active</option>
+                <option value="closed">Closed</option>
+              </SelectField>
+            </div>
+          </div>
+          {statusWarn && (
+            <div role="alert" style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--warn-soft)', fontSize: 12 }}>
+              <span style={{ fontWeight: 700, color: 'var(--warn)' }}>Still in use — </span>{statusWarn}. History is always kept.
+            </div>
+          )}
+          {isCredit && (
+            <div style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--soft)', fontSize: 12.5, lineHeight: 1.5 }}>
+              <span style={{ fontWeight: 700, color: 'var(--accent-h)' }}>Outstanding is not edited here. </span>
+              Use “Correct outstanding” on the card, so every correction stays labelled in history.
+            </div>
+          )}
+        </>
+      )}
     </>
   );
 }
@@ -130,16 +180,19 @@ function useSubmit() {
   const { data: S, applyData } = useStore();
   const { notify } = useUI();
   return () => {
-    const f = drawer.form, errs = {};
-    if (!f.inst) errs.inst = 'Choose the bank.';
-    if (!String(f.nickname || '').trim()) errs.nickname = 'Give the card a nickname.';
-    if (f.last4 && !/^\d{4}$/.test(f.last4)) errs.last4 = 'Exactly 4 digits, or leave it blank.';
-    const prod = S.cardProducts.find(p => p.id === f.product);
+    const f = drawer.form;
+    const editing = !!f.editId;
+    const prod = !editing ? S.cardProducts.find(p => p.id === f.product) : null;
     const ctype = prod ? prod.type : (f.ctype || 'debit');
-    const limit = parseAmt(f.limit);
-    if (ctype === 'credit' && !(limit > 0)) errs.limit = 'Enter the credit limit.';
-    if (ctype === 'debit' && !f.linked) errs.linked = 'Choose the linked account.';
+    const errs = validate.card(S, f, { resolvedType: ctype });
     if (Object.keys(errs).length) { fail(errs, Object.values(errs)); return; }
+    const limit = parseAmt(f.limit);
+    if (editing) {
+      applyData(data => updateCard(data, { form: f, ctype, limit }));
+      closeDrawer();
+      notify('Card updated.');
+      return;
+    }
     applyData(data => addCard(data, { form: f, prod, ctype, limit }));
     closeDrawer();
     notify('Card added to your wallet.');
@@ -147,9 +200,9 @@ function useSubmit() {
 }
 
 export const cardFormDef = {
-  title: () => 'Add card',
-  sub: () => 'Only the last 4 digits are stored',
-  cta: () => 'Add card',
+  title: s => (s.form.editId ? 'Edit card' : 'Add card'),
+  sub: s => (s.form.editId ? 'Outstanding is corrected separately — changes are kept in history' : 'Only the last 4 digits are stored'),
+  cta: s => (s.form.editId ? 'Save changes' : 'Add card'),
   Body,
   useSubmit,
 };

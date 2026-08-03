@@ -76,7 +76,12 @@ export function StoreProvider({ userId, children }) {
     return () => { cancelled = true; };
   }, [state.status]);
 
-  useEffect(() => () => queueRef.current?.stop(), []);
+  // Symmetric lifecycle: HMR runs this cleanup without a real remount, so the
+  // (re-)run must undo the stop or the queue stays silenced and writes never push.
+  useEffect(() => {
+    queueRef.current?.resume?.();
+    return () => queueRef.current?.stop();
+  }, []);
 
   // ---- mirror store changes into the sync queue (debounced) ----
   useEffect(() => {

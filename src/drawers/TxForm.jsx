@@ -7,9 +7,10 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
-import { accountBalance, cardOutstanding, dayLabel, findDuplicate, monthLabel } from '../lib/calc.js';
+import { accountBalance, cardOutstanding, dayLabel, findDuplicate, listCats, monthLabel, relTime } from '../lib/calc.js';
 import { currentMonth, todayStr } from '../lib/dates.js';
-import { addTransaction } from '../store/actions.js';
+import { addTransaction, updateTransaction, deleteTransaction } from '../store/actions.js';
+import { validate } from '../lib/validate.js';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, Pill, grid2, noteBox } from './fields.jsx';
 
 const TYPES = ['expense', 'income', 'transfer', 'refund', 'adjustment'];
@@ -45,15 +46,35 @@ function Body() {
   const fxTransfer = type === 'transfer';
   const fxAdjust = type === 'adjustment';
   const fxCategory = type === 'expense' || type === 'income' || type === 'refund';
-  const catOpts = S.categories.filter(c => c.type === (type === 'income' ? 'income' : 'expense')).map(c => ({ id: c.id, label: c.name }));
+  const catType = type === 'income' ? 'income' : 'expense';
+  const catOpts = listCats(S, catType).map(c => ({ id: c.id, label: c.name }));
+  if (f.editId && f.originalCategory) {
+    const orig = S.categories.find(c => c.id === f.originalCategory);
+    if (orig && orig.status === 'archived' && orig.type === catType && !catOpts.some(o => o.id === orig.id)) {
+      catOpts.push({ id: orig.id, label: orig.name + ' (archived)' });
+    }
+  }
   const cardHint = type === 'expense' && String(f.payWith || '').startsWith('card:');
   const amt = parseAmt(f.amount);
   const fee = parseAmt(f.fee);
-  const nameOf = ref => { const a = activeAccts.find(x => 'acc:' + x.id === ref); return a ? a.nickname : ''; };
+  const nameOf = ref => {
+    const a = activeAccts.find(x => 'acc:' + x.id === ref);
+    if (a) return a.nickname;
+    const c = S.cards.find(x => 'card:' + x.id === ref);
+    return c ? c.nickname + ' ••' + c.last4 : '';
+  };
   const hasReview = fxTransfer && amt > 0 && f.from && f.to && f.from !== f.to;
+
+  const prev = f.editId ? S.transactions.find(t => t.id === f.editId) : null;
 
   return (
     <>
+      {prev?.editedAt && (
+        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--info-soft)', fontSize: 12, color: 'var(--text)' }}>
+          <span style={{ fontWeight: 700, color: 'var(--info)' }}>Edited before — </span>
+          last edited {relTime(prev.editedAt)} · {prev.editCount} edit{prev.editCount === 1 ? '' : 's'} recorded in history.
+        </div>
+      )}
       <div role="group" aria-label="Transaction type" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {TYPES.map(id => (
           <Pill key={id} on={type === id} onClick={() => setForm({ type: id, category: '' })}>
@@ -71,7 +92,12 @@ function Body() {
         </div>
         <div>
           <Label htmlFor="f-date" required>Date</Label>
-          <TextField id="f-date" field="date" type="date" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 96px', gap: 8 }}>
+            <TextField id="f-date" field="date" type="date" />
+            <TextField id="f-time" field="time" type="time" ariaLabel="Time" />
+          </div>
+          <Hint>Asia/Karachi · time orders same-day entries</Hint>
+          <FieldError msg={errors.date} />
         </div>
       </div>
 
@@ -121,14 +147,27 @@ function Body() {
               </SelectField>
             </div>
             <div>
-              <Label htmlFor="f-to" required>To account</Label>
+              <Label htmlFor="f-to" required>To</Label>
               <SelectField id="f-to" field="to">
                 <option value="">Choose…</option>
-                {bankOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                <optgroup label="Bank accounts">
+                  {bankOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </optgroup>
+                {creditOpts.length > 0 && (
+                  <optgroup label="Credit cards (bill payment)">
+                    {creditOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                  </optgroup>
+                )}
               </SelectField>
             </div>
           </div>
           <FieldError msg={errors.transfer} style={{ marginTop: -6 }} />
+          {String(f.to || '').startsWith('card:') && (
+            <div style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text)', marginTop: -4, padding: '8px 10px', background: 'var(--info-soft)', borderRadius: 8 }}>
+              <span style={{ fontWeight: 700, color: 'var(--info)', flex: 'none' }}>Card payment</span>
+              <span style={{ opacity: .85 }}>Recorded as a bill payment — reduces the bank balance and the card's outstanding. Never an expense.</span>
+            </div>
+          )}
           <div>
             <Label htmlFor="f-fee" optional>Transfer fee</Label>
             <TextField id="f-fee" field="fee" inputMode="decimal" placeholder="0" />
@@ -205,34 +244,26 @@ function Body() {
   );
 }
 
+const TYPE_CHANGE_NOTES = {
+  transfer: ' Leaving a transfer removes its linked destination leg.',
+  toTransfer: ' Becoming a transfer stops it counting as income or an expense.',
+};
+
 function useSubmit() {
   const { drawer, closeDrawer, fail, setDup } = useDrawer();
   const { data: S, applyData } = useStore();
-  const { notify } = useUI();
+  const { notify, ask } = useUI();
   const { moneyRaw } = useMoney();
 
-  return () => {
-    const f = drawer.form, type = f.type || 'expense', errs = {};
+  return async () => {
+    const f = drawer.form, type = f.type || 'expense';
     const amt = parseAmt(f.amount);
-    if (!(amt > 0)) errs.amount = 'Enter an amount greater than zero.';
-    if (type === 'expense' || type === 'refund') { if (!f.payWith) errs.payWith = type === 'refund' ? 'Choose where the refund landed.' : 'Choose the account or card you paid with.'; }
-    if (type === 'income') { if (!f.account) errs.account = 'Choose the account that received it.'; }
-    if (type === 'transfer') {
-      if (!f.from || !f.to) errs.transfer = 'Choose both the From and To accounts.';
-      else if (f.from === f.to) errs.transfer = 'From and To must be different accounts.';
-      if (f.fee && !(parseAmt(f.fee) >= 0)) errs.transfer = 'The fee must be a number.';
-    }
-    if (type === 'adjustment') {
-      if (!f.account) errs.account = 'Choose the account to adjust.';
-      if (!String(f.reason || '').trim()) errs.reason = 'Add a short reason — adjustments are labelled in history.';
-    }
-    if (type === 'expense' || type === 'income' || type === 'refund') {
-      if (!f.category) errs.category = 'Choose a category.';
-      else if (f.category === '__new' && !String(f.newCat || '').trim()) errs.category = 'Name the new category.';
-    }
+    const errs = validate.transaction(S, f, {
+      allowArchivedCategory: !!f.editId && f.originalCategory === f.category,
+    });
     if (Object.keys(errs).length) { fail(errs, Object.values(errs)); return; }
 
-    if ((type === 'expense' || type === 'income') && !drawer.dupAck) {
+    if (!f.editId && (type === 'expense' || type === 'income') && !drawer.dupAck) {
       const d = findDuplicate(S, { amount: amt, merchant: f.merchant, date: f.date || todayStr() });
       if (d) {
         setDup(moneyRaw(d.amount) + ' to “' + (d.merchant || 'the same merchant') + '” is already recorded on this date. Save again to keep both.');
@@ -240,8 +271,22 @@ function useSubmit() {
       }
     }
 
-    applyData(data => addTransaction(data, { form: f, type, amt, fee: parseAmt(f.fee) }));
+    // Type change rewrites the record's financial effect — confirm it (accent tone).
+    if (f.editId && f.originalType && f.originalType !== type) {
+      const extra = f.originalType === 'transfer' ? TYPE_CHANGE_NOTES.transfer : type === 'transfer' ? TYPE_CHANGE_NOTES.toTransfer : '';
+      const ok = await ask({
+        title: 'Change the transaction type?',
+        body: `This changes the record from ${f.originalType} to ${type}, rewriting its effect on balances.${extra} The change is recorded in history.`,
+        action: 'Change type and save',
+        tone: 'accent',
+      });
+      if (!ok) return;
+    }
+
+    const payload = { form: f, type, amt, fee: parseAmt(f.fee) };
+    applyData(data => (f.editId ? updateTransaction(data, payload) : addTransaction(data, payload)));
     closeDrawer();
+    if (f.editId) { notify('Transaction updated — balances recalculated.'); return; }
     const msgs = {
       expense: 'Expense recorded — balances updated.',
       income: 'Income recorded — balances updated.',
@@ -253,10 +298,34 @@ function useSubmit() {
   };
 }
 
+// Delete lives in the drawer footer, only when editing.
+function useDanger() {
+  const { drawer, closeDrawer } = useDrawer();
+  const { applyData } = useStore();
+  const { ask, notify } = useUI();
+  const editId = drawer.form.editId;
+  if (!editId) return null;
+  return {
+    label: 'Delete',
+    onClick: async () => {
+      const ok = await ask({
+        title: 'Delete this transaction?',
+        body: 'Balances will be recalculated as if it was never recorded. The deletion is kept in history.',
+        action: 'Delete transaction',
+      });
+      if (!ok) return;
+      applyData(data => deleteTransaction(data, { id: editId }));
+      closeDrawer();
+      notify('Transaction deleted — balances recalculated.');
+    },
+  };
+}
+
 export const txFormDef = {
-  title: () => 'Add transaction',
-  sub: () => 'Manual entry · PKR · ' + monthLabel(currentMonth()),
-  cta: state => (state.dupMsg ? 'Save anyway' : CTAS[state.form.type || 'expense']),
+  title: s => (s.form.editId ? 'Edit transaction' : 'Add transaction'),
+  sub: s => (s.form.editId ? 'Changes rewrite the record’s financial effect' : 'Manual entry · PKR · ' + monthLabel(currentMonth())),
+  cta: state => (state.dupMsg ? 'Save anyway' : state.form.editId ? 'Save changes' : CTAS[state.form.type || 'expense']),
   Body,
   useSubmit,
+  useDanger,
 };

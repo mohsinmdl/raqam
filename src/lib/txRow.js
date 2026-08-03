@@ -1,6 +1,6 @@
 // Shared transaction-row and account-freshness presenters, ported from the
 // prototype's txRowOf (script 894-927) and freshInfo (928-933).
-import { accountDelta, dayLabel, daysAgo, lastActivity, timeLabel } from './calc.js';
+import { accountDelta, dayLabel, daysAgo, lastActivity, relTime, timeLabel } from './calc.js';
 import { nowIso } from './dates.js';
 
 // fmt = { money, moneyS } from useMoney(). forAccountId flips amounts to the
@@ -16,6 +16,7 @@ export function txRowOf(t, S, fmt, forAccountId) {
   else if (t.type === 'transfer') { chip = 'Transfer'; }
   else if (t.type === 'refund') { chip = 'Refund'; chipBg = 'var(--info-soft)'; chipFg = 'var(--info)'; }
   else if (t.type === 'adjustment') { chip = 'Adjustment'; chipBg = 'var(--warn-soft)'; chipFg = 'var(--warn)'; }
+  else if (t.type === 'cardAdjustment') { chip = 'Card correction'; chipBg = 'var(--warn-soft)'; chipFg = 'var(--warn)'; }
   let amtLabel, amtColor;
   if (forAccountId) {
     const d = t.status === 'pending' ? (t.accountId === forAccountId ? -t.amount : t.amount) : accountDelta(t, forAccountId);
@@ -36,6 +37,9 @@ export function txRowOf(t, S, fmt, forAccountId) {
     acctLabel, amtLabel, amtColor,
     stLabel: t.status === 'pending' ? 'Pending' : 'Cleared', stBg: t.status === 'pending' ? 'var(--warn-soft)' : 'var(--elev)', stFg: t.status === 'pending' ? 'var(--warn)' : 'var(--muted)',
     rowOpacity: t.status === 'pending' ? '.62' : '1', isPending: t.status === 'pending',
+    canEdit: t.type !== 'cardAdjustment',
+    edited: !!t.editedAt,
+    editedLabel: t.editedAt ? 'Edited ' + relTime(t.editedAt) + (t.editCount > 1 ? ' · ' + t.editCount + ' edits' : '') : '',
   };
 }
 

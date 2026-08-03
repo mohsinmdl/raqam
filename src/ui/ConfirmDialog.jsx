@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import FocusTrap from './FocusTrap.jsx';
 
 // Confirm dialog — ported from the prototype (template ~750-761).
-// confirm: { title, body, action, onConfirm }
+// confirm: { title, body, action, onConfirm, tone? ('neg' default | 'accent') }
 export default function ConfirmDialog({ confirm, onCancel }) {
   // Capture-phase Escape so the confirm (topmost overlay) closes before any
   // drawer/dialog beneath it can react.
@@ -21,7 +21,7 @@ export default function ConfirmDialog({ confirm, onCancel }) {
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8, lineHeight: 1.55 }}>{confirm.body}</div>
           <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
             <button onClick={onCancel} className="hv-elev" style={{ height: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
-            <button onClick={confirm.onConfirm} style={{ height: 36, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--neg)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{confirm.action}</button>
+            <button onClick={confirm.onConfirm} style={{ height: 36, padding: '0 16px', border: 'none', borderRadius: 8, background: confirm.tone === 'accent' ? 'var(--accent)' : 'var(--neg)', color: confirm.tone === 'accent' ? 'var(--on-accent)' : '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{confirm.action}</button>
           </div>
         </div>
       </FocusTrap>

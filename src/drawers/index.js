@@ -5,6 +5,9 @@ import { cardFormDef } from './CardForm.jsx';
 import { payCardFormDef } from './PayCardForm.jsx';
 import { snapshotFormDef } from './SnapshotForm.jsx';
 import { adjustFormDef } from './AdjustForm.jsx';
+import { adjustCardFormDef } from './AdjustCardForm.jsx';
+import { categoryFormDef } from './CategoryForm.jsx';
+import { reassignFormDef } from './ReassignForm.jsx';
 
 export const drawerRegistry = {
   addTx: txFormDef,
@@ -13,4 +16,7 @@ export const drawerRegistry = {
   payCard: payCardFormDef,
   snapshot: snapshotFormDef,
   adjust: adjustFormDef,
+  adjustCard: adjustCardFormDef,
+  category: categoryFormDef,
+  reassign: reassignFormDef,
 };

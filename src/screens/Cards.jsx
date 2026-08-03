@@ -3,7 +3,7 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useMoney } from '../lib/format.js';
-import { accountBalance, cardOutstanding, dayLabel, daysUntil } from '../lib/calc.js';
+import { accountBalance, availableCredit, cardOutstanding, dayLabel, daysUntil, relTime } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 import { instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
@@ -29,15 +29,21 @@ export default function Cards() {
       stBg: c.status === 'active' ? 'var(--pos-soft)' : c.status === 'frozen' ? 'var(--info-soft)' : 'var(--warn-soft)',
       stFg: c.status === 'active' ? 'var(--pos)' : c.status === 'frozen' ? 'var(--info)' : 'var(--warn)',
       feeNote: c.annualFeeMonth ? 'Annual fee due in ' + c.annualFeeMonth : '',
+      isClosed: c.status === 'closed',
+      edited: !!c.editedAt,
+      editedLabel: c.editedAt ? 'Edited ' + relTime(c.editedAt) : '',
     };
     if (c.type === 'credit') {
       const out = cardOutstanding(c, S, month);
-      const avail = Math.max((c.limit || 0) - out, 0);
-      const pct = c.limit ? Math.min(Math.round((out / c.limit) * 100), 100) : 0;
+      const ac = availableCredit(c, out, money);
+      const pct = ac.pct;
       const dd = c.dueDate ? daysUntil(c.dueDate, now) : null;
-      base.outstanding = money(out); base.available = money(avail);
+      base.outstanding = money(out);
+      base.available = ac.label;
+      base.availColor = { pos: 'var(--pos)', warn: 'var(--warn)', neg: 'var(--neg)', muted: 'var(--muted)' }[ac.tone];
+      base.availNote = ac.note;
       base.useW = pct + '%'; base.useColor = pct >= 90 ? 'var(--neg)' : pct >= 70 ? 'var(--warn)' : 'var(--accent)';
-      base.useLabel = 'Using ' + pct + '% of ' + money(c.limit || 0) + ' limit';
+      base.useLabel = c.limit == null || c.limit === '' ? 'No credit limit recorded' : c.limit === 0 ? 'Credit limit is Rs 0' : 'Using ' + pct + '% of ' + money(c.limit) + ' limit';
       base.stmt = c.statementDay ? c.statementDay + ord(c.statementDay) + ' of month' : '—';
       base.due = out <= 0 ? 'Paid' : c.dueDate ? dayLabel(c.dueDate + 'T00:00') + (dd != null && dd >= 0 ? ' · in ' + dd + (dd === 1 ? ' day' : ' days') : '') : '—';
       base.dueColor = out <= 0 ? 'var(--pos)' : dd != null && dd <= 7 ? 'var(--warn)' : 'var(--text)';
@@ -82,18 +88,20 @@ export default function Cards() {
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                         <div><div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Outstanding</div><div className="tnum" style={{ fontSize: 18, fontWeight: 700 }}>{c.outstanding}</div></div>
                         <span style={{ flex: 1 }} />
-                        <div style={{ textAlign: 'right' }}><div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Available credit</div><div className="tnum" style={{ fontSize: 14, fontWeight: 600, color: 'var(--pos)' }}>{c.available}</div></div>
+                        <div style={{ textAlign: 'right' }}><div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Available credit</div><div className="tnum" style={{ fontSize: 14, fontWeight: 600, color: c.availColor }}>{c.available}</div></div>
                       </div>
                       <div>
                         <div style={{ height: 7, background: 'var(--track)', borderRadius: 4, overflow: 'hidden' }}><div style={{ width: c.useW, height: '100%', background: c.useColor }} /></div>
                         <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{c.useLabel}</div>
+                        {c.availNote && <div style={{ fontSize: 11.5, marginTop: 4, padding: '5px 8px', borderRadius: 6, background: 'var(--warn-soft)', color: 'var(--text)' }}>{c.availNote}</div>}
                       </div>
                       <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--muted)' }}>
                         <span>Statement: <span style={{ color: 'var(--text)', fontWeight: 500 }}>{c.stmt}</span></span>
                         <span>Due: <span style={{ color: c.dueColor, fontWeight: 600 }}>{c.due}</span></span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
-                        <button onClick={() => openers.payCard(S, c.id, openDrawer)} className="hv-accent" style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Record payment</button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2, flexWrap: 'wrap' }}>
+                        <button onClick={() => openers.payCard(S, c.id, openDrawer)} disabled={c.isClosed} className="hv-accent" style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: c.isClosed ? 'default' : 'pointer', opacity: c.isClosed ? .45 : 1 }}>Record payment</button>
+                        <button onClick={() => openers.adjustCard(S, c.id, openDrawer)} className="hv-elev" style={{ height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>Correct outstanding</button>
                         <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Transfer — never a second expense</span>
                       </div>
                     </>
@@ -115,7 +123,9 @@ export default function Cards() {
                   <div style={{ flex: 1 }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
                     <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: c.stBg, color: c.stFg }}>{c.status}</span>
-                    <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{c.feeNote}</span>
+                    {c.edited && <span title={c.editedLabel} style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--muted)' }}>Edited</span>}
+                    <span style={{ fontSize: 11.5, color: 'var(--muted)', flex: 1 }}>{c.feeNote}</span>
+                    <button onClick={() => openers.editCard(S, c.id, openDrawer)} className="hv-soft" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
                   </div>
                 </div>
               </section>
