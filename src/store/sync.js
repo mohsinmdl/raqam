@@ -35,12 +35,13 @@ const COLLECTIONS = [
   },
   {
     name: 'categories', table: 'categories', keyOf: r => r.id,
-    toRow: r => stripNulls({
+    // Explicit nulls (see transactions): archived_at clears on restore.
+    toRow: r => ({
       id: r.id, name: r.name, type: r.type, color: r.color,
       icon: r.icon || 'square', sort_order: r.sortOrder ?? 99, is_system: !!r.isSystem,
       status: r.status || 'active', description: r.description || '',
       archived_at: r.archivedAt ?? null,
-      ...(r.editedAt ? { edited_at: r.editedAt } : {}), ...(r.editCount > 0 ? { edit_count: r.editCount } : {}),
+      edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
     }),
     fromRow: r => stripNulls({
       id: r.id, name: r.name, type: r.type, color: r.color,
@@ -52,11 +53,12 @@ const COLLECTIONS = [
   },
   {
     name: 'accounts', table: 'accounts', keyOf: r => r.id,
-    toRow: r => stripNulls({
+    // Explicit nulls (see transactions): archived_at clears on restore.
+    toRow: r => ({
       id: r.id, inst_id: r.instId, nickname: r.nickname, type: r.type, islamic: !!r.islamic,
       currency: r.currency || 'PKR', last4: r.last4 || '', status: r.status, notes: r.notes || '',
       opened_on: r.createdAt, archived_at: r.archivedAt ?? null,
-      ...(r.editedAt ? { edited_at: r.editedAt } : {}), ...(r.editCount > 0 ? { edit_count: r.editCount } : {}),
+      edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
     }),
     fromRow: r => stripNulls({
       id: r.id, instId: r.inst_id, nickname: r.nickname, type: r.type, islamic: r.islamic,
@@ -67,7 +69,8 @@ const COLLECTIONS = [
   },
   {
     name: 'cards', table: 'cards', keyOf: r => r.id,
-    toRow: r => stripNulls({
+    // Explicit nulls (see transactions): editing prunes type-specific fields.
+    toRow: r => ({
       id: r.id, inst_id: r.instId, product_id: r.productId ?? null, nickname: r.nickname, type: r.type,
       network: r.network, tier: r.tier || '', last4: r.last4 || '',
       linked_account_id: r.linkedAccountId ?? null, credit_limit: r.limit ?? null,
@@ -75,7 +78,7 @@ const COLLECTIONS = [
       due_date: r.dueDate ?? null, annual_fee_month: r.annualFeeMonth ?? null,
       status: r.status, theme: r.theme || 'teal',
       closed_at: r.closedAt ?? null,
-      ...(r.editedAt ? { edited_at: r.editedAt } : {}), ...(r.editCount > 0 ? { edit_count: r.editCount } : {}),
+      edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
     }),
     fromRow: r => stripNulls({
       id: r.id, instId: r.inst_id, productId: r.product_id, nickname: r.nickname, type: r.type,
@@ -105,14 +108,17 @@ const COLLECTIONS = [
   },
   {
     name: 'transactions', table: 'transactions', keyOf: r => r.id,
-    toRow: r => stripNulls({
+    // Explicit nulls, NOT stripNulls: an edit can CLEAR fields (type change drops
+    // cardId, fee, etc.) and PostgREST upserts only touch columns present in the
+    // payload — absent keys would leave stale values on the server.
+    toRow: r => ({
       id: r.id, date: r.date, type: r.type, amount: r.amount,
       account_id: r.accountId ?? null, to_account_id: r.toAccountId ?? null,
       card_id: r.cardId ?? null, to_card_id: r.toCardId ?? null,
       is_card_payment: !!r.isCardPayment, fee: r.fee ?? null,
       category_id: r.category ?? null, merchant: r.merchant || '', notes: r.notes || '', status: r.status,
       adjustment_reason: r.adjustmentReason ?? null,
-      ...(r.editedAt ? { edited_at: r.editedAt } : {}), ...(r.editCount > 0 ? { edit_count: r.editCount } : {}),
+      edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
     }),
     fromRow: r => stripNulls({
       id: r.id, date: r.date, type: r.type, amount: Number(r.amount),
@@ -126,12 +132,12 @@ const COLLECTIONS = [
   },
   {
     name: 'budgets', table: 'budgets', keyOf: r => r.id,
-    toRow: r => stripNulls({ id: r.id, category_id: r.category ?? null, amount: r.amount, label: r.label ?? null }),
+    toRow: r => ({ id: r.id, category_id: r.category ?? null, amount: r.amount, label: r.label ?? null }),
     fromRow: r => stripNulls({ id: r.id, category: r.category_id, amount: Number(r.amount), label: r.label }),
   },
   {
     name: 'recurring', table: 'recurring', keyOf: r => r.id,
-    toRow: r => stripNulls({
+    toRow: r => ({
       id: r.id, name: r.name, type: r.type, amount: r.amount, estimated: !!r.estimated,
       freq: r.freq || '', next_date: r.nextDate ?? null, account_id: r.accountId ?? null,
       card_id: r.cardId ?? null, category_id: r.category ?? null,
@@ -323,6 +329,13 @@ export function createSyncQueue({ initialBaseline, onStatus = () => {} }) {
       }
       return this.isClean();
     },
-    stop() { stopped = true; clearTimeout(retryTimer); },
+    stop() { stopped = true; clearTimeout(retryTimer); retryTimer = null; },
+    // Undo stop() — needed because dev HMR re-runs the owner's unmount cleanup
+    // without a real remount. Kicks a push if anything is pending.
+    resume() {
+      if (!stopped) return;
+      stopped = false;
+      if (!inFlight && !retryTimer) inFlight = run().finally(() => { inFlight = null; });
+    },
   };
 }

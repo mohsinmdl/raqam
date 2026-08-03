@@ -72,7 +72,7 @@ export default function Transactions() {
               {filterCatOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
             </select>
             <select aria-label="Type" value={F.type} onChange={e => setF('type', e.target.value)} style={selStyle}>
-              <option value="all">All types</option><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option><option value="refund">Refund</option><option value="adjustment">Adjustment</option>
+              <option value="all">All types</option><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option><option value="refund">Refund</option><option value="adjustment">Balance adjustment</option><option value="cardAdjustment">Card correction</option>
             </select>
             <select aria-label="Status" value={F.status} onChange={e => setF('status', e.target.value)} style={selStyle}>
               <option value="all">Any status</option><option value="cleared">Cleared</option><option value="pending">Pending</option>
@@ -109,7 +109,8 @@ export default function Transactions() {
                   <th scope="col" style={th}>CATEGORY</th>
                   <th scope="col" style={th}>ACCOUNT / CARD</th>
                   <th scope="col" style={th}>STATUS</th>
-                  <th scope="col" style={{ ...th, textAlign: 'right', padding: '9px 18px 9px 8px' }}>AMOUNT</th>
+                  <th scope="col" style={{ ...th, textAlign: 'right', padding: '9px 8px' }}>AMOUNT</th>
+                  <th scope="col" style={{ ...th, padding: '9px 18px 9px 8px', width: 56 }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Edit</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -123,6 +124,7 @@ export default function Transactions() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
                         {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, flex: 'none', whiteSpace: 'nowrap' }}>{t.chip}</span>}
+                        {t.edited && <span title={t.editedLabel} style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--muted)', flex: 'none', whiteSpace: 'nowrap' }}>Edited</span>}
                       </div>
                       {t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
                     </td>
@@ -134,8 +136,13 @@ export default function Transactions() {
                     </td>
                     <td style={td}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
                     <td style={td}><span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: t.stBg, color: t.stFg }}>{t.stLabel}</span></td>
-                    <td style={{ ...td, padding: '10px 18px 10px 8px', textAlign: 'right' }}>
+                    <td style={{ ...td, padding: '10px 8px', textAlign: 'right' }}>
                       <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
+                    </td>
+                    <td style={{ ...td, padding: '10px 18px 10px 8px', textAlign: 'right' }}>
+                      {t.canEdit && (
+                        <button onClick={() => openers.editTx(S, t.id, openDrawer)} aria-label="Edit this transaction" className="hv-soft" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
+                      )}
                     </td>
                   </tr>
                 ))}

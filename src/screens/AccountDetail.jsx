@@ -111,13 +111,18 @@ export default function AccountDetail() {
             {detTx.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
                 {detTx.map(t => (
-                  <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '96px 1fr 130px', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity }}>
+                  <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '78px minmax(0,1fr) 104px 48px', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity }}>
                     <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
                     <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
                       {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, flex: 'none' }}>{t.chip}</span>}
                     </div>
                     <div className="tnum" style={{ fontSize: 13.5, fontWeight: 600, textAlign: 'right', color: t.amtColor }}>{t.amtLabel}</div>
+                    <div style={{ textAlign: 'right' }}>
+                      {t.canEdit && (
+                        <button onClick={() => openers.editTx(S, t.id, openDrawer)} aria-label="Edit this transaction" className="hv-soft" style={{ height: 24, padding: '0 9px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

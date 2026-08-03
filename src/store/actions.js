@@ -4,37 +4,85 @@
 import { accountBalance, cardOutstanding } from '../lib/calc.js';
 import { addMonths, clampDay, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { uid } from '../lib/util.js';
+import { makeAudit, diffFields, stampUpdate } from './audit.js';
 import { freshStore } from './seed.js';
 
 export const resetAll = () => freshStore();
 
-// ---- Submit mutations, ported from the prototype's submit* handlers (script 1250-1367).
-// Validation happens in each drawer's useSubmit; these receive already-validated input
-// and return a new store. All are pure (data, payload) => newData.
+// Fields that participate in transaction update-audit diffs.
+const TX_AUDIT_FIELDS = ['type', 'amount', 'date', 'status', 'accountId', 'toAccountId', 'cardId', 'toCardId', 'category', 'merchant', 'notes', 'fee', 'adjustmentReason'];
 
-// payload: validated addTx form + { amt, fee } parsed amounts.
-export function addTransaction(data, { form: f, type, amt, fee }) {
-  const next = { ...data, transactions: [...data.transactions], categories: [...data.categories], recurring: data.recurring.map(r => ({ ...r })) };
-  let catId = f.category;
-  if (catId === '__new') {
-    const nid = uid();
-    next.categories.push({ id: nid, name: f.newCat.trim(), type: type === 'income' ? 'income' : 'expense', color: '#0F766E' });
-    catId = nid;
-  }
-  const date = (f.date || todayStr()) + 'T12:00';
+// Build a transaction record from scratch from the form — used by add AND edit,
+// so a type change can never leave stale cross-type fields behind (design buildTx).
+export function buildTx(f, type, amt, fee, catId, id) {
+  const date = (f.date || todayStr()) + 'T' + (f.time || '12:00');
   const status = f.pending ? 'pending' : 'cleared';
-  const t = { id: uid(), date, status, notes: f.notes || '', merchant: f.merchant || '' };
+  const t = { id: id || uid(), date, status, notes: f.notes || '', merchant: f.merchant || '' };
   if (type === 'expense' || type === 'refund') {
     t.type = type; t.amount = amt; t.category = catId;
     if (String(f.payWith).startsWith('card:')) t.cardId = f.payWith.slice(5); else t.accountId = f.payWith.slice(4);
   } else if (type === 'income') { t.type = 'income'; t.amount = amt; t.category = catId; t.accountId = f.account.slice(4); }
-  else if (type === 'transfer') { t.type = 'transfer'; t.amount = amt; t.accountId = f.from.slice(4); t.toAccountId = f.to.slice(4); if (fee > 0) t.fee = fee; }
-  else if (type === 'adjustment') { t.type = 'adjustment'; t.amount = f.direction === 'decrease' ? -amt : amt; t.accountId = f.account.slice(4); t.merchant = 'Balance adjustment'; t.notes = f.reason + (f.notes ? ' — ' + f.notes : ''); }
+  else if (type === 'transfer') {
+    t.type = 'transfer'; t.amount = amt; t.accountId = f.from.slice(4);
+    // Destination may be a bank account or a credit card (bill payment).
+    if (String(f.to).startsWith('card:')) { t.toCardId = f.to.slice(5); t.isCardPayment = true; }
+    else t.toAccountId = f.to.slice(4);
+    if (fee > 0) t.fee = fee;
+  } else if (type === 'adjustment') {
+    t.type = 'adjustment'; t.amount = f.direction === 'decrease' ? -amt : amt; t.accountId = f.account.slice(4);
+    t.merchant = 'Balance adjustment'; t.adjustmentReason = f.reason || ''; t.notes = f.notes || '';
+  }
+  return t;
+}
+
+// Inline "__new" category creation shared by add/update — full v2 category record.
+function resolveCategory(next, f, type) {
+  let catId = f.category;
+  if (catId === '__new') {
+    catId = uid();
+    next.categories = [...next.categories, {
+      id: catId, name: f.newCat.trim(), type: type === 'income' ? 'income' : 'expense',
+      color: '#0F766E', icon: 'square', sortOrder: 99, isSystem: false, status: 'active', description: '',
+    }];
+  }
+  return catId;
+}
+
+// payload: validated addTx form + { amt, fee } parsed amounts.
+export function addTransaction(data, { form: f, type, amt, fee }) {
+  const next = { ...data, transactions: [...data.transactions], recurring: data.recurring.map(r => ({ ...r })) };
+  const catId = resolveCategory(next, f, type);
+  const t = buildTx(f, type, amt, fee, catId);
   next.transactions = [t, ...next.transactions];
   if (f.fromRecurring) {
     next.recurring = next.recurring.map(r => (r.id === f.fromRecurring ? { ...r, doneThisMonth: true } : r));
   }
+  next.audit = [makeAudit({ entityType: 'transaction', entityId: t.id, action: 'create', summary: 'Recorded ' + t.type, after: { type: t.type, amount: t.amount, date: t.date } }), ...(next.audit || [])];
   return next;
+}
+
+// Edit: rebuild the record from scratch onto the same id, stamp it, audit the field diff.
+export function updateTransaction(data, { form: f, type, amt, fee }) {
+  const i = data.transactions.findIndex(t => t.id === f.editId);
+  if (i < 0) return data;
+  const before = data.transactions[i];
+  const next = { ...data, transactions: [...data.transactions] };
+  const catId = resolveCategory(next, f, type);
+  const rebuilt = stampUpdate({ ...buildTx(f, type, amt, fee, catId, before.id), editCount: before.editCount || 0 });
+  next.transactions[i] = rebuilt;
+  const d = diffFields(before, rebuilt, TX_AUDIT_FIELDS);
+  next.audit = [makeAudit({ entityType: 'transaction', entityId: before.id, action: 'update', summary: 'Edited ' + rebuilt.type + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+  return next;
+}
+
+export function deleteTransaction(data, { id }) {
+  const t = data.transactions.find(x => x.id === id);
+  if (!t) return data;
+  return {
+    ...data,
+    transactions: data.transactions.filter(x => x.id !== id),
+    audit: [makeAudit({ entityType: 'transaction', entityId: id, action: 'delete', summary: 'Deleted ' + t.type + ' of ' + t.amount, before: { type: t.type, amount: t.amount, date: t.date, merchant: t.merchant } }), ...(data.audit || [])],
+  };
 }
 
 // payload: validated addAccount form + parsed bal. Seeds a pending opening snapshot.

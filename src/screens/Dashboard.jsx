@@ -336,7 +336,7 @@ export default function Dashboard() {
           {recentRows.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
               {recentRows.map(t => (
-                <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 170px 150px 120px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity }}>
+                <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity }}>
                   <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
                   <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
@@ -348,6 +348,11 @@ export default function Dashboard() {
                   </div>
                   <div style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</div>
                   <div className="tnum" style={{ fontSize: 13.5, fontWeight: 600, textAlign: 'right', color: t.amtColor }}>{t.amtLabel}</div>
+                  <div style={{ textAlign: 'right' }}>
+                    {t.canEdit && (
+                      <button onClick={() => openers.editTx(S, t.id, openDrawer)} aria-label="Edit this transaction" className="hv-soft" style={{ height: 24, padding: '0 9px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

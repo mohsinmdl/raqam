@@ -5,14 +5,52 @@ import { currentMonth, todayStr } from '../lib/dates.js';
 
 export function txDefaults(type) {
   return {
-    type, date: todayStr(), amount: '', payWith: '', account: '', from: '', to: '', fee: '',
+    type, date: todayStr(), time: '12:00', amount: '', payWith: '', account: '', from: '', to: '', fee: '',
     category: '', newCat: '', merchant: '', notes: '', pending: false,
     direction: 'increase', reason: '', fromRecurring: null,
+    editId: null, originalType: null, originalCategory: null,
   };
+}
+
+// Reverse a stored transaction into form shape for editing (design formFromTx).
+export function formFromTx(t) {
+  const f = txDefaults(t.type === 'cardAdjustment' ? 'adjustment' : t.type);
+  f.editId = t.id;
+  f.originalType = t.type;
+  f.originalCategory = t.category || null;
+  f.date = t.date.slice(0, 10);
+  f.time = t.date.slice(11, 16) || '12:00';
+  f.amount = String(Math.abs(t.amount));
+  f.pending = t.status === 'pending';
+  f.merchant = t.merchant || '';
+  f.notes = t.notes || '';
+  if (t.type === 'expense' || t.type === 'refund') {
+    f.payWith = t.cardId ? 'card:' + t.cardId : (t.accountId ? 'acc:' + t.accountId : '');
+    f.category = t.category || '';
+  } else if (t.type === 'income') {
+    f.account = t.accountId ? 'acc:' + t.accountId : '';
+    f.category = t.category || '';
+  } else if (t.type === 'transfer') {
+    f.from = t.accountId ? 'acc:' + t.accountId : '';
+    f.to = t.toCardId ? 'card:' + t.toCardId : (t.toAccountId ? 'acc:' + t.toAccountId : '');
+    f.fee = t.fee ? String(t.fee) : '';
+  } else if (t.type === 'adjustment') {
+    f.account = t.accountId ? 'acc:' + t.accountId : '';
+    f.direction = t.amount < 0 ? 'decrease' : 'increase';
+    f.reason = t.adjustmentReason || t.notes || '';
+    f.merchant = '';
+  }
+  return f;
 }
 
 export const openers = {
   addTx: (openDrawer, type = 'expense') => openDrawer('addTx', txDefaults(type)),
+
+  editTx: (S, txId, openDrawer) => {
+    const t = S.transactions.find(x => x.id === txId);
+    if (!t || t.type === 'cardAdjustment') return; // card corrections are re-issued, not edited
+    openDrawer('addTx', formFromTx(t));
+  },
 
   addAccount: openDrawer => openDrawer('addAccount', {
     inst: '', customInst: '', type: 'Current', nickname: '', islamic: 'conventional',
