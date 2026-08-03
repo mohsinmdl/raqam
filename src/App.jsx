@@ -19,6 +19,7 @@ import AccountDetail from './screens/AccountDetail.jsx';
 import Cards from './screens/Cards.jsx';
 import Planned from './screens/Planned.jsx';
 import Categories from './screens/Categories.jsx';
+import Budgets from './screens/Budgets.jsx';
 
 function Shell() {
   const { prefs } = useStore();
@@ -41,7 +42,7 @@ function Shell() {
             <Route path="/accounts" element={<Accounts />} />
             <Route path="/accounts/:id" element={<AccountDetail />} />
             <Route path="/cards" element={<Cards />} />
-            <Route path="/budgets" element={<Planned />} />
+            <Route path="/budgets" element={<Budgets />} />
             <Route path="/recurring" element={<Planned />} />
             <Route path="/reports" element={<Planned />} />
             <Route path="/categories" element={<Categories />} />

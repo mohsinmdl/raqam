@@ -28,7 +28,7 @@ export default function Header() {
     const acc = S?.accounts.find(a => a.id === decodeURIComponent(pathname.split('/')[2]));
     title = acc?.nickname || 'Account';
   }
-  const showMonthSel = seg === 'dashboard' || seg === 'transactions';
+  const showMonthSel = seg === 'dashboard' || seg === 'transactions' || seg === 'budgets';
   const activeAccts = S ? S.accounts.filter(a => a.status === 'active') : [];
   const addDisabled = activeAccts.length === 0;
   const now = nowIso();

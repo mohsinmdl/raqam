@@ -87,12 +87,13 @@ export default function Dashboard() {
   const catMap = {}; cats.forEach(c => { catMap[c.id] = c.amt; });
   const budgetRow = b => {
     const spent = b.category ? (catMap[b.category] || 0) : M.expenses;
-    const pct = b.amount > 0 ? (spent / b.amount) * 100 : 0;
+    const eff = C.effectiveBudget(S, b, month); // rollover-effective amount
+    const pct = eff > 0 ? (spent / eff) * 100 : 0;
     const stx = C.budgetState(pct, spent);
     const tone = { pos: ['var(--pos-soft)', 'var(--pos)', 'var(--accent)'], warn: ['var(--warn-soft)', 'var(--warn)', 'var(--warn)'], neg: ['var(--neg-soft)', 'var(--neg)', 'var(--neg)'], muted: ['var(--elev)', 'var(--muted)', 'var(--border)'] }[stx.tone];
     const name = b.category ? (S.categories.find(c => c.id === b.category) || {}).name : (b.label || 'Overall');
-    const left = b.amount - spent;
-    return { id: b.id, name, stateLabel: stx.label, stateBg: tone[0], stateFg: tone[1], barColor: tone[2], w: Math.min(Math.round(pct), 100) + '%', pct, spentLabel: money(spent) + ' of ' + money(b.amount) + (left >= 0 ? ' · ' + money(left) + ' left' : ' · ' + money(-left) + ' over') };
+    const left = eff - spent;
+    return { id: b.id, name, stateLabel: stx.label, stateBg: tone[0], stateFg: tone[1], barColor: tone[2], w: Math.min(Math.round(pct), 100) + '%', pct, spentLabel: money(spent) + ' of ' + money(eff) + (left >= 0 ? ' · ' + money(left) + ' left' : ' · ' + money(-left) + ' over') };
   };
   const brows = S.budgets.map(budgetRow);
   const budgetRows = (brows.length ? [brows[0]] : []).concat(brows.slice(1).sort((a, b) => b.pct - a.pct).slice(0, 4));
@@ -260,9 +261,10 @@ export default function Dashboard() {
             </section>
 
             <section aria-label="Budget progress" style={{ ...card, padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <h2 style={h2}>Budgets</h2><span style={{ flex: 1 }} />
                 <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{monthName}</span>
+                <button onClick={() => nav('/budgets')} className="hv-accent-fg" style={linkBtn}>Manage ›</button>
               </div>
               {budgetRows.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>

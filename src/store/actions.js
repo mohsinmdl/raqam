@@ -335,9 +335,9 @@ export function rolloverMonth(data) {
 
 const CAT_AUDIT_FIELDS = ['name', 'type', 'icon', 'color', 'description', 'sortOrder'];
 
-// Create or edit a category; budget (monthly amount or '') upserts/removes the
-// matching budgets row in the same atomic store transition.
-export function upsertCategory(data, { form: f, budgetAmt }) {
+// Create or edit a category. Budget amounts are owned by the Budgets screen
+// (design iteration 002) — no budget plumbing here.
+export function upsertCategory(data, { form: f }) {
   const editing = !!f.editId;
   const next = { ...data, categories: [...data.categories], budgets: [...data.budgets] };
   let id = f.editId;
@@ -358,14 +358,6 @@ export function upsertCategory(data, { form: f, budgetAmt }) {
       description: (f.description || '').trim(), sortOrder: parseInt(f.sortOrder, 10) || 99,
       isSystem: false, status: 'active',
     });
-  }
-  // Budget upsert keyed on category
-  const bi = next.budgets.findIndex(b => b.category === id);
-  if (budgetAmt > 0) {
-    if (bi >= 0) next.budgets[bi] = { ...next.budgets[bi], amount: budgetAmt };
-    else next.budgets.push({ id: uid(), category: id, amount: budgetAmt });
-  } else if (bi >= 0) {
-    next.budgets.splice(bi, 1);
   }
   if (editing) {
     const after = next.categories.find(c => c.id === id);
@@ -443,6 +435,65 @@ export function reassignDeleteCategory(data, { id, replacementId }) {
       entityType: 'category', entityId: id, action: 'reassign-delete',
       summary: 'Deleted ' + cat.name + ' — ' + (moved.transactions + moved.budgets + moved.recurring) + ' reference(s) moved to ' + repl.name,
       before: { name: cat.name, refs: moved }, after: { replacementId, replacementName: repl.name },
+    }), ...(data.audit || [])],
+  };
+}
+
+// ---- Budgets (design iteration 002) ----------------------------------------
+
+// Create or edit a budget (category or overall). A budget is one standing
+// monthly amount; `rollover` opts into carrying last month's unspent forward.
+export function upsertBudget(data, { form: f, amt }) {
+  const editing = !!f.editId;
+  const next = { ...data, budgets: [...data.budgets] };
+  const roll = !!f.rollover;
+  let id = f.editId, before = null;
+  if (editing) {
+    const i = next.budgets.findIndex(b => b.id === id);
+    if (i < 0) return data;
+    before = next.budgets[i];
+    next.budgets[i] = stampUpdate({ ...before, amount: amt, rollover: roll });
+  } else {
+    id = uid();
+    const rec = { id, category: f.overall ? null : f.category, amount: amt, rollover: roll };
+    if (f.overall) rec.label = 'Overall monthly budget';
+    next.budgets.push(rec);
+  }
+  next.audit = [makeAudit({
+    entityType: 'budget', entityId: id, action: editing ? 'update' : 'create',
+    summary: editing ? 'Budget updated' : 'Budget created',
+    before: before ? { amount: before.amount, rollover: !!before.rollover } : null,
+    after: { amount: amt, rollover: roll },
+  }), ...(next.audit || [])];
+  return next;
+}
+
+// Rollover is a single-field change — the row menu flips it directly, still audited.
+export function toggleBudgetRollover(data, { id }) {
+  const b = data.budgets.find(x => x.id === id);
+  if (!b) return data;
+  const nextRoll = !b.rollover;
+  return {
+    ...data,
+    budgets: data.budgets.map(x => (x.id === id ? stampUpdate({ ...x, rollover: nextRoll }) : x)),
+    audit: [makeAudit({
+      entityType: 'budget', entityId: id, action: 'update',
+      summary: nextRoll ? 'Rollover turned on' : 'Rollover turned off',
+      before: { rollover: !nextRoll }, after: { rollover: nextRoll },
+    }), ...(data.audit || [])],
+  };
+}
+
+// Removing a budget touches nothing else — spending simply stops being measured.
+export function deleteBudget(data, { id }) {
+  const b = data.budgets.find(x => x.id === id);
+  if (!b) return data;
+  return {
+    ...data,
+    budgets: data.budgets.filter(x => x.id !== id),
+    audit: [makeAudit({
+      entityType: 'budget', entityId: id, action: 'delete', summary: 'Budget removed',
+      before: { category: b.category || null, amount: b.amount, rollover: !!b.rollover },
     }), ...(data.audit || [])],
   };
 }

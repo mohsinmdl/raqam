@@ -132,8 +132,16 @@ const COLLECTIONS = [
   },
   {
     name: 'budgets', table: 'budgets', keyOf: r => r.id,
-    toRow: r => ({ id: r.id, category_id: r.category ?? null, amount: r.amount, label: r.label ?? null }),
-    fromRow: r => stripNulls({ id: r.id, category: r.category_id, amount: Number(r.amount), label: r.label }),
+    toRow: r => ({
+      id: r.id, category_id: r.category ?? null, amount: r.amount, label: r.label ?? null,
+      rollover: !!r.rollover,
+      edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
+    }),
+    fromRow: r => stripNulls({
+      id: r.id, category: r.category_id, amount: Number(r.amount), label: r.label,
+      rollover: r.rollover || undefined,
+      editedAt: r.edited_at || undefined, editCount: r.edit_count > 0 ? r.edit_count : undefined,
+    }),
   },
   {
     name: 'recurring', table: 'recurring', keyOf: r => r.id,

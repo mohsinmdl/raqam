@@ -2,12 +2,11 @@
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
-import { parseAmt } from '../lib/format.js';
 import { catRefs } from '../lib/calc.js';
 import { validate } from '../lib/validate.js';
 import { upsertCategory } from '../store/actions.js';
 import { ICONS, CATEGORY_COLORS, iconStyle } from '../lib/catIcon.js';
-import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, grid2 } from './fields.jsx';
+import { Label, FieldError, Hint, TextField, SelectField, TextAreaField, grid2 } from './fields.jsx';
 
 function Body() {
   const { drawer, setField } = useDrawer();
@@ -85,14 +84,10 @@ function Body() {
 
       <div style={grid2}>
         <div>
-          <Label htmlFor="cat-budget" optional>Monthly budget</Label>
-          <AmountField id="cat-budget" field="budget" big={false} placeholder="No budget" />
-          <Hint>Leave empty to track without a budget.</Hint>
-        </div>
-        <div>
           <Label htmlFor="cat-sort">Sort order</Label>
           <TextField id="cat-sort" field="sortOrder" inputMode="numeric" placeholder="99" />
         </div>
+        <div />
       </div>
 
       {editing && refs && refs.transactions > 0 && (
@@ -111,10 +106,8 @@ function useSubmit() {
   return () => {
     const f = drawer.form;
     const errs = validate.category(S, f, { id: f.editId || undefined, originalType: f.originalType || undefined });
-    const budgetAmt = String(f.budget || '').trim() === '' ? 0 : parseAmt(f.budget);
-    if (String(f.budget || '').trim() !== '' && !(budgetAmt >= 0)) errs.budget = 'The budget must be zero or more.';
     if (Object.keys(errs).length) { fail(errs, Object.values(errs)); return; }
-    applyData(data => upsertCategory(data, { form: f, budgetAmt }));
+    applyData(data => upsertCategory(data, { form: f }));
     closeDrawer();
     notify(f.editId ? 'Category updated.' : 'Category created.');
   };

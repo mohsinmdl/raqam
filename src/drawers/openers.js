@@ -116,17 +116,32 @@ export const openers = {
 
   addCategory: openDrawer => openDrawer('category', {
     editId: null, name: '', type: 'expense', icon: 'square', color: '#0F766E',
-    description: '', sortOrder: '99', budget: '', originalType: null,
+    description: '', sortOrder: '99', originalType: null,
   }),
+
+  addBudget: openDrawer => openDrawer('budget', { editId: null, overall: false, category: '', amount: '', rollover: false }),
+
+  editOverallBudget: (S, openDrawer) => {
+    const b = S.budgets.find(x => !x.category);
+    openDrawer('budget', b
+      ? { editId: b.id, overall: true, category: '', amount: String(b.amount), rollover: !!b.rollover }
+      : { editId: null, overall: true, category: '', amount: '', rollover: false });
+  },
+
+  editBudget: (S, id, openDrawer) => {
+    const b = S.budgets.find(x => x.id === id);
+    if (!b) return;
+    openDrawer('budget', { editId: b.id, overall: !b.category, category: b.category || '', amount: String(b.amount), rollover: !!b.rollover });
+  },
+
+  budgetForCat: (catId, openDrawer) => openDrawer('budget', { editId: null, overall: false, category: catId, fixedCat: true, amount: '', rollover: false }),
 
   editCategory: (S, catId, openDrawer) => {
     const c = S.categories.find(x => x.id === catId);
     if (!c) return;
-    const budget = S.budgets.find(b => b.category === catId);
     openDrawer('category', {
       editId: c.id, name: c.name, type: c.type, icon: c.icon || 'square', color: c.color,
-      description: c.description || '', sortOrder: String(c.sortOrder ?? 99),
-      budget: budget ? String(budget.amount) : '', originalType: c.type,
+      description: c.description || '', sortOrder: String(c.sortOrder ?? 99), originalType: c.type,
     });
   },
 
