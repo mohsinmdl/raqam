@@ -78,9 +78,41 @@ export const openers = {
     openDrawer('payCard', { cardId: c.id, from: c.linkedAccountId ? 'acc:' + c.linkedAccountId : '', amount: String(out), date: todayStr() });
   },
 
-  adjust: (accountId, openDrawer) => openDrawer('adjust', {
-    accountId, direction: 'increase', amount: '', reason: '', date: todayStr(),
-  }),
+  // Target-value balance correction: prefill with the CURRENT computed balance.
+  adjust: (S, accountId, openDrawer) => {
+    const acc = S.accounts.find(a => a.id === accountId);
+    const cur = acc ? accountBalance(acc, S, currentMonth()) : 0;
+    openDrawer('adjust', { accountId, newBalance: String(cur), reason: '', date: todayStr(), currentBalance: cur });
+  },
+
+  editAccount: (S, accountId, openDrawer) => {
+    const a = S.accounts.find(x => x.id === accountId);
+    if (!a) return;
+    openDrawer('addAccount', {
+      editId: a.id, inst: a.instId, customInst: '', type: a.type, nickname: a.nickname,
+      islamic: a.islamic ? 'islamic' : 'conventional', last4: a.last4 || '', notes: a.notes || '',
+      status: a.status, balance: '', asof: '',
+    });
+  },
+
+  editCard: (S, cardId, openDrawer) => {
+    const c = S.cards.find(x => x.id === cardId);
+    if (!c) return;
+    openDrawer('addCard', {
+      editId: c.id, inst: c.instId, product: c.productId || '__custom', ctype: c.type,
+      network: c.network || 'Visa', tier: c.tier || '', nickname: c.nickname, last4: c.last4 || '',
+      limit: c.limit != null ? String(c.limit) : '', stmtDay: c.statementDay != null ? String(c.statementDay) : '25',
+      due: c.dueDate || '', linked: c.linkedAccountId ? 'acc:' + c.linkedAccountId : '',
+      status: c.status, annualFeeMonth: c.annualFeeMonth || '', theme: c.theme || 'teal',
+    });
+  },
+
+  adjustCard: (S, cardId, openDrawer) => {
+    const c = S.cards.find(x => x.id === cardId);
+    if (!c) return;
+    const out = cardOutstanding(c, S, currentMonth());
+    openDrawer('adjustCard', { cardId, newOutstanding: String(out), reason: '', date: todayStr(), currentOutstanding: out });
+  },
 
   recurring: (S, recurringId, openDrawer) => {
     const r = S.recurring.find(x => x.id === recurringId);

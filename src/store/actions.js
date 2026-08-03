@@ -143,17 +143,128 @@ export function confirmSnapshots(data, { values }) {
   return next;
 }
 
-// payload: { accountId, direction, amt, reason, date }
-export function adjustBalance(data, { accountId, direction, amt, reason, date }) {
+// Target-value balance correction: you type what the bank actually shows; the
+// signed delta becomes a labelled adjustment transaction.
+export function adjustBalance(data, { accountId, delta, reason, date, currentBalance }) {
+  const acc = data.accounts.find(a => a.id === accountId);
+  if (!acc || !delta) return data;
   const t = {
-    id: uid(), type: 'adjustment', amount: direction === 'decrease' ? -amt : amt, accountId,
-    date: (date || todayStr()) + 'T12:00', status: 'cleared', merchant: 'Balance adjustment', notes: reason.trim(),
+    id: uid(), type: 'adjustment', amount: delta, accountId,
+    date: (date || todayStr()) + 'T12:00', status: 'cleared',
+    merchant: 'Balance adjustment', adjustmentReason: reason.trim(), notes: '',
   };
-  return { ...data, transactions: [t, ...data.transactions] };
+  return {
+    ...data,
+    transactions: [t, ...data.transactions],
+    audit: [makeAudit({
+      entityType: 'account', entityId: accountId, action: 'adjust-balance',
+      summary: 'Corrected balance on ' + acc.nickname,
+      before: { balance: currentBalance },
+      after: { balance: currentBalance + delta, adjustment: delta, transactionId: t.id },
+    }), ...(data.audit || [])],
+  };
 }
 
 export function setAccountStatus(data, { accountId, status }) {
-  return { ...data, accounts: data.accounts.map(a => (a.id === accountId ? { ...a, status } : a)) };
+  const acc = data.accounts.find(a => a.id === accountId);
+  if (!acc) return data;
+  const patched = stampUpdate({
+    ...acc, status,
+    archivedAt: status === 'archived' ? nowIso() : undefined,
+  });
+  if (status !== 'archived') delete patched.archivedAt;
+  return {
+    ...data,
+    accounts: data.accounts.map(a => (a.id === accountId ? patched : a)),
+    audit: [makeAudit({
+      entityType: 'account', entityId: accountId,
+      action: status === 'active' ? 'restore' : 'archive',
+      summary: (status === 'active' ? 'Restored ' : 'Archived ') + acc.nickname,
+      before: { status: acc.status }, after: { status },
+    }), ...(data.audit || [])],
+  };
+}
+
+const ACC_AUDIT_FIELDS = ['instId', 'nickname', 'type', 'islamic', 'currency', 'last4', 'notes', 'status'];
+
+// Edit account metadata (balance is NEVER edited here — Adjust balance owns that).
+export function updateAccount(data, { form: f }) {
+  const i = data.accounts.findIndex(a => a.id === f.editId);
+  if (i < 0) return data;
+  const before = data.accounts[i];
+  const next = { ...data, accounts: [...data.accounts], institutions: data.institutions };
+  let instId = f.inst;
+  if (instId === '__custom') {
+    instId = uid();
+    next.institutions = [...next.institutions, { id: instId, name: f.customInst.trim(), kind: 'Custom' }];
+  }
+  const status = f.status || before.status;
+  const patched = stampUpdate({
+    ...before, instId, nickname: f.nickname.trim(), type: f.type || before.type,
+    islamic: f.islamic === 'islamic', last4: f.last4 || '', notes: f.notes || '', status,
+    archivedAt: status === 'archived' ? (before.archivedAt || nowIso()) : undefined,
+  });
+  if (status !== 'archived') delete patched.archivedAt;
+  next.accounts[i] = patched;
+  const d = diffFields(before, patched, ACC_AUDIT_FIELDS);
+  next.audit = [makeAudit({ entityType: 'account', entityId: before.id, action: 'update', summary: 'Edited account ' + patched.nickname + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+  return next;
+}
+
+const CARD_AUDIT_FIELDS = ['instId', 'nickname', 'type', 'network', 'tier', 'last4', 'status', 'limit', 'statementDay', 'dueDate', 'linkedAccountId', 'annualFeeMonth', 'theme'];
+
+// Edit card metadata; type-specific fields are pruned so a debit card carries no
+// credit fields and vice versa. Outstanding is corrected via adjustCardOutstanding.
+export function updateCard(data, { form: f, ctype, limit }) {
+  const i = data.cards.findIndex(c => c.id === f.editId);
+  if (i < 0) return data;
+  const before = data.cards[i];
+  const status = f.status || before.status;
+  const patched = stampUpdate({
+    ...before, instId: f.inst, nickname: f.nickname.trim(), type: ctype,
+    network: f.network || before.network, tier: f.tier || '', last4: f.last4 || '',
+    annualFeeMonth: f.annualFeeMonth || undefined, theme: f.theme || before.theme || 'teal',
+    status, closedAt: status === 'closed' ? (before.closedAt || nowIso()) : undefined,
+  });
+  if (status !== 'closed') delete patched.closedAt;
+  if (ctype === 'credit') {
+    patched.limit = limit;
+    patched.statementDay = parseInt(f.stmtDay, 10) || 25;
+    patched.dueDate = f.due || '';
+    delete patched.linkedAccountId;
+    if (!patched.openingOutstanding) patched.openingOutstanding = { [currentMonth()]: 0 };
+  } else {
+    patched.linkedAccountId = f.linked ? f.linked.slice(4) : '';
+    delete patched.limit; delete patched.statementDay; delete patched.dueDate;
+  }
+  const next = { ...data, cards: [...data.cards] };
+  next.cards[i] = patched;
+  const d = diffFields(before, patched, CARD_AUDIT_FIELDS);
+  next.audit = [makeAudit({ entityType: 'card', entityId: before.id, action: 'update', summary: 'Edited card ' + patched.nickname + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+  return next;
+}
+
+// "Correct outstanding": records a signed cardAdjustment transaction for the delta
+// between the recorded outstanding and what the statement actually shows.
+export function adjustCardOutstanding(data, { cardId, delta, reason, date, currentOutstanding }) {
+  const card = data.cards.find(c => c.id === cardId);
+  if (!card || !delta) return data;
+  const t = {
+    id: uid(), type: 'cardAdjustment', amount: delta, cardId,
+    date: (date || todayStr()) + 'T12:00', status: 'cleared',
+    merchant: 'Outstanding correction', adjustmentReason: reason.trim(), notes: '',
+  };
+  return {
+    ...data,
+    transactions: [t, ...data.transactions],
+    cards: data.cards.map(c => (c.id === cardId ? stampUpdate(c) : c)),
+    audit: [makeAudit({
+      entityType: 'card', entityId: cardId, action: 'adjust-outstanding',
+      summary: 'Corrected outstanding on ' + card.nickname,
+      before: { outstanding: currentOutstanding },
+      after: { outstanding: currentOutstanding + delta, adjustment: delta, transactionId: t.id },
+    }), ...(data.audit || [])],
+  };
 }
 
 /**

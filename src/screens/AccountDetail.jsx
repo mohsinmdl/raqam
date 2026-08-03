@@ -5,7 +5,7 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
-import { accountBalance, accountDelta, dayLabel, inMonth, lastActivity, monthLabel, openingOf } from '../lib/calc.js';
+import { accountBalance, accountDelta, dayLabel, inMonth, lastActivity, monthLabel, openingOf, relTime } from '../lib/calc.js';
 import { txRowOf, instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import { setAccountStatus } from '../store/actions.js';
@@ -86,6 +86,7 @@ export default function AccountDetail() {
               </div>
               <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
                 {inst ? inst.name : '—'} · {inst ? inst.kind : '—'} · {a.last4 ? 'Account •• ' + a.last4 : 'No number stored'} · PKR
+                {a.editedAt ? ' · Edited ' + relTime(a.editedAt) : ''}
               </div>
               {a.notes && <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 10, padding: '10px 12px', background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 8, maxWidth: '56ch' }}>{a.notes}</div>}
             </div>
@@ -93,8 +94,9 @@ export default function AccountDetail() {
               <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Current balance</div>
               <div className="tnum" style={{ fontSize: 27, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 2 }}>{money(bal)}</div>
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>as of {dayLabel(lastActivity(a, S))}</div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
-                <button onClick={() => openers.adjust(a.id, openDrawer)} className="hv-elev" style={{ ...smallBtn, color: 'var(--text)' }}>Adjust balance</button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button onClick={() => openers.editAccount(S, a.id, openDrawer)} className="hv-elev" style={{ ...smallBtn, color: 'var(--text)' }}>Edit account</button>
+                <button onClick={() => openers.adjust(S, a.id, openDrawer)} className="hv-elev" style={{ ...smallBtn, color: 'var(--text)' }}>Adjust balance</button>
                 {a.status === 'active' && <button onClick={askArchive} className="hv-neg-soft" style={{ ...smallBtn, color: 'var(--neg)' }}>Archive</button>}
                 {a.status === 'archived' && <button onClick={restore} className="hv-elev" style={{ ...smallBtn, color: 'var(--text)' }}>Restore</button>}
               </div>

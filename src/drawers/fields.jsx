@@ -50,10 +50,10 @@ export function TextField({ id, field, placeholder, maxLength, inputMode, width,
   );
 }
 
-export function SelectField({ id, field, children }) {
+export function SelectField({ id, field, disabled, children }) {
   const { drawer, setField } = useDrawer();
   return (
-    <select id={id} value={drawer.form[field] ?? ''} onChange={e => setField(field, e.target.value)} className="field" style={{ padding: '0 10px' }}>
+    <select id={id} disabled={disabled} value={drawer.form[field] ?? ''} onChange={e => setField(field, e.target.value)} className="field" style={{ padding: '0 10px', opacity: disabled ? .6 : 1 }}>
       {children}
     </select>
   );

@@ -11,7 +11,7 @@ import { openers } from '../drawers/openers.js';
 import { setAccountStatus } from '../store/actions.js';
 
 const colHeader = { fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)' };
-const gridCols = { display: 'grid', gridTemplateColumns: '2fr 1.1fr 1fr 1.1fr 100px 90px', gap: 12 };
+const gridCols = { display: 'grid', gridTemplateColumns: '2fr 1.1fr 1fr 1.1fr 100px 128px', gap: 12 };
 
 export default function Accounts() {
   const { data: S, applyData } = useStore();
@@ -32,7 +32,7 @@ export default function Accounts() {
       dot: f.dot, fresh: f.label, last4: a.last4 ? '•• ' + a.last4 : '—',
     };
   });
-  const archived = S.accounts.filter(a => a.status === 'archived');
+  const archived = S.accounts.filter(a => a.status !== 'active');
   const restore = id => {
     applyData(data => setAccountStatus(data, { accountId: id, status: 'active' }));
     notify('Account restored — included in totals again.');
@@ -73,7 +73,8 @@ export default function Accounts() {
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}>{a.fresh}</span>
                 </div>
                 <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{a.last4}</div>
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ textAlign: 'right', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                  <button onClick={e => { e.stopPropagation(); openers.editAccount(S, a.id, openDrawer); }} className="hv-elev" style={{ height: 28, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Edit</button>
                   <button onClick={e => { e.stopPropagation(); nav(`/accounts/${a.id}`); }} className="hv-soft" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>View</button>
                 </div>
               </div>
@@ -94,7 +95,7 @@ export default function Accounts() {
               <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0 2px' }}>
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--muted)' }}>{a.nickname}</span>
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}> · {instName(S, a.instId)} · excluded from totals</span>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}> · {instName(S, a.instId)} · {a.status === 'closed' ? 'closed' : 'archived'} · excluded from totals</span>
                 </span>
                 <button onClick={() => restore(a.id)} className="hv-elev" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Restore</button>
               </div>
