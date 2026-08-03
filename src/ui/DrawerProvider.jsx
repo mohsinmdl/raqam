@@ -11,10 +11,13 @@ import { useUI } from './UIProvider.jsx';
 // write through setField (the generic data-f pattern) so ~30 inputs share one handler.
 const Ctx = createContext(null);
 
-function DrawerShell({ def, state, closeDrawer }) {
+function DrawerShell({ def, state, closeDrawer, requestClose }) {
   const submit = def.useSubmit();
+  // Optional destructive action (e.g. Delete when editing). Conditional hook call
+  // is safe: DrawerShell is keyed by drawer name, so `def` is fixed per mount.
+  const danger = def.useDanger ? def.useDanger() : null;
   return (
-    <div onClick={closeDrawer} style={{ position: 'fixed', inset: 0, background: 'rgba(8,16,13,.44)', animation: 'hsFade .18s ease', zIndex: 40 }}>
+    <div onClick={requestClose} style={{ position: 'fixed', inset: 0, background: 'rgba(8,16,13,.44)', animation: 'hsFade .18s ease', zIndex: 40 }}>
       <FocusTrap>
         <aside role="dialog" aria-modal="true" aria-label={def.title(state)} onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, maxWidth: '94vw', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', animation: 'hsSlide .22s ease', color: 'var(--text)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 22px', borderBottom: '1px solid var(--border)', flex: 'none' }}>
@@ -23,7 +26,7 @@ function DrawerShell({ def, state, closeDrawer }) {
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>{def.sub(state)}</div>
             </div>
             <span style={{ flex: 1 }} />
-            <button onClick={closeDrawer} aria-label="Close" className="hv-elev" style={{ width: 30, height: 30, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 15, cursor: 'pointer' }}>×</button>
+            <button onClick={requestClose} aria-label="Close" className="hv-elev" style={{ width: 30, height: 30, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 15, cursor: 'pointer' }}>×</button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {state.errList.length > 0 && (
@@ -34,8 +37,14 @@ function DrawerShell({ def, state, closeDrawer }) {
             )}
             <def.Body />
           </div>
-          <div style={{ display: 'flex', gap: 10, padding: '14px 22px', borderTop: '1px solid var(--border)', flex: 'none', background: 'var(--surface)' }}>
-            <button onClick={closeDrawer} className="hv-elev" style={{ height: 38, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+          <div style={{ display: 'flex', gap: 10, padding: '14px 22px', borderTop: '1px solid var(--border)', flex: 'none', background: 'var(--surface)', alignItems: 'center' }}>
+            {danger && (
+              <>
+                <button onClick={danger.onClick} className="hv-neg-soft" style={{ height: 38, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--neg)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>{danger.label}</button>
+                <span aria-hidden="true" style={{ width: 1, height: 22, background: 'var(--border)' }} />
+              </>
+            )}
+            <button onClick={requestClose} className="hv-elev" style={{ height: 38, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
             <span style={{ flex: 1 }} />
             <button onClick={submit} className="hv-accent" style={{ height: 38, padding: '0 20px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
               {def.cta(state)}
@@ -52,11 +61,11 @@ export function DrawerProvider({ registry, children }) {
   const [state, setState] = useState(null); // { name, form, errors, errList, dupMsg, dupAck }
 
   const openDrawer = useCallback((name, form = {}) => {
-    setState({ name, form, errors: {}, errList: [], dupMsg: null, dupAck: false });
+    setState({ name, form, errors: {}, errList: [], dupMsg: null, dupAck: false, dirty: false });
   }, []);
-  const closeDrawer = useCallback(() => setState(null), []);
+  const closeDrawer = useCallback(() => setState(null), []); // raw close — submits use this (skips the guard)
   const setForm = useCallback(patch => {
-    setState(s => (s ? { ...s, form: { ...s.form, ...patch }, dupMsg: null, dupAck: false } : s));
+    setState(s => (s ? { ...s, form: { ...s.form, ...patch }, dupMsg: null, dupAck: false, dirty: true } : s));
   }, []);
   const setField = useCallback((f, v) => setForm({ [f]: v }), [setForm]);
   const fail = useCallback((errors, errList) => {
@@ -67,14 +76,30 @@ export function DrawerProvider({ registry, children }) {
     setState(s => (s ? { ...s, dupMsg, dupAck: !!dupMsg, errors: {}, errList: [] } : s));
   }, []);
 
+  // Discard guard: edited drawers confirm before closing (backdrop, ×, Cancel, Escape).
+  const { ask } = useUI();
+  const requestClose = useCallback(async () => {
+    let dirty = false;
+    setState(s => { dirty = !!s?.dirty; return s; });
+    if (dirty) {
+      const ok = await ask({
+        title: 'Discard your changes?',
+        body: 'This form has unsaved edits. Closing it now throws them away.',
+        action: 'Discard changes',
+      });
+      if (!ok) return;
+    }
+    setState(null);
+  }, [ask]);
+
   // Escape closes the drawer — unless the confirm dialog is stacked above it
   // (its capture-phase listener already consumed the key).
   useEffect(() => {
     if (!state) return;
-    const onKey = e => { if (e.key === 'Escape' && !confirmOpen) closeDrawer(); };
+    const onKey = e => { if (e.key === 'Escape' && !confirmOpen) requestClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [state, confirmOpen, closeDrawer]);
+  }, [state, confirmOpen, requestClose]);
 
   const value = useMemo(
     () => ({ drawer: state, openDrawer, closeDrawer, setForm, setField, fail, setDup }),
@@ -86,7 +111,7 @@ export function DrawerProvider({ registry, children }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      {state && def && <DrawerShell key={state.name} def={def} state={state} closeDrawer={closeDrawer} />}
+      {state && def && <DrawerShell key={state.name} def={def} state={state} closeDrawer={closeDrawer} requestClose={requestClose} />}
     </Ctx.Provider>
   );
 }
