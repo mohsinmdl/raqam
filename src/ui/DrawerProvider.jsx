@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import FocusTrap from './FocusTrap.jsx';
 import { useUI } from './UIProvider.jsx';
 
@@ -58,7 +58,9 @@ function DrawerShell({ def, state, closeDrawer, requestClose }) {
 
 export function DrawerProvider({ registry, children }) {
   const { confirmOpen } = useUI();
-  const [state, setState] = useState(null); // { name, form, errors, errList, dupMsg, dupAck }
+  const [state, setState] = useState(null); // { name, form, errors, errList, dupMsg, dupAck, dirty }
+  const stateRef = useRef(null);
+  stateRef.current = state; // ref mirror: async handlers need the CURRENT dirty flag
 
   const openDrawer = useCallback((name, form = {}) => {
     setState({ name, form, errors: {}, errList: [], dupMsg: null, dupAck: false, dirty: false });
@@ -79,9 +81,7 @@ export function DrawerProvider({ registry, children }) {
   // Discard guard: edited drawers confirm before closing (backdrop, ×, Cancel, Escape).
   const { ask } = useUI();
   const requestClose = useCallback(async () => {
-    let dirty = false;
-    setState(s => { dirty = !!s?.dirty; return s; });
-    if (dirty) {
+    if (stateRef.current?.dirty) {
       const ok = await ask({
         title: 'Discard your changes?',
         body: 'This form has unsaved edits. Closing it now throws them away.',

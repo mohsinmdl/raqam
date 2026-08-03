@@ -330,3 +330,119 @@ export function rolloverMonth(data) {
 
   return next;
 }
+
+// ---- Categories (design v2 CRUD) -------------------------------------------
+
+const CAT_AUDIT_FIELDS = ['name', 'type', 'icon', 'color', 'description', 'sortOrder'];
+
+// Create or edit a category; budget (monthly amount or '') upserts/removes the
+// matching budgets row in the same atomic store transition.
+export function upsertCategory(data, { form: f, budgetAmt }) {
+  const editing = !!f.editId;
+  const next = { ...data, categories: [...data.categories], budgets: [...data.budgets] };
+  let id = f.editId;
+  let before = null;
+  if (editing) {
+    const i = next.categories.findIndex(c => c.id === id);
+    if (i < 0) return data;
+    before = next.categories[i];
+    next.categories[i] = stampUpdate({
+      ...before, name: f.name.trim(), type: f.type, icon: f.icon || 'square',
+      color: f.color || '#0F766E', description: (f.description || '').trim(),
+      sortOrder: parseInt(f.sortOrder, 10) || 99,
+    });
+  } else {
+    id = uid();
+    next.categories.push({
+      id, name: f.name.trim(), type: f.type, icon: f.icon || 'square', color: f.color || '#0F766E',
+      description: (f.description || '').trim(), sortOrder: parseInt(f.sortOrder, 10) || 99,
+      isSystem: false, status: 'active',
+    });
+  }
+  // Budget upsert keyed on category
+  const bi = next.budgets.findIndex(b => b.category === id);
+  if (budgetAmt > 0) {
+    if (bi >= 0) next.budgets[bi] = { ...next.budgets[bi], amount: budgetAmt };
+    else next.budgets.push({ id: uid(), category: id, amount: budgetAmt });
+  } else if (bi >= 0) {
+    next.budgets.splice(bi, 1);
+  }
+  if (editing) {
+    const after = next.categories.find(c => c.id === id);
+    const d = diffFields(before, after, CAT_AUDIT_FIELDS);
+    next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: 'Edited category ' + after.name + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+  } else {
+    next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'create', summary: 'Created category ' + f.name.trim(), after: { name: f.name.trim(), type: f.type } }), ...(next.audit || [])];
+  }
+  return next;
+}
+
+export function archiveCategory(data, { id }) {
+  const cat = data.categories.find(c => c.id === id);
+  if (!cat) return data;
+  return {
+    ...data,
+    categories: data.categories.map(c => (c.id === id ? stampUpdate({ ...c, status: 'archived', archivedAt: nowIso() }) : c)),
+    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'archive', summary: 'Archived category ' + cat.name, before: { status: cat.status }, after: { status: 'archived' } }), ...(data.audit || [])],
+  };
+}
+
+export function restoreCategory(data, { id }) {
+  const cat = data.categories.find(c => c.id === id);
+  if (!cat) return data;
+  return {
+    ...data,
+    categories: data.categories.map(c => {
+      if (c.id !== id) return c;
+      const restored = stampUpdate({ ...c, status: 'active' });
+      delete restored.archivedAt;
+      return restored;
+    }),
+    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'restore', summary: 'Restored category ' + cat.name, before: { status: cat.status }, after: { status: 'active' } }), ...(data.audit || [])],
+  };
+}
+
+// Hard delete — allowed only for unused custom categories (deletePolicy 'delete').
+export function deleteCategory(data, { id }) {
+  const cat = data.categories.find(c => c.id === id);
+  if (!cat || cat.isSystem) return data;
+  const used = data.transactions.some(t => t.category === id) || data.budgets.some(b => b.category === id) || data.recurring.some(r => r.category === id);
+  if (used) return data; // policy violation — caller should have offered reassign
+  return {
+    ...data,
+    categories: data.categories.filter(c => c.id !== id),
+    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'delete', summary: 'Deleted category ' + cat.name, before: { name: cat.name, type: cat.type } }), ...(data.audit || [])],
+  };
+}
+
+// Reassign-then-delete: repoint every reference, then remove the category — one
+// store transition. The differ pushes the repoints (upserts) BEFORE the delete,
+// keeping the server FK-safe; not one DB transaction, converges on retry.
+export function reassignDeleteCategory(data, { id, replacementId }) {
+  const cat = data.categories.find(c => c.id === id);
+  const repl = data.categories.find(c => c.id === replacementId);
+  if (!cat || !repl || cat.isSystem || id === replacementId) return data;
+  const moved = {
+    transactions: data.transactions.filter(t => t.category === id).length,
+    budgets: data.budgets.filter(b => b.category === id).length,
+    recurring: data.recurring.filter(r => r.category === id).length,
+  };
+  // Budgets are unique per category: if the replacement already has one, the
+  // source's budget is dropped rather than repointed (the replacement's own
+  // budget continues to apply).
+  const replacementHasBudget = data.budgets.some(b => b.category === replacementId);
+  return {
+    ...data,
+    transactions: data.transactions.map(t => (t.category === id ? { ...t, category: replacementId } : t)),
+    budgets: replacementHasBudget
+      ? data.budgets.filter(b => b.category !== id)
+      : data.budgets.map(b => (b.category === id ? { ...b, category: replacementId } : b)),
+    recurring: data.recurring.map(r => (r.category === id ? { ...r, category: replacementId } : r)),
+    categories: data.categories.filter(c => c.id !== id),
+    audit: [makeAudit({
+      entityType: 'category', entityId: id, action: 'reassign-delete',
+      summary: 'Deleted ' + cat.name + ' — ' + (moved.transactions + moved.budgets + moved.recurring) + ' reference(s) moved to ' + repl.name,
+      before: { name: cat.name, refs: moved }, after: { replacementId, replacementName: repl.name },
+    }), ...(data.audit || [])],
+  };
+}

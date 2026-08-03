@@ -114,6 +114,24 @@ export const openers = {
     openDrawer('adjustCard', { cardId, newOutstanding: String(out), reason: '', date: todayStr(), currentOutstanding: out });
   },
 
+  addCategory: openDrawer => openDrawer('category', {
+    editId: null, name: '', type: 'expense', icon: 'square', color: '#0F766E',
+    description: '', sortOrder: '99', budget: '', originalType: null,
+  }),
+
+  editCategory: (S, catId, openDrawer) => {
+    const c = S.categories.find(x => x.id === catId);
+    if (!c) return;
+    const budget = S.budgets.find(b => b.category === catId);
+    openDrawer('category', {
+      editId: c.id, name: c.name, type: c.type, icon: c.icon || 'square', color: c.color,
+      description: c.description || '', sortOrder: String(c.sortOrder ?? 99),
+      budget: budget ? String(budget.amount) : '', originalType: c.type,
+    });
+  },
+
+  reassignCategory: (catId, openDrawer) => openDrawer('reassign', { catId, replacement: '' }),
+
   recurring: (S, recurringId, openDrawer) => {
     const r = S.recurring.find(x => x.id === recurringId);
     if (!r) return;
