@@ -4,11 +4,11 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
-import { inMonth, monthLabel } from '../lib/calc.js';
+import { inMonth, isExcludedCat, monthLabel } from '../lib/calc.js';
 import { txRowOf } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 
-const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: 'all', min: '', max: '' };
+const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: 'all', impact: 'all', min: '', max: '' };
 const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
 const th = { textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)' };
 const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' };
@@ -35,6 +35,11 @@ export default function Transactions() {
     if (F.cat !== 'all' && t.category !== F.cat) return false;
     if (F.type !== 'all' && t.type !== F.type) return false;
     if (F.status !== 'all' && t.status !== F.status) return false;
+    if (F.impact !== 'all') {
+      // Recoverable = expense/refund in an excluded category (advances etc.).
+      const recoverable = (t.type === 'expense' || t.type === 'refund') && isExcludedCat(S, t.category);
+      if (F.impact === 'excluded' ? !recoverable : recoverable) return false;
+    }
     if (isFinite(minA) && t.amount < minA) return false;
     if (isFinite(maxA) && Math.abs(t.amount) > maxA) return false;
     return true;
@@ -52,6 +57,7 @@ export default function Transactions() {
   if (F.cat !== 'all') chips.push({ k: 'cat', label: catName(F.cat) || F.cat });
   if (F.type !== 'all') chips.push({ k: 'type', label: F.type.charAt(0).toUpperCase() + F.type.slice(1) });
   if (F.status !== 'all') chips.push({ k: 'status', label: F.status.charAt(0).toUpperCase() + F.status.slice(1) });
+  if (F.impact !== 'all') chips.push({ k: 'impact', label: F.impact === 'excluded' ? 'Excluded from budgets' : 'Counted in budgets' });
   if (F.min) chips.push({ k: 'min', label: 'Min Rs ' + F.min });
   if (F.max) chips.push({ k: 'max', label: 'Max Rs ' + F.max });
 
@@ -76,6 +82,9 @@ export default function Transactions() {
             </select>
             <select aria-label="Status" value={F.status} onChange={e => setF('status', e.target.value)} style={selStyle}>
               <option value="all">Any status</option><option value="cleared">Cleared</option><option value="pending">Pending</option>
+            </select>
+            <select aria-label="Budget impact" value={F.impact} onChange={e => setF('impact', e.target.value)} style={selStyle}>
+              <option value="all">Any budget impact</option><option value="counted">Counted in budgets</option><option value="excluded">Excluded from budgets</option>
             </select>
             <input aria-label="Minimum amount" placeholder="Min Rs" inputMode="numeric" value={F.min} onChange={e => setF('min', e.target.value)} style={{ ...selStyle, width: 86, padding: '0 10px' }} />
             <input aria-label="Maximum amount" placeholder="Max Rs" inputMode="numeric" value={F.max} onChange={e => setF('max', e.target.value)} style={{ ...selStyle, width: 86, padding: '0 10px' }} />
