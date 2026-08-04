@@ -1,7 +1,7 @@
 // Pure data-store actions: every function takes the current data store (and a payload)
 // and returns a NEW store. The reducer in StoreProvider applies them immutably.
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
-import { accountBalance, cardOutstanding, INST_KINDS } from '../lib/calc.js';
+import { accountBalance, accountDeletePolicy, cardOutstanding, INST_KINDS } from '../lib/calc.js';
 import { addMonths, clampDay, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { uid } from '../lib/util.js';
 import { makeAudit, diffFields, stampUpdate } from './audit.js';
@@ -197,6 +197,25 @@ export function adjustBalance(data, { accountId, delta, reason, date, currentBal
       summary: 'Corrected balance on ' + acc.nickname,
       before: { balance: currentBalance },
       after: { balance: currentBalance + delta, adjustment: delta, transactionId: t.id },
+    }), ...(data.audit || [])],
+  };
+}
+
+// Permanent removal of an archived account. Refuses while anything still points
+// at it (accountDeletePolicy) — the same references the database's foreign keys
+// would reject. Its opening snapshots go with it, mirroring the server cascade so
+// local state matches immediately; the audit row outlives the account by design.
+export function deleteAccountPermanently(data, { id }) {
+  const acc = data.accounts.find(a => a.id === id);
+  if (!acc || accountDeletePolicy(data, id).mode !== 'delete') return data;
+  return {
+    ...data,
+    accounts: data.accounts.filter(a => a.id !== id),
+    snapshots: data.snapshots.filter(s => s.accountId !== id),
+    audit: [makeAudit({
+      entityType: 'account', entityId: id, action: 'delete',
+      summary: 'Deleted account ' + acc.nickname + ' permanently',
+      before: { nickname: acc.nickname, instId: acc.instId, type: acc.type, status: acc.status },
     }), ...(data.audit || [])],
   };
 }

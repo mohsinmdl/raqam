@@ -2,8 +2,8 @@
 // that makes reclassification safe (a kind change must push an UPDATE, never a
 // DELETE — see src/store/sync.js's `writable`).
 import { describe, it, expect } from 'vitest';
-import { instById, instRefs, INST_KINDS } from '../src/lib/calc.js';
-import { updateInstitution, deleteInstitution, addAccount, addCard, updateAccount } from '../src/store/actions.js';
+import { accountDeletePolicy, instById, instRefs, INST_KINDS } from '../src/lib/calc.js';
+import { updateInstitution, deleteInstitution, addAccount, addCard, updateAccount, deleteAccountPermanently } from '../src/store/actions.js';
 import { diffStores } from '../src/store/sync.js';
 
 function store(over) {
@@ -110,6 +110,50 @@ describe('accounts no longer carry their own Conventional/Islamic flag', () => {
     const S = store({ accounts: [{ id: 'a1', instId: 'u1', nickname: 'Old', type: 'Current', status: 'active', islamic: true }] });
     const next = updateAccount(S, { form: { editId: 'a1', inst: 'u1', nickname: 'Old', type: 'Current', status: 'active' } });
     expect(next.accounts[0]).not.toHaveProperty('islamic');
+  });
+});
+
+describe('permanent account deletion', () => {
+  // 'a1' is blocked by a linked card; 'a2' is clean apart from its opening snapshot.
+  const withA2 = over => store({
+    accounts: [
+      { id: 'a1', instId: 'u1', nickname: 'Main', status: 'active' },
+      { id: 'a2', instId: 'u2', nickname: 'Old Faysal', status: 'archived' },
+    ],
+    cards: [{ id: 'c1', instId: 'u1', linkedAccountId: 'a1', type: 'debit', status: 'active' }],
+    snapshots: [{ accountId: 'a2', month: '2026-08', amount: 100, status: 'pending' }],
+    ...(over || {}),
+  });
+
+  it('allows deletion only when nothing points at the account', () => {
+    expect(accountDeletePolicy(withA2(), 'a2')).toMatchObject({ mode: 'delete', blockers: [] });
+    expect(accountDeletePolicy(withA2(), 'a1').mode).toBe('blocked'); // linked card
+  });
+  it('counts references regardless of status — closed cards and paused rules still block', () => {
+    const closedCard = withA2({ cards: [{ id: 'c9', instId: 'u1', linkedAccountId: 'a2', status: 'closed' }] });
+    expect(accountDeletePolicy(closedCard, 'a2')).toMatchObject({ mode: 'blocked', blockers: ['1 linked card'] });
+    const pausedRule = withA2({ recurring: [{ id: 'r9', accountId: 'a2', status: 'paused' }] });
+    expect(accountDeletePolicy(pausedRule, 'a2')).toMatchObject({ mode: 'blocked', blockers: ['1 recurring rule'] });
+    const tx = withA2({ transactions: [{ id: 't9', type: 'expense', amount: 1, toAccountId: 'a2', status: 'cleared', date: '2026-08-01T12:00' }] });
+    expect(accountDeletePolicy(tx, 'a2')).toMatchObject({ mode: 'blocked', blockers: ['1 transaction'] });
+  });
+  it('removes the account, its snapshots, and audits the removal', () => {
+    const next = deleteAccountPermanently(withA2(), { id: 'a2' });
+    expect(next.accounts.map(a => a.id)).toEqual(['a1']);
+    expect(next.snapshots).toEqual([]);
+    expect(next.audit[0]).toMatchObject({ entityType: 'account', entityId: 'a2', action: 'delete' });
+  });
+  it('refuses a blocked or unknown account, and leaves other snapshots alone', () => {
+    const S = withA2();
+    expect(deleteAccountPermanently(S, { id: 'a1' })).toBe(S);
+    expect(deleteAccountPermanently(S, { id: 'nope' })).toBe(S);
+    const two = withA2({ snapshots: [{ accountId: 'a1', month: '2026-08', amount: 5, status: 'pending' }, { accountId: 'a2', month: '2026-08', amount: 1, status: 'pending' }] });
+    expect(deleteAccountPermanently(two, { id: 'a2' }).snapshots).toEqual([{ accountId: 'a1', month: '2026-08', amount: 5, status: 'pending' }]);
+  });
+  it('frees the bank so it can then be removed', () => {
+    const afterAcct = deleteAccountPermanently(withA2(), { id: 'a2' });
+    expect(instRefs(afterAcct, 'u2').total).toBe(0);
+    expect(instById(deleteInstitution(afterAcct, { id: 'u2' }), 'u2')).toBeNull();
   });
 });
 

@@ -5,10 +5,10 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
-import { accountBalance, dayLabel, kindLabel, lastActivity } from '../lib/calc.js';
+import { accountBalance, accountDeletePolicy, dayLabel, kindLabel, lastActivity } from '../lib/calc.js';
 import { freshInfo, instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
-import { setAccountStatus } from '../store/actions.js';
+import { deleteAccountPermanently, setAccountStatus } from '../store/actions.js';
 
 const colHeader = { fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)' };
 const gridCols = { display: 'grid', gridTemplateColumns: '2fr 1.1fr 1fr 1.1fr 100px 128px', gap: 12 };
@@ -18,7 +18,7 @@ export default function Accounts() {
   const { month } = useMonth();
   const { money } = useMoney();
   const { openDrawer } = useDrawer();
-  const { notify } = useUI();
+  const { notify, ask } = useUI();
   const nav = useNavigate();
 
   const active = S.accounts.filter(a => a.status === 'active');
@@ -36,6 +36,17 @@ export default function Accounts() {
   const restore = id => {
     applyData(data => setAccountStatus(data, { accountId: id, status: 'active' }));
     notify('Account restored — included in totals again.');
+  };
+
+  const askDelete = async a => {
+    const ok = await ask({
+      title: 'Delete “' + a.nickname + '” for good?',
+      body: 'Nothing points at this account, so it can be removed completely — it and its opening balance disappear from your data and from the server. This cannot be undone. Archiving is the reversible option.',
+      action: 'Delete permanently',
+    });
+    if (!ok) return;
+    applyData(data => deleteAccountPermanently(data, { id: a.id }));
+    notify('“' + a.nickname + '” deleted.');
   };
 
   return (
@@ -90,15 +101,21 @@ export default function Accounts() {
         {archived.length > 0 && (
           <section aria-label="Archived accounts" style={{ border: '1px dashed var(--border)', borderRadius: 12, padding: '14px 18px' }}>
             <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)' }}>ARCHIVED</div>
-            {archived.map(a => (
+            {archived.map(a => {
+              const pol = accountDeletePolicy(S, a.id);
+              return (
               <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0 2px' }}>
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--muted)' }}>{a.nickname}</span>
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}> · {instName(S, a.instId)} · {a.status === 'closed' ? 'closed' : 'archived'} · excluded from totals</span>
                 </span>
-                <button onClick={() => restore(a.id)} className="hv-elev" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Restore</button>
+                {pol.mode === 'delete'
+                  ? <button onClick={() => askDelete(a)} className="hv-neg-soft" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--neg)', fontSize: 12, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Delete</button>
+                  : <span style={{ fontSize: 11.5, color: 'var(--muted)', flex: 'none' }} title={'Kept because of ' + pol.blockers.join(', ')}>Kept · {pol.blockers.join(', ')}</span>}
+                <button onClick={() => restore(a.id)} className="hv-elev" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Restore</button>
               </div>
-            ))}
+              );
+            })}
           </section>
         )}
       </div>
