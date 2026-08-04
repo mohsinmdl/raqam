@@ -60,13 +60,13 @@ const COLLECTIONS = [
     name: 'accounts', table: 'accounts', keyOf: r => r.id,
     // Explicit nulls (see transactions): archived_at clears on restore.
     toRow: r => ({
-      id: r.id, inst_id: r.instId, nickname: r.nickname, type: r.type, islamic: !!r.islamic,
+      id: r.id, inst_id: r.instId, nickname: r.nickname, type: r.type,
       currency: r.currency || 'PKR', last4: r.last4 || '', status: r.status, notes: r.notes || '',
       opened_on: r.createdAt, archived_at: r.archivedAt ?? null,
       edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
     }),
     fromRow: r => stripNulls({
-      id: r.id, instId: r.inst_id, nickname: r.nickname, type: r.type, islamic: r.islamic,
+      id: r.id, instId: r.inst_id, nickname: r.nickname, type: r.type,
       currency: r.currency, last4: r.last4, status: r.status, notes: r.notes, createdAt: r.opened_on,
       archivedAt: r.archived_at || undefined,
       editedAt: r.edited_at || undefined, editCount: r.edit_count > 0 ? r.edit_count : undefined,

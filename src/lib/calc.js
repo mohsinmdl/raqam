@@ -200,6 +200,8 @@ export function cardRefs(store, id, month) {
 // bank. Own rows are editable (name + kind); catalogue rows never are.
 // ---------------------------------------------------------------------------
 export const INST_KINDS = ['Conventional', 'Islamic', 'Foreign', 'Microfinance', 'Digital', 'Custom'];
+// 'Custom' is stored for historical reasons; it reads as "Other" everywhere.
+export function kindLabel(kind) { return kind === 'Custom' ? 'Other' : kind; }
 export function instById(store, id) { return store.institutions.find(i => i.id === id) || null; }
 // What points at this bank — a bank may only be removed when nothing does.
 export function instRefs(store, id) {

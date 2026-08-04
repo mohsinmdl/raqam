@@ -3,7 +3,7 @@
 // DELETE — see src/store/sync.js's `writable`).
 import { describe, it, expect } from 'vitest';
 import { instById, instRefs, INST_KINDS } from '../src/lib/calc.js';
-import { updateInstitution, deleteInstitution, addCard } from '../src/store/actions.js';
+import { updateInstitution, deleteInstitution, addAccount, addCard, updateAccount } from '../src/store/actions.js';
 import { diffStores } from '../src/store/sync.js';
 
 function store(over) {
@@ -68,15 +68,48 @@ describe('deleteInstitution', () => {
   });
 });
 
-describe('addCard creates a custom bank', () => {
-  it('mints the institution and points the card at it', () => {
+describe('creating a bank alongside an account or card', () => {
+  // A name distinct from the fixture's existing 'Askari Bank'.
+  const accForm = over => ({ inst: '__custom', customInst: '  JS Bank ', customInstKind: 'Conventional', nickname: 'Salary', type: 'Current', asof: '2026-08-05', ...over });
+
+  it('addAccount mints the bank with the chosen category', () => {
+    const next = addAccount(store(), { form: accForm(), bal: 1000 });
+    const made = next.institutions.find(i => i.name === 'JS Bank');
+    expect(made).toMatchObject({ kind: 'Conventional', own: true });
+    expect(next.accounts.at(-1).instId).toBe(made.id);
+  });
+  it('addCard mints the bank with the chosen category and points the card at it', () => {
     const next = addCard(store(), {
-      form: { inst: '__custom', customInst: '  Nayapay ', nickname: 'Wallet', linked: 'acc:a1' },
+      form: { inst: '__custom', customInst: '  Nayapay ', customInstKind: 'Digital', nickname: 'Wallet', linked: 'acc:a1' },
       prod: null, ctype: 'debit', limit: NaN,
     });
     const made = next.institutions.find(i => i.name === 'Nayapay');
-    expect(made).toMatchObject({ kind: 'Custom', own: true });
+    expect(made).toMatchObject({ kind: 'Digital', own: true });
     expect(next.cards.at(-1).instId).toBe(made.id);
+  });
+  it('an absent or bogus category falls back to Other', () => {
+    const bogus = addAccount(store(), { form: accForm({ customInstKind: 'Nonsense' }), bal: 0 });
+    expect(instById(bogus, bogus.accounts.at(-1).instId).kind).toBe('Custom');
+    const missing = addAccount(store(), { form: accForm({ customInstKind: undefined }), bal: 0 });
+    expect(instById(missing, missing.accounts.at(-1).instId).kind).toBe('Custom');
+  });
+  it('every offered category is accepted at creation', () => {
+    INST_KINDS.forEach(k => {
+      const next = addAccount(store(), { form: accForm({ customInstKind: k }), bal: 0 });
+      expect(instById(next, next.accounts.at(-1).instId).kind).toBe(k);
+    });
+  });
+});
+
+describe('accounts no longer carry their own Conventional/Islamic flag', () => {
+  it('addAccount does not write islamic', () => {
+    const next = addAccount(store(), { form: { inst: 'meezan', nickname: 'Savings', type: 'Savings', asof: '2026-08-05' }, bal: 500 });
+    expect(next.accounts.at(-1)).not.toHaveProperty('islamic');
+  });
+  it('updateAccount strips a legacy islamic value off the record', () => {
+    const S = store({ accounts: [{ id: 'a1', instId: 'u1', nickname: 'Old', type: 'Current', status: 'active', islamic: true }] });
+    const next = updateAccount(S, { form: { editId: 'a1', inst: 'u1', nickname: 'Old', type: 'Current', status: 'active' } });
+    expect(next.accounts[0]).not.toHaveProperty('islamic');
   });
 });
 

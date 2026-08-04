@@ -8,7 +8,7 @@ import { currentMonth } from '../lib/dates.js';
 import { addCard, updateCard } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
 import { useInstGroups } from './AccountForm.jsx';
-import BankKindField from './BankKindField.jsx';
+import BankKindField, { KindOptions } from './BankKindField.jsx';
 import { Label, FieldError, Hint, TextField, SelectField, grid2, grid3, noteBox } from './fields.jsx';
 
 function Body() {
@@ -52,7 +52,14 @@ function Body() {
           ))}
           {!editing && <option value="__custom">＋ Custom institution…</option>}
         </SelectField>
-        {f.inst === '__custom' && <TextField field="customInst" ariaLabel="Institution name" placeholder="Institution name" accent />}
+        {f.inst === '__custom' && (
+          <div style={{ ...grid2, marginTop: 8 }}>
+            <TextField field="customInst" ariaLabel="Institution name" placeholder="Institution name" />
+            <SelectField id="c-instkind" field="customInstKind" ariaLabel="Type of bank">
+              <KindOptions />
+            </SelectField>
+          </div>
+        )}
         <FieldError msg={errors.inst} />
         <BankKindField />
       </div>

@@ -5,7 +5,7 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
-import { accountBalance, accountDelta, dayLabel, inMonth, lastActivity, monthLabel, openingOf, relTime } from '../lib/calc.js';
+import { accountBalance, accountDelta, dayLabel, inMonth, kindLabel, lastActivity, monthLabel, openingOf, relTime } from '../lib/calc.js';
 import { txRowOf, instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import { setAccountStatus } from '../store/actions.js';
@@ -45,7 +45,6 @@ export default function AccountDetail() {
   const change = bal - opening;
   const detTx = atx.map(t => txRowOf(t, S, fmt, a.id));
   const linkedCards = S.cards.filter(c => c.linkedAccountId === a.id);
-  const islamicChip = a.islamic && (!inst || inst.kind !== 'Islamic');
 
   const pts = months.map(m => ({ label: monthLabel(m).slice(0, 3), val: openingOf(a, S.snapshots, m), tip: monthLabel(m) + ' opening: ' }))
     .concat([{ label: 'Now', val: bal, tip: 'Current balance: ' }]);
@@ -81,11 +80,10 @@ export default function AccountDetail() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <h2 style={{ fontSize: 19, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>{a.nickname}</h2>
                 <span style={{ ...chip('var(--elev)', 'var(--muted)'), border: '1px solid var(--border)' }}>{a.type}</span>
-                {islamicChip && <span style={chip('var(--soft)', 'var(--accent-h)')}>Islamic</span>}
                 {a.status === 'archived' && <span style={chip('var(--warn-soft)', 'var(--warn)')}>Archived</span>}
               </div>
               <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                {inst ? inst.name : '—'} · {inst ? inst.kind : '—'} · {a.last4 ? 'Account •• ' + a.last4 : 'No number stored'} · PKR
+                {inst ? inst.name : '—'} · {inst ? kindLabel(inst.kind) : '—'} · {a.last4 ? 'Account •• ' + a.last4 : 'No number stored'} · PKR
                 {a.editedAt ? ' · Edited ' + relTime(a.editedAt) : ''}
               </div>
               {a.notes && <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 10, padding: '10px 12px', background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 8, maxWidth: '56ch' }}>{a.notes}</div>}

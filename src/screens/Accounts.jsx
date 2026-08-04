@@ -5,7 +5,7 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
-import { accountBalance, dayLabel, lastActivity } from '../lib/calc.js';
+import { accountBalance, dayLabel, kindLabel, lastActivity } from '../lib/calc.js';
 import { freshInfo, instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import { setAccountStatus } from '../store/actions.js';
@@ -26,8 +26,8 @@ export default function Accounts() {
     const f = freshInfo(a, S);
     const inst = S.institutions.find(i => i.id === a.instId);
     return {
-      id: a.id, nick: a.nickname, inst: inst ? inst.name : '—', kind: inst ? inst.kind : '—',
-      islamic: a.islamic && (!inst || inst.kind !== 'Islamic'), type: a.type,
+      // The bank's category IS the account's — no separate per-account flag.
+      id: a.id, nick: a.nickname, inst: inst ? inst.name : '—', kind: inst ? kindLabel(inst.kind) : '—', type: a.type,
       bal: money(accountBalance(a, S, month)), asOf: dayLabel(lastActivity(a, S)),
       dot: f.dot, fresh: f.label, last4: a.last4 ? '•• ' + a.last4 : '—',
     };
@@ -60,7 +60,6 @@ export default function Accounts() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                     <span style={{ fontSize: 12, color: 'var(--muted)' }}>{a.inst}</span>
                     <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 999, background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{a.kind}</span>
-                    {a.islamic && <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 999, background: 'var(--soft)', color: 'var(--accent-h)' }}>Islamic</span>}
                   </div>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>{a.type}</div>

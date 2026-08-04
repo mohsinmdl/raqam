@@ -9,6 +9,10 @@ import { freshStore } from './seed.js';
 
 export const resetAll = () => freshStore();
 
+// The category chosen alongside a brand-new custom bank's name. Unknown values
+// fall back to 'Other' rather than writing a kind the schema would reject.
+const instKindOf = f => (INST_KINDS.includes(f.customInstKind) ? f.customInstKind : 'Custom');
+
 // Fields that participate in transaction update-audit diffs.
 const TX_AUDIT_FIELDS = ['type', 'amount', 'date', 'status', 'accountId', 'toAccountId', 'cardId', 'toCardId', 'category', 'merchant', 'notes', 'fee', 'adjustmentReason'];
 
@@ -91,10 +95,11 @@ export function addAccount(data, { form: f, bal }) {
   let instId = f.inst;
   if (instId === '__custom') {
     instId = uid();
-    next.institutions.push({ id: instId, name: f.customInst.trim(), kind: 'Custom', own: true });
+    next.institutions.push({ id: instId, name: f.customInst.trim(), kind: instKindOf(f), own: true });
   }
   const id = uid();
-  next.accounts.push({ id, instId, nickname: f.nickname.trim(), type: f.type || 'Current', islamic: f.islamic === 'islamic', currency: 'PKR', last4: f.last4 || '', status: 'active', notes: f.notes || '', createdAt: f.asof || todayStr() });
+  // No per-account Conventional/Islamic flag: an account takes its bank's category.
+  next.accounts.push({ id, instId, nickname: f.nickname.trim(), type: f.type || 'Current', currency: 'PKR', last4: f.last4 || '', status: 'active', notes: f.notes || '', createdAt: f.asof || todayStr() });
   next.snapshots.push({ month: currentMonth(), accountId: id, amount: bal, status: 'pending' });
   return next;
 }
@@ -106,7 +111,7 @@ export function addCard(data, { form: f, prod, ctype, limit }) {
   let instId = f.inst;
   if (instId === '__custom') { // a bank can now be created from the card drawer too
     instId = uid();
-    institutions.push({ id: instId, name: f.customInst.trim(), kind: 'Custom', own: true });
+    institutions.push({ id: instId, name: f.customInst.trim(), kind: instKindOf(f), own: true });
   }
   const card = {
     id: uid(), instId, productId: prod ? prod.id : null, nickname: f.nickname.trim(), type: ctype,
@@ -216,7 +221,7 @@ export function setAccountStatus(data, { accountId, status }) {
   };
 }
 
-const ACC_AUDIT_FIELDS = ['instId', 'nickname', 'type', 'islamic', 'currency', 'last4', 'notes', 'status'];
+const ACC_AUDIT_FIELDS = ['instId', 'nickname', 'type', 'currency', 'last4', 'notes', 'status'];
 
 // Edit account metadata (balance is NEVER edited here — Adjust balance owns that).
 export function updateAccount(data, { form: f }) {
@@ -227,14 +232,15 @@ export function updateAccount(data, { form: f }) {
   let instId = f.inst;
   if (instId === '__custom') {
     instId = uid();
-    next.institutions = [...next.institutions, { id: instId, name: f.customInst.trim(), kind: 'Custom', own: true }];
+    next.institutions = [...next.institutions, { id: instId, name: f.customInst.trim(), kind: instKindOf(f), own: true }];
   }
   const status = f.status || before.status;
   const patched = stampUpdate({
     ...before, instId, nickname: f.nickname.trim(), type: f.type || before.type,
-    islamic: f.islamic === 'islamic', last4: f.last4 || '', notes: f.notes || '', status,
+    last4: f.last4 || '', notes: f.notes || '', status,
     archivedAt: status === 'archived' ? (before.archivedAt || nowIso()) : undefined,
   });
+  delete patched.islamic; // retired: an account takes its bank's category
   if (status !== 'archived') delete patched.archivedAt;
   next.accounts[i] = patched;
   const d = diffFields(before, patched, ACC_AUDIT_FIELDS);

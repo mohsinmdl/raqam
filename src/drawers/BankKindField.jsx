@@ -13,7 +13,13 @@ import { instById, instRefs, INST_KINDS } from '../lib/calc.js';
 import { deleteInstitution, updateInstitution } from '../store/actions.js';
 import { Label, Hint, grid2 } from './fields.jsx';
 
-const KIND_LABEL = { Custom: 'Other — not a bank' };
+export const KIND_LABEL = { Custom: 'Other — not a bank' };
+
+// The kind picker, shared by this component and the "＋ Custom institution…"
+// path in both drawers (where the bank does not exist yet).
+export function KindOptions() {
+  return INST_KINDS.map(k => <option key={k} value={k}>{KIND_LABEL[k] || k}</option>);
+}
 
 export default function BankKindField() {
   const { drawer, setForm } = useDrawer();
@@ -66,7 +72,7 @@ export default function BankKindField() {
         <div>
           <Label htmlFor="i-kind">Type of bank</Label>
           <select id="i-kind" className="field" style={{ padding: '0 10px' }} value={inst.kind} onChange={e => commitKind(e.target.value)}>
-            {INST_KINDS.map(k => <option key={k} value={k}>{KIND_LABEL[k] || k}</option>)}
+            <KindOptions />
           </select>
         </div>
       </div>
