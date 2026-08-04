@@ -194,6 +194,20 @@ export function cardRefs(store, id, month) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Institutions — the global catalogue plus the user's own banks. `kind` groups
+// the pickers; 'Custom' is the catch-all ("Other") for anything that isn't a
+// bank. Own rows are editable (name + kind); catalogue rows never are.
+// ---------------------------------------------------------------------------
+export const INST_KINDS = ['Conventional', 'Islamic', 'Foreign', 'Microfinance', 'Digital', 'Custom'];
+export function instById(store, id) { return store.institutions.find(i => i.id === id) || null; }
+// What points at this bank — a bank may only be removed when nothing does.
+export function instRefs(store, id) {
+  const accounts = store.accounts.filter(a => a.instId === id).length;
+  const cards = store.cards.filter(c => c.instId === id).length;
+  return { accounts, cards, total: accounts + cards };
+}
+
 // A transaction's full financial effect, as a plain list — proves an edit
 // reverses the old effect and applies the new one.
 export function effectsOf(t) {

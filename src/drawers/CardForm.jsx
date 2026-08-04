@@ -8,13 +8,14 @@ import { currentMonth } from '../lib/dates.js';
 import { addCard, updateCard } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
 import { useInstGroups } from './AccountForm.jsx';
+import BankKindField from './BankKindField.jsx';
 import { Label, FieldError, Hint, TextField, SelectField, grid2, grid3, noteBox } from './fields.jsx';
 
 function Body() {
   const { drawer } = useDrawer();
   const { data: S } = useStore();
   const { money } = useMoney();
-  const instGroups = useInstGroups().filter(g => g.kind !== 'Custom'); // card banks come from the catalogue
+  const instGroups = useInstGroups(); // your own banks belong here too, not just the catalogue
   const f = drawer.form, errors = drawer.errors;
 
   const productOpts = S.cardProducts.filter(p => p.instId === f.inst).map(p => ({ id: p.id, label: p.name + ' · ' + p.type + ' · ' + p.network }));
@@ -49,8 +50,11 @@ function Body() {
               {g.items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
             </optgroup>
           ))}
+          {!editing && <option value="__custom">＋ Custom institution…</option>}
         </SelectField>
+        {f.inst === '__custom' && <TextField field="customInst" ariaLabel="Institution name" placeholder="Institution name" accent />}
         <FieldError msg={errors.inst} />
+        <BankKindField />
       </div>
 
       {!editing && (

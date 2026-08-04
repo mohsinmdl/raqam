@@ -3,19 +3,19 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { parseAmt } from '../lib/format.js';
-import { accountRefs } from '../lib/calc.js';
+import { accountRefs, INST_KINDS } from '../lib/calc.js';
+import BankKindField from './BankKindField.jsx';
 import { currentMonth } from '../lib/dates.js';
 import { ACCOUNT_TYPES } from '../store/seed.js';
 import { addAccount, updateAccount } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, Pill, grid2 } from './fields.jsx';
 
-const INST_KINDS = ['Conventional', 'Islamic', 'Foreign', 'Microfinance', 'Digital', 'Custom'];
-
 export function useInstGroups() {
   const { data: S } = useStore();
   return INST_KINDS
-    .map(kind => ({ kind: kind + (kind === 'Custom' ? '' : ' banks'), items: S.institutions.filter(i => i.kind === kind) }))
+    // 'Custom' is the catch-all for things that aren't banks (cash, a wallet app).
+    .map(kind => ({ kind: kind === 'Custom' ? 'Other' : kind + ' banks', items: S.institutions.filter(i => i.kind === kind) }))
     .filter(g => g.items.length > 0);
 }
 
@@ -50,6 +50,7 @@ function Body() {
         <Hint>Demo institution list — replaceable with a researched catalogue.</Hint>
         {f.inst === '__custom' && <TextField field="customInst" ariaLabel="Institution name" placeholder="Institution name" accent />}
         <FieldError msg={errors.inst} />
+        <BankKindField />
       </div>
 
       <div style={grid2}>

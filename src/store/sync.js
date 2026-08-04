@@ -22,11 +22,14 @@ const stripNulls = o => {
 const COLLECTIONS = [
   {
     name: 'institutions', table: 'institutions', keyOf: r => r.id,
-    // Only the user's own Custom institutions are writable; global rows are fetch-only.
-    writable: r => r.kind === 'Custom',
+    // Only the user's OWN institutions are writable; global catalogue rows are
+    // fetch-only. Ownership, never kind: `own` rows may be reclassified freely
+    // (Conventional/Islamic/…), and a kind-based test would drop a reclassified
+    // row out of the writable set — which the differ reads as a delete.
+    writable: r => !!r.own,
     conflictKey: 'id', // PK is plain id here (shared catalogue), not (user_id, id)
-    toRow: r => ({ id: r.id, name: r.name, kind: r.kind }),
-    fromRow: r => ({ id: r.id, name: r.name, kind: r.kind }),
+    toRow: r => ({ id: r.id, name: r.name, kind: r.kind }), // `own` never goes to the server
+    fromRow: r => ({ id: r.id, name: r.name, kind: r.kind, own: !!r.user_id }),
   },
   {
     name: 'cardProducts', table: 'card_products', keyOf: r => r.id,

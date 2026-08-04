@@ -1,7 +1,7 @@
 // Pure data-store actions: every function takes the current data store (and a payload)
 // and returns a NEW store. The reducer in StoreProvider applies them immutably.
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
-import { accountBalance, cardOutstanding } from '../lib/calc.js';
+import { accountBalance, cardOutstanding, INST_KINDS } from '../lib/calc.js';
 import { addMonths, clampDay, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { uid } from '../lib/util.js';
 import { makeAudit, diffFields, stampUpdate } from './audit.js';
@@ -91,7 +91,7 @@ export function addAccount(data, { form: f, bal }) {
   let instId = f.inst;
   if (instId === '__custom') {
     instId = uid();
-    next.institutions.push({ id: instId, name: f.customInst.trim(), kind: 'Custom' });
+    next.institutions.push({ id: instId, name: f.customInst.trim(), kind: 'Custom', own: true });
   }
   const id = uid();
   next.accounts.push({ id, instId, nickname: f.nickname.trim(), type: f.type || 'Current', islamic: f.islamic === 'islamic', currency: 'PKR', last4: f.last4 || '', status: 'active', notes: f.notes || '', createdAt: f.asof || todayStr() });
@@ -102,15 +102,46 @@ export function addAccount(data, { form: f, bal }) {
 // payload: validated addCard form + resolved product/type/limit.
 export function addCard(data, { form: f, prod, ctype, limit }) {
   const month = currentMonth();
+  const institutions = [...data.institutions];
+  let instId = f.inst;
+  if (instId === '__custom') { // a bank can now be created from the card drawer too
+    instId = uid();
+    institutions.push({ id: instId, name: f.customInst.trim(), kind: 'Custom', own: true });
+  }
   const card = {
-    id: uid(), instId: f.inst, productId: prod ? prod.id : null, nickname: f.nickname.trim(), type: ctype,
+    id: uid(), instId, productId: prod ? prod.id : null, nickname: f.nickname.trim(), type: ctype,
     network: prod ? prod.network : (f.network || 'Visa'), tier: prod ? prod.tier : (f.tier || ''),
     last4: f.last4 || '', status: 'active', theme: ['teal', 'ink', 'warm'][data.cards.length % 3],
     openingOutstanding: { [month]: 0 },
   };
   if (ctype === 'credit') { card.limit = limit; card.statementDay = parseInt(f.stmtDay, 10) || 25; card.dueDate = f.due || ''; }
   else card.linkedAccountId = f.linked ? f.linked.slice(4) : '';
-  return { ...data, cards: [...data.cards, card] };
+  return { ...data, institutions, cards: [...data.cards, card] };
+}
+
+// ---- Institutions (own rows only) ------------------------------------------
+// A bank is ONE shared record: renaming or reclassifying it changes every
+// account and card that points at it. Catalogue rows (no `own`) are read-only
+// here and by RLS. No audit entry — this is display metadata, and audit_log's
+// entity_type CHECK has no 'institution' value.
+export function updateInstitution(data, { id, name, kind }) {
+  const i = data.institutions.findIndex(x => x.id === id);
+  if (i < 0 || !data.institutions[i].own) return data;
+  const inst = data.institutions[i];
+  const nextName = (name ?? inst.name).trim() || inst.name;
+  const nextKind = INST_KINDS.includes(kind) ? kind : inst.kind;
+  if (nextName === inst.name && nextKind === inst.kind) return data;
+  const institutions = [...data.institutions];
+  institutions[i] = { ...inst, name: nextName, kind: nextKind };
+  return { ...data, institutions };
+}
+
+// Only ever offered for a bank nothing points at (see instRefs).
+export function deleteInstitution(data, { id }) {
+  const inst = data.institutions.find(x => x.id === id);
+  if (!inst || !inst.own) return data;
+  if (data.accounts.some(a => a.instId === id) || data.cards.some(c => c.instId === id)) return data;
+  return { ...data, institutions: data.institutions.filter(x => x.id !== id) };
 }
 
 // payload: { cardId, cardName, from, amt, date } — card payment is a transfer, never an expense.
@@ -196,7 +227,7 @@ export function updateAccount(data, { form: f }) {
   let instId = f.inst;
   if (instId === '__custom') {
     instId = uid();
-    next.institutions = [...next.institutions, { id: instId, name: f.customInst.trim(), kind: 'Custom' }];
+    next.institutions = [...next.institutions, { id: instId, name: f.customInst.trim(), kind: 'Custom', own: true }];
   }
   const status = f.status || before.status;
   const patched = stampUpdate({
