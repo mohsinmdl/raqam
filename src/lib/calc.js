@@ -86,20 +86,24 @@ export function monthMetrics(store, month) {
     pendingCount: pend.length, pendingTotal: pend.reduce((s, t) => s + t.amount, 0),
   };
 }
-export function categorySpending(store, month) {
+// Spending charts hide excluded (recoverable) categories unless the caller
+// opts in — advances are not "spending by category", they are money on loan.
+export function categorySpending(store, month, opts) {
   const map = {};
   store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending').forEach(t => {
     if (t.type === 'expense') map[t.category] = (map[t.category] || 0) + t.amount;
     if (t.type === 'refund') map[t.category] = (map[t.category] || 0) - t.amount;
   });
+  const skip = !(opts && opts.includeExcluded);
   return Object.entries(map).map(([id, amt]) => ({ id, amt, cat: store.categories.find(c => c.id === id) }))
-    .filter(x => x.amt > 0).sort((a, b) => b.amt - a.amt);
+    .filter(x => x.amt > 0 && !(skip && isExcludedCat(store, x.id))).sort((a, b) => b.amt - a.amt);
 }
-export function dailySpending(store, month) {
+export function dailySpending(store, month, opts) {
   const n = daysInMonth(month); const out = [];
+  const skip = !(opts && opts.includeExcluded);
   for (let d = 1; d <= n; d++) {
     const key = month + '-' + String(d).padStart(2, '0');
-    const amt = store.transactions.filter(t => t.date.slice(0, 10) === key && t.status !== 'pending')
+    const amt = store.transactions.filter(t => t.date.slice(0, 10) === key && t.status !== 'pending' && !(skip && (t.type === 'expense' || t.type === 'refund') && isExcludedCat(store, t.category)))
       .reduce((s, t) => s + (t.type === 'expense' ? t.amount : t.type === 'refund' ? -t.amount : 0), 0);
     out.push({ day: d, amt: Math.max(amt, 0) });
   }
@@ -234,19 +238,44 @@ export function prevMonth(ym) {
   const d = new Date(y, m - 2, 1);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
+// A category marked excludeFromBudget holds advances/recoverable money: full cash
+// impact, zero budget impact (feature 2026-08-04).
+export function isExcludedCat(store, id) {
+  const c = catById(store, id);
+  return !!(c && c.excludeFromBudget);
+}
+// Signed contribution of ONE transaction to budget spending — the single place
+// budget-impact rules live, so transaction-level reimbursables can slot in later.
+// opts.includeExcluded flips the Budgets screen into its gross "cash outflow" view.
+export function txBudgetImpact(store, t, opts) {
+  if (t.status === 'pending') return 0;
+  const skip = !(opts && opts.includeExcluded);
+  if (t.type === 'expense') return skip && isExcludedCat(store, t.category) ? 0 : t.amount;
+  if (t.type === 'refund') return skip && isExcludedCat(store, t.category) ? 0 : -t.amount;
+  if (t.type === 'transfer') return t.fee || 0; // fees count as spending; transfers have no category
+  return 0; // income, adjustment, cardAdjustment, card payments
+}
+// The overall budget's basis — deliberately NOT monthMetrics().expenses, which
+// stays cash-based for the dashboard and includes excluded categories.
+export function monthBudgetSpending(store, month, opts) {
+  return store.transactions.filter(t => inMonth(t, month)).reduce((s, t) => s + txBudgetImpact(store, t, opts), 0);
+}
 // What a budget is measured against: one category, or every expense for the overall budget.
-export function budgetSpent(store, budget, month) {
-  if (!budget.category) return monthMetrics(store, month).expenses;
-  return Math.max(catMonthTotal(store, budget.category, month), 0);
+export function budgetSpent(store, budget, month, opts) {
+  if (!budget.category) return monthBudgetSpending(store, month, opts);
+  const net = store.transactions
+    .filter(t => inMonth(t, month) && t.category === budget.category)
+    .reduce((s, t) => s + txBudgetImpact(store, t, opts), 0);
+  return Math.max(net, 0);
 }
 // Last month's unspent amount, carried forward only when the budget opts in.
 // Never negative — an overspend does not become this month's debt.
-export function budgetRollover(store, budget, month) {
+export function budgetRollover(store, budget, month, opts) {
   if (!budget.rollover) return 0;
-  return Math.max(0, budget.amount - budgetSpent(store, budget, prevMonth(month)));
+  return Math.max(0, budget.amount - budgetSpent(store, budget, prevMonth(month), opts));
 }
-export function effectiveBudget(store, budget, month) {
-  return budget.amount + budgetRollover(store, budget, month);
+export function effectiveBudget(store, budget, month, opts) {
+  return budget.amount + budgetRollover(store, budget, month, opts);
 }
 // Straight-line pace projection. Only meaningful for a month still in progress,
 // and only once enough of it has elapsed for the pace to mean anything.
@@ -256,10 +285,48 @@ export function budgetProjection(month, spent, nowIso) {
   if (day < 3 || spent <= 0) return null;
   return { projected: Math.round(spent / day * total), dayOf: day, total };
 }
-// Expense categories with spending this month and no budget attached.
+// Expense categories with spending this month and no budget attached. Excluded
+// categories never appear here — in the gross view they get their own
+// "Recoverable spending" section instead.
 export function unbudgetedSpend(store, month) {
   const budgeted = store.budgets.filter(b => b.category).map(b => b.category);
   return categorySpending(store, month)
-    .filter(x => x.cat && x.cat.type === 'expense' && budgeted.indexOf(x.id) < 0)
+    .filter(x => x.cat && x.cat.type === 'expense' && budgeted.indexOf(x.id) < 0 && !x.cat.excludeFromBudget)
     .map(x => ({ id: x.id, name: x.cat.name, amt: x.amt, cat: x.cat }));
+}
+
+/**
+ * Recoverable spending — per excluded category, cleared money paid out vs
+ * returned in the viewed month. `outstanding` never shows below zero (a
+ * refund larger than the month's advances is not a debt owed to you twice);
+ * `net` (Σpaid − Σreturned, floored at 0) feeds the hero's
+ * "Includes Rs X of recoverable spending" note. Month-scoped on purpose:
+ * a September repayment of an August advance belongs to September's view.
+ *
+ * ── USER CONTRIBUTION CHECKPOINT (learning mode) ─────────────────────────────
+ * Decision: WHICH excluded categories appear as rows?
+ *   Option A (current provisional default): only categories with activity
+ *     (paid or returned > 0) in the viewed month — quiet months stay clean,
+ *     but an advance still outstanding from July disappears from August's list.
+ *   Option B: any category with nonzero outstanding this month OR earlier
+ *     (cumulative) — tracks open advances across months, closer to a
+ *     receivables ledger, at the cost of the month-scoped simplicity above.
+ *   Option C: every excluded category, always — most predictable, most noise.
+ * To change the policy, edit the `.filter` below (~5 lines).
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+export function recoverableSpending(store, month) {
+  const rows = store.categories
+    .filter(c => c.type === 'expense' && c.excludeFromBudget && c.status !== 'archived')
+    .map(c => {
+      const mtx = store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending' && t.category === c.id);
+      const paid = mtx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+      const returned = mtx.filter(t => t.type === 'refund').reduce((s, t) => s + t.amount, 0);
+      return { id: c.id, name: c.name, cat: c, paid, returned, outstanding: Math.max(paid - returned, 0) };
+    })
+    .filter(r => r.paid > 0 || r.returned > 0) // contribution checkpoint: Option A
+    .sort((a, b) => b.outstanding - a.outstanding || b.paid - a.paid);
+  const paid = rows.reduce((s, r) => s + r.paid, 0);
+  const returned = rows.reduce((s, r) => s + r.returned, 0);
+  return { rows, paid, returned, net: Math.max(paid - returned, 0) };
 }

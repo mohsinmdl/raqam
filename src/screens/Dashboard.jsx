@@ -16,7 +16,7 @@ const h2 = { fontSize: 15, fontWeight: 600, margin: 0 };
 const linkBtn = { border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 };
 
 // Port of the prototype's dashboardVals (script 934-999) — same names, same math.
-function computeVals(S, month, isPast, fmt, snapDismissed) {
+function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   const { money, moneyS, moneyRaw } = fmt;
   const M = C.monthMetrics(S, month);
   const activeAccts = S.accounts.filter(a => a.status === 'active');
@@ -39,14 +39,14 @@ function computeVals(S, month, isPast, fmt, snapDismissed) {
     { label: 'Savings', val: money(M.savings), color: 'var(--text)', sub: M.net < 0 ? 'overspent this month' : 'set aside so far' },
     { label: 'Savings rate', val: M.rate == null ? '—' : C.fmtPct(M.rate), color: M.rate != null && M.rate < 0 ? 'var(--neg)' : 'var(--text)', sub: M.rate == null ? 'no income recorded' : 'of income' },
   ];
-  const daily = C.dailySpending(S, month); const dmax = Math.max(...daily.map(d => d.amt), 1);
+  const daily = C.dailySpending(S, month, view); const dmax = Math.max(...daily.map(d => d.amt), 1);
   const dtotal = daily.reduce((s, d) => s + d.amt, 0);
   const today = todayStr().slice(0, 7) === month ? +todayStr().slice(8, 10) : null;
   v.trendBars = daily.map(d => ({ h: d.amt > 0 ? Math.max(Math.round(d.amt / dmax * 100), 4) + '%' : '2%', bg: d.amt > 0 ? (today === d.day ? 'var(--accent-h)' : 'var(--accent)') : 'var(--track)', label: (d.day === 1 || d.day % 5 === 0) ? String(d.day) : '', tip: d.day + ' ' + C.monthLabel(month).slice(0, 3) + ' — ' + moneyRaw(d.amt) }));
   v.trendTotal = money(dtotal); v.trendEmpty = dtotal === 0; v.trendHas = dtotal > 0;
   const peak = daily.reduce((a, b) => (b.amt > a.amt ? b : a), daily[0]);
   v.trendSummary = 'Daily cleared spending in ' + C.monthLabel(month) + ', total ' + moneyRaw(dtotal) + (peak && peak.amt > 0 ? ', highest on day ' + peak.day : '');
-  const cats = C.categorySpending(S, month); const cmaxAmt = Math.max(...cats.map(c => c.amt), 1);
+  const cats = C.categorySpending(S, month, view); const cmaxAmt = Math.max(...cats.map(c => c.amt), 1);
   v.catBars = cats.slice(0, 6).map(c => ({ id: c.id, name: c.cat ? c.cat.name : c.id, color: c.cat ? c.cat.color : 'var(--border)', amt: money(c.amt), w: Math.max(Math.round(c.amt / cmaxAmt * 100), 3) + '%' }));
   v.hasCat = cats.length > 0; v.noCat = cats.length === 0;
   return { v, cats, daily, M };
@@ -65,10 +65,29 @@ export default function Dashboard() {
   const setup = setupState(S);
   const showFirstUse = !setup.complete && !prefs.skippedSetup;
 
+  // Chart-only lens (own pref, independent of the Budgets screen's toggle):
+  // fold excluded (recoverable) categories back into the two spending charts.
+  const incDash = !!prefs.includeRecoverableDash;
   const { v } = useMemo(
-    () => computeVals(S, month, isPast, fmt, snapDismissed),
+    () => computeVals(S, month, isPast, fmt, snapDismissed, incDash ? { includeExcluded: true } : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fmt is stable per `masked`
-    [S, month, isPast, masked, snapDismissed]
+    [S, month, isPast, masked, snapDismissed, incDash]
+  );
+
+  const recSwitch = withLabel => (
+    <button
+      onClick={() => setPrefs({ includeRecoverableDash: !incDash })}
+      role="switch"
+      aria-checked={String(incDash)}
+      aria-label="Include recoverable spending"
+      title="Includes advances and other expenses marked as excluded from budgets."
+      style={{ display: 'flex', alignItems: 'center', gap: 7, height: 24, padding: withLabel ? '0 4px' : 0, border: 'none', background: 'none', color: 'var(--muted)', fontSize: 11.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}
+    >
+      <span aria-hidden="true" style={{ width: 30, height: 18, padding: 2, boxSizing: 'border-box', borderRadius: 999, background: incDash ? 'var(--accent)' : 'var(--track)', border: `1px solid ${incDash ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: incDash ? 'flex-end' : 'flex-start', flex: 'none' }}>
+        <span style={{ display: 'block', width: 12, height: 12, borderRadius: 999, background: incDash ? 'var(--on-accent)' : 'var(--surface)' }} />
+      </span>
+      {withLabel ? 'Include recoverable spending' : null}
+    </button>
   );
 
   if (showFirstUse) return <FirstUse setup={setup} onSkip={() => setPrefs({ skippedSetup: true })} />;
@@ -83,10 +102,10 @@ export default function Dashboard() {
     return { prevName: C.monthLabel(prevMonth).split(' ')[0], curName: monthName.split(' ')[0], rows: [mk('Income', P.income, M.income, 'var(--accent)'), mk('Expenses', P.expenses, M.expenses, 'var(--warn)')] };
   })() : null;
 
-  const cats = C.categorySpending(S, month);
-  const catMap = {}; cats.forEach(c => { catMap[c.id] = c.amt; });
   const budgetRow = b => {
-    const spent = b.category ? (catMap[b.category] || 0) : M.expenses;
+    // Personal-budget view always: budgetSpent excludes recoverable categories
+    // and clamps at zero, matching the Budgets screen's default view.
+    const spent = C.budgetSpent(S, b, month);
     const eff = C.effectiveBudget(S, b, month); // rollover-effective amount
     const pct = eff > 0 ? (spent / eff) * 100 : 0;
     const stx = C.budgetState(pct, spent);
@@ -168,6 +187,7 @@ export default function Dashboard() {
                 <h2 style={h2}>Daily spending</h2>
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>cleared expenses · {monthName}</span>
                 <span style={{ flex: 1 }} />
+                {recSwitch(false)}
                 <span className="tnum" style={{ fontSize: 13, fontWeight: 600 }}>{v.trendTotal}</span>
               </div>
               {v.trendEmpty && <div style={{ padding: '34px 0', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>No cleared expenses yet this month.</div>}
@@ -190,7 +210,10 @@ export default function Dashboard() {
             </section>
 
             <section aria-label="Spending by category" style={{ ...card, padding: '18px 20px' }}>
-              <h2 style={{ ...h2, margin: '0 0 4px' }}>Spending by category</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 4px' }}>
+                <h2 style={{ ...h2, margin: 0, flex: 1 }}>Spending by category</h2>
+                {recSwitch(true)}
+              </div>
               {v.hasCat && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
                   {v.catBars.map(c => (

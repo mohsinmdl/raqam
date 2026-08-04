@@ -7,7 +7,7 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
-import { budgetProjection, budgetRollover, budgetSpent, budgetState, catById, monthLabel, monthMetrics, prevMonth, unbudgetedSpend } from '../lib/calc.js';
+import { budgetProjection, budgetRollover, budgetSpent, budgetState, catById, monthLabel, prevMonth, recoverableSpending, unbudgetedSpend } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 import { iconStyle } from '../lib/catIcon.js';
 import { toggleBudgetRollover, deleteBudget } from '../store/actions.js';
@@ -24,7 +24,7 @@ const colHeader = { fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color
 const gridCols = { display: 'grid', gridTemplateColumns: 'minmax(0,1.7fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.05fr) minmax(0,1.05fr) 40px', gap: 10 };
 
 export default function Budgets() {
-  const { data: S, applyData } = useStore();
+  const { data: S, applyData, prefs, setPrefs } = useStore();
   const { month } = useMonth();
   const { money } = useMoney();
   const { openDrawer } = useDrawer();
@@ -34,7 +34,11 @@ export default function Budgets() {
   const now = nowIso();
   const prev = prevMonth(month);
   const prevName = monthLabel(prev).split(' ')[0];
-  const M = monthMetrics(S, month);
+  // View-only preference: gross "cash outflow" view folds excluded (recoverable)
+  // categories back into every figure on this screen. Never touches stored data.
+  const inc = !!prefs.includeRecoverable;
+  const view = inc ? { includeExcluded: true } : undefined;
+  const rec = recoverableSpending(S, month);
 
   const deltaOf = (spent, prevSpent) => {
     if (prevSpent <= 0 && spent <= 0) return { label: 'No spending either month', color: 'var(--muted)' };
@@ -68,15 +72,15 @@ export default function Budgets() {
   const overall = S.budgets.find(b => !b.category) || null;
   let ov = null;
   if (overall) {
-    const roll = budgetRollover(S, overall, month);
+    const roll = budgetRollover(S, overall, month, view);
     const eff = overall.amount + roll;
-    const spent = M.expenses;
+    const spent = budgetSpent(S, overall, month, view);
     const pct = eff > 0 ? (spent / eff) * 100 : 0;
     const stx = budgetState(pct, spent);
     const tone = TONES[stx.tone];
     const rem = eff - spent;
     const proj = budgetProjection(month, spent, now);
-    const d = deltaOf(spent, budgetSpent(S, overall, prev));
+    const d = deltaOf(spent, budgetSpent(S, overall, prev, view));
     ov = {
       spent: money(spent), budget: money(eff),
       stateLabel: stx.label, stateBg: tone[0], stateFg: tone[1], barColor: tone[2],
@@ -87,22 +91,23 @@ export default function Budgets() {
       projColor: proj ? (proj.projected > eff ? 'var(--warn)' : 'var(--text)') : 'var(--muted)',
       deltaValue: d.label, deltaColor: d.color,
       note: roll > 0 ? 'Includes ' + money(roll) + ' rolled over from ' + prevName + ' — the part of that month’s budget you did not spend.' : '',
+      recNote: inc && rec.net > 0 ? 'Includes ' + money(rec.net) + ' of recoverable spending.' : '',
     };
   }
 
   // ---- category rows ----
   const rows = S.budgets.filter(b => b.category).map(b => {
     const cat = catById(S, b.category);
-    const roll = budgetRollover(S, b, month);
+    const roll = budgetRollover(S, b, month, view);
     const eff = b.amount + roll;
-    const spent = budgetSpent(S, b, month);
+    const spent = budgetSpent(S, b, month, view);
     const pct = eff > 0 ? (spent / eff) * 100 : 0;
     const stx = budgetState(pct, spent);
     const tone = TONES[stx.tone];
     const rem = eff - spent;
     const proj = budgetProjection(month, spent, now);
     const overPace = !!(proj && proj.projected > eff && rem >= 0);
-    const d = deltaOf(spent, budgetSpent(S, b, prev));
+    const d = deltaOf(spent, budgetSpent(S, b, prev, view));
     return {
       raw: b, id: b.id, pct, name: cat ? cat.name : 'Unknown category',
       icon: cat ? cat.icon : 'square', color: cat && cat.color ? cat.color : 'var(--muted)',
@@ -128,6 +133,19 @@ export default function Budgets() {
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, flex: 1 }}>
             A budget is one monthly amount that applies to every month. Spending counts cleared transactions only — pending ones are included once they clear.
           </p>
+          <button
+            onClick={() => setPrefs({ includeRecoverable: !inc })}
+            role="switch"
+            aria-checked={String(inc)}
+            title="Includes advances and other expenses marked as excluded from budgets."
+            className="hv-elev"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, height: 34, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}
+          >
+            <span aria-hidden="true" style={{ width: 34, height: 20, padding: 2, boxSizing: 'border-box', borderRadius: 999, background: inc ? 'var(--accent)' : 'var(--track)', border: `1px solid ${inc ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: inc ? 'flex-end' : 'flex-start', flex: 'none' }}>
+              <span style={{ display: 'block', width: 14, height: 14, borderRadius: 999, background: inc ? 'var(--on-accent)' : 'var(--surface)' }} />
+            </span>
+            Include recoverable spending
+          </button>
           <button onClick={() => openers.addBudget(openDrawer)} className="hv-accent" style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>＋ Add budget</button>
         </div>
 
@@ -135,7 +153,7 @@ export default function Budgets() {
           <section aria-label="Overall monthly budget" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 22px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)' }}>OVERALL MONTHLY BUDGET</div>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)' }}>{inc ? 'OVERALL CASH OUTFLOW' : 'OVERALL MONTHLY BUDGET'}</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 7, flexWrap: 'wrap' }}>
                   <span className="tnum" style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em' }}>{ov.spent}</span>
                   <span className="tnum" style={{ fontSize: 13.5, color: 'var(--muted)' }}>of {ov.budget}</span>
@@ -154,6 +172,7 @@ export default function Budgets() {
               <div><div style={{ fontSize: 11, color: 'var(--muted)' }}>vs {prevName}</div><div className="tnum" style={{ fontSize: 16, fontWeight: 600, marginTop: 2, color: ov.deltaColor }}>{ov.deltaValue}</div></div>
             </div>
             {ov.note && <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--soft)', fontSize: 12.5, lineHeight: 1.5 }}>{ov.note}</div>}
+            {ov.recNote && <div style={{ marginTop: ov.note ? 8 : 14, padding: '10px 14px', borderRadius: 10, background: 'var(--soft)', fontSize: 12.5, lineHeight: 1.5 }}>{ov.recNote}</div>}
           </section>
         )}
 
@@ -214,6 +233,34 @@ export default function Budgets() {
                     { label: 'Remove budget', tone: 'neg', onClick: () => askRemove(b.raw) },
                   ]}
                 />
+              </div>
+            ))}
+          </section>
+        )}
+
+        {inc && rec.rows.length > 0 && (
+          <section aria-label="Recoverable spending" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
+            <div style={{ padding: '14px 16px 10px' }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Recoverable spending</div>
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
+                Advances and other excluded categories — money that left your accounts but is expected back. Not measured against any budget.
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', gap: 10, padding: '9px 16px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+              <span style={colHeader}>CATEGORY</span>
+              <span style={{ ...colHeader, textAlign: 'right' }}>PAID</span>
+              <span style={{ ...colHeader, textAlign: 'right' }}>RETURNED</span>
+              <span style={{ ...colHeader, textAlign: 'right' }}>OUTSTANDING</span>
+            </div>
+            {rec.rows.map(r => (
+              <div key={r.id} className="hv-elev" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', gap: 10, alignItems: 'center', padding: '11px 16px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                  <span aria-hidden="true" style={iconStyle(r.cat.icon || 'square', r.cat.color || 'var(--muted)', 14)} />
+                  <span style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
+                </div>
+                <div className="tnum" style={{ fontSize: 13, fontWeight: 500, textAlign: 'right' }}>{money(r.paid)}</div>
+                <div className="tnum" style={{ fontSize: 13, fontWeight: 500, textAlign: 'right' }}>{money(r.returned)}</div>
+                <div className="tnum" style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{money(r.outstanding)}</div>
               </div>
             ))}
           </section>

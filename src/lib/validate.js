@@ -140,6 +140,7 @@ export const validate = {
         if (!cat) e.category = 'That category no longer exists.';
         else if (cat.type !== 'expense') e.category = 'Budgets cover expense categories only.';
         else if (cat.status === 'archived') e.category = 'That category is archived — choose an active one.';
+        else if (cat.excludeFromBudget) e.category = '“' + cat.name + '” is excluded from budgets.';
         else if (store.budgets.some(b => b.category === f.category && b.id !== o.id)) e.category = '“' + cat.name + '” already has a budget. Edit that one instead.';
       }
     }

@@ -22,7 +22,7 @@ function Body() {
 
   // Active expense categories that don't already have a budget (plus the current one when editing).
   const budgeted = S.budgets.filter(b => b.category && b.id !== f.editId).map(b => b.category);
-  const catOpts = listCats(S, 'expense').filter(c => !budgeted.includes(c.id));
+  const catOpts = listCats(S, 'expense').filter(c => !budgeted.includes(c.id) && !c.excludeFromBudget);
   const noCatsLeft = !fixedCat && !overall && catOpts.length === 0;
 
   const on = !!f.rollover;
