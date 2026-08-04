@@ -2,7 +2,7 @@
 // Overall-budget hero, per-category rows sorted by % used, unbudgeted callout,
 // empty state. The screen is the single owner of budget amounts.
 import { useState } from 'react';
-import { useStore, usePrefs } from '../store/StoreProvider.jsx';
+import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
@@ -24,12 +24,11 @@ const colHeader = { fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color
 const gridCols = { display: 'grid', gridTemplateColumns: 'minmax(0,1.7fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.05fr) minmax(0,1.05fr) 40px', gap: 10 };
 
 export default function Budgets() {
-  const { data: S, applyData } = useStore();
+  const { data: S, applyData, prefs, setPrefs } = useStore();
   const { month } = useMonth();
   const { money } = useMoney();
   const { openDrawer } = useDrawer();
   const { ask, notify } = useUI();
-  const { prefs, setPrefs } = usePrefs();
   const [menuOpen, setMenuOpen] = useState(null);
 
   const now = nowIso();
