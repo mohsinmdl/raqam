@@ -1,11 +1,12 @@
 // Drawer-opening prefill helpers, ported from the prototype's open* handlers
 // (script 812-833). Each returns via openDrawer(name, form).
 import { accountBalance, cardOutstanding } from '../lib/calc.js';
-import { currentMonth, todayStr } from '../lib/dates.js';
+import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
 
 export function txDefaults(type) {
   return {
-    type, date: todayStr(), time: '12:00', amount: '', payWith: '', account: '', from: '', to: '', fee: '',
+    // Time defaults to NOW (app deviation from the design's fixed 12:00 — user request)
+    type, date: todayStr(), time: nowIso().slice(11, 16), amount: '', payWith: '', account: '', from: '', to: '', fee: '',
     category: '', newCat: '', merchant: '', notes: '', pending: false,
     direction: 'increase', reason: '', fromRecurring: null,
     editId: null, originalType: null, originalCategory: null,
