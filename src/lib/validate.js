@@ -126,6 +126,25 @@ export const validate = {
     }
     return e;
   },
+
+  // ---- budgets ----
+  budget(store, f, opts) {
+    const o = opts || {}, e = {};
+    const amt = parseAmt(f.amount);
+    if (!(amt > 0)) e.amount = 'Enter a budget amount greater than zero.';
+    else if (amt > 1e12) e.amount = 'That amount is too large to record.';
+    if (!o.overall) {
+      if (!req(f.category)) e.category = 'Choose the category this budget covers.';
+      else {
+        const cat = catById(store, f.category);
+        if (!cat) e.category = 'That category no longer exists.';
+        else if (cat.type !== 'expense') e.category = 'Budgets cover expense categories only.';
+        else if (cat.status === 'archived') e.category = 'That category is archived — choose an active one.';
+        else if (store.budgets.some(b => b.category === f.category && b.id !== o.id)) e.category = '“' + cat.name + '” already has a budget. Edit that one instead.';
+      }
+    }
+    return e;
+  },
 };
 
 // What a category delete is allowed to do, and why.

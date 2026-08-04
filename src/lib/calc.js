@@ -223,3 +223,43 @@ export function relTime(iso, now) {
   if (hrs < 24) return hrs + (hrs === 1 ? ' hour' : ' hours') + ' ago';
   return 'on ' + shortDate(iso);
 }
+
+// ---------------------------------------------------------------------------
+// Budgets — a budget is ONE standing monthly amount applied to every month.
+// Rollover and month-on-month comparison are derived from transaction history,
+// never from stored per-month budget rows. (Design iteration 002.)
+// ---------------------------------------------------------------------------
+export function prevMonth(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+// What a budget is measured against: one category, or every expense for the overall budget.
+export function budgetSpent(store, budget, month) {
+  if (!budget.category) return monthMetrics(store, month).expenses;
+  return Math.max(catMonthTotal(store, budget.category, month), 0);
+}
+// Last month's unspent amount, carried forward only when the budget opts in.
+// Never negative — an overspend does not become this month's debt.
+export function budgetRollover(store, budget, month) {
+  if (!budget.rollover) return 0;
+  return Math.max(0, budget.amount - budgetSpent(store, budget, prevMonth(month)));
+}
+export function effectiveBudget(store, budget, month) {
+  return budget.amount + budgetRollover(store, budget, month);
+}
+// Straight-line pace projection. Only meaningful for a month still in progress,
+// and only once enough of it has elapsed for the pace to mean anything.
+export function budgetProjection(month, spent, nowIso) {
+  if (String(nowIso).slice(0, 7) !== month) return null;
+  const day = new Date(nowIso).getDate(), total = daysInMonth(month);
+  if (day < 3 || spent <= 0) return null;
+  return { projected: Math.round(spent / day * total), dayOf: day, total };
+}
+// Expense categories with spending this month and no budget attached.
+export function unbudgetedSpend(store, month) {
+  const budgeted = store.budgets.filter(b => b.category).map(b => b.category);
+  return categorySpending(store, month)
+    .filter(x => x.cat && x.cat.type === 'expense' && budgeted.indexOf(x.id) < 0)
+    .map(x => ({ id: x.id, name: x.cat.name, amt: x.amt, cat: x.cat }));
+}

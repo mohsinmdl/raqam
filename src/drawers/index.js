@@ -8,6 +8,7 @@ import { adjustFormDef } from './AdjustForm.jsx';
 import { adjustCardFormDef } from './AdjustCardForm.jsx';
 import { categoryFormDef } from './CategoryForm.jsx';
 import { reassignFormDef } from './ReassignForm.jsx';
+import { budgetFormDef } from './BudgetForm.jsx';
 
 export const drawerRegistry = {
   addTx: txFormDef,
@@ -19,4 +20,5 @@ export const drawerRegistry = {
   adjustCard: adjustCardFormDef,
   category: categoryFormDef,
   reassign: reassignFormDef,
+  budget: budgetFormDef,
 };
