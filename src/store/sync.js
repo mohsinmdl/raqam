@@ -40,6 +40,7 @@ const COLLECTIONS = [
       id: r.id, name: r.name, type: r.type, color: r.color,
       icon: r.icon || 'square', sort_order: r.sortOrder ?? 99, is_system: !!r.isSystem,
       status: r.status || 'active', description: r.description || '',
+      exclude_from_budget: !!r.excludeFromBudget, // always the boolean — phantom-diff guard
       archived_at: r.archivedAt ?? null,
       edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
     }),
@@ -47,6 +48,7 @@ const COLLECTIONS = [
       id: r.id, name: r.name, type: r.type, color: r.color,
       icon: r.icon || 'square', sortOrder: r.sort_order ?? 99, isSystem: !!r.is_system,
       status: r.status || 'active', description: r.description || '',
+      excludeFromBudget: !!r.exclude_from_budget,
       archivedAt: r.archived_at || undefined,
       editedAt: r.edited_at || undefined, editCount: r.edit_count > 0 ? r.edit_count : undefined,
     }),
