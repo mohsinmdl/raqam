@@ -3,8 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   accountBalance, budgetProjection, budgetRollover, budgetSpent, cardOutstanding,
-  effectiveBudget, effectsOf, isExcludedCat, monthBudgetSpending, monthMetrics,
-  recoverableSpending, txBudgetImpact, unbudgetedSpend,
+  categorySpending, dailySpending, effectiveBudget, effectsOf, isExcludedCat,
+  monthBudgetSpending, monthMetrics, recoverableSpending, txBudgetImpact, unbudgetedSpend,
 } from '../src/lib/calc.js';
 import { upsertCategory } from '../src/store/actions.js';
 
@@ -165,6 +165,30 @@ describe('unbudgetedSpend / recoverableSpending', () => {
   it('quiet months list nothing; pending excluded tx does not create a row', () => {
     const S2 = makeStore([tx({ id: 't1', type: 'expense', amount: 500, category: 'adv', status: 'pending' })]);
     expect(recoverableSpending(S2, AUG).rows).toHaveLength(0);
+  });
+});
+
+describe('dashboard charts hide recoverable spending (addendum d)', () => {
+  const S = makeStore([
+    tx({ id: 't1', type: 'expense', amount: 45386, category: 'adv', date: AUG + '-04T12:00' }),
+    tx({ id: 't2', type: 'refund', amount: 20000, category: 'adv', date: AUG + '-04T13:00' }),
+    tx({ id: 't3', type: 'expense', amount: 8000, category: 'groc', date: AUG + '-04T14:00' }),
+    tx({ id: 't4', type: 'expense', amount: 35000, category: 'rent', date: AUG + '-10T12:00' }),
+    tx({ id: 't5', type: 'expense', amount: 700, category: 'legacy', date: AUG + '-12T12:00' }),
+  ]);
+  it('categorySpending skips excluded categories by default, includes with opts (netting refunds)', () => {
+    expect(categorySpending(S, AUG).map(x => x.id)).toEqual(['rent', 'groc', 'legacy']);
+    const gross = categorySpending(S, AUG, { includeExcluded: true });
+    expect(gross.find(x => x.id === 'adv').amt).toBe(25386);
+  });
+  it('dailySpending skips excluded tx by default, includes with opts', () => {
+    const day4 = view => dailySpending(S, AUG, view)[3].amt;
+    expect(day4()).toBe(8000);
+    expect(day4({ includeExcluded: true })).toBe(8000 + 45386 - 20000);
+    expect(dailySpending(S, AUG)[9].amt).toBe(35000); // normal cat unchanged either way
+  });
+  it('unbudgetedSpend still lists only unbudgeted normal categories (regression)', () => {
+    expect(unbudgetedSpend(S, AUG).map(u => u.id)).toEqual(['legacy']);
   });
 });
 

@@ -86,20 +86,24 @@ export function monthMetrics(store, month) {
     pendingCount: pend.length, pendingTotal: pend.reduce((s, t) => s + t.amount, 0),
   };
 }
-export function categorySpending(store, month) {
+// Spending charts hide excluded (recoverable) categories unless the caller
+// opts in — advances are not "spending by category", they are money on loan.
+export function categorySpending(store, month, opts) {
   const map = {};
   store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending').forEach(t => {
     if (t.type === 'expense') map[t.category] = (map[t.category] || 0) + t.amount;
     if (t.type === 'refund') map[t.category] = (map[t.category] || 0) - t.amount;
   });
+  const skip = !(opts && opts.includeExcluded);
   return Object.entries(map).map(([id, amt]) => ({ id, amt, cat: store.categories.find(c => c.id === id) }))
-    .filter(x => x.amt > 0).sort((a, b) => b.amt - a.amt);
+    .filter(x => x.amt > 0 && !(skip && isExcludedCat(store, x.id))).sort((a, b) => b.amt - a.amt);
 }
-export function dailySpending(store, month) {
+export function dailySpending(store, month, opts) {
   const n = daysInMonth(month); const out = [];
+  const skip = !(opts && opts.includeExcluded);
   for (let d = 1; d <= n; d++) {
     const key = month + '-' + String(d).padStart(2, '0');
-    const amt = store.transactions.filter(t => t.date.slice(0, 10) === key && t.status !== 'pending')
+    const amt = store.transactions.filter(t => t.date.slice(0, 10) === key && t.status !== 'pending' && !(skip && (t.type === 'expense' || t.type === 'refund') && isExcludedCat(store, t.category)))
       .reduce((s, t) => s + (t.type === 'expense' ? t.amount : t.type === 'refund' ? -t.amount : 0), 0);
     out.push({ day: d, amt: Math.max(amt, 0) });
   }
