@@ -40,6 +40,9 @@ export function txRowOf(t, S, fmt, forAccountId) {
     canEdit: t.type !== 'cardAdjustment',
     edited: !!t.editedAt,
     editedLabel: t.editedAt ? 'Edited ' + relTime(t.editedAt) + (t.editCount > 1 ? ' · ' + t.editCount + ' edits' : '') : '',
+    // Recoverable-spending indicator — the money moved, it just isn't budget spending.
+    excluded: (t.type === 'expense' || t.type === 'refund') && !!(cat && cat.excludeFromBudget),
+    excludedLabel: 'Excluded from budgets',
   };
 }
 

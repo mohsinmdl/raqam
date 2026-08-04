@@ -125,6 +125,7 @@ export default function Transactions() {
                         <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
                         {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, flex: 'none', whiteSpace: 'nowrap' }}>{t.chip}</span>}
                         {t.edited && <span title={t.editedLabel} style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--muted)', flex: 'none', whiteSpace: 'nowrap' }}>Edited</span>}
+                        {t.excluded && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--muted)', flex: 'none', whiteSpace: 'nowrap' }}>{t.excludedLabel}</span>}
                       </div>
                       {t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
                     </td>

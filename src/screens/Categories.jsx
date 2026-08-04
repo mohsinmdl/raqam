@@ -145,6 +145,7 @@ export default function Categories() {
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
                         {archived && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '1px 7px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)', flex: 'none' }}>Archived</span>}
+                        {!!c.excludeFromBudget && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '1px 7px', borderRadius: 999, background: 'var(--info-soft)', color: 'var(--info)', flex: 'none' }}>Excluded from budgets</span>}
                       </span>
                       {c.description && <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.description}</span>}
                     </span>

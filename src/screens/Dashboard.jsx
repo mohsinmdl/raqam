@@ -83,10 +83,10 @@ export default function Dashboard() {
     return { prevName: C.monthLabel(prevMonth).split(' ')[0], curName: monthName.split(' ')[0], rows: [mk('Income', P.income, M.income, 'var(--accent)'), mk('Expenses', P.expenses, M.expenses, 'var(--warn)')] };
   })() : null;
 
-  const cats = C.categorySpending(S, month);
-  const catMap = {}; cats.forEach(c => { catMap[c.id] = c.amt; });
   const budgetRow = b => {
-    const spent = b.category ? (catMap[b.category] || 0) : M.expenses;
+    // Personal-budget view always: budgetSpent excludes recoverable categories
+    // and clamps at zero, matching the Budgets screen's default view.
+    const spent = C.budgetSpent(S, b, month);
     const eff = C.effectiveBudget(S, b, month); // rollover-effective amount
     const pct = eff > 0 ? (spent / eff) * 100 : 0;
     const stx = C.budgetState(pct, spent);
