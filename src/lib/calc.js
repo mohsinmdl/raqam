@@ -184,6 +184,24 @@ export function accountRefs(store, id, month) {
     transactions: store.transactions.filter(t => t.accountId === id || t.toAccountId === id).length,
   };
 }
+// What blocks deleting an account for good. Deliberately UNFILTERED by status,
+// unlike accountRefs: the database's foreign keys don't care whether a card is
+// closed or a rule is paused — they still point here. Only snapshots are absent,
+// because those cascade with the account (0001_init.sql:81).
+export function accountDeletePolicy(store, id) {
+  const refs = {
+    transactions: store.transactions.filter(t => t.accountId === id || t.toAccountId === id).length,
+    cards: store.cards.filter(c => c.linkedAccountId === id).length,
+    recurring: store.recurring.filter(r => r.accountId === id).length,
+  };
+  const blockers = [
+    refs.transactions ? refs.transactions + ' transaction' + (refs.transactions === 1 ? '' : 's') : null,
+    refs.cards ? refs.cards + ' linked card' + (refs.cards === 1 ? '' : 's') : null,
+    refs.recurring ? refs.recurring + ' recurring rule' + (refs.recurring === 1 ? '' : 's') : null,
+  ].filter(Boolean);
+  return { mode: blockers.length ? 'blocked' : 'delete', refs, blockers };
+}
+
 export function cardRefs(store, id, month) {
   const card = store.cards.find(c => c.id === id);
   return {
@@ -192,6 +210,22 @@ export function cardRefs(store, id, month) {
     pending: store.transactions.filter(t => t.status === 'pending' && (t.cardId === id || t.toCardId === id)).length,
     transactions: store.transactions.filter(t => t.cardId === id || t.toCardId === id).length,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Institutions — the global catalogue plus the user's own banks. `kind` groups
+// the pickers; 'Custom' is the catch-all ("Other") for anything that isn't a
+// bank. Own rows are editable (name + kind); catalogue rows never are.
+// ---------------------------------------------------------------------------
+export const INST_KINDS = ['Conventional', 'Islamic', 'Foreign', 'Microfinance', 'Digital', 'Custom'];
+// 'Custom' is stored for historical reasons; it reads as "Other" everywhere.
+export function kindLabel(kind) { return kind === 'Custom' ? 'Other' : kind; }
+export function instById(store, id) { return store.institutions.find(i => i.id === id) || null; }
+// What points at this bank — a bank may only be removed when nothing does.
+export function instRefs(store, id) {
+  const accounts = store.accounts.filter(a => a.instId === id).length;
+  const cards = store.cards.filter(c => c.instId === id).length;
+  return { accounts, cards, total: accounts + cards };
 }
 
 // A transaction's full financial effect, as a plain list — proves an edit

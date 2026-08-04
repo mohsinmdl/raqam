@@ -1,13 +1,17 @@
 // Pure data-store actions: every function takes the current data store (and a payload)
 // and returns a NEW store. The reducer in StoreProvider applies them immutably.
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
-import { accountBalance, cardOutstanding } from '../lib/calc.js';
+import { accountBalance, accountDeletePolicy, cardOutstanding, INST_KINDS } from '../lib/calc.js';
 import { addMonths, clampDay, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { uid } from '../lib/util.js';
 import { makeAudit, diffFields, stampUpdate } from './audit.js';
 import { freshStore } from './seed.js';
 
 export const resetAll = () => freshStore();
+
+// The category chosen alongside a brand-new custom bank's name. Unknown values
+// fall back to 'Other' rather than writing a kind the schema would reject.
+const instKindOf = f => (INST_KINDS.includes(f.customInstKind) ? f.customInstKind : 'Custom');
 
 // Fields that participate in transaction update-audit diffs.
 const TX_AUDIT_FIELDS = ['type', 'amount', 'date', 'status', 'accountId', 'toAccountId', 'cardId', 'toCardId', 'category', 'merchant', 'notes', 'fee', 'adjustmentReason'];
@@ -91,10 +95,11 @@ export function addAccount(data, { form: f, bal }) {
   let instId = f.inst;
   if (instId === '__custom') {
     instId = uid();
-    next.institutions.push({ id: instId, name: f.customInst.trim(), kind: 'Custom' });
+    next.institutions.push({ id: instId, name: f.customInst.trim(), kind: instKindOf(f), own: true });
   }
   const id = uid();
-  next.accounts.push({ id, instId, nickname: f.nickname.trim(), type: f.type || 'Current', islamic: f.islamic === 'islamic', currency: 'PKR', last4: f.last4 || '', status: 'active', notes: f.notes || '', createdAt: f.asof || todayStr() });
+  // No per-account Conventional/Islamic flag: an account takes its bank's category.
+  next.accounts.push({ id, instId, nickname: f.nickname.trim(), type: f.type || 'Current', currency: 'PKR', last4: f.last4 || '', status: 'active', notes: f.notes || '', createdAt: f.asof || todayStr() });
   next.snapshots.push({ month: currentMonth(), accountId: id, amount: bal, status: 'pending' });
   return next;
 }
@@ -102,15 +107,46 @@ export function addAccount(data, { form: f, bal }) {
 // payload: validated addCard form + resolved product/type/limit.
 export function addCard(data, { form: f, prod, ctype, limit }) {
   const month = currentMonth();
+  const institutions = [...data.institutions];
+  let instId = f.inst;
+  if (instId === '__custom') { // a bank can now be created from the card drawer too
+    instId = uid();
+    institutions.push({ id: instId, name: f.customInst.trim(), kind: instKindOf(f), own: true });
+  }
   const card = {
-    id: uid(), instId: f.inst, productId: prod ? prod.id : null, nickname: f.nickname.trim(), type: ctype,
+    id: uid(), instId, productId: prod ? prod.id : null, nickname: f.nickname.trim(), type: ctype,
     network: prod ? prod.network : (f.network || 'Visa'), tier: prod ? prod.tier : (f.tier || ''),
     last4: f.last4 || '', status: 'active', theme: ['teal', 'ink', 'warm'][data.cards.length % 3],
     openingOutstanding: { [month]: 0 },
   };
   if (ctype === 'credit') { card.limit = limit; card.statementDay = parseInt(f.stmtDay, 10) || 25; card.dueDate = f.due || ''; }
   else card.linkedAccountId = f.linked ? f.linked.slice(4) : '';
-  return { ...data, cards: [...data.cards, card] };
+  return { ...data, institutions, cards: [...data.cards, card] };
+}
+
+// ---- Institutions (own rows only) ------------------------------------------
+// A bank is ONE shared record: renaming or reclassifying it changes every
+// account and card that points at it. Catalogue rows (no `own`) are read-only
+// here and by RLS. No audit entry — this is display metadata, and audit_log's
+// entity_type CHECK has no 'institution' value.
+export function updateInstitution(data, { id, name, kind }) {
+  const i = data.institutions.findIndex(x => x.id === id);
+  if (i < 0 || !data.institutions[i].own) return data;
+  const inst = data.institutions[i];
+  const nextName = (name ?? inst.name).trim() || inst.name;
+  const nextKind = INST_KINDS.includes(kind) ? kind : inst.kind;
+  if (nextName === inst.name && nextKind === inst.kind) return data;
+  const institutions = [...data.institutions];
+  institutions[i] = { ...inst, name: nextName, kind: nextKind };
+  return { ...data, institutions };
+}
+
+// Only ever offered for a bank nothing points at (see instRefs).
+export function deleteInstitution(data, { id }) {
+  const inst = data.institutions.find(x => x.id === id);
+  if (!inst || !inst.own) return data;
+  if (data.accounts.some(a => a.instId === id) || data.cards.some(c => c.instId === id)) return data;
+  return { ...data, institutions: data.institutions.filter(x => x.id !== id) };
 }
 
 // payload: { cardId, cardName, from, amt, date } — card payment is a transfer, never an expense.
@@ -165,6 +201,25 @@ export function adjustBalance(data, { accountId, delta, reason, date, currentBal
   };
 }
 
+// Permanent removal of an archived account. Refuses while anything still points
+// at it (accountDeletePolicy) — the same references the database's foreign keys
+// would reject. Its opening snapshots go with it, mirroring the server cascade so
+// local state matches immediately; the audit row outlives the account by design.
+export function deleteAccountPermanently(data, { id }) {
+  const acc = data.accounts.find(a => a.id === id);
+  if (!acc || accountDeletePolicy(data, id).mode !== 'delete') return data;
+  return {
+    ...data,
+    accounts: data.accounts.filter(a => a.id !== id),
+    snapshots: data.snapshots.filter(s => s.accountId !== id),
+    audit: [makeAudit({
+      entityType: 'account', entityId: id, action: 'delete',
+      summary: 'Deleted account ' + acc.nickname + ' permanently',
+      before: { nickname: acc.nickname, instId: acc.instId, type: acc.type, status: acc.status },
+    }), ...(data.audit || [])],
+  };
+}
+
 export function setAccountStatus(data, { accountId, status }) {
   const acc = data.accounts.find(a => a.id === accountId);
   if (!acc) return data;
@@ -185,7 +240,7 @@ export function setAccountStatus(data, { accountId, status }) {
   };
 }
 
-const ACC_AUDIT_FIELDS = ['instId', 'nickname', 'type', 'islamic', 'currency', 'last4', 'notes', 'status'];
+const ACC_AUDIT_FIELDS = ['instId', 'nickname', 'type', 'currency', 'last4', 'notes', 'status'];
 
 // Edit account metadata (balance is NEVER edited here — Adjust balance owns that).
 export function updateAccount(data, { form: f }) {
@@ -196,14 +251,15 @@ export function updateAccount(data, { form: f }) {
   let instId = f.inst;
   if (instId === '__custom') {
     instId = uid();
-    next.institutions = [...next.institutions, { id: instId, name: f.customInst.trim(), kind: 'Custom' }];
+    next.institutions = [...next.institutions, { id: instId, name: f.customInst.trim(), kind: instKindOf(f), own: true }];
   }
   const status = f.status || before.status;
   const patched = stampUpdate({
     ...before, instId, nickname: f.nickname.trim(), type: f.type || before.type,
-    islamic: f.islamic === 'islamic', last4: f.last4 || '', notes: f.notes || '', status,
+    last4: f.last4 || '', notes: f.notes || '', status,
     archivedAt: status === 'archived' ? (before.archivedAt || nowIso()) : undefined,
   });
+  delete patched.islamic; // retired: an account takes its bank's category
   if (status !== 'archived') delete patched.archivedAt;
   next.accounts[i] = patched;
   const d = diffFields(before, patched, ACC_AUDIT_FIELDS);

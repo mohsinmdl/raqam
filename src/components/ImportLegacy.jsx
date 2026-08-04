@@ -40,7 +40,10 @@ export default function ImportLegacy() {
         ...d,
         institutions: [
           ...data.institutions,
-          ...(d.institutions || []).filter(i => !data.institutions.some(x => x.id === i.id)),
+          // Anything not already in the server catalogue is this user's own row —
+          // `own` is what makes it writable (src/store/sync.js).
+          ...(d.institutions || []).filter(i => !data.institutions.some(x => x.id === i.id))
+            .map(i => ({ ...i, own: true })),
         ],
         cardProducts: data.cardProducts,
       };

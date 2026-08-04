@@ -1,7 +1,7 @@
 // Shared validation schemas, ported from design-v2 store.js.
 // Each returns an errors object keyed by form field: {} means valid. Drawer
 // useSubmit hooks run these on submit; RLS + CHECK constraints are the server gate.
-import { catById, catRefs, duplicateCat } from './calc.js';
+import { catById, catRefs, duplicateCat, INST_KINDS } from './calc.js';
 import { parseAmt } from './util.js';
 
 const req = v => String(v == null ? '' : v).trim().length > 0;
@@ -61,6 +61,7 @@ export const validate = {
     const o = opts || {}, e = {};
     if (!req(f.inst)) e.inst = 'Choose an institution.';
     else if (f.inst === '__custom' && !req(f.customInst)) e.inst = 'Name the custom institution.';
+    else if (f.inst === '__custom' && !INST_KINDS.includes(f.customInstKind)) e.inst = 'Choose what type of bank this is.';
     else if (f.inst !== '__custom' && !store.institutions.find(i => i.id === f.inst)) e.inst = 'That institution is not available.';
     if (!req(f.nickname)) e.nickname = 'Give the account a nickname.';
     else if (String(f.nickname).trim().length > 60) e.nickname = 'Keep the nickname under 60 characters.';
@@ -77,7 +78,9 @@ export const validate = {
   card(store, f, opts) {
     const o = opts || {}, e = {};
     if (!req(f.inst)) e.inst = 'Choose the bank.';
-    else if (!store.institutions.find(i => i.id === f.inst)) e.inst = 'That institution is not available.';
+    else if (f.inst === '__custom' && !req(f.customInst)) e.inst = 'Name the custom institution.';
+    else if (f.inst === '__custom' && !INST_KINDS.includes(f.customInstKind)) e.inst = 'Choose what type of bank this is.';
+    else if (f.inst !== '__custom' && !store.institutions.find(i => i.id === f.inst)) e.inst = 'That institution is not available.';
     if (!req(f.nickname)) e.nickname = 'Give the card a nickname.';
     else if (String(f.nickname).trim().length > 60) e.nickname = 'Keep the nickname under 60 characters.';
     if (req(f.last4) && !LAST4.test(String(f.last4).trim())) e.last4 = 'Exactly 4 digits, or leave it blank.';

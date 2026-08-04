@@ -22,11 +22,14 @@ const stripNulls = o => {
 const COLLECTIONS = [
   {
     name: 'institutions', table: 'institutions', keyOf: r => r.id,
-    // Only the user's own Custom institutions are writable; global rows are fetch-only.
-    writable: r => r.kind === 'Custom',
+    // Only the user's OWN institutions are writable; global catalogue rows are
+    // fetch-only. Ownership, never kind: `own` rows may be reclassified freely
+    // (Conventional/Islamic/…), and a kind-based test would drop a reclassified
+    // row out of the writable set — which the differ reads as a delete.
+    writable: r => !!r.own,
     conflictKey: 'id', // PK is plain id here (shared catalogue), not (user_id, id)
-    toRow: r => ({ id: r.id, name: r.name, kind: r.kind }),
-    fromRow: r => ({ id: r.id, name: r.name, kind: r.kind }),
+    toRow: r => ({ id: r.id, name: r.name, kind: r.kind }), // `own` never goes to the server
+    fromRow: r => ({ id: r.id, name: r.name, kind: r.kind, own: !!r.user_id }),
   },
   {
     name: 'cardProducts', table: 'card_products', keyOf: r => r.id,
@@ -57,13 +60,13 @@ const COLLECTIONS = [
     name: 'accounts', table: 'accounts', keyOf: r => r.id,
     // Explicit nulls (see transactions): archived_at clears on restore.
     toRow: r => ({
-      id: r.id, inst_id: r.instId, nickname: r.nickname, type: r.type, islamic: !!r.islamic,
+      id: r.id, inst_id: r.instId, nickname: r.nickname, type: r.type,
       currency: r.currency || 'PKR', last4: r.last4 || '', status: r.status, notes: r.notes || '',
       opened_on: r.createdAt, archived_at: r.archivedAt ?? null,
       edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
     }),
     fromRow: r => stripNulls({
-      id: r.id, instId: r.inst_id, nickname: r.nickname, type: r.type, islamic: r.islamic,
+      id: r.id, instId: r.inst_id, nickname: r.nickname, type: r.type,
       currency: r.currency, last4: r.last4, status: r.status, notes: r.notes, createdAt: r.opened_on,
       archivedAt: r.archived_at || undefined,
       editedAt: r.edited_at || undefined, editCount: r.edit_count > 0 ? r.edit_count : undefined,

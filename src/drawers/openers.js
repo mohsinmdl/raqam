@@ -54,12 +54,12 @@ export const openers = {
   },
 
   addAccount: openDrawer => openDrawer('addAccount', {
-    inst: '', customInst: '', type: 'Current', nickname: '', islamic: 'conventional',
+    inst: '', customInst: '', customInstKind: 'Custom', type: 'Current', nickname: '',
     balance: '', asof: todayStr(), last4: '', notes: '',
   }),
 
   addCard: openDrawer => openDrawer('addCard', {
-    inst: '', product: '', ctype: 'debit', network: 'Visa', tier: '', nickname: '',
+    inst: '', customInst: '', customInstKind: 'Custom', product: '', ctype: 'debit', network: 'Visa', tier: '', nickname: '',
     last4: '', limit: '', stmtDay: '25', due: '', linked: '',
   }),
 
@@ -90,8 +90,8 @@ export const openers = {
     const a = S.accounts.find(x => x.id === accountId);
     if (!a) return;
     openDrawer('addAccount', {
-      editId: a.id, inst: a.instId, customInst: '', type: a.type, nickname: a.nickname,
-      islamic: a.islamic ? 'islamic' : 'conventional', last4: a.last4 || '', notes: a.notes || '',
+      editId: a.id, inst: a.instId, customInst: '', customInstKind: 'Custom', type: a.type, nickname: a.nickname,
+      last4: a.last4 || '', notes: a.notes || '',
       status: a.status, balance: '', asof: '',
     });
   },

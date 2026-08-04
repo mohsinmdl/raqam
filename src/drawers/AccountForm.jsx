@@ -3,19 +3,19 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { parseAmt } from '../lib/format.js';
-import { accountRefs } from '../lib/calc.js';
+import { accountRefs, INST_KINDS } from '../lib/calc.js';
+import BankKindField, { KindOptions } from './BankKindField.jsx';
 import { currentMonth } from '../lib/dates.js';
 import { ACCOUNT_TYPES } from '../store/seed.js';
 import { addAccount, updateAccount } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
-import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, Pill, grid2 } from './fields.jsx';
-
-const INST_KINDS = ['Conventional', 'Islamic', 'Foreign', 'Microfinance', 'Digital', 'Custom'];
+import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, grid2 } from './fields.jsx';
 
 export function useInstGroups() {
   const { data: S } = useStore();
   return INST_KINDS
-    .map(kind => ({ kind: kind + (kind === 'Custom' ? '' : ' banks'), items: S.institutions.filter(i => i.kind === kind) }))
+    // 'Custom' is the catch-all for things that aren't banks (cash, a wallet app).
+    .map(kind => ({ kind: kind === 'Custom' ? 'Other' : kind + ' banks', items: S.institutions.filter(i => i.kind === kind) }))
     .filter(g => g.items.length > 0);
 }
 
@@ -24,7 +24,6 @@ function Body() {
   const { data: S } = useStore();
   const instGroups = useInstGroups();
   const f = drawer.form, errors = drawer.errors;
-  const isl = f.islamic === 'islamic';
   const editing = !!f.editId;
   const refs = editing ? accountRefs(S, f.editId, currentMonth()) : null;
   const statusWarn = editing && f.status && f.status !== 'active'
@@ -48,8 +47,16 @@ function Body() {
           <option value="__custom">＋ Custom institution…</option>
         </SelectField>
         <Hint>Demo institution list — replaceable with a researched catalogue.</Hint>
-        {f.inst === '__custom' && <TextField field="customInst" ariaLabel="Institution name" placeholder="Institution name" accent />}
+        {f.inst === '__custom' && (
+          <div style={{ ...grid2, marginTop: 8 }}>
+            <TextField field="customInst" ariaLabel="Institution name" placeholder="Institution name" />
+            <SelectField id="a-instkind" field="customInstKind" ariaLabel="Type of bank">
+              <KindOptions />
+            </SelectField>
+          </div>
+        )}
         <FieldError msg={errors.inst} />
+        <BankKindField />
       </div>
 
       <div style={grid2}>
@@ -64,12 +71,6 @@ function Body() {
           <TextField id="a-nick" field="nickname" placeholder="e.g. Salary account" />
           <FieldError msg={errors.nickname} />
         </div>
-      </div>
-
-      <div role="group" aria-label="Classification" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 500 }}>Classification:</span>
-        <Pill on={!isl} onClick={() => setField('islamic', 'conventional')}>Conventional</Pill>
-        <Pill on={isl} onClick={() => setField('islamic', 'islamic')}>Islamic</Pill>
       </div>
 
       {!editing && (
