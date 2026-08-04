@@ -117,7 +117,7 @@ export const openers = {
 
   addCategory: openDrawer => openDrawer('category', {
     editId: null, name: '', type: 'expense', icon: 'square', color: '#0F766E',
-    description: '', sortOrder: '99', originalType: null,
+    description: '', sortOrder: '99', originalType: null, excludeFromBudget: false,
   }),
 
   addBudget: openDrawer => openDrawer('budget', { editId: null, overall: false, category: '', amount: '', rollover: false }),
@@ -143,6 +143,7 @@ export const openers = {
     openDrawer('category', {
       editId: c.id, name: c.name, type: c.type, icon: c.icon || 'square', color: c.color,
       description: c.description || '', sortOrder: String(c.sortOrder ?? 99), originalType: c.type,
+      excludeFromBudget: !!c.excludeFromBudget,
     });
   },
 

@@ -333,13 +333,16 @@ export function rolloverMonth(data) {
 
 // ---- Categories (design v2 CRUD) -------------------------------------------
 
-const CAT_AUDIT_FIELDS = ['name', 'type', 'icon', 'color', 'description', 'sortOrder'];
+const CAT_AUDIT_FIELDS = ['name', 'type', 'icon', 'color', 'description', 'sortOrder', 'excludeFromBudget'];
 
 // Create or edit a category. Budget amounts are owned by the Budgets screen
-// (design iteration 002) — no budget plumbing here.
+// (design iteration 002) — no budget plumbing here, EXCEPT: turning
+// excludeFromBudget on removes the category's budget (an excluded category
+// must never keep an unusable budget attached; the form confirms first).
 export function upsertCategory(data, { form: f }) {
   const editing = !!f.editId;
   const next = { ...data, categories: [...data.categories], budgets: [...data.budgets] };
+  const excluded = f.type === 'expense' && !!f.excludeFromBudget; // income cats always store false
   let id = f.editId;
   let before = null;
   if (editing) {
@@ -349,20 +352,25 @@ export function upsertCategory(data, { form: f }) {
     next.categories[i] = stampUpdate({
       ...before, name: f.name.trim(), type: f.type, icon: f.icon || 'square',
       color: f.color || '#0F766E', description: (f.description || '').trim(),
-      sortOrder: parseInt(f.sortOrder, 10) || 99,
+      sortOrder: parseInt(f.sortOrder, 10) || 99, excludeFromBudget: excluded,
     });
   } else {
     id = uid();
     next.categories.push({
       id, name: f.name.trim(), type: f.type, icon: f.icon || 'square', color: f.color || '#0F766E',
       description: (f.description || '').trim(), sortOrder: parseInt(f.sortOrder, 10) || 99,
-      isSystem: false, status: 'active',
+      isSystem: false, status: 'active', excludeFromBudget: excluded,
     });
   }
   if (editing) {
     const after = next.categories.find(c => c.id === id);
     const d = diffFields(before, after, CAT_AUDIT_FIELDS);
     next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: 'Edited category ' + after.name + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+    const dropped = excluded && !before.excludeFromBudget ? next.budgets.find(b => b.category === id) : null;
+    if (dropped) {
+      next.budgets = next.budgets.filter(b => b.id !== dropped.id);
+      next.audit = [makeAudit({ entityType: 'budget', entityId: dropped.id, action: 'delete', summary: 'Budget removed — “' + after.name + '” excluded from budgets', before: { category: id, amount: dropped.amount, rollover: !!dropped.rollover } }), ...next.audit];
+    }
   } else {
     next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'create', summary: 'Created category ' + f.name.trim(), after: { name: f.name.trim(), type: f.type } }), ...(next.audit || [])];
   }
