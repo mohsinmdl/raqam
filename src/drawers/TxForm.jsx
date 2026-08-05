@@ -89,18 +89,21 @@ function Body() {
       </div>
       <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: -4 }}>{HINTS[type]}</div>
 
+      {/* Amount keeps the two-column grid to itself: the empty second track is
+          what holds its width steady now that When has moved to its own row. */}
       <div style={grid2}>
         <div>
           <Label htmlFor="f-amount" required>Amount</Label>
           <AmountField id="f-amount" field="amount" autoFocus />
           <FieldError msg={errors.amount} />
         </div>
-        <div>
-          <Label required>When</Label>
-          <WhenField />
-          <Hint>Asia/Karachi · the time orders same-day entries</Hint>
-          <FieldError msg={errors.date} />
-        </div>
+      </div>
+
+      <div>
+        <Label required>When</Label>
+        <WhenField />
+        <Hint>Asia/Karachi · the time orders same-day entries</Hint>
+        <FieldError msg={errors.date} />
       </div>
 
       {fxPayWith && (
