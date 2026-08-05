@@ -23,7 +23,13 @@ const GROUPS = [
   { key: 'ended', label: 'Ended', dot: 'var(--muted)', note: 'These have reached the end you set' },
 ];
 const colHeader = { fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)' };
-const gridCols = { display: 'grid', gridTemplateColumns: 'minmax(0,1.8fr) minmax(0,1.05fr) minmax(0,1fr) minmax(0,0.9fr) auto 40px', gap: 10 };
+// The header row and each data row are separate grid containers, so every track
+// has to resolve identically in both. An `auto` action column would collapse to
+// zero in the header (its cell is empty) and to ~115px in a row, shifting every
+// fr column — hence a fixed width, matching the other list screens.
+const gridCols = { display: 'grid', gridTemplateColumns: 'minmax(0,1.8fr) minmax(0,1.05fr) minmax(0,1fr) minmax(0,0.9fr) 120px 40px', gap: 10 };
+// Note: no overflow:hidden on the group sections — it would clip the per-row ⋯
+// menu, which RowMenu positions absolutely inside the row.
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const btn = { height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', flex: 'none' };
 
@@ -165,7 +171,7 @@ export default function Recurring() {
         )}
 
         {groups.map(g => (
-          <section key={g.key} aria-label={g.label} style={{ ...card, overflow: 'hidden', ...(g.key === 'ended' ? { border: '1px dashed var(--border)' } : null) }}>
+          <section key={g.key} aria-label={g.label} style={{ ...card, ...(g.key === 'ended' ? { border: '1px dashed var(--border)' } : null) }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '12px 14px 8px' }}>
               <span style={{ width: 7, height: 7, borderRadius: 999, background: g.dot, flex: 'none' }} />
               <span style={{ fontSize: 13, fontWeight: 600 }}>{g.label}</span>
