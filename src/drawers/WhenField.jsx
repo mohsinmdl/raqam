@@ -49,6 +49,7 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
   const f = drawer.form;
   const today = todayStr();
   const rowRef = useRef(null);
+  const panelRef = useRef(null);
   const [open, setOpen] = useState(null); // 'date' | 'time' | null
   const [pos, setPos] = useState(null);
   const [month, setMonth] = useState(() => String(f.date || today).slice(0, 7));
@@ -60,8 +61,16 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
   useEffect(() => {
     if (!open) return;
     const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
-    // The panel is pinned to a viewport position, so any scroll invalidates it.
-    const onScroll = () => close();
+    // The panel is pinned to a viewport position, so scrolling the page or the
+    // drawer body invalidates it — but scrolling INSIDE it must not. This
+    // listener is on document in capture phase, so it also sees the time
+    // picker's own columns: centring the selected hour on mount is a
+    // programmatic scroll, and without this guard it closed the popover before
+    // it could be seen.
+    const onScroll = e => {
+      if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
+      close();
+    };
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', onScroll);
@@ -129,7 +138,7 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
           <div onClick={close} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
 
           {open === 'date' && (
-            <div role="dialog" aria-label="Choose a date" style={{ ...panel, top: pos.top, left: pos.left, width: calW, maxHeight: pos.maxHeight }}>
+            <div ref={panelRef} role="dialog" aria-label="Choose a date" style={{ ...panel, top: pos.top, left: pos.left, width: calW, maxHeight: pos.maxHeight }}>
               <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 6px', flex: 'none' }}>
                 <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="hv-soft" style={{ ...chip(false), width: 26, padding: 0 }}>‹</button>
                 <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600 }}>{MN[+month.slice(5) - 1] + ' ' + month.slice(0, 4)}</span>
@@ -173,7 +182,7 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
           )}
 
           {open === 'time' && (
-            <div role="dialog" aria-label="Choose a time" style={{ ...panel, top: pos.top, left: pos.left, width: TIME_W, maxHeight: pos.maxHeight }}>
+            <div ref={panelRef} role="dialog" aria-label="Choose a time" style={{ ...panel, top: pos.top, left: pos.left, width: TIME_W, maxHeight: pos.maxHeight }}>
               <div style={{ display: 'flex', gap: 6, padding: '10px 10px 8px', flexWrap: 'wrap', flex: 'none' }}>
                 {QUICK.map(q => (
                   <button key={q.v} type="button" onClick={() => { setForm({ time: q.v }); close(); }} className="hv-soft" style={chip(f.time === q.v)}>{q.l}</button>
