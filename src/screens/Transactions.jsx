@@ -7,7 +7,8 @@ import { useMoney, parseAmt } from '../lib/format.js';
 import { inMonth, isExcludedCat, monthLabel } from '../lib/calc.js';
 import { txRowOf } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
-import { ruleFromTx } from '../store/actions.js';
+import { RepeatIcon, TransferIcon } from '../ui/icons.jsx';
+import { ruleFromTx } from '../lib/schedule.js';
 import RowMenu from '../ui/RowMenu.jsx';
 
 const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: 'all', impact: 'all', min: '', max: '' };
@@ -136,7 +137,8 @@ export default function Transactions() {
                     <td style={{ ...td, maxWidth: 280 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
-                        {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, flex: 'none', whiteSpace: 'nowrap' }}>{t.chip}</span>}
+                        {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, flex: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{t.chipIcon === 'transfer' && <TransferIcon size={11} />}{t.chip}</span>}
+                        {t.isRepeating && <span title="Part of a recurring rule" style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--soft)', color: 'var(--accent)', flex: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}><RepeatIcon size={11} />Repeats</span>}
                         {t.edited && <span title={t.editedLabel} style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--muted)', flex: 'none', whiteSpace: 'nowrap' }}>Edited</span>}
                         {t.excluded && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--muted)', flex: 'none', whiteSpace: 'nowrap' }}>{t.excludedLabel}</span>}
                       </div>

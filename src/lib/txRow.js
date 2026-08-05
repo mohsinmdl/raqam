@@ -2,6 +2,7 @@
 // prototype's txRowOf (script 894-927) and freshInfo (928-933).
 import { accountDelta, dayLabel, daysAgo, lastActivity, relTime, timeLabel } from './calc.js';
 import { nowIso } from './dates.js';
+import { ruleFromTx } from './schedule.js';
 
 // fmt = { money, moneyS } from useMoney(). forAccountId flips amounts to the
 // perspective of one account (account-detail activity list).
@@ -12,8 +13,10 @@ export function txRowOf(t, S, fmt, forAccountId) {
   const toAcc = t.toAccountId ? S.accounts.find(a => a.id === t.toAccountId) : null;
   const toCard = t.toCardId ? S.cards.find(c => c.id === t.toCardId) : null;
   let chip = null, chipBg = 'var(--elev)', chipFg = 'var(--muted)';
-  if (t.type === 'transfer' && t.isCardPayment) { chip = 'Card payment'; chipBg = 'var(--info-soft)'; chipFg = 'var(--info)'; }
-  else if (t.type === 'transfer') { chip = 'Transfer'; }
+  // A card payment is a transfer to a card, so both carry the transfer glyph.
+  let chipIcon = null;
+  if (t.type === 'transfer' && t.isCardPayment) { chip = 'Card payment'; chipBg = 'var(--info-soft)'; chipFg = 'var(--info)'; chipIcon = 'transfer'; }
+  else if (t.type === 'transfer') { chip = 'Transfer'; chipIcon = 'transfer'; }
   else if (t.type === 'refund') { chip = 'Refund'; chipBg = 'var(--info-soft)'; chipFg = 'var(--info)'; }
   else if (t.type === 'adjustment') { chip = 'Adjustment'; chipBg = 'var(--warn-soft)'; chipFg = 'var(--warn)'; }
   else if (t.type === 'cardAdjustment') { chip = 'Card correction'; chipBg = 'var(--warn-soft)'; chipFg = 'var(--warn)'; }
@@ -32,7 +35,9 @@ export function txRowOf(t, S, fmt, forAccountId) {
   return {
     id: t.id, dateLabel: dayLabel(t.date), timeLabel: timeLabel(t.date),
     merchant: t.merchant || (t.type === 'transfer' ? 'Own-account transfer' : '—'), notes: t.notes || '', hasNotes: !!t.notes,
-    hasChip: !!chip, chip, chipBg, chipFg,
+    hasChip: !!chip, chip, chipBg, chipFg, chipIcon,
+    // Belongs to a recurring rule — including the transaction that seeded it.
+    isRepeating: !!ruleFromTx(S, t.id),
     catName: cat ? cat.name : (t.type === 'transfer' ? 'Transfer' : '—'), catColor: cat ? cat.color : 'var(--border)',
     acctLabel, amtLabel, amtColor,
     stLabel: t.status === 'pending' ? 'Pending' : 'Cleared', stBg: t.status === 'pending' ? 'var(--warn-soft)' : 'var(--elev)', stFg: t.status === 'pending' ? 'var(--warn)' : 'var(--muted)',

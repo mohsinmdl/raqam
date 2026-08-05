@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   addTransaction, updateTransaction, upsertRule, deleteRule, toggleRulePause,
-  skipOccurrence, rolloverMonth, ruleFromTx,
+  skipOccurrence, rolloverMonth,
 } from '../src/store/actions.js';
+import { ruleFromTx } from '../src/lib/schedule.js';
 import { todayStr } from '../src/lib/dates.js';
 
 const rule = over => ({

@@ -13,6 +13,7 @@ import {
 } from '../lib/schedule.js';
 import { skipOccurrence, toggleRulePause, deleteRule } from '../store/actions.js';
 import { openers } from '../drawers/openers.js';
+import { RepeatIcon } from '../ui/icons.jsx';
 import { sourceLabel } from './Recurring.jsx';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
@@ -103,7 +104,9 @@ export default function RecurringDetail() {
             <span style={{ flex: 'none', width: 30, height: 30, ...iconStyle(cat?.icon, cat?.color) }} />
             <div style={{ flex: 1, minWidth: 180 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>{r.name}</h2>
+                <h2 style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 17, fontWeight: 600, margin: 0 }}>
+                  <RepeatIcon size={14} />{r.name}
+                </h2>
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: tintBg, color: tintFg }}>{STATUS_LABEL[status]}</span>
               </div>
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>

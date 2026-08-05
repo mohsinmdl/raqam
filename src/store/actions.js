@@ -3,7 +3,7 @@
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
 import { accountBalance, accountDeletePolicy, cardOutstanding, INST_KINDS } from '../lib/calc.js';
 import { addMonths, currentMonth, nowIso, todayStr } from '../lib/dates.js';
-import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule } from '../lib/schedule.js';
+import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
 import { uid } from '../lib/util.js';
 import { makeAudit, diffFields, stampUpdate } from './audit.js';
 import { freshStore } from './seed.js';
@@ -79,14 +79,6 @@ function markOccurrenceRecorded(next, f, t, amt) {
   if (occ.some(o => o.due === due)) return;
   r.occurrences = [...occ, { due, outcome: 'recorded', amount: amt, txId: t.id, at: nowIso() }];
   if (r.nextDate === due) r.nextDate = advanceDue(r.schedule, due);
-}
-
-// The rule a transaction already belongs to, by the occurrence that records it.
-// occurrences[].txId is the only link between the two (there is no column on
-// transactions), and it is what stops one transaction spawning two rules.
-export function ruleFromTx(store, txId) {
-  if (!txId) return null;
-  return (store.recurring || []).find(r => (r.occurrences || []).some(o => o.txId === txId)) || null;
 }
 
 // A transaction becoming a series: the transaction itself is the first recorded

@@ -9,9 +9,9 @@ import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { accountBalance, cardOutstanding, dayLabel, findDuplicate, listCats, monthLabel, relTime } from '../lib/calc.js';
 import { currentMonth, todayStr } from '../lib/dates.js';
-import { addTransaction, updateTransaction, deleteTransaction, ruleFromTx } from '../store/actions.js';
+import { addTransaction, updateTransaction, deleteTransaction } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
-import { PRESETS } from '../lib/schedule.js';
+import { PRESETS, ruleFromTx } from '../lib/schedule.js';
 import WhenField from './WhenField.jsx';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, Pill, grid2, noteBox } from './fields.jsx';
 

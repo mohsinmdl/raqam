@@ -172,6 +172,14 @@ export function recordedOccurrences(rule) {
   return occurrenceList(rule).filter(o => o.outcome === 'recorded' && isFinite(o.amount));
 }
 
+// The rule a transaction belongs to, found through the occurrence that records
+// it. occurrences[].txId is the only link between the two — transactions carry
+// no rule column — and it is what stops one transaction spawning two rules.
+export function ruleFromTx(store, txId) {
+  if (!txId) return null;
+  return (store.recurring || []).find(r => occurrenceList(r).some(o => o.txId === txId)) || null;
+}
+
 export function isEnded(rule) {
   if (!rule) return false;
   const ends = normalizeSchedule(rule.schedule).ends;

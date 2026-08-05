@@ -8,6 +8,7 @@ import { useMoney } from '../lib/format.js';
 import { accountBalance, accountDelta, dayLabel, inMonth, kindLabel, lastActivity, monthLabel, openingOf, relTime } from '../lib/calc.js';
 import { txRowOf, instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
+import { RepeatIcon, TransferIcon } from '../ui/icons.jsx';
 import { setAccountStatus } from '../store/actions.js';
 
 const cardBg = theme => ({ teal: '#0E5A53', ink: '#1D2925', warm: '#59452A' }[theme] || '#0E5A53');
@@ -115,7 +116,8 @@ export default function AccountDetail() {
                     <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
                     <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
-                      {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, flex: 'none' }}>{t.chip}</span>}
+                      {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{t.chipIcon === 'transfer' && <TransferIcon size={11} />}{t.chip}</span>}
+                        {t.isRepeating && <span title="Part of a recurring rule" style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--soft)', color: 'var(--accent)', flex: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}><RepeatIcon size={11} />Repeats</span>}
                     </div>
                     <div className="tnum" style={{ fontSize: 13.5, fontWeight: 600, textAlign: 'right', color: t.amtColor }}>{t.amtLabel}</div>
                     <div style={{ textAlign: 'right' }}>

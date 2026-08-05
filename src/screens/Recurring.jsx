@@ -13,6 +13,7 @@ import { iconStyle } from '../lib/catIcon.js';
 import { advanceDue, freqLabel, longDate, ruleDueLabel, ruleStatus } from '../lib/schedule.js';
 import { skipOccurrence, toggleRulePause, deleteRule } from '../store/actions.js';
 import RowMenu from '../ui/RowMenu.jsx';
+import { RepeatIcon } from '../ui/icons.jsx';
 import { openers } from '../drawers/openers.js';
 
 const GROUPS = [
@@ -101,7 +102,10 @@ export default function Recurring() {
         <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <span style={{ flex: 'none', width: 22, height: 22, ...iconStyle(cat?.icon, cat?.color) }} />
           <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 500, minWidth: 0 }}>
+              <RepeatIcon size={11} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+            </span>
             <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{freqLabel(r.schedule)}</span>
           </span>
         </span>

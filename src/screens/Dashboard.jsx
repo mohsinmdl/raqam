@@ -10,6 +10,7 @@ import { txRowOf, freshInfo, instName, setupState } from '../lib/txRow.js';
 import ExplainDialog from '../ui/ExplainDialog.jsx';
 import FirstUse from './FirstUse.jsx';
 import { openers } from '../drawers/openers.js';
+import { RepeatIcon, TransferIcon } from '../ui/icons.jsx';
 import { overdueRules, upcomingRules } from '../lib/schedule.js';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
@@ -377,7 +378,8 @@ export default function Dashboard() {
                   <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
                   <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
-                    {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, flex: 'none' }}>{t.chip}</span>}
+                    {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{t.chipIcon === 'transfer' && <TransferIcon size={11} />}{t.chip}</span>}
+                        {t.isRepeating && <span title="Part of a recurring rule" style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--soft)', color: 'var(--accent)', flex: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}><RepeatIcon size={11} />Repeats</span>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                     <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
