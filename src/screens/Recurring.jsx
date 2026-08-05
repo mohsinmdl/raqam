@@ -155,7 +155,9 @@ export default function Recurring() {
           <p style={{ flex: 1, fontSize: 12.5, color: 'var(--muted)', margin: 0, maxWidth: 640 }}>
             Reminders for the things that repeat. Nothing is recorded until you confirm it — a missed occurrence waits here until you record or skip it.
           </p>
-          <button onClick={() => openers.addRule(openDrawer)} className="hv-accent" style={{ ...btn, height: 34, padding: '0 14px', background: 'var(--accent)', color: 'var(--on-accent)', border: 'none', fontSize: 13 }}>＋ Add rule</button>
+          {/* marginLeft:auto, not flex:1 on the paragraph — the intro is capped
+              at 640px, so it can't grow to push the button to the edge itself. */}
+          <button onClick={() => openers.addRule(openDrawer)} className="hv-accent" style={{ ...btn, marginLeft: 'auto', height: 34, padding: '0 14px', background: 'var(--accent)', color: 'var(--on-accent)', border: 'none', fontSize: 13 }}>＋ Add rule</button>
         </div>
 
         {overdue.length > 0 && (
