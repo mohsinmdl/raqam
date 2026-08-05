@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useMoney } from '../lib/format.js';
 import * as C from '../lib/calc.js';
-import { todayStr } from '../lib/dates.js';
+import { nowIso, todayStr } from '../lib/dates.js';
 import { txRowOf, freshInfo, instName, setupState } from '../lib/txRow.js';
 import ExplainDialog from '../ui/ExplainDialog.jsx';
 import FirstUse from './FirstUse.jsx';
 import { openers } from '../drawers/openers.js';
+import { overdueRules, upcomingRules } from '../lib/schedule.js';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const h2 = { fontSize: 15, fontWeight: 600, margin: 0 };
@@ -117,9 +118,11 @@ export default function Dashboard() {
   const brows = S.budgets.map(budgetRow);
   const budgetRows = (brows.length ? [brows[0]] : []).concat(brows.slice(1).sort((a, b) => b.pct - a.pct).slice(0, 4));
 
-  const now = new Date();
-  const nowStr = todayStr() + 'T' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  const upc = isPast ? [] : S.recurring.filter(r => r.status === 'active' && r.nextDate.slice(0, 7) === month && C.daysUntil(r.nextDate, nowStr) >= 0 && !r.doneThisMonth).sort((a, b) => a.nextDate.localeCompare(b.nextDate)).slice(0, 5);
+  const nowStr = nowIso();
+  const upc = isPast ? [] : upcomingRules(S, month, nowStr).slice(0, 5);
+  // Missed occurrences never advance on their own, so they can sit outside the
+  // upcoming window entirely — the pill is the only thing that surfaces them here.
+  const overdue = isPast ? [] : overdueRules(S, nowStr);
   const upcomingRows = upc.map(r => { const d = C.daysUntil(r.nextDate, nowStr); return { id: r.id, name: r.name, when: (d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : 'In ' + d + ' days') + ' · ' + C.dayLabel(r.nextDate + 'T00:00'), whenColor: d <= 3 ? 'var(--warn)' : 'var(--muted)', amt: (r.estimated ? '~' : '') + money(r.amount) }; });
 
   const lg = C.largestExpenses(S, month, 5);
@@ -310,7 +313,16 @@ export default function Dashboard() {
             </section>
 
             <section aria-label="Upcoming" style={{ ...card, padding: '16px 18px' }}>
-              <h2 style={h2}>Upcoming this month</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ ...h2, flex: 1 }}>Upcoming this month</h2>
+                {overdue.length > 0 && (
+                  <Link
+                    to="/recurring"
+                    title={overdue.map(r => r.name).join(', ') + ' — past due and waiting on you'}
+                    style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'var(--neg-soft)', color: 'var(--neg)', textDecoration: 'none', flex: 'none' }}
+                  >{overdue.length === 1 ? '1 overdue' : overdue.length + ' overdue'}</Link>
+                )}
+              </div>
               {upcomingRows.length > 0 ? (
                 <>
                   <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
@@ -321,7 +333,7 @@ export default function Dashboard() {
                           <span style={{ display: 'block', fontSize: 11.5, color: u.whenColor }}>{u.when}</span>
                         </span>
                         <span className="tnum" style={{ fontSize: 13, fontWeight: 600 }}>{u.amt}</span>
-                        <button onClick={() => openers.recurring(S, u.id, openDrawer)} title="Review details and record this transaction" className="hv-soft" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>Record</button>
+                        <button onClick={() => openers.recordRule(S, u.id, openDrawer)} title="Review details and record this transaction" className="hv-soft" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>Record</button>
                       </div>
                     ))}
                   </div>
