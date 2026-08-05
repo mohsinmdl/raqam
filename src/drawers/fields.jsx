@@ -23,13 +23,13 @@ export function Hint({ children, style }) {
 }
 
 // Rs-prefixed amount input (template's composite amount control).
-export function AmountField({ id, field, big = true, placeholder = '0', ariaLabel }) {
+export function AmountField({ id, field, big = true, placeholder = '0', ariaLabel, autoFocus }) {
   const { drawer, setField } = useDrawer();
   return (
     <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', overflow: 'hidden' }}>
       <span style={{ padding: '0 10px', fontSize: big ? 13 : 12.5, color: 'var(--muted)', borderRight: '1px solid var(--border)', height: big ? 40 : 38, display: 'flex', alignItems: 'center', background: big ? 'var(--elev)' : undefined }}>Rs</span>
       <input
-        id={id} aria-label={ariaLabel} inputMode="decimal" placeholder={placeholder}
+        id={id} aria-label={ariaLabel} inputMode="decimal" placeholder={placeholder} data-autofocus={autoFocus ? '' : undefined}
         value={drawer.form[field] ?? ''} onChange={e => setField(field, e.target.value)}
         className="tnum"
         style={{ flex: 1, height: big ? 40 : 38, border: 'none', padding: '0 12px', background: 'transparent', color: 'var(--text)', fontSize: big ? 15 : 14, fontWeight: 600, minWidth: 0, outlineOffset: -2 }}
