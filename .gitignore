@@ -15,6 +15,10 @@ dist/
 key
 *.jwt
 *.pem
+.ynab-token
+
+# Local database dump produced by scripts/raqam-dump.sh — every user's rows.
+.raqam-dump/
 
 # Supabase CLI local state
 supabase/.temp/

@@ -1,59 +1,152 @@
 #!/usr/bin/env node
-// Raqam -> YNAB one-way load.
+// Raqam -> YNAB one-way load / refresh.
 //
-// Reads the JSON dumps produced by scripts/raqam-dump.sh, keeps a single
-// user_id partition, and creates the equivalent categories, accounts, opening
-// balances, transactions and budget assignments in a YNAB plan.
+// Re-runnable. Every object it creates is addressable afterwards, so a second
+// run brings YNAB back in line with Raqam rather than duplicating anything:
 //
-// Read-only with respect to Raqam. Idempotent with respect to YNAB: every
-// transaction carries a deterministic import_id, and accounts/categories are
-// matched by (name, type) before being created, so a rate-limited or partial
-// run can simply be re-run.
+//   * transactions carry a deterministic import_id derived from the Raqam row
+//     id, so they are created once, PATCHed when the Raqam row changed, and
+//     reported (or deleted, with --prune) when the Raqam row is gone;
+//   * accounts and categories are matched by (name, type) before creating;
+//   * budget assignments are absolute values, and are only sent when the
+//     amount in YNAB actually differs.
 //
-//   node scripts/ynab-load.mjs             # dry run, writes nothing
-//   node scripts/ynab-load.mjs --apply     # perform the load
+// Nothing in Raqam or its database is ever written.
 //
-// Env: YNAB_TOKEN (required), YNAB_BUDGET_ID, RAQAM_DIR, RAQAM_USER.
+//   node scripts/ynab-load.mjs --dump                  # refresh the local dump, then dry run
+//   node scripts/ynab-load.mjs                         # dry run against the existing dump
+//   node scripts/ynab-load.mjs --dump --apply          # the normal "update YNAB" command
+//   node scripts/ynab-load.mjs --list-partitions       # show the user_ids in the dump
+//
+// Flags
+//   --dump              re-run scripts/raqam-dump.sh first (needs the service-role key)
+//   --apply             actually write to YNAB (otherwise dry run)
+//   --user <uuid>       which Raqam user_id to load (see --list-partitions)
+//   --prune             delete YNAB transactions whose Raqam row no longer exists
+//   --zero-unbudgeted   set assigned to 0 for mapped categories Raqam has no budget for
+//   --list-partitions   list user_id partitions in the dump and exit
+//
+// Config, in precedence order
+//   token   YNAB_TOKEN env  ->  ./.ynab-token  ->  ~/.ynab-token
+//   plan    YNAB_BUDGET_ID env  ->  auto-detected when the account has exactly one
+//   user    --user  ->  RAQAM_USER env  ->  auto when the dump has exactly one partition
+//   dump    RAQAM_DIR env  ->  ./.raqam-dump
 
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const APPLY = process.argv.includes('--apply');
-const TOKEN = process.env.YNAB_TOKEN;
-const BUDGET = process.env.YNAB_BUDGET_ID;
-const DIR = process.env.RAQAM_DIR;
-const USER = process.env.RAQAM_USER;
-if (!TOKEN || !BUDGET || !DIR || !USER) {
-  console.error('Set YNAB_TOKEN, YNAB_BUDGET_ID, RAQAM_DIR, RAQAM_USER.');
-  process.exit(1);
+const argv = process.argv.slice(2);
+const has = f => argv.includes(f);
+const opt = f => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
+const die = m => { console.error('\n' + m + '\n'); process.exit(1); };
+
+const APPLY = has('--apply');
+const PRUNE = has('--prune');
+const ZERO = has('--zero-unbudgeted');
+const DIR = process.env.RAQAM_DIR || '.raqam-dump';
+
+// --------------------------------------------------------------------------
+// Credentials
+// --------------------------------------------------------------------------
+// Preferring a file over an env var keeps the token out of shell history.
+function token() {
+  if (process.env.YNAB_TOKEN) return process.env.YNAB_TOKEN.trim();
+  for (const p of ['.ynab-token', join(process.env.HOME || '', '.ynab-token')]) {
+    if (existsSync(p)) return readFileSync(p, 'utf8').trim();
+  }
+  die('No YNAB token. Put a Personal Access Token in ./.ynab-token (gitignored) or set YNAB_TOKEN.');
+}
+const TOKEN = token();
+
+let calls = 0;
+async function ynab(method, path, body) {
+  calls++;
+  const res = await fetch('https://api.ynab.com/v1' + path, {
+    method,
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  if (res.status === 429) die('YNAB rate limit reached (200 requests/hour). Re-run later — the load resumes where it stopped.');
+  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}\n${text}`);
+  return text ? JSON.parse(text).data : null;
 }
 
 // --------------------------------------------------------------------------
 // Money and ids
 // --------------------------------------------------------------------------
 // Raqam stores integer whole PKR (0001_init.sql:5); YNAB uses milliunits. The
-// plan's currency is already PKR, so this is the entire conversion.
+// plan's currency is PKR, so this is the entire conversion.
 const mu = pkr => Math.round(pkr) * 1000;
 const rs = m => (m / 1000).toLocaleString('en-PK', { maximumFractionDigits: 0 });
+const pk = n => n.toLocaleString('en-PK', { maximumFractionDigits: 0 });
 
-// import_id is capped at 36 chars, and Raqam ids are already 36-char UUIDs, so
-// a raw id cannot carry a prefix. Hash instead — deterministic across runs.
+// import_id is capped at 36 chars and Raqam ids are already 36-char UUIDs, so a
+// raw id cannot carry a prefix. Hash instead — stable across runs, which is what
+// makes create-vs-update-vs-prune decidable.
+const IMPORT_PREFIXES = ['rq:', 'rqsb:', 'rqfee:'];
 const impId = (prefix, key) =>
   prefix + createHash('sha1').update(key).digest('hex').slice(0, 36 - prefix.length);
+const isOurs = id => !!id && IMPORT_PREFIXES.some(p => id.startsWith(p));
+
+// YNAB permanently burns an import_id once a transaction carrying it has been
+// deleted: re-posting it is silently reported as a duplicate rather than
+// created. So a Raqam row that was pruned and later restored (or re-created in
+// Raqam) would never come back. Each row therefore gets a short ladder of
+// candidate ids; matching accepts whichever one is live, and creation walks up
+// the ladder when the server says a candidate is already taken.
+const GENERATIONS = 5;
+const impIds = (prefix, key) =>
+  Array.from({ length: GENERATIONS }, (_, g) => impId(prefix, g ? `${key}#${g}` : key));
 
 // --------------------------------------------------------------------------
-// Load and partition
+// Dump and partition
 // --------------------------------------------------------------------------
+if (has('--dump')) {
+  console.log('refreshing dump...');
+  execFileSync('bash', [join(import.meta.dirname, 'raqam-dump.sh')], {
+    stdio: 'inherit', env: { ...process.env, OUT: DIR },
+  });
+}
+
 const TABLES = ['institutions', 'categories', 'accounts', 'cards', 'snapshots', 'transactions', 'budgets'];
 const raw = {};
-for (const t of TABLES) raw[t] = JSON.parse(readFileSync(join(DIR, t + '.json'), 'utf8'));
-// institutions is a shared catalogue (user_id NULL = global), so it is looked
-// up whole; everything else is scoped to the one user.
-const instById = new Map(raw.institutions.map(i => [i.id, i]));
+for (const t of TABLES) {
+  const f = join(DIR, t + '.json');
+  if (!existsSync(f)) die(`Missing ${f}. Run with --dump first (needs the Supabase service-role key).`);
+  raw[t] = JSON.parse(readFileSync(f, 'utf8'));
+}
+
+// The service-role key bypasses RLS, so the dump contains every user's rows.
+// Loading without partitioning would merge other users into the plan.
+const partitions = new Map();
+for (const t of TABLES) for (const r of raw[t]) {
+  if (!r.user_id) continue; // institutions with a NULL user_id are the shared catalogue
+  if (!partitions.has(r.user_id)) partitions.set(r.user_id, { rows: 0, accounts: [], txs: 0 });
+  partitions.get(r.user_id).rows++;
+}
+for (const a of raw.accounts) partitions.get(a.user_id)?.accounts.push(a.nickname);
+for (const t of raw.transactions) if (partitions.has(t.user_id)) partitions.get(t.user_id).txs++;
+
+if (has('--list-partitions')) {
+  console.log(`\n${partitions.size} user_id partition(s) in ${DIR}:\n`);
+  for (const [id, p] of [...partitions].sort((a, b) => b[1].rows - a[1].rows)) {
+    console.log(`  ${id}   ${p.rows} rows, ${p.txs} transactions`);
+    console.log(`    accounts: ${p.accounts.join(', ') || '—'}\n`);
+  }
+  console.log('Pass the right one with --user <uuid>.\n');
+  process.exit(0);
+}
+
+const USER = opt('--user') || process.env.RAQAM_USER ||
+  (partitions.size === 1 ? [...partitions.keys()][0] : null);
+if (!USER) die(`The dump holds ${partitions.size} user_id partitions. Pick one with --user <uuid> (see --list-partitions).`);
+if (!partitions.has(USER)) die(`user_id ${USER} is not in the dump. See --list-partitions.`);
+
 const R = {};
 for (const t of TABLES) R[t] = raw[t].filter(r => r.user_id === USER);
-
 const catById = new Map(R.categories.map(c => [c.id, c]));
 const accById = new Map(R.accounts.map(a => [a.id, a]));
 
@@ -65,10 +158,9 @@ const ACCOUNT_TYPE = {
   'Salary': 'checking',
   'Savings': 'savings',
   'Mobile wallet': 'cash',
-  'Foreign currency': 'checking', // plan is PKR-only; flagged in the report
+  'Foreign currency': 'checking', // the plan is PKR-only; flagged in the report
 };
-
-// Raqam system category id -> existing YNAB default category name.
+// Raqam system category id -> existing YNAB default category to reuse.
 const REUSE = {
   groceries: '🛒 Groceries',
   dining: '🍽️ Dining out',
@@ -80,8 +172,8 @@ const REUSE = {
   entertainment: '🍿 Entertainment',
 };
 // Raqam system category id -> [new YNAB name, group]. Deliberately no merges:
-// budgets are one-per-category in both systems, so folding two Raqam
-// categories onto one YNAB category would collide their budget amounts.
+// budgets are one-per-category in both systems, so folding two Raqam categories
+// onto one YNAB category would collide their budget amounts.
 const CREATE = {
   fuel: ['⛽️ Fuel', 'Needs'],
   education: ['🎓 Education', 'Needs'],
@@ -90,42 +182,17 @@ const CREATE = {
   charity: ['🤲 Charity & Zakat', 'Needs'],
   fees: ['🏦 Bank fees', 'Bills'],
 };
-// Group placement for the user's own categories, by name.
-const CUSTOM_GROUP = {
-  'Cleaning & maintenance': 'Needs',
-  'Food Delivery': 'Wants',
-  'Pet care': 'Wants',
-};
+const CUSTOM_GROUP = { 'Cleaning & maintenance': 'Needs', 'Food Delivery': 'Wants', 'Pet care': 'Wants' };
 // excludeFromBudget categories hold recoverable advances. YNAB has no
 // equivalent exclusion, so they get their own group to stay visually separable.
 const RECOVERABLE_GROUP = 'Recoverable (advances)';
+const DEFAULT_GROUP = 'Wants';
 
-// YNAB reserves a set of internal payee name prefixes and rejects the whole
+// YNAB reserves a set of internal payee name prefixes and rejects the WHOLE
 // batch with a 400 if any payee starts with one: "Transfer : ",
 // "Starting Balance", "Manual Balance Adjustment",
-// "Reconciliation Balance Adjustment". Opening balances therefore cannot use
-// the obvious name.
+// "Reconciliation Balance Adjustment". Opening balances cannot use the obvious name.
 const OPENING_PAYEE = 'Raqam opening balance';
-
-// --------------------------------------------------------------------------
-// YNAB client
-// --------------------------------------------------------------------------
-let calls = 0;
-async function api(method, path, body) {
-  calls++;
-  const res = await fetch(`https://api.ynab.com/v1/budgets/${BUDGET}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    // Surface the server's own message — the category schemas are truncated in
-    // the published spec, so a 400 here is genuinely informative.
-    throw new Error(`${method} ${path} -> ${res.status}\n${text}`);
-  }
-  return text ? JSON.parse(text).data : null;
-}
 
 // --------------------------------------------------------------------------
 // Raqam financial rules, mirrored (src/lib/calc.js accountDelta)
@@ -146,40 +213,34 @@ function accountDelta(t, accId) {
 }
 
 // --------------------------------------------------------------------------
-// Build the load plan
+// Plan
 // --------------------------------------------------------------------------
 const warn = [];
 
-// Categories actually needed: active expense categories, plus any category an
-// existing transaction or budget still points at (even if archived).
+// Categories worth having in YNAB: active expense categories, plus any category
+// a surviving transaction or budget still points at, even if archived.
 const referenced = new Set([
   ...R.transactions.map(t => t.category_id).filter(Boolean),
   ...R.budgets.map(b => b.category_id).filter(Boolean),
 ]);
-const wantedCats = R.categories.filter(
-  c => c.type === 'expense' && (c.status === 'active' || referenced.has(c.id))
-);
-
-function catPlan(c) {
+const wantedCats = R.categories.filter(c => c.type === 'expense' && (c.status === 'active' || referenced.has(c.id)));
+const catPlans = wantedCats.map(c => {
   if (REUSE[c.id]) return { cat: c, mode: 'reuse', name: REUSE[c.id] };
   if (CREATE[c.id]) return { cat: c, mode: 'create', name: CREATE[c.id][0], group: CREATE[c.id][1] };
-  const group = c.exclude_from_budget ? RECOVERABLE_GROUP : (CUSTOM_GROUP[c.name] || 'Wants');
+  const group = c.exclude_from_budget ? RECOVERABLE_GROUP : (CUSTOM_GROUP[c.name] || DEFAULT_GROUP);
   return { cat: c, mode: 'create', name: c.name, group };
-}
-const catPlans = wantedCats.map(catPlan);
-
-// Accounts. Credit cards would become creditCard accounts; debit/prepaid/
-// virtual cards cannot hold a transaction in Raqam (TxForm.jsx:33 offers only
-// credit cards as a payment method) so they are deliberately not created.
-const accPlans = R.accounts.map(a => {
-  const type = ACCOUNT_TYPE[a.type];
-  if (!type) warn.push(`Unknown Raqam account type "${a.type}" on ${a.nickname}; defaulting to checking.`);
-  if (a.type === 'Foreign currency') warn.push(`${a.nickname} is a Foreign currency account; the PKR plan will render it as PKR.`);
-  if (a.currency !== 'PKR') warn.push(`${a.nickname} currency is ${a.currency}, not PKR.`);
-  return { acc: a, name: a.nickname, type: type || 'checking' };
 });
-const creditCards = R.cards.filter(c => c.type === 'credit');
-for (const c of creditCards) {
+
+// Accounts. Non-credit cards can never hold a transaction in Raqam
+// (TxForm.jsx:33 offers only credit cards as a payment method), so creating
+// them would add permanently un-deletable empty YNAB accounts.
+const accPlans = R.accounts.map(a => {
+  if (!ACCOUNT_TYPE[a.type]) warn.push(`Unknown Raqam account type "${a.type}" on ${a.nickname}; using checking.`);
+  if (a.type === 'Foreign currency') warn.push(`${a.nickname} is a Foreign currency account; a PKR plan will render it as PKR.`);
+  if (a.currency !== 'PKR') warn.push(`${a.nickname} currency is ${a.currency}, not PKR.`);
+  return { acc: a, name: a.nickname, type: ACCOUNT_TYPE[a.type] || 'checking' };
+});
+for (const c of R.cards.filter(c => c.type === 'credit')) {
   const first = Object.keys(c.opening_outstanding || {}).sort()[0];
   accPlans.push({
     card: c, name: c.nickname, type: 'creditCard',
@@ -193,24 +254,18 @@ for (const c of R.cards.filter(c => c.type !== 'credit')) {
 // Opening balances: only the EARLIEST snapshot per account is real new money.
 // Raqam writes a fresh snapshot every month at rollover from the computed
 // closing balance (actions.js:358-368), so importing later ones would
-// double-count each month.
+// double-count every month.
 const firstSnap = new Map();
 for (const s of R.snapshots) {
   const cur = firstSnap.get(s.account_id);
   if (!cur || s.month < cur.month) firstSnap.set(s.account_id, s);
 }
-const firstTxMonth = new Map();
 for (const t of R.transactions) {
-  for (const id of [t.account_id, t.to_account_id]) {
-    if (!id) continue;
-    const m = t.date.slice(0, 7);
-    if (!firstTxMonth.has(id) || m < firstTxMonth.get(id)) firstTxMonth.set(id, m);
-  }
-}
-for (const [id, m] of firstTxMonth) {
-  const s = firstSnap.get(id);
-  if (s && m < s.month) {
-    warn.push(`${accById.get(id)?.nickname}: transactions exist in ${m}, before its earliest snapshot ${s.month} — opening balance may be misplaced.`);
+  for (const id of [t.account_id, t.to_account_id].filter(Boolean)) {
+    const s = firstSnap.get(id);
+    if (s && t.date.slice(0, 7) < s.month) {
+      warn.push(`${accById.get(id)?.nickname}: a transaction predates its earliest snapshot ${s.month} — opening balance may be misplaced.`);
+    }
   }
 }
 
@@ -220,176 +275,153 @@ const budgetMonths = [...new Set([...months, ...[...firstSnap.values()].map(s =>
 // --------------------------------------------------------------------------
 // Report
 // --------------------------------------------------------------------------
-function reportPlan() {
-  console.log(`Raqam user ${USER}`);
-  console.log(`  accounts ${R.accounts.length}  cards ${R.cards.length} (credit ${creditCards.length})  transactions ${R.transactions.length}  categories ${R.categories.length}  budgets ${R.budgets.length}`);
-  console.log(`  transaction months: ${months.join(', ') || '—'}`);
+function report() {
+  console.log(`\nRaqam user ${USER}  (dump: ${DIR})`);
   const byType = {};
   for (const t of R.transactions) byType[t.type] = (byType[t.type] || 0) + 1;
-  console.log(`  by type: ${JSON.stringify(byType)}`);
-  const fees = R.transactions.filter(t => t.type === 'transfer' && t.fee > 0);
-  console.log(`  transfers with a fee (split into a separate expense): ${fees.length}`);
+  console.log(`  accounts ${R.accounts.length}  credit cards ${R.cards.filter(c => c.type === 'credit').length}  transactions ${R.transactions.length} ${JSON.stringify(byType)}`);
+  console.log(`  categories ${R.categories.length}  budgets ${R.budgets.length}  months ${budgetMonths.join(', ') || '—'}`);
   console.log('\nCATEGORIES');
-  for (const p of catPlans) {
-    console.log(`  ${p.mode === 'reuse' ? 'reuse ' : 'CREATE'} ${p.name}${p.group ? '  [' + p.group + ']' : ''}   <- ${p.cat.name}${p.cat.exclude_from_budget ? ' (excludeFromBudget)' : ''}`);
+  for (const p of catPlans) console.log(`  ${p.mode === 'reuse' ? 'reuse ' : 'create'} ${p.name}${p.group ? '  [' + p.group + ']' : ''}   <- ${p.cat.name}${p.cat.exclude_from_budget ? ' (excludeFromBudget)' : ''}`);
+  for (const c of R.categories.filter(c => !wantedCats.includes(c))) {
+    console.log(`  skip   ${c.name} (${c.type}, ${c.status})${c.type === 'income' ? ' -> Inflow: Ready to Assign' : ''}`);
   }
-  const skipped = R.categories.filter(c => !wantedCats.includes(c));
-  for (const c of skipped) console.log(`  skip   ${c.name} (${c.type}, ${c.status})${c.type === 'income' ? ' -> Inflow: Ready to Assign' : ''}`);
   console.log('\nACCOUNTS');
-  for (const p of accPlans) console.log(`  ${p.name}  ->  ${p.type}`);
-  console.log('\nOPENING BALANCES');
-  for (const [id, s] of firstSnap) console.log(`  ${accById.get(id)?.nickname}  ${s.month}-01  Rs ${s.amount.toLocaleString('en-PK')}`);
-  console.log('\nBUDGETS');
-  for (const b of R.budgets) {
-    const c = b.category_id ? catById.get(b.category_id) : null;
-    if (!b.category_id) { console.log(`  SKIP overall budget Rs ${b.amount.toLocaleString('en-PK')} — YNAB has no equivalent (its total is the sum of categories)`); continue; }
-    console.log(`  ${c?.name}  Rs ${b.amount.toLocaleString('en-PK')}  x ${budgetMonths.length} month(s)`);
-  }
-  const catBudgets = R.budgets.filter(b => b.category_id).length;
-  const est = 3 + catPlans.filter(p => p.mode === 'create').length + accPlans.length + 1 + catBudgets * budgetMonths.length + 2;
-  console.log(`\nEstimated API requests: ~${est} (limit is 200/hour)`);
-  console.log('\nEXPECTED CLOSING BALANCES (Raqam) — must equal YNAB cleared_balance after load');
+  for (const p of accPlans) console.log(`  ${p.name.padEnd(22)} -> ${p.type}`);
+  console.log('\nEXPECTED CLOSING BALANCES (Raqam) — must equal YNAB cleared_balance');
   for (const a of R.accounts) {
     const open = firstSnap.get(a.id)?.amount || 0;
-    const bal = open + R.transactions.reduce((s, t) => s + accountDelta(t, a.id), 0);
-    console.log(`  ${a.nickname.padEnd(22)} Rs ${bal.toLocaleString('en-PK')}`);
+    console.log(`  ${a.nickname.padEnd(22)} Rs ${pk(open + R.transactions.reduce((s, t) => s + accountDelta(t, a.id), 0)).padStart(12)}`);
   }
 }
 
 // --------------------------------------------------------------------------
-// Pre-flight — validate the mapping against the live plan without writing.
-// Catches a renamed default category or an account-name clash before the run
-// starts, rather than halfway through an irreversible sequence of creates.
+// Resolve plan / categories / accounts
 // --------------------------------------------------------------------------
-async function preflight() {
-  const groups = (await api('GET', '/categories')).category_groups;
-  const names = new Set();
-  for (const g of groups) for (const c of g.categories) if (!c.deleted) names.add(c.name);
-  const groupNames = new Set(groups.filter(g => !g.deleted).map(g => g.name));
-  console.log('\nPRE-FLIGHT (live plan)');
-  for (const p of catPlans.filter(p => p.mode === 'reuse')) {
-    if (!names.has(p.name)) warn.push(`Reuse target category "${p.name}" does not exist in the plan — it would have to be created instead.`);
+async function resolveBudget() {
+  if (process.env.YNAB_BUDGET_ID) return process.env.YNAB_BUDGET_ID;
+  const buds = (await ynab('GET', '/budgets')).budgets;
+  if (buds.length === 1) {
+    const b = buds[0];
+    if (b.currency_format?.iso_code !== 'PKR') {
+      warn.push(`Plan "${b.name}" is ${b.currency_format?.iso_code}, not PKR — amounts will be wrong by the exchange rate. Set YNAB_BUDGET_ID to override.`);
+    }
+    console.log(`plan: ${b.name} (${b.id}, ${b.currency_format?.iso_code})`);
+    return b.id;
   }
-  for (const g of [...new Set(catPlans.filter(p => p.mode === 'create').map(p => p.group))]) {
-    console.log(`  group ${g}: ${groupNames.has(g) ? 'exists' : 'will be created'}`);
-  }
-  for (const p of catPlans.filter(p => p.mode === 'create')) {
-    if (names.has(p.name)) console.log(`  category ${p.name}: already exists, will reuse`);
-  }
-  const accts = (await api('GET', '/accounts')).accounts.filter(a => !a.deleted);
-  for (const p of accPlans) {
-    const exact = accts.find(a => a.name === p.name && a.type === p.type);
-    const clash = accts.find(a => a.name === p.name);
-    if (exact) console.log(`  account ${p.name} (${p.type}): already exists, will reuse`);
-    else if (clash) warn.push(`YNAB has "${clash.name}" as ${clash.type} (balance Rs ${rs(clash.balance)}, ${clash.closed ? 'closed' : 'open'}) but Raqam says ${p.type}. The API cannot change an account's name or type, so a second "${p.name}" will be created as ${p.type}; delete the empty ${clash.type} one in the web UI.`);
-  }
-  const mapped = new Set(accPlans.map(p => p.name));
-  for (const a of accts) {
-    if (!mapped.has(a.name)) warn.push(`YNAB account "${a.name}" (${a.type}, balance Rs ${rs(a.balance)}) has no Raqam counterpart — it will be left untouched. Delete it in the web UI if it was a placeholder.`);
-  }
+  die(`Set YNAB_BUDGET_ID. Your account has ${buds.length} plans:\n` + buds.map(b => `  ${b.id}  ${b.name}`).join('\n'));
 }
+const BUDGET = await resolveBudget();
+const bud = p => `/budgets/${BUDGET}${p}`;
 
-// --------------------------------------------------------------------------
-// Apply
-// --------------------------------------------------------------------------
-async function apply() {
-  // --- categories -------------------------------------------------------
-  let groups = (await api('GET', '/categories')).category_groups;
+async function resolveCategories(write) {
+  let groups = (await ynab('GET', bud('/categories'))).category_groups;
   const groupByName = new Map(groups.filter(g => !g.deleted).map(g => [g.name, g]));
   const catByName = new Map();
   for (const g of groups) for (const c of g.categories) if (!c.deleted) catByName.set(c.name, c);
 
   for (const name of [...new Set(catPlans.filter(p => p.mode === 'create').map(p => p.group))]) {
     if (groupByName.has(name)) continue;
-    console.log(`+ category group ${name}`);
-    const d = await api('POST', '/category_groups', { category_group: { name } });
-    groupByName.set(name, d.category_group);
+    if (!write) { console.log(`  would create group ${name}`); continue; }
+    console.log(`+ group ${name}`);
+    groupByName.set(name, (await ynab('POST', bud('/category_groups'), { category_group: { name } })).category_group);
   }
-
   for (const p of catPlans) {
     const found = catByName.get(p.name);
     if (found) { p.ynabId = found.id; continue; }
-    if (p.mode === 'reuse') throw new Error(`Expected existing YNAB category "${p.name}" was not found.`);
+    if (p.mode === 'reuse') { warn.push(`Reuse target "${p.name}" is not in the plan; it will be created in ${DEFAULT_GROUP}.`); p.group = p.group || DEFAULT_GROUP; }
+    // A dry run against a plan that has none of these yet still needs ids, or
+    // every transaction would be reported as unmappable and the counts useless.
+    if (!write) { console.log(`  would create category ${p.name} [${p.group}]`); p.ynabId = 'dry:cat:' + p.name; continue; }
     const gid = groupByName.get(p.group)?.id;
     if (!gid) throw new Error(`Category group "${p.group}" missing.`);
     console.log(`+ category ${p.name} [${p.group}]`);
-    const d = await api('POST', '/categories', { category: { name: p.name, category_group_id: gid } });
-    p.ynabId = d.category.id;
-    catByName.set(p.name, d.category);
+    p.ynabId = (await ynab('POST', bud('/categories'), { category: { name: p.name, category_group_id: gid } })).category.id;
   }
-  const catMap = new Map(catPlans.map(p => [p.cat.id, p.ynabId]));
   const rta = catByName.get('Inflow: Ready to Assign');
-  if (!rta) throw new Error('Inflow: Ready to Assign not found.');
+  if (!rta) die('Inflow: Ready to Assign not found in the plan.');
+  return { rta, catMap: new Map(catPlans.filter(p => p.ynabId).map(p => [p.cat.id, p.ynabId])) };
+}
 
-  // --- accounts ---------------------------------------------------------
-  const ynabAccounts = (await api('GET', '/accounts')).accounts.filter(a => !a.deleted);
+async function resolveAccounts(write) {
+  const accts = (await ynab('GET', bud('/accounts'))).accounts.filter(a => !a.deleted);
   for (const p of accPlans) {
-    const exact = ynabAccounts.find(a => a.name === p.name && a.type === p.type);
+    const exact = accts.find(a => a.name === p.name && a.type === p.type);
     if (exact) { p.ynabId = exact.id; p.transferPayeeId = exact.transfer_payee_id; continue; }
-    const clash = ynabAccounts.find(a => a.name === p.name);
+    const clash = accts.find(a => a.name === p.name);
     if (clash) {
       // The API has no PATCH/PUT/DELETE for accounts, so a wrong-typed
-      // same-name account cannot be corrected here. Create the right one and
-      // leave the empty duplicate for manual deletion in the web UI.
-      warn.push(`YNAB already has "${p.name}" as ${clash.type} (balance ${rs(clash.balance)}); created a second one as ${p.type}. Delete the empty ${clash.type} account in the web UI.`);
+      // same-name account cannot be corrected from here.
+      warn.push(`YNAB has "${clash.name}" as ${clash.type} (Rs ${rs(clash.balance)}) but Raqam says ${p.type}. A second "${p.name}" will be created; delete the empty ${clash.type} one in the web UI.`);
+    }
+    if (!write) {
+      console.log(`  would create account ${p.name} (${p.type})`);
+      p.ynabId = 'dry:acc:' + p.name; p.transferPayeeId = 'dry:payee:' + p.name;
+      continue;
     }
     console.log(`+ account ${p.name} (${p.type})`);
-    const d = await api('POST', '/accounts', { account: { name: p.name, type: p.type, balance: 0 } });
-    p.ynabId = d.account.id;
-    p.transferPayeeId = d.account.transfer_payee_id;
-    ynabAccounts.push(d.account);
+    const a = (await ynab('POST', bud('/accounts'), { account: { name: p.name, type: p.type, balance: 0 } })).account;
+    p.ynabId = a.id; p.transferPayeeId = a.transfer_payee_id;
   }
-  const accMap = new Map();      // raqam account/card id -> ynab account id
-  const payeeMap = new Map();    // raqam account id -> ynab transfer payee id
+  const mapped = new Set(accPlans.map(p => p.name));
+  for (const a of accts) {
+    if (!mapped.has(a.name)) warn.push(`YNAB account "${a.name}" (${a.type}, Rs ${rs(a.balance)}) has no Raqam counterpart — left untouched.`);
+  }
+  const accMap = new Map(), payeeMap = new Map();
   for (const p of accPlans) {
     const key = p.acc ? p.acc.id : p.card.id;
-    accMap.set(key, p.ynabId);
-    payeeMap.set(key, p.transferPayeeId);
+    if (p.ynabId) { accMap.set(key, p.ynabId); payeeMap.set(key, p.transferPayeeId); }
   }
+  return { accMap, payeeMap };
+}
 
-  // --- transactions -----------------------------------------------------
-  const txs = [];
-
+// --------------------------------------------------------------------------
+// Desired transaction set
+// --------------------------------------------------------------------------
+function desiredTransactions({ rta, catMap, accMap, payeeMap }) {
+  const out = [];
   // Opening balances as explicit dated transactions. YNAB's balance-at-creation
-  // field would date the starting balance to today, landing it in the wrong month.
+  // field dates the starting balance to today, landing it in the wrong month.
   for (const p of accPlans) {
+    if (!p.ynabId) continue;
     if (p.acc) {
       const s = firstSnap.get(p.acc.id);
       if (!s) continue;
-      txs.push({
-        account_id: p.ynabId, date: `${s.month}-01`, amount: mu(s.amount),
-        payee_name: OPENING_PAYEE, category_id: rta.id, memo: `Raqam opening balance ${s.month}`,
-        cleared: 'cleared', approved: true, import_id: impId('rqsb:', p.acc.id),
+      out.push({
+        _ids: impIds('rqsb:', p.acc.id), account_id: p.ynabId, date: `${s.month}-01`,
+        amount: mu(s.amount), payee_name: OPENING_PAYEE, category_id: rta.id,
+        memo: `Raqam opening balance ${s.month}`, cleared: 'cleared', approved: true,
       });
     } else if (p.openingMonth) {
-      txs.push({
-        account_id: p.ynabId, date: `${p.openingMonth}-01`, amount: mu(p.opening),
-        payee_name: OPENING_PAYEE, category_id: rta.id, memo: `Raqam opening outstanding ${p.openingMonth}`,
-        cleared: 'cleared', approved: true, import_id: impId('rqsb:', p.card.id),
+      out.push({
+        _ids: impIds('rqsb:', p.card.id), account_id: p.ynabId, date: `${p.openingMonth}-01`,
+        amount: mu(p.opening), payee_name: OPENING_PAYEE, category_id: rta.id,
+        memo: `Raqam opening outstanding ${p.openingMonth}`, cleared: 'cleared', approved: true,
       });
     }
   }
 
   for (const t of R.transactions) {
-    const date = t.date.slice(0, 10);
-    const cleared = t.status === 'pending' ? 'uncleared' : 'cleared';
-    const cat = t.category_id ? catById.get(t.category_id) : null;
-    const base = { date, cleared, approved: true, import_id: impId('rq:', t.id) };
+    const base = {
+      date: t.date.slice(0, 10), // YNAB is date-only; Raqam's time of day is dropped
+      cleared: t.status === 'pending' ? 'uncleared' : 'cleared',
+      approved: true,
+    };
     const memo = [t.notes, t.adjustment_reason].filter(Boolean).join(' · ') || null;
 
     if (t.type === 'transfer') {
       const src = accMap.get(t.account_id);
-      const destKey = t.to_account_id || t.to_card_id;
-      const payee = payeeMap.get(destKey);
+      const payee = payeeMap.get(t.to_account_id || t.to_card_id);
       if (!src || !payee) { warn.push(`Transfer ${t.id} skipped — endpoint not mapped.`); continue; }
-      // YNAB creates the paired side itself when payee_id is the destination's
-      // transfer payee. There is nowhere to put Raqam's fee, so it splits off.
-      txs.push({ ...base, account_id: src, amount: -mu(t.amount), payee_id: payee, memo });
+      // YNAB creates the paired side itself from the destination's transfer payee.
+      out.push({ ...base, _ids: impIds('rq:', t.id), account_id: src, amount: -mu(t.amount), payee_id: payee, memo });
       if (t.fee > 0) {
-        const feeCat = catPlans.find(p => p.cat.id === 'fees')?.ynabId || null;
-        txs.push({
-          ...base, import_id: impId('rqfee:', t.id), account_id: src, amount: -mu(t.fee),
-          payee_name: t.merchant || 'Transfer fee', category_id: feeCat,
+        // Raqam keeps the fee on the transfer row; a YNAB transfer has nowhere
+        // to put one, so it splits off as its own categorized expense.
+        out.push({
+          ...base, _ids: impIds('rqfee:', t.id), account_id: src, amount: -mu(t.fee),
+          payee_name: t.merchant || 'Transfer fee',
+          category_id: catPlans.find(p => p.cat.id === 'fees')?.ynabId || null,
           memo: 'Raqam transfer fee' + (memo ? ' · ' + memo : ''),
         });
       }
@@ -398,81 +430,180 @@ async function apply() {
 
     const acct = accMap.get(t.account_id || t.card_id);
     if (!acct) { warn.push(`Transaction ${t.id} (${t.type}) skipped — no mapped account.`); continue; }
-    let amount, category_id, payee_name = t.merchant || null;
+    const cat = t.category_id ? catById.get(t.category_id) : null;
+    let amount, category_id;
     if (t.type === 'expense') { amount = -mu(t.amount); category_id = catMap.get(t.category_id) || null; }
     else if (t.type === 'refund') { amount = mu(t.amount); category_id = catMap.get(t.category_id) || null; }
-    else if (t.type === 'income') {
-      // YNAB has no income categories — all inflow lands in Ready to Assign,
-      // so the Raqam category survives only in the memo.
+    else if (t.type === 'income') { amount = mu(t.amount); category_id = rta.id; }
+    else if (t.type === 'adjustment' || t.type === 'cardAdjustment') {
+      // Signed, into Ready to Assign — what YNAB's own reconciliation adjustment does.
       amount = mu(t.amount); category_id = rta.id;
-    } else if (t.type === 'adjustment' || t.type === 'cardAdjustment') {
-      amount = mu(t.amount); category_id = rta.id; // signed, like YNAB's own reconciliation adjustment
     } else { warn.push(`Unhandled transaction type ${t.type} (${t.id}).`); continue; }
 
-    txs.push({
-      ...base, account_id: acct, amount, category_id, payee_name,
+    out.push({
+      ...base, _ids: impIds('rq:', t.id), account_id: acct, amount, category_id,
+      payee_name: t.merchant || null,
+      // YNAB has no income categories, so the Raqam one survives in the memo.
       memo: [memo, t.type === 'income' && cat ? `Raqam category: ${cat.name}` : null].filter(Boolean).join(' · ') || null,
     });
   }
+  return out;
+}
 
-  console.log(`\nposting ${txs.length} transactions`);
-  let created = 0, dupes = 0;
-  for (let i = 0; i < txs.length; i += 200) {
-    const d = await api('POST', '/transactions', { transactions: txs.slice(i, i + 200) });
-    created += (d.transactions || []).length;
-    dupes += (d.duplicate_import_ids || []).length;
+// Only compare the fields this script owns. A transfer's payee is YNAB's own
+// "Transfer : X" string and its category is null, so comparing those would
+// report a difference on every run.
+const norm = v => (v === undefined || v === '' ? null : v);
+function changes(want, got) {
+  const keys = want.payee_id
+    ? ['date', 'amount', 'memo', 'cleared']
+    : ['date', 'amount', 'payee_name', 'category_id', 'memo', 'cleared'];
+  const out = {};
+  for (const k of keys) if (norm(want[k]) !== norm(got[k])) out[k] = norm(want[k]);
+  if (want.account_id !== got.account_id) out.account_id = want.account_id;
+  return out;
+}
+
+// --------------------------------------------------------------------------
+// Run
+// --------------------------------------------------------------------------
+report();
+console.log(APPLY ? '\nAPPLYING' : '\nDRY RUN — nothing will be written');
+
+const cats = await resolveCategories(APPLY);
+const accs = await resolveAccounts(APPLY);
+const want = desiredTransactions({ ...cats, ...accs });
+
+const existing = (await ynab('GET', bud('/transactions'))).transactions;
+const mine = new Map(existing.filter(t => isOurs(t.import_id) && !t.deleted).map(t => [t.import_id, t]));
+
+// A row is "already in YNAB" if ANY generation of its id is live there.
+const toCreate = [], toUpdate = [];
+for (const w of want) {
+  const got = w._ids.map(id => mine.get(id)).find(Boolean);
+  if (!got) { toCreate.push(w); continue; }
+  const diff = changes(w, got);
+  if (Object.keys(diff).length) toUpdate.push({ id: got.id, ...diff, _label: `${got.date} ${rs(got.amount)} ${got.payee_name || ''}`, _diff: diff });
+}
+const wantIds = new Set(want.flatMap(w => w._ids));
+const orphans = [...mine.values()].filter(t => !wantIds.has(t.import_id));
+
+console.log('\nTRANSACTIONS');
+console.log(`  in YNAB from Raqam: ${mine.size}   desired: ${want.length}`);
+console.log(`  create ${toCreate.length}   update ${toUpdate.length}   deleted in Raqam ${orphans.length}${orphans.length && !PRUNE ? ' (pass --prune to remove)' : ''}`);
+for (const u of toUpdate) console.log(`    ~ ${u._label} -> ${JSON.stringify(u._diff)}`);
+for (const o of orphans) console.log(`    - ${o.date} ${rs(o.amount)} ${o.payee_name || ''} (${o.import_id})`);
+
+if (APPLY) {
+  if (toCreate.length) {
+    // Walk up the id ladder: anything the server rejects as a duplicate is
+    // colliding with a row that was deleted from YNAB, so retry it under the
+    // next generation rather than losing it silently.
+    let created = 0, pending = toCreate.map(w => ({ w, gen: 0 }));
+    for (let round = 0; round < GENERATIONS && pending.length; round++) {
+      const dup = new Set();
+      for (let i = 0; i < pending.length; i += 200) {
+        const slice = pending.slice(i, i + 200);
+        const d = await ynab('POST', bud('/transactions'), {
+          transactions: slice.map(({ w, gen }) => {
+            const { _ids, ...tx } = w;
+            return { ...tx, import_id: _ids[gen] };
+          }),
+        });
+        created += (d.transactions || []).length;
+        for (const id of d.duplicate_import_ids || []) dup.add(id);
+      }
+      pending = pending
+        .filter(({ w, gen }) => dup.has(w._ids[gen]))
+        .map(({ w, gen }) => ({ w, gen: gen + 1 }))
+        .filter(({ gen }) => gen < GENERATIONS);
+      if (pending.length) console.log(`  ${pending.length} collided with a deleted YNAB row; retrying under a fresh import id`);
+    }
+    console.log(`  created ${created}`);
+    if (pending.length) warn.push(`${pending.length} transaction(s) could not be created — all ${GENERATIONS} import ids are burned in YNAB.`);
   }
-  console.log(`  created ${created}, skipped as already-imported ${dupes}`);
+  if (toUpdate.length) {
+    await ynab('PATCH', bud('/transactions'), {
+      transactions: toUpdate.map(({ _label, _diff, ...t }) => t),
+    });
+    console.log(`  updated ${toUpdate.length}`);
+  }
+  if (orphans.length && PRUNE) {
+    for (const o of orphans) await ynab('DELETE', bud(`/transactions/${o.id}`));
+    console.log(`  deleted ${orphans.length}`);
+  }
 
   // YNAB generates the other half of a transfer itself, always as `uncleared`,
   // and the POST body cannot influence it. Raqam has one status for the whole
   // transfer, so the counterpart is patched to match its source — otherwise the
   // destination's cleared_balance stays short by the transfer amount.
-  const all = (await api('GET', '/transactions')).transactions;
+  const all = (await ynab('GET', bud('/transactions'))).transactions;
   const byId = new Map(all.map(t => [t.id, t]));
   const fixes = [];
   for (const t of all) {
-    if (!t.transfer_transaction_id || t.import_id) continue; // only the generated side
+    if (!t.transfer_transaction_id || t.import_id || t.deleted) continue; // the generated side only
     const src = byId.get(t.transfer_transaction_id);
     if (src && src.cleared !== t.cleared) fixes.push({ id: t.id, cleared: src.cleared });
   }
   if (fixes.length) {
-    console.log(`patching ${fixes.length} generated transfer counterpart(s) to match their source's cleared status`);
-    await api('PATCH', '/transactions', { transactions: fixes });
+    console.log(`  patched ${fixes.length} generated transfer counterpart(s) to match their source`);
+    await ynab('PATCH', bud('/transactions'), { transactions: fixes });
   }
-
-  // --- budget assignments ----------------------------------------------
-  // A Raqam budget is ONE standing monthly amount applied to every month
-  // (migration 0005), so it is written to each month in range.
-  for (const b of R.budgets) {
-    if (!b.category_id) continue; // overall budget has no YNAB equivalent
-    const cid = catMap.get(b.category_id);
-    if (!cid) { warn.push(`Budget for ${catById.get(b.category_id)?.name} skipped — category not mapped.`); continue; }
-    for (const m of budgetMonths) {
-      await api('PATCH', `/months/${m}-01/categories/${cid}`, { category: { budgeted: mu(b.amount) } });
-    }
-  }
-  console.log(`assigned ${R.budgets.filter(b => b.category_id).length} budgets across ${budgetMonths.join(', ')}`);
-
-  // --- verify -----------------------------------------------------------
-  console.log('\nRECONCILIATION (Raqam closing balance vs YNAB cleared_balance)');
-  const after = (await api('GET', '/accounts')).accounts.filter(a => !a.deleted);
-  let bad = 0;
-  for (const p of accPlans.filter(p => p.acc)) {
-    const a = after.find(x => x.id === p.ynabId);
-    const open = firstSnap.get(p.acc.id)?.amount || 0;
-    const expect = open + R.transactions.reduce((s, t) => s + accountDelta(t, p.acc.id), 0);
-    const got = a.cleared_balance / 1000;
-    const ok = expect === got;
-    if (!ok) bad++;
-    console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${p.name.padEnd(22)} raqam Rs ${expect.toLocaleString('en-PK').padStart(12)}   ynab Rs ${got.toLocaleString('en-PK').padStart(12)}${ok ? '' : `   delta ${(got - expect).toLocaleString('en-PK')}`}`);
-  }
-  console.log(bad ? `\n${bad} account(s) DID NOT reconcile.` : '\nAll accounts reconcile.');
 }
 
-reportPlan();
-await preflight();
-if (APPLY) await apply();
+// --------------------------------------------------------------------------
+// Budget assignments
+// --------------------------------------------------------------------------
+// A Raqam budget is ONE standing monthly amount applied to every month
+// (migration 0005), so it is written to each month in range. Absolute values,
+// so re-running is safe; only genuine differences are sent.
+console.log('\nBUDGETS');
+const overall = R.budgets.find(b => !b.category_id);
+if (overall) console.log(`  skip overall Rs ${pk(overall.amount)} — YNAB's total is the sum of its categories`);
+const budByCat = new Map(R.budgets.filter(b => b.category_id).map(b => [b.category_id, b]));
+let patched = 0, already = 0;
+for (const m of budgetMonths) {
+  const month = (await ynab('GET', bud(`/months/${m}-01`))).month;
+  const live = new Map(month.categories.filter(c => !c.deleted).map(c => [c.id, c]));
+  for (const p of catPlans) {
+    if (!p.ynabId) continue;
+    const b = budByCat.get(p.cat.id);
+    let target;
+    if (b) target = mu(b.amount);
+    else if (ZERO) target = 0;              // Raqam has no budget here
+    else continue;                          // leave whatever YNAB has
+    const cur = live.get(p.ynabId);
+    if (cur && cur.budgeted === target) { already++; continue; }
+    console.log(`  ${m} ${p.name} Rs ${pk(target / 1000)}${cur ? ` (was Rs ${pk(cur.budgeted / 1000)})` : ''}`);
+    if (APPLY) await ynab('PATCH', bud(`/months/${m}-01/categories/${p.ynabId}`), { category: { budgeted: target } });
+    patched++;
+  }
+  if (!ZERO) {
+    const unbudgeted = catPlans.filter(p => p.ynabId && !budByCat.has(p.cat.id) && live.get(p.ynabId)?.budgeted);
+    for (const p of unbudgeted) {
+      warn.push(`${m}: "${p.name}" is assigned Rs ${pk(live.get(p.ynabId).budgeted / 1000)} in YNAB but has no Raqam budget — pass --zero-unbudgeted to clear it.`);
+    }
+  }
+}
+console.log(`  ${patched} assignment(s) ${APPLY ? 'written' : 'would change'}, ${already} already correct`);
+
+// --------------------------------------------------------------------------
+// Reconcile
+// --------------------------------------------------------------------------
+console.log('\nRECONCILIATION (Raqam closing balance vs YNAB cleared_balance)');
+const after = (await ynab('GET', bud('/accounts'))).accounts.filter(a => !a.deleted);
+let bad = 0;
+for (const p of accPlans.filter(p => p.acc && p.ynabId)) {
+  const a = after.find(x => x.id === p.ynabId);
+  if (!a) { console.log(`  --   ${p.name.padEnd(22)} not in YNAB yet (dry run)`); continue; }
+  const expect = (firstSnap.get(p.acc.id)?.amount || 0) + R.transactions.reduce((s, t) => s + accountDelta(t, p.acc.id), 0);
+  const got = a.cleared_balance / 1000;
+  const ok = expect === got;
+  if (!ok) bad++;
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${p.name.padEnd(22)} raqam Rs ${pk(expect).padStart(12)}   ynab Rs ${pk(got).padStart(12)}${ok ? '' : `   delta ${pk(got - expect)}`}`);
+}
+console.log(bad ? `\n${bad} account(s) DID NOT reconcile.` : '\nAll accounts reconcile.');
+
 if (warn.length) { console.log('\nWARNINGS'); for (const w of warn) console.log('  ! ' + w); }
-if (!APPLY) console.log('\nDry run only — nothing written. Re-run with --apply to load.');
-console.log(`${calls} API requests used.`);
+console.log(`\n${calls} API request(s) used (limit 200/hour).`);
+if (!APPLY) console.log('Dry run — nothing was written. Add --apply to perform it.');
