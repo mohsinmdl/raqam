@@ -10,33 +10,17 @@ const chip = (bg, fg) => ({
   display: 'inline-flex', alignItems: 'center', gap: 4,
 });
 
-export default function TxChips({ row, onFlash, meta }) {
+export default function TxChips({ row, meta }) {
   const t = row;
-  // The glyph is a button only where flashing means something — a list that
-  // renders rows. Elsewhere it stays an image with an accessible name.
-  const clickable = t.chipIcon === 'transfer' && !!onFlash;
   return (
     <>
       {t.hasChip && (
-        clickable ? (
-          <button
-            type="button"
-            onClick={e => { e.stopPropagation(); onFlash(); }}
-            aria-label={'Highlight this ' + t.chip.toLowerCase()}
-            title="Highlight this transfer"
-            className="hv-elev"
-            style={{ ...chip(t.chipBg, t.chipFg), cursor: 'pointer' }}
-          >
-            <TransferIcon size={14} />
-          </button>
-        ) : (
-          <span
-            style={chip(t.chipBg, t.chipFg)}
-            {...(t.chipIcon ? { role: 'img', 'aria-label': t.chip, title: t.chip } : null)}
-          >
-            {t.chipIcon === 'transfer' ? <TransferIcon size={14} /> : t.chip}
-          </span>
-        )
+        <span
+          style={chip(t.chipBg, t.chipFg)}
+          {...(t.chipIcon ? { role: 'img', 'aria-label': t.chip, title: t.chip } : null)}
+        >
+          {t.chipIcon === 'transfer' ? <TransferIcon size={14} /> : t.chip}
+        </span>
       )}
       {t.isRepeating && (
         <span role="img" aria-label="Part of a recurring rule" title="Part of a recurring rule" style={chip('var(--soft)', 'var(--accent)')}>

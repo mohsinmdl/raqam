@@ -8,7 +8,6 @@ import { inMonth, isExcludedCat, monthLabel } from '../lib/calc.js';
 import { txRowOf } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
-import useRowFlash from '../ui/useRowFlash.js';
 import { ruleFromTx } from '../lib/schedule.js';
 import RowMenu from '../ui/RowMenu.jsx';
 
@@ -25,7 +24,6 @@ export default function Transactions() {
   const [F, setFilters] = useState(DEFAULT_FILTERS);
   const [sort, setSort] = useState('date');
   const [menuOpen, setMenuOpen] = useState(null);
-  const { flash, rowStyle } = useRowFlash();
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const reset = () => setFilters(DEFAULT_FILTERS);
@@ -131,7 +129,7 @@ export default function Transactions() {
               </thead>
               <tbody>
                 {txRows.map(t => (
-                  <tr key={t.id} className="hv-elev" style={{ opacity: t.rowOpacity, ...rowStyle(t.id) }}>
+                  <tr key={t.id} className="hv-elev" style={{ opacity: t.rowOpacity }}>
                     <td style={{ ...td, padding: '10px 8px 10px 18px' }}>
                       <div className="tnum" style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>{t.dateLabel}</div>
                       <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{t.timeLabel}</div>
@@ -139,7 +137,7 @@ export default function Transactions() {
                     <td style={{ ...td, maxWidth: 280 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
-                        <TxChips row={t} onFlash={() => flash(t.id)} meta />
+                        <TxChips row={t} meta />
                       </div>
                       {t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
                     </td>
