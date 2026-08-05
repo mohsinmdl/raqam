@@ -51,6 +51,8 @@ function Body() {
   // Only on a brand-new expense or income: editing a transaction must not spawn
   // a rule, and recording an occurrence is already governed by its own rule.
   const showRepeat = (type === 'expense' || type === 'income') && !f.editId && !f.fromRecurring;
+  const repeatLabel = showRepeat && f.repeat && f.repeat !== 'never'
+    ? (PRESETS.find(p => p.id === f.repeat) || {}).label : null;
   const catType = type === 'income' ? 'income' : 'expense';
   const catOpts = listCats(S, catType).map(c => ({ id: c.id, label: c.name }));
   if (f.editId && f.originalCategory) {
@@ -101,8 +103,12 @@ function Body() {
 
       <div>
         <Label required>When</Label>
-        <WhenField />
-        <Hint>Asia/Karachi · the time orders same-day entries</Hint>
+        <WhenField showRepeat={showRepeat} />
+        {/* Repeat lives inside the date popover, so a non-default value would be
+            invisible once it closes — name it here instead. */}
+        <Hint>{repeatLabel
+          ? 'Asia/Karachi · repeats ' + repeatLabel.toLowerCase() + ' — a recurring rule will be created.'
+          : 'Asia/Karachi · the time orders same-day entries'}</Hint>
         <FieldError msg={errors.date} />
       </div>
 
@@ -220,20 +226,6 @@ function Body() {
             <TextField field="newCat" ariaLabel="New category name" placeholder="New category name" accent />
           )}
           <FieldError msg={errors.category} />
-        </div>
-      )}
-
-      {showRepeat && (
-        <div>
-          <Label htmlFor="f-repeat">Repeat</Label>
-          <SelectField id="f-repeat" field="repeat">
-            {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </SelectField>
-          <Hint>
-            {f.repeat && f.repeat !== 'never'
-              ? 'Saves this transaction and creates a recurring rule for the ones that follow.'
-              : 'Anything other than Never also creates a recurring rule you can manage on the Recurring screen.'}
-          </Hint>
         </div>
       )}
 

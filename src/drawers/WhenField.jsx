@@ -11,9 +11,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { shortDate } from '../lib/calc.js';
 import { todayStr } from '../lib/dates.js';
-import { addDays } from '../lib/schedule.js';
+import { addDays, PRESETS } from '../lib/schedule.js';
 
-const CAL_W = 286, TIME_W = 250, TIME_H = 268;
+const CAL_NARROW = 286, CAL_WIDE = 340, TIME_W = 250, TIME_H = 268;
 const WD = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const QUICK = [{ v: '09:00', l: '9 am' }, { v: '12:00', l: 'Noon' }, { v: '15:00', l: '3 pm' }, { v: '19:00', l: '7 pm' }];
@@ -44,7 +44,7 @@ function dateLabel(ymd, today) {
   return prefix + shortDate(ymd + 'T00:00') + (y === today.slice(0, 4) ? '' : ' ' + y);
 }
 
-export default function WhenField() {
+export default function WhenField({ showRepeat }) {
   const { drawer, setForm } = useDrawer();
   const f = drawer.form;
   const today = todayStr();
@@ -72,6 +72,9 @@ export default function WhenField() {
     };
   }, [open]);
 
+  // Only widened when it has to hold the Repeat control — a picker without it
+  // (transfer, adjustment, editing, recording an occurrence) stays compact.
+  const calW = showRepeat ? CAL_WIDE : CAL_NARROW;
   const cells = calendarCells(month, f.date);
   // Measured, not assumed: a six-row month is 36px taller, and getting this
   // wrong is what pushes the Today/Yesterday row off the bottom of the screen.
@@ -82,7 +85,7 @@ export default function WhenField() {
     if (!open || !rowRef.current) return;
     const r = rowRef.current.getBoundingClientRect();
     const h = open === 'date' ? calH : TIME_H;
-    const w = open === 'date' ? CAL_W : TIME_W;
+    const w = open === 'date' ? calW : TIME_W;
     const below = window.innerHeight - r.bottom - 12;
     const above = r.top - 12;
     let top;
@@ -99,7 +102,7 @@ export default function WhenField() {
       ? Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))
       : Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
     setPos({ top, left, maxHeight });
-  }, [open, month, calH]);
+  }, [open, month, calH, calW]);
 
   const pickDate = ymd => { setForm({ date: ymd }); setMonth(ymd.slice(0, 7)); close(); };
   const [hh, mm] = String(f.time || '12:00').split(':').map(Number);
@@ -126,7 +129,7 @@ export default function WhenField() {
           <div onClick={close} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
 
           {open === 'date' && (
-            <div role="dialog" aria-label="Choose a date" style={{ ...panel, top: pos.top, left: pos.left, width: CAL_W, maxHeight: pos.maxHeight }}>
+            <div role="dialog" aria-label="Choose a date" style={{ ...panel, top: pos.top, left: pos.left, width: calW, maxHeight: pos.maxHeight }}>
               <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 6px', flex: 'none' }}>
                 <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="hv-soft" style={{ ...chip(false), width: 26, padding: 0 }}>‹</button>
                 <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600 }}>{MN[+month.slice(5) - 1] + ' ' + month.slice(0, 4)}</span>
@@ -151,6 +154,20 @@ export default function WhenField() {
               <div style={{ display: 'flex', gap: 8, padding: '8px 10px', borderTop: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', bottom: 0, flex: 'none', borderRadius: '0 0 12px 12px' }}>
                 <button type="button" onClick={() => pickDate(today)} className="hv-soft" style={chip(f.date === today)}>Today</button>
                 <button type="button" onClick={() => pickDate(addDays(today, -1))} className="hv-soft" style={chip(f.date === addDays(today, -1))}>Yesterday</button>
+                {showRepeat && (
+                  <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', flex: 'none' }}>Repeat</span>
+                    {/* Changing this deliberately leaves the popover open — a date
+                        may still be waiting to be picked. */}
+                    <select
+                      aria-label="Repeat" value={f.repeat || 'never'}
+                      onChange={e => setForm({ repeat: e.target.value })}
+                      style={{ height: 26, minWidth: 0, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 11.5, fontWeight: 600, padding: '0 4px', cursor: 'pointer' }}
+                    >
+                      {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                    </select>
+                  </label>
+                )}
               </div>
             </div>
           )}
