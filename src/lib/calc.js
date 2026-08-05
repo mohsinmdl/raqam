@@ -11,7 +11,7 @@ export function fmtSigned(n, masked) {
   return (n > 0 ? '+' : n < 0 ? '−' : '') + 'Rs ' + fmtNum(n);
 }
 export function fmtPct(x) { return x == null ? '—' : Math.round(x * 100) + '%'; }
-const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export function monthLabel(ym) { const [y, m] = ym.split('-'); return MN[+m - 1] + ' ' + y; }
 export function shortDate(iso) {
   const d = new Date(iso); const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
