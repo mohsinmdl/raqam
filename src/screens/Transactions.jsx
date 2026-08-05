@@ -7,6 +7,8 @@ import { useMoney, parseAmt } from '../lib/format.js';
 import { inMonth, isExcludedCat, monthLabel } from '../lib/calc.js';
 import { txRowOf } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
+import { ruleFromTx } from '../store/actions.js';
+import RowMenu from '../ui/RowMenu.jsx';
 
 const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: 'all', impact: 'all', min: '', max: '' };
 const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
@@ -20,6 +22,7 @@ export default function Transactions() {
   const { openDrawer } = useDrawer();
   const [F, setFilters] = useState(DEFAULT_FILTERS);
   const [sort, setSort] = useState('date');
+  const [menuOpen, setMenuOpen] = useState(null);
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const reset = () => setFilters(DEFAULT_FILTERS);
@@ -101,7 +104,8 @@ export default function Transactions() {
           )}
         </section>
 
-        <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        {/* No overflow:hidden — it would clip the per-row ⋯ menu on the last rows. */}
+        <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Showing {list.length} of {monthTx.length} in {monthLabel(month)} · manually entered</span>
             <span style={{ flex: 1 }} />
@@ -119,7 +123,7 @@ export default function Transactions() {
                   <th scope="col" style={th}>ACCOUNT / CARD</th>
                   <th scope="col" style={th}>STATUS</th>
                   <th scope="col" style={{ ...th, textAlign: 'right', padding: '9px 8px' }}>AMOUNT</th>
-                  <th scope="col" style={{ ...th, padding: '9px 18px 9px 8px', width: 56 }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Edit</span></th>
+                  <th scope="col" style={{ ...th, padding: '9px 18px 9px 8px', width: 56 }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -150,9 +154,20 @@ export default function Transactions() {
                       <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
                     </td>
                     <td style={{ ...td, padding: '10px 18px 10px 8px', textAlign: 'right' }}>
-                      {t.canEdit && (
-                        <button onClick={() => openers.editTx(S, t.id, openDrawer)} aria-label="Edit this transaction" className="hv-soft" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
-                      )}
+                      <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        {(t.canEdit || (t.canRepeat && !ruleFromTx(S, t.id))) && (
+                          <RowMenu
+                            open={menuOpen === t.id}
+                            onToggle={() => setMenuOpen(menuOpen === t.id ? null : t.id)}
+                            onClose={() => setMenuOpen(null)}
+                            label="Actions for this transaction"
+                            items={[
+                              t.canEdit && { label: 'Edit', onClick: () => openers.editTx(S, t.id, openDrawer) },
+                              t.canRepeat && !ruleFromTx(S, t.id) && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, t.id, openDrawer) },
+                            ]}
+                          />
+                        )}
+                      </span>
                     </td>
                   </tr>
                 ))}

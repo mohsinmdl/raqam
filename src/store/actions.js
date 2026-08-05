@@ -61,7 +61,7 @@ export function addTransaction(data, { form: f, type, amt, fee }) {
   next.transactions = [t, ...next.transactions];
   next.audit = [makeAudit({ entityType: 'transaction', entityId: t.id, action: 'create', summary: 'Recorded ' + t.type, after: { type: t.type, amount: t.amount, date: t.date } }), ...(next.audit || [])];
   if (f.fromRecurring) markOccurrenceRecorded(next, f, t, amt);
-  if (f.repeat && f.repeat !== 'never') ruleFromTransaction(next, f, t, amt, catId);
+  applyRepeat(next, f, t, amt, catId);
   return next;
 }
 
@@ -81,15 +81,26 @@ function markOccurrenceRecorded(next, f, t, amt) {
   if (r.nextDate === due) r.nextDate = advanceDue(r.schedule, due);
 }
 
-// The transaction form's Repeat dropdown: a preset also creates the rule that
-// continues the series this transaction started. The transaction itself covers
-// the anchor date, so the rule's first due date is the one after it.
-function ruleFromTransaction(next, f, t, amt, catId) {
+// The rule a transaction already belongs to, by the occurrence that records it.
+// occurrences[].txId is the only link between the two (there is no column on
+// transactions), and it is what stops one transaction spawning two rules.
+export function ruleFromTx(store, txId) {
+  if (!txId) return null;
+  return (store.recurring || []).find(r => (r.occurrences || []).some(o => o.txId === txId)) || null;
+}
+
+// A transaction becoming a series: the transaction itself is the first recorded
+// occurrence, so it is seeded into the history and the rule's first due date is
+// the one AFTER it. Shared by the Repeat preset (new and edited transactions)
+// and by Make repeating from the Transactions row menu.
+export function seedOccurrence(t, amt) {
+  return { due: t.date.slice(0, 10), outcome: 'recorded', amount: amt, txId: t.id, at: nowIso() };
+}
+
+function ruleFromTransaction(next, t, amt, catId, schedule) {
   if (t.type !== 'expense' && t.type !== 'income') return;
-  if (f.editId || f.fromRecurring) return;
-  const anchor = t.date.slice(0, 10);
-  const schedule = presetSchedule(f.repeat, anchor);
   if (!schedule) return;
+  const anchor = t.date.slice(0, 10);
   const cat = next.categories.find(c => c.id === catId);
   const id = uid();
   const rec = {
@@ -97,7 +108,8 @@ function ruleFromTransaction(next, f, t, amt, catId) {
     name: (t.merchant || (cat && cat.name) || 'Recurring').slice(0, 60),
     type: t.type, amount: amt, estimated: false,
     schedule, nextDate: advanceDue(schedule, anchor),
-    category: catId, status: 'active', autoPost: false, occurrences: [],
+    category: catId, status: 'active', autoPost: false,
+    occurrences: [seedOccurrence(t, amt)],
   };
   if (t.cardId) rec.cardId = t.cardId;
   else if (t.accountId) rec.accountId = t.accountId;
@@ -109,17 +121,28 @@ function ruleFromTransaction(next, f, t, amt, catId) {
   }), ...(next.audit || [])];
 }
 
+// Both transaction paths ask the same question: is a preset set, and has this
+// transaction not already been turned into a rule?
+function applyRepeat(next, f, t, amt, catId) {
+  if (!f.repeat || f.repeat === 'never' || f.fromRecurring) return;
+  if (ruleFromTx(next, t.id)) return;
+  ruleFromTransaction(next, t, amt, catId, presetSchedule(f.repeat, t.date.slice(0, 10)));
+}
+
 // Edit: rebuild the record from scratch onto the same id, stamp it, audit the field diff.
 export function updateTransaction(data, { form: f, type, amt, fee }) {
   const i = data.transactions.findIndex(t => t.id === f.editId);
   if (i < 0) return data;
   const before = data.transactions[i];
-  const next = { ...data, transactions: [...data.transactions] };
+  // recurring is cloned too: Make repeating from the picker can add a rule here,
+  // and it must not reach back into the store this action was given.
+  const next = { ...data, transactions: [...data.transactions], recurring: [...data.recurring] };
   const catId = resolveCategory(next, f, type);
   const rebuilt = stampUpdate({ ...buildTx(f, type, amt, fee, catId, before.id), editCount: before.editCount || 0 });
   next.transactions[i] = rebuilt;
   const d = diffFields(before, rebuilt, TX_AUDIT_FIELDS);
   next.audit = [makeAudit({ entityType: 'transaction', entityId: before.id, action: 'update', summary: 'Edited ' + rebuilt.type + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+  applyRepeat(next, f, rebuilt, amt, catId);
   return next;
 }
 
@@ -470,7 +493,11 @@ export function upsertRule(data, { form: f, amt }) {
     next.recurring[i] = stampUpdate({ ...buildRule(f, amt, id), occurrences: before.occurrences || [] });
   } else {
     id = uid();
-    next.recurring.push({ ...buildRule(f, amt, id), occurrences: [] });
+    // Opened via Make repeating: the transaction that prompted the rule is its
+    // first recorded occurrence, so the history opens truthfully.
+    const src = f.sourceTxId ? data.transactions.find(t => t.id === f.sourceTxId) : null;
+    const occurrences = src && !ruleFromTx(data, src.id) ? [seedOccurrence(src, src.amount)] : [];
+    next.recurring.push({ ...buildRule(f, amt, id), occurrences });
   }
   const after = next.recurring.find(r => r.id === id);
   const d = editing ? diffFields(before, after, RULE_AUDIT_FIELDS) : null;

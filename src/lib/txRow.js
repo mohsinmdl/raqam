@@ -38,6 +38,8 @@ export function txRowOf(t, S, fmt, forAccountId) {
     stLabel: t.status === 'pending' ? 'Pending' : 'Cleared', stBg: t.status === 'pending' ? 'var(--warn-soft)' : 'var(--elev)', stFg: t.status === 'pending' ? 'var(--warn)' : 'var(--muted)',
     rowOpacity: t.status === 'pending' ? '.62' : '1', isPending: t.status === 'pending',
     canEdit: t.type !== 'cardAdjustment',
+    // Only money in/out can become a series — transfers and adjustments cannot.
+    canRepeat: t.type === 'expense' || t.type === 'income',
     edited: !!t.editedAt,
     editedLabel: t.editedAt ? 'Edited ' + relTime(t.editedAt) + (t.editCount > 1 ? ' · ' + t.editCount + ' edits' : '') : '',
     // Recoverable-spending indicator — the money moved, it just isn't budget spending.

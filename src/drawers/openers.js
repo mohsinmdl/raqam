@@ -2,7 +2,7 @@
 // (script 812-833). Each returns via openDrawer(name, form).
 import { accountBalance, cardOutstanding } from '../lib/calc.js';
 import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
-import { estimatedSuggestion, formFromSchedule } from '../lib/schedule.js';
+import { advanceDue, estimatedSuggestion, formFromSchedule, presetSchedule } from '../lib/schedule.js';
 
 export function txDefaults(type) {
   return {
@@ -173,6 +173,27 @@ export const openers = {
     nextDate: todayStr(), category: '', source: '', autoPost: false,
     endsKind: 'never', endsCount: '', endsDate: '',
   }),
+
+  // The mirror of recordRule: prefill the RULE drawer from a transaction.
+  // Defaults to monthly on that transaction's day; sourceTxId is what makes
+  // upsertRule seed it as the rule's first recorded occurrence.
+  makeRepeating: (S, txId, openDrawer) => {
+    const t = S.transactions.find(x => x.id === txId);
+    if (!t || (t.type !== 'expense' && t.type !== 'income')) return;
+    const anchor = t.date.slice(0, 10);
+    const schedule = presetSchedule('monthly', anchor);
+    const cat = S.categories.find(c => c.id === t.category);
+    openDrawer('rule', {
+      ...formFromSchedule(schedule),
+      editId: null, sourceTxId: t.id,
+      name: (t.merchant || (cat && cat.name) || '').slice(0, 60),
+      type: t.type, amount: String(Math.abs(t.amount)), estimated: false,
+      nextDate: advanceDue(schedule, anchor),
+      category: t.category || '',
+      source: t.cardId ? 'card:' + t.cardId : (t.accountId ? 'acc:' + t.accountId : ''),
+      autoPost: false,
+    });
+  },
 
   editRule: (S, id, openDrawer) => {
     const r = S.recurring.find(x => x.id === id);

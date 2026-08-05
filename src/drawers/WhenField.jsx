@@ -44,7 +44,7 @@ function dateLabel(ymd, today) {
   return prefix + shortDate(ymd + 'T00:00') + (y === today.slice(0, 4) ? '' : ' ' + y);
 }
 
-export default function WhenField({ showRepeat }) {
+export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
   const { drawer, setForm } = useDrawer();
   const f = drawer.form;
   const today = todayStr();
@@ -156,7 +156,7 @@ export default function WhenField({ showRepeat }) {
                 <button type="button" onClick={() => pickDate(addDays(today, -1))} className="hv-soft" style={chip(f.date === addDays(today, -1))}>Yesterday</button>
                 {showRepeat && (
                   <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                    <span style={{ fontSize: 11, color: 'var(--muted)', flex: 'none' }}>Repeat</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', flex: 'none' }}>{repeatLabel}</span>
                     {/* Changing this deliberately leaves the popover open — a date
                         may still be waiting to be picked. */}
                     <select

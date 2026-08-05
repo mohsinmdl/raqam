@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  addTransaction, upsertRule, deleteRule, toggleRulePause, skipOccurrence, rolloverMonth,
+  addTransaction, updateTransaction, upsertRule, deleteRule, toggleRulePause,
+  skipOccurrence, rolloverMonth, ruleFromTx,
 } from '../src/store/actions.js';
 import { todayStr } from '../src/lib/dates.js';
 
@@ -78,7 +79,9 @@ describe('Repeat preset on a transaction', () => {
     expect(r).toMatchObject({ name: 'Landlord', type: 'expense', amount: 35000, category: 'rent', accountId: 'a1', status: 'active', autoPost: false, estimated: false });
     expect(r.schedule).toMatchObject({ every: 1, unit: 'month', days: [5] });
     expect(r.nextDate).toBe('2026-09-05'); // the transaction itself covers 5 Aug
-    expect(r.occurrences).toEqual([]);
+    // The transaction is the first thing the series did, so it opens the history.
+    expect(r.occurrences).toHaveLength(1);
+    expect(r.occurrences[0]).toMatchObject({ due: '2026-08-05', outcome: 'recorded', amount: 35000, txId: s.transactions[0].id });
   });
 
   it('handles a preset that needs two firings a period', () => {
@@ -225,5 +228,80 @@ describe('immutability', () => {
     expect(() => toggleRulePause(base, { id: 'r1' })).not.toThrow();
     expect(() => deleteRule(base, { id: 'r1' })).not.toThrow();
     expect(base.recurring[0].occurrences).toHaveLength(0);
+  });
+});
+
+
+describe('making an existing transaction repeating', () => {
+  const existing = over => ({
+    id: 't1', date: '2026-08-05T12:00', type: 'expense', amount: 35000, status: 'cleared',
+    accountId: 'a1', category: 'rent', merchant: 'Landlord', notes: '', ...(over || {}),
+  });
+  // The edit form as TxForm submits it, with a preset chosen in the date picker.
+  const editForm = over => txForm({ editId: 't1', ...(over || {}) });
+  const edit = (st, f, type = 'expense', amt = 35000) =>
+    updateTransaction(st, { form: f, type, amt, fee: 0 });
+
+  it('creates a rule from the picker preset when editing', () => {
+    const st = store({ recurring: [], transactions: [existing()] });
+    const s = edit(st, editForm({ repeat: 'monthly' }));
+    expect(s.recurring).toHaveLength(1);
+    const r = s.recurring[0];
+    expect(r).toMatchObject({ name: 'Landlord', type: 'expense', amount: 35000, accountId: 'a1' });
+    expect(r.schedule).toMatchObject({ every: 1, unit: 'month', days: [5] });
+    expect(r.nextDate).toBe('2026-09-05');
+  });
+
+  it('seeds the source transaction as the first recorded occurrence', () => {
+    const s = edit(store({ recurring: [], transactions: [existing()] }), editForm({ repeat: 'monthly' }));
+    expect(s.recurring[0].occurrences).toEqual([
+      expect.objectContaining({ due: '2026-08-05', outcome: 'recorded', amount: 35000, txId: 't1' }),
+    ]);
+  });
+
+  it('leaves the transaction alone when Repeat is Never', () => {
+    const s = edit(store({ recurring: [], transactions: [existing()] }), editForm());
+    expect(s.recurring).toHaveLength(0);
+    expect(s.transactions).toHaveLength(1);
+  });
+
+  it('will not turn one transaction into two rules', () => {
+    const once = edit(store({ recurring: [], transactions: [existing()] }), editForm({ repeat: 'monthly' }));
+    const twice = edit(once, editForm({ repeat: 'weekly' }));
+    expect(twice.recurring).toHaveLength(1);
+    expect(twice.recurring[0].schedule.unit).toBe('month'); // the first rule stands
+  });
+
+  it('ruleFromTx finds the rule a transaction already belongs to', () => {
+    const s = edit(store({ recurring: [], transactions: [existing()] }), editForm({ repeat: 'monthly' }));
+    expect(ruleFromTx(s, 't1')).toBe(s.recurring[0]);
+    expect(ruleFromTx(s, 'nope')).toBe(null);
+    expect(ruleFromTx(s, undefined)).toBe(null);
+  });
+
+  it('does not mutate the store it was given', () => {
+    const base = store({ recurring: [], transactions: [existing()] });
+    Object.freeze(base);
+    Object.freeze(base.recurring);
+    const s = edit(base, editForm({ repeat: 'monthly' }));
+    expect(base.recurring).toHaveLength(0);
+    expect(s.recurring).toHaveLength(1);
+  });
+
+  it('upsertRule seeds the occurrence when opened from a transaction', () => {
+    const base = store({ recurring: [], transactions: [existing()] });
+    const f = {
+      name: 'Rent', type: 'expense', every: '1', unit: 'month',
+      dayRules: [{ kind: 'dom', day: '5' }], nextDate: '2026-09-05', category: 'rent',
+      source: 'acc:a1', estimated: false, autoPost: false,
+      endsKind: 'never', endsCount: '', endsDate: '', sourceTxId: 't1',
+    };
+    const s = upsertRule(base, { form: f, amt: 35000 });
+    expect(s.recurring[0].occurrences).toEqual([
+      expect.objectContaining({ due: '2026-08-05', outcome: 'recorded', amount: 35000, txId: 't1' }),
+    ]);
+    // ...and not when it wasn't
+    const plain = upsertRule(base, { form: { ...f, sourceTxId: null }, amt: 35000 });
+    expect(plain.recurring[0].occurrences).toEqual([]);
   });
 });
