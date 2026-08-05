@@ -8,7 +8,8 @@ import { useMoney } from '../lib/format.js';
 import { accountBalance, accountDelta, dayLabel, inMonth, kindLabel, lastActivity, monthLabel, openingOf, relTime } from '../lib/calc.js';
 import { txRowOf, instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
-import { RepeatIcon, TransferIcon } from '../ui/icons.jsx';
+import TxChips from '../ui/TxChips.jsx';
+import useRowFlash from '../ui/useRowFlash.js';
 import { setAccountStatus } from '../store/actions.js';
 
 const cardBg = theme => ({ teal: '#0E5A53', ink: '#1D2925', warm: '#59452A' }[theme] || '#0E5A53');
@@ -45,6 +46,7 @@ export default function AccountDetail() {
   const outflow = atx.reduce((s, t) => { const d = accountDelta(t, a.id); return s + (d < 0 ? -d : 0); }, 0);
   const change = bal - opening;
   const detTx = atx.map(t => txRowOf(t, S, fmt, a.id));
+  const { flash, rowStyle } = useRowFlash();
   const linkedCards = S.cards.filter(c => c.linkedAccountId === a.id);
 
   const pts = months.map(m => ({ label: monthLabel(m).slice(0, 3), val: openingOf(a, S.snapshots, m), tip: monthLabel(m) + ' opening: ' }))
@@ -112,12 +114,20 @@ export default function AccountDetail() {
             {detTx.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
                 {detTx.map(t => (
-                  <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '78px minmax(0,1fr) 104px 48px', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity }}>
+                  <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '78px minmax(0,1fr) 104px 48px', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity, ...rowStyle(t.id) }}>
                     <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
-                    <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
-                      {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, border: '1px solid var(--border)', flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }} {...(t.chipIcon ? { role: 'img', 'aria-label': t.chip, title: t.chip } : null)}>{t.chipIcon === 'transfer' ? <TransferIcon size={14} /> : t.chip}</span>}
-                        {t.isRepeating && <span role="img" aria-label="Part of a recurring rule" title="Part of a recurring rule" style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--soft)', color: 'var(--accent)', border: '1px solid var(--border)', flex: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}><RepeatIcon size={14} /></span>}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
+                        <TxChips row={t} onFlash={() => flash(t.id)} />
+                      </div>
+                      {/* Without this the receiving account shows an unexplained
+                          "+Rs X" — acctLabel is never rendered on this screen. */}
+                      {t.transferOther && (
+                        <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {t.transferOther.dir} {t.transferOther.name}
+                        </div>
+                      )}
                     </div>
                     <div className="tnum" style={{ fontSize: 13.5, fontWeight: 600, textAlign: 'right', color: t.amtColor }}>{t.amtLabel}</div>
                     <div style={{ textAlign: 'right' }}>

@@ -7,7 +7,8 @@ import { useMoney, parseAmt } from '../lib/format.js';
 import { inMonth, isExcludedCat, monthLabel } from '../lib/calc.js';
 import { txRowOf } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
-import { RepeatIcon, TransferIcon } from '../ui/icons.jsx';
+import TxChips from '../ui/TxChips.jsx';
+import useRowFlash from '../ui/useRowFlash.js';
 import { ruleFromTx } from '../lib/schedule.js';
 import RowMenu from '../ui/RowMenu.jsx';
 
@@ -24,6 +25,7 @@ export default function Transactions() {
   const [F, setFilters] = useState(DEFAULT_FILTERS);
   const [sort, setSort] = useState('date');
   const [menuOpen, setMenuOpen] = useState(null);
+  const { flash, rowStyle } = useRowFlash();
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const reset = () => setFilters(DEFAULT_FILTERS);
@@ -129,7 +131,7 @@ export default function Transactions() {
               </thead>
               <tbody>
                 {txRows.map(t => (
-                  <tr key={t.id} className="hv-elev" style={{ opacity: t.rowOpacity }}>
+                  <tr key={t.id} className="hv-elev" style={{ opacity: t.rowOpacity, ...rowStyle(t.id) }}>
                     <td style={{ ...td, padding: '10px 8px 10px 18px' }}>
                       <div className="tnum" style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>{t.dateLabel}</div>
                       <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{t.timeLabel}</div>
@@ -137,10 +139,7 @@ export default function Transactions() {
                     <td style={{ ...td, maxWidth: 280 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
-                        {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, border: '1px solid var(--border)', flex: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }} {...(t.chipIcon ? { role: 'img', 'aria-label': t.chip, title: t.chip } : null)}>{t.chipIcon === 'transfer' ? <TransferIcon size={14} /> : t.chip}</span>}
-                        {t.isRepeating && <span role="img" aria-label="Part of a recurring rule" title="Part of a recurring rule" style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--soft)', color: 'var(--accent)', border: '1px solid var(--border)', flex: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}><RepeatIcon size={14} /></span>}
-                        {t.edited && <span title={t.editedLabel} style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--muted)', flex: 'none', whiteSpace: 'nowrap' }}>Edited</span>}
-                        {t.excluded && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--muted)', flex: 'none', whiteSpace: 'nowrap' }}>{t.excludedLabel}</span>}
+                        <TxChips row={t} onFlash={() => flash(t.id)} meta />
                       </div>
                       {t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
                     </td>

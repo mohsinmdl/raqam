@@ -27,6 +27,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 @keyframes hsSlide { from { transform: translateX(28px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes hsUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes hsPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes hsFlash { from { background: var(--soft); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
 /* Hover utilities replacing the prototype's style-hover attributes. */

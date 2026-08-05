@@ -10,7 +10,8 @@ import { txRowOf, freshInfo, instName, setupState } from '../lib/txRow.js';
 import ExplainDialog from '../ui/ExplainDialog.jsx';
 import FirstUse from './FirstUse.jsx';
 import { openers } from '../drawers/openers.js';
-import { RepeatIcon, TransferIcon } from '../ui/icons.jsx';
+import TxChips from '../ui/TxChips.jsx';
+import useRowFlash from '../ui/useRowFlash.js';
 import { overdueRules, upcomingRules } from '../lib/schedule.js';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
@@ -61,6 +62,7 @@ export default function Dashboard() {
   const { money, moneyS, masked } = fmt;
   const nav = useNavigate();
   const { openDrawer } = useDrawer();
+  const { flash, rowStyle } = useRowFlash();
   const [explain, setExplain] = useState(false);
   const [snapDismissed, setSnapDismissed] = useState(false);
 
@@ -374,12 +376,11 @@ export default function Dashboard() {
           {recentRows.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
               {recentRows.map(t => (
-                <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity }}>
+                <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity, ...rowStyle(t.id) }}>
                   <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
                   <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
-                    {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, border: '1px solid var(--border)', flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }} {...(t.chipIcon ? { role: 'img', 'aria-label': t.chip, title: t.chip } : null)}>{t.chipIcon === 'transfer' ? <TransferIcon size={14} /> : t.chip}</span>}
-                        {t.isRepeating && <span role="img" aria-label="Part of a recurring rule" title="Part of a recurring rule" style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--soft)', color: 'var(--accent)', border: '1px solid var(--border)', flex: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}><RepeatIcon size={14} /></span>}
+                    <TxChips row={t} onFlash={() => flash(t.id)} />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                     <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />

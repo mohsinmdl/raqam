@@ -39,6 +39,14 @@ export function txRowOf(t, S, fmt, forAccountId) {
     id: t.id, dateLabel: dayLabel(t.date), timeLabel: timeLabel(t.date),
     merchant: t.merchant || (t.type === 'transfer' ? 'Own-account transfer' : '—'), notes: t.notes || '', hasNotes: !!t.notes,
     hasChip: !!chip, chip, chipBg, chipFg, chipIcon,
+    // The other end of a transfer, from THIS account's point of view. acctLabel
+    // is always source → destination and never flips, so it can't answer
+    // "where did this come from" on the receiving account's page.
+    transferOther: t.type === 'transfer' && forAccountId
+      ? (t.accountId === forAccountId
+        ? { dir: 'to', name: toCard ? toCard.nickname + ' ••' + toCard.last4 : (toAcc ? toAcc.nickname : '?') }
+        : { dir: 'from', name: acc ? acc.nickname : '?' })
+      : null,
     // Belongs to a recurring rule — including the transaction that seeded it.
     isRepeating: !!ruleFromTx(S, t.id),
     catName: cat ? cat.name : (t.type === 'transfer' ? 'Transfer' : '—'), catColor: cat ? cat.color : 'var(--border)',
