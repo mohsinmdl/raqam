@@ -10,6 +10,7 @@
 //   institutions   — fetch + insert/delete of the user's OWN Custom rows only
 //   everything else — full upsert/delete sync of the user's rows
 import { supabase } from '../lib/supabase.js';
+import { normalizeSchedule } from '../lib/schedule.js';
 
 // ---- row mapping (client camelCase <-> DB snake_case) ----------------------
 
@@ -19,7 +20,9 @@ const stripNulls = o => {
   return out;
 };
 
-const COLLECTIONS = [
+// Exported so the sync-contract tests can assert each mapper's column set and
+// round-trip stability directly, rather than inferring them from a diff.
+export const COLLECTIONS = [
   {
     name: 'institutions', table: 'institutions', keyOf: r => r.id,
     // Only the user's OWN institutions are writable; global catalogue rows are
@@ -150,17 +153,25 @@ const COLLECTIONS = [
   },
   {
     name: 'recurring', table: 'recurring', keyOf: r => r.id,
+    // Explicit nulls, not stripNulls: switching a rule's funding source from a
+    // card to an account has to clear the other column. Objects and booleans
+    // are always emitted so an absent field can't read as a change.
     toRow: r => ({
       id: r.id, name: r.name, type: r.type, amount: r.amount, estimated: !!r.estimated,
-      freq: r.freq || '', next_date: r.nextDate ?? null, account_id: r.accountId ?? null,
+      schedule: normalizeSchedule(r.schedule), occurrences: r.occurrences || [],
+      next_date: r.nextDate ?? null, account_id: r.accountId ?? null,
       card_id: r.cardId ?? null, category_id: r.category ?? null,
-      behaviour: r.behaviour || 'reminder', status: r.status || 'active', done_this_month: !!r.doneThisMonth,
+      auto_post: !!r.autoPost, status: r.status || 'active',
+      edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
     }),
     fromRow: r => stripNulls({
       id: r.id, name: r.name, type: r.type, amount: Number(r.amount), estimated: r.estimated,
-      freq: r.freq, nextDate: r.next_date, accountId: r.account_id,
+      schedule: normalizeSchedule(r.schedule),
+      occurrences: r.occurrences && r.occurrences.length ? r.occurrences : undefined,
+      nextDate: r.next_date, accountId: r.account_id,
       cardId: r.card_id, category: r.category_id,
-      behaviour: r.behaviour, status: r.status, doneThisMonth: r.done_this_month || undefined,
+      autoPost: r.auto_post || undefined, status: r.status,
+      editedAt: r.edited_at || undefined, editCount: r.edit_count > 0 ? r.edit_count : undefined,
     }),
   },
   {

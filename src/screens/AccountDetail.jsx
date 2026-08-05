@@ -8,6 +8,7 @@ import { useMoney } from '../lib/format.js';
 import { accountBalance, accountDelta, dayLabel, inMonth, kindLabel, lastActivity, monthLabel, openingOf, relTime } from '../lib/calc.js';
 import { txRowOf, instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
+import TxChips from '../ui/TxChips.jsx';
 import { setAccountStatus } from '../store/actions.js';
 
 const cardBg = theme => ({ teal: '#0E5A53', ink: '#1D2925', warm: '#59452A' }[theme] || '#0E5A53');
@@ -113,9 +114,18 @@ export default function AccountDetail() {
                 {detTx.map(t => (
                   <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '78px minmax(0,1fr) 104px 48px', gap: 12, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity }}>
                     <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
-                    <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
-                      {t.hasChip && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: t.chipBg, color: t.chipFg, flex: 'none' }}>{t.chip}</span>}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
+                        <TxChips row={t} />
+                      </div>
+                      {/* Without this the receiving account shows an unexplained
+                          "+Rs X" — acctLabel is never rendered on this screen. */}
+                      {t.transferOther && (
+                        <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {t.transferOther.dir} {t.transferOther.name}
+                        </div>
+                      )}
                     </div>
                     <div className="tnum" style={{ fontSize: 13.5, fontWeight: 600, textAlign: 'right', color: t.amtColor }}>{t.amtLabel}</div>
                     <div style={{ textAlign: 'right' }}>

@@ -11,7 +11,9 @@ export default function FocusTrap({ children }) {
   useEffect(() => {
     const opener = document.activeElement;
     const root = ref.current;
-    const first = root?.querySelector(FOCUSABLE);
+    // A drawer can name the field worth landing on; otherwise focus falls to
+    // the first focusable, which is the close button.
+    const first = root?.querySelector('[data-autofocus]') || root?.querySelector(FOCUSABLE);
     (first || root)?.focus?.();
 
     const onKey = e => {

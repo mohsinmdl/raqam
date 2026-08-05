@@ -11,6 +11,8 @@ import { accountBalance, cardOutstanding, dayLabel, findDuplicate, listCats, mon
 import { currentMonth, todayStr } from '../lib/dates.js';
 import { addTransaction, updateTransaction, deleteTransaction } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
+import { PRESETS, ruleFromTx } from '../lib/schedule.js';
+import WhenField from './WhenField.jsx';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, Pill, grid2, noteBox } from './fields.jsx';
 
 const TYPES = ['expense', 'income', 'transfer', 'refund', 'adjustment'];
@@ -46,6 +48,12 @@ function Body() {
   const fxTransfer = type === 'transfer';
   const fxAdjust = type === 'adjustment';
   const fxCategory = type === 'expense' || type === 'income' || type === 'refund';
+  // Money in/out only, and never while recording an occurrence — that transaction
+  // already belongs to a rule. Editing IS allowed: that is "Make repeating".
+  // Hidden once converted, so one transaction can't spawn two rules.
+  const showRepeat = (type === 'expense' || type === 'income') && !f.fromRecurring && !ruleFromTx(S, f.editId);
+  const repeatName = showRepeat && f.repeat && f.repeat !== 'never'
+    ? (PRESETS.find(p => p.id === f.repeat) || {}).label : null;
   const catType = type === 'income' ? 'income' : 'expense';
   const catOpts = listCats(S, catType).map(c => ({ id: c.id, label: c.name }));
   if (f.editId && f.originalCategory) {
@@ -84,21 +92,25 @@ function Body() {
       </div>
       <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: -4 }}>{HINTS[type]}</div>
 
+      {/* Amount keeps the two-column grid to itself: the empty second track is
+          what holds its width steady now that When has moved to its own row. */}
       <div style={grid2}>
         <div>
           <Label htmlFor="f-amount" required>Amount</Label>
-          <AmountField id="f-amount" field="amount" />
+          <AmountField id="f-amount" field="amount" autoFocus />
           <FieldError msg={errors.amount} />
         </div>
-        <div>
-          <Label htmlFor="f-date" required>Date</Label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 96px', gap: 8 }}>
-            <TextField id="f-date" field="date" type="date" />
-            <TextField id="f-time" field="time" type="time" ariaLabel="Time" />
-          </div>
-          <Hint>Asia/Karachi · time orders same-day entries</Hint>
-          <FieldError msg={errors.date} />
-        </div>
+      </div>
+
+      <div>
+        <Label required>When</Label>
+        <WhenField showRepeat={showRepeat} repeatLabel={f.editId ? 'Make repeating' : 'Repeat'} />
+        {/* Repeat lives inside the date popover, so a non-default value would be
+            invisible once it closes — name it here instead. */}
+        <Hint>{repeatName
+          ? 'Asia/Karachi · repeats ' + repeatName.toLowerCase() + ' — a recurring rule will be created.'
+          : 'Asia/Karachi · the time orders same-day entries'}</Hint>
+        <FieldError msg={errors.date} />
       </div>
 
       {fxPayWith && (
@@ -284,9 +296,14 @@ function useSubmit() {
     }
 
     const payload = { form: f, type, amt, fee: parseAmt(f.fee) };
+    const repeated = f.repeat && f.repeat !== 'never' && !f.fromRecurring
+      && (type === 'expense' || type === 'income') && !ruleFromTx(S, f.editId);
     applyData(data => (f.editId ? updateTransaction(data, payload) : addTransaction(data, payload)));
     closeDrawer();
-    if (f.editId) { notify('Transaction updated — balances recalculated.'); return; }
+    if (f.editId) {
+      notify('Transaction updated — balances recalculated.' + (repeated ? ' It repeats from now on.' : ''));
+      return;
+    }
     const msgs = {
       expense: 'Expense recorded — balances updated.',
       income: 'Income recorded — balances updated.',
@@ -294,7 +311,7 @@ function useSubmit() {
       refund: 'Refund recorded — it offsets the original category.',
       adjustment: 'Balance adjustment recorded and labelled.',
     };
-    notify(msgs[type]);
+    notify(msgs[type] + (repeated ? ' A recurring rule was created too.' : ''));
   };
 }
 

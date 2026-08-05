@@ -2,7 +2,8 @@
 // and returns a NEW store. The reducer in StoreProvider applies them immutably.
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
 import { accountBalance, accountDeletePolicy, cardOutstanding, INST_KINDS } from '../lib/calc.js';
-import { addMonths, clampDay, currentMonth, nowIso, todayStr } from '../lib/dates.js';
+import { addMonths, currentMonth, nowIso, todayStr } from '../lib/dates.js';
+import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
 import { uid } from '../lib/util.js';
 import { makeAudit, diffFields, stampUpdate } from './audit.js';
 import { freshStore } from './seed.js';
@@ -58,11 +59,66 @@ export function addTransaction(data, { form: f, type, amt, fee }) {
   const catId = resolveCategory(next, f, type);
   const t = buildTx(f, type, amt, fee, catId);
   next.transactions = [t, ...next.transactions];
-  if (f.fromRecurring) {
-    next.recurring = next.recurring.map(r => (r.id === f.fromRecurring ? { ...r, doneThisMonth: true } : r));
-  }
   next.audit = [makeAudit({ entityType: 'transaction', entityId: t.id, action: 'create', summary: 'Recorded ' + t.type, after: { type: t.type, amount: t.amount, date: t.date } }), ...(next.audit || [])];
+  if (f.fromRecurring) markOccurrenceRecorded(next, f, t, amt);
+  applyRepeat(next, f, t, amt, catId);
   return next;
+}
+
+// Recording an occurrence: log it against the due date it settles and advance
+// the rule. Idempotent per due date — reopening the drawer for the same
+// occurrence must not log it twice — and it only advances when the recorded
+// occurrence is still the current one, so back-filling an older due date
+// cannot drag the schedule backwards.
+function markOccurrenceRecorded(next, f, t, amt) {
+  const r = next.recurring.find(x => x.id === f.fromRecurring);
+  if (!r) return;
+  const due = f.recurringDue || r.nextDate;
+  if (!due) return;
+  const occ = Array.isArray(r.occurrences) ? r.occurrences : [];
+  if (occ.some(o => o.due === due)) return;
+  r.occurrences = [...occ, { due, outcome: 'recorded', amount: amt, txId: t.id, at: nowIso() }];
+  if (r.nextDate === due) r.nextDate = advanceDue(r.schedule, due);
+}
+
+// A transaction becoming a series: the transaction itself is the first recorded
+// occurrence, so it is seeded into the history and the rule's first due date is
+// the one AFTER it. Shared by the Repeat preset (new and edited transactions)
+// and by Make repeating from the Transactions row menu.
+export function seedOccurrence(t, amt) {
+  return { due: t.date.slice(0, 10), outcome: 'recorded', amount: amt, txId: t.id, at: nowIso() };
+}
+
+function ruleFromTransaction(next, t, amt, catId, schedule) {
+  if (t.type !== 'expense' && t.type !== 'income') return;
+  if (!schedule) return;
+  const anchor = t.date.slice(0, 10);
+  const cat = next.categories.find(c => c.id === catId);
+  const id = uid();
+  const rec = {
+    id,
+    name: (t.merchant || (cat && cat.name) || 'Recurring').slice(0, 60),
+    type: t.type, amount: amt, estimated: false,
+    schedule, nextDate: advanceDue(schedule, anchor),
+    category: catId, status: 'active', autoPost: false,
+    occurrences: [seedOccurrence(t, amt)],
+  };
+  if (t.cardId) rec.cardId = t.cardId;
+  else if (t.accountId) rec.accountId = t.accountId;
+  next.recurring = [...next.recurring, rec];
+  next.audit = [makeAudit({
+    entityType: 'recurring', entityId: id, action: 'create',
+    summary: 'Recurring rule created from a transaction',
+    after: { name: rec.name, amount: amt, schedule, nextDate: rec.nextDate },
+  }), ...(next.audit || [])];
+}
+
+// Both transaction paths ask the same question: is a preset set, and has this
+// transaction not already been turned into a rule?
+function applyRepeat(next, f, t, amt, catId) {
+  if (!f.repeat || f.repeat === 'never' || f.fromRecurring) return;
+  if (ruleFromTx(next, t.id)) return;
+  ruleFromTransaction(next, t, amt, catId, presetSchedule(f.repeat, t.date.slice(0, 10)));
 }
 
 // Edit: rebuild the record from scratch onto the same id, stamp it, audit the field diff.
@@ -70,12 +126,15 @@ export function updateTransaction(data, { form: f, type, amt, fee }) {
   const i = data.transactions.findIndex(t => t.id === f.editId);
   if (i < 0) return data;
   const before = data.transactions[i];
-  const next = { ...data, transactions: [...data.transactions] };
+  // recurring is cloned too: Make repeating from the picker can add a rule here,
+  // and it must not reach back into the store this action was given.
+  const next = { ...data, transactions: [...data.transactions], recurring: [...data.recurring] };
   const catId = resolveCategory(next, f, type);
   const rebuilt = stampUpdate({ ...buildTx(f, type, amt, fee, catId, before.id), editCount: before.editCount || 0 });
   next.transactions[i] = rebuilt;
   const d = diffFields(before, rebuilt, TX_AUDIT_FIELDS);
   next.audit = [makeAudit({ entityType: 'transaction', entityId: before.id, action: 'update', summary: 'Edited ' + rebuilt.type + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
+  applyRepeat(next, f, rebuilt, amt, catId);
   return next;
 }
 
@@ -346,11 +405,15 @@ export function rolloverMonth(data) {
   const month = currentMonth();
   const prev = addMonths(month, -1);
   const active = data.accounts.filter(a => a.status === 'active');
-  if (active.length === 0) return data;
+  // A rule that lost its nextDate has to be re-materialised; a rule whose due
+  // date has simply PASSED is deliberately left alone, so it keeps reading as
+  // overdue until it is recorded or skipped. Nothing advances on its own.
+  // Checked before the no-accounts bail-out — a card-funded rule needs this too.
+  const unscheduled = data.recurring.filter(r => r.status === 'active' && !r.nextDate && r.schedule);
+  if (active.length === 0 && unscheduled.length === 0) return data;
   const missing = active.filter(a => !data.snapshots.some(s => s.accountId === a.id && s.month === month));
   const cardsMissing = data.cards.filter(c => c.type === 'credit' && (!c.openingOutstanding || c.openingOutstanding[month] == null));
-  const recurringStale = data.recurring.some(r => r.status === 'active' && r.nextDate && r.nextDate.slice(0, 7) < month);
-  if (missing.length === 0 && cardsMissing.length === 0 && !recurringStale) return data;
+  if (missing.length === 0 && cardsMissing.length === 0 && unscheduled.length === 0) return data;
 
   const next = { ...data };
 
@@ -375,16 +438,123 @@ export function rolloverMonth(data) {
     });
   }
 
-  if (recurringStale) {
-    next.recurring = next.recurring.map(r => {
-      if (r.status !== 'active' || !r.nextDate || r.nextDate.slice(0, 7) >= month) return r;
-      // Keep the reminder's day-of-month, moved into the current month (clamped for short months).
-      const day = clampDay(month, Number(r.nextDate.slice(8, 10)));
-      return { ...r, nextDate: `${month}-${String(day).padStart(2, '0')}`, doneThisMonth: false };
-    });
+  if (unscheduled.length > 0) {
+    const ids = new Set(unscheduled.map(r => r.id));
+    next.recurring = next.recurring.map(r => (
+      ids.has(r.id) ? { ...r, nextDate: nextOnOrAfter(r.schedule, todayStr()) } : r
+    ));
   }
 
   return next;
+}
+
+// ---- Recurring rules (design iteration 003) --------------------------------
+
+const RULE_AUDIT_FIELDS = ['name', 'type', 'amount', 'estimated', 'schedule', 'nextDate', 'accountId', 'cardId', 'category', 'autoPost', 'status'];
+
+// Built from scratch on add AND edit, like buildTx — switching the unit or the
+// funding source can never leave a stale field behind.
+function buildRule(f, amt, id) {
+  const rec = {
+    id,
+    name: String(f.name || '').trim(),
+    type: f.type,
+    amount: amt,
+    estimated: !!f.estimated,
+    schedule: buildSchedule(f),
+    nextDate: f.nextDate,
+    category: f.category,
+    status: f.status === 'paused' ? 'paused' : 'active',
+    autoPost: !!f.autoPost,
+  };
+  const src = String(f.source || '');
+  if (src.startsWith('card:')) rec.cardId = src.slice(5);
+  else if (src.startsWith('acc:')) rec.accountId = src.slice(4);
+  return rec;
+}
+
+export function upsertRule(data, { form: f, amt }) {
+  const editing = !!f.editId;
+  const next = { ...data, recurring: [...data.recurring] };
+  let id = f.editId, before = null;
+  if (editing) {
+    const i = next.recurring.findIndex(r => r.id === id);
+    if (i < 0) return data;
+    before = next.recurring[i];
+    // Occurrences are history: editing a rule never rewrites what it already did.
+    next.recurring[i] = stampUpdate({ ...buildRule(f, amt, id), occurrences: before.occurrences || [] });
+  } else {
+    id = uid();
+    // Opened via Make repeating: the transaction that prompted the rule is its
+    // first recorded occurrence, so the history opens truthfully.
+    const src = f.sourceTxId ? data.transactions.find(t => t.id === f.sourceTxId) : null;
+    const occurrences = src && !ruleFromTx(data, src.id) ? [seedOccurrence(src, src.amount)] : [];
+    next.recurring.push({ ...buildRule(f, amt, id), occurrences });
+  }
+  const after = next.recurring.find(r => r.id === id);
+  const d = editing ? diffFields(before, after, RULE_AUDIT_FIELDS) : null;
+  next.audit = [makeAudit({
+    entityType: 'recurring', entityId: id, action: editing ? 'update' : 'create',
+    summary: editing ? 'Rule updated' : 'Rule created',
+    before: d ? d.before : null,
+    after: d ? d.after : { name: after.name, amount: after.amount, schedule: after.schedule, nextDate: after.nextDate },
+  }), ...(next.audit || [])];
+  return next;
+}
+
+// Deleting a rule leaves every transaction it already produced untouched — the
+// occurrences go with the rule, the money does not.
+export function deleteRule(data, { id }) {
+  const r = data.recurring.find(x => x.id === id);
+  if (!r) return data;
+  return {
+    ...data,
+    recurring: data.recurring.filter(x => x.id !== id),
+    audit: [makeAudit({
+      entityType: 'recurring', entityId: id, action: 'delete',
+      summary: 'Rule deleted — its transactions are untouched',
+      before: { name: r.name, amount: r.amount, nextDate: r.nextDate },
+    }), ...(data.audit || [])],
+  };
+}
+
+export function toggleRulePause(data, { id }) {
+  const r = data.recurring.find(x => x.id === id);
+  if (!r) return data;
+  const status = r.status === 'paused' ? 'active' : 'paused';
+  return {
+    ...data,
+    recurring: data.recurring.map(x => (x.id === id ? stampUpdate({ ...x, status }) : x)),
+    audit: [makeAudit({
+      entityType: 'recurring', entityId: id, action: 'update',
+      summary: status === 'paused' ? 'Rule paused' : 'Rule resumed',
+      before: { status: r.status }, after: { status },
+    }), ...(data.audit || [])],
+  };
+}
+
+// Skipping advances the rule without writing a transaction. Same idempotency
+// and same only-advance-the-current-due rules as recording.
+export function skipOccurrence(data, { id, due }) {
+  const r = data.recurring.find(x => x.id === id);
+  if (!r) return data;
+  const d = due || r.nextDate;
+  if (!d) return data;
+  const occ = Array.isArray(r.occurrences) ? r.occurrences : [];
+  if (occ.some(o => o.due === d)) return data;
+  const nextDate = r.nextDate === d ? advanceDue(r.schedule, d) : r.nextDate;
+  return {
+    ...data,
+    recurring: data.recurring.map(x => (x.id === id ? stampUpdate({
+      ...x,
+      occurrences: [...occ, { due: d, outcome: 'skipped', amount: null, txId: null, at: nowIso() }],
+      nextDate,
+    }) : x)),
+    audit: [makeAudit({
+      entityType: 'recurring', entityId: id, action: 'skip',
+      summary: 'Occurrence skipped', before: { nextDate: r.nextDate }, after: { nextDate },
+    }), ...(data.audit || [])],
+  };
 }
 
 // ---- Categories (design v2 CRUD) -------------------------------------------

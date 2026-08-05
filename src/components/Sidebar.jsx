@@ -6,10 +6,10 @@ const MAIN = [
   { id: 'accounts', label: 'Accounts' },
   { id: 'cards', label: 'Cards' },
   { id: 'budgets', label: 'Budgets' },
+  { id: 'recurring', label: 'Recurring' },
   { id: 'categories', label: 'Categories' },
 ];
 const PLANNED = [
-  { id: 'recurring', label: 'Recurring' },
   { id: 'reports', label: 'Reports' },
   { id: 'settings', label: 'Settings' },
 ];
@@ -37,7 +37,8 @@ function NavButton({ id, label, active, small }) {
 export default function Sidebar({ footer }) {
   const { pathname } = useLocation();
   // "Accounts" stays active on /accounts/:id (prototype navOf, script 860).
-  const isActive = id => pathname === `/${id}` || (id === 'accounts' && pathname.startsWith('/accounts/'));
+  const isActive = id => pathname === `/${id}` || (id === 'accounts' && pathname.startsWith('/accounts/'))
+    || (id === 'recurring' && pathname.startsWith('/recurring/'));
   return (
     <aside style={{ borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 20px 14px' }}>

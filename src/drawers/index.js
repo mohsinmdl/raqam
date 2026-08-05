@@ -9,6 +9,7 @@ import { adjustCardFormDef } from './AdjustCardForm.jsx';
 import { categoryFormDef } from './CategoryForm.jsx';
 import { reassignFormDef } from './ReassignForm.jsx';
 import { budgetFormDef } from './BudgetForm.jsx';
+import { recurringFormDef } from './RecurringForm.jsx';
 
 export const drawerRegistry = {
   addTx: txFormDef,
@@ -21,4 +22,7 @@ export const drawerRegistry = {
   category: categoryFormDef,
   reassign: reassignFormDef,
   budget: budgetFormDef,
+  // 'rule', not 'recurring': openers.recordRule already opens addTx *from* a rule,
+  // and two different things called recurring in one namespace invites mistakes.
+  rule: recurringFormDef,
 };

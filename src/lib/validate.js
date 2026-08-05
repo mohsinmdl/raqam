@@ -3,6 +3,9 @@
 // useSubmit hooks run these on submit; RLS + CHECK constraints are the server gate.
 import { catById, catRefs, duplicateCat, INST_KINDS } from './calc.js';
 import { parseAmt } from './util.js';
+import { UNITS } from './schedule.js';
+
+const NTH_IDS = ['1', '2', '3', '4', 'last'];
 
 const req = v => String(v == null ? '' : v).trim().length > 0;
 const LAST4 = /^\d{4}$/;
@@ -131,6 +134,68 @@ export const validate = {
   },
 
   // ---- budgets ----
+  // ---- recurring rules ----
+  recurring(store, f, amt) {
+    const e = {};
+    if (!req(f.name)) e.name = 'Give the rule a name.';
+    else if (String(f.name).trim().length > 60) e.name = 'Keep the name under 60 characters.';
+    if (f.type !== 'expense' && f.type !== 'income') e.type = 'Choose money in or money out.';
+    if (!(amt > 0)) e.amount = 'Enter an amount greater than zero.';
+    else if (amt > 1e12) e.amount = 'That amount is too large to record.';
+
+    const every = Number(f.every);
+    if (!Number.isInteger(every) || every < 1 || every > 99) e.every = 'Repeat every 1 to 99.';
+    if (!UNITS.includes(f.unit)) e.unit = 'Choose days, weeks, months or years.';
+
+    // The day rules are what actually make a schedule computable, so an empty
+    // or malformed list has to fail here rather than silently fall back later.
+    const rules = f.dayRules || [];
+    if (f.unit !== 'day') {
+      if (!rules.length) e.day = 'Add at least one day.';
+      const bad = rules.some(r => {
+        if (f.unit === 'week') return !(Number(r.weekday) >= 0 && Number(r.weekday) <= 6);
+        if (f.unit === 'year') return !/^\d{2}-\d{2}$/.test(String(r.md || ''));
+        if (r.kind === 'last') return false;
+        if (r.kind === 'nth') return !(Number(r.weekday) >= 0 && Number(r.weekday) <= 6) || !(NTH_IDS.includes(String(r.nth)));
+        return !(Number(r.day) >= 1 && Number(r.day) <= 31);
+      });
+      if (bad) e.day = 'Check the days this rule repeats on.';
+      const keys = rules.map(r => JSON.stringify(r));
+      if (new Set(keys).size !== keys.length) e.day = 'That day is listed twice.';
+    }
+
+    if (!ISO_DATE.test(String(f.nextDate || ''))) e.nextDate = 'Choose a valid next due date.';
+    if (f.endsKind === 'count') {
+      const n = Number(f.endsCount);
+      if (!Number.isInteger(n) || n < 1) e.ends = 'Enter how many times it should run.';
+    } else if (f.endsKind === 'date') {
+      if (!ISO_DATE.test(String(f.endsDate || ''))) e.ends = 'Choose a valid end date.';
+      else if (ISO_DATE.test(String(f.nextDate || '')) && f.endsDate < f.nextDate) e.ends = 'The end date is before the next due date.';
+    }
+
+    if (!req(f.category)) e.category = 'Choose a category.';
+    else {
+      const cat = catById(store, f.category);
+      if (!cat) e.category = 'That category no longer exists.';
+      else if (cat.type !== f.type) e.category = 'That category does not match money ' + (f.type === 'income' ? 'in' : 'out') + '.';
+      else if (cat.status === 'archived') e.category = 'That category is archived — choose an active one.';
+    }
+
+    const src = String(f.source || '');
+    if (!src) e.source = f.type === 'income' ? 'Choose where the money lands.' : 'Choose how it is paid.';
+    else if (src.startsWith('card:')) {
+      const c = store.cards.find(x => 'card:' + x.id === src);
+      if (!c) e.source = 'That card no longer exists.';
+      else if (c.status === 'closed') e.source = 'That card is closed — choose another.';
+      else if (f.type === 'income') e.source = 'Money in has to land in an account, not a card.';
+    } else {
+      const a = store.accounts.find(x => 'acc:' + x.id === src);
+      if (!a) e.source = 'That account no longer exists.';
+      else if (a.status !== 'active') e.source = 'That account is not active — choose another.';
+    }
+    return e;
+  },
+
   budget(store, f, opts) {
     const o = opts || {}, e = {};
     const amt = parseAmt(f.amount);
