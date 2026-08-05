@@ -13,10 +13,13 @@ export function txRowOf(t, S, fmt, forAccountId) {
   const toAcc = t.toAccountId ? S.accounts.find(a => a.id === t.toAccountId) : null;
   const toCard = t.toCardId ? S.cards.find(c => c.id === t.toCardId) : null;
   let chip = null, chipBg = 'var(--elev)', chipFg = 'var(--muted)';
-  // A card payment is a transfer to a card, so both carry the transfer glyph.
+  // A card payment is a transfer to a card, so both carry the transfer glyph
+  // and the same tint — they are one family, not two.
   let chipIcon = null;
-  if (t.type === 'transfer' && t.isCardPayment) { chip = 'Card payment'; chipBg = 'var(--info-soft)'; chipFg = 'var(--info)'; chipIcon = 'transfer'; }
-  else if (t.type === 'transfer') { chip = 'Transfer'; chipIcon = 'transfer'; }
+  if (t.type === 'transfer') {
+    chip = t.isCardPayment ? 'Card payment' : 'Transfer';
+    chipBg = 'var(--info-soft)'; chipFg = 'var(--info)'; chipIcon = 'transfer';
+  }
   else if (t.type === 'refund') { chip = 'Refund'; chipBg = 'var(--info-soft)'; chipFg = 'var(--info)'; }
   else if (t.type === 'adjustment') { chip = 'Adjustment'; chipBg = 'var(--warn-soft)'; chipFg = 'var(--warn)'; }
   else if (t.type === 'cardAdjustment') { chip = 'Card correction'; chipBg = 'var(--warn-soft)'; chipFg = 'var(--warn)'; }
