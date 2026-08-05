@@ -10,5 +10,11 @@ dist/
 .env.*
 !.env.example
 
+# Bare secret files kept next to the app. `key` holds the Supabase service-role
+# JWT, which bypasses RLS entirely — a far worse leak than the anon key.
+key
+*.jwt
+*.pem
+
 # Supabase CLI local state
 supabase/.temp/
