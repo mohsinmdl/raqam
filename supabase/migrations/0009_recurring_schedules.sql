@@ -47,7 +47,14 @@ alter table public.recurring
   drop column if exists behaviour,
   drop column if exists done_this_month;
 
--- Recurring rules are now first-class audited entities.
+-- Recurring rules are now first-class audited entities, and skipping an
+-- occurrence is its own verb — it advances the rule without writing a
+-- transaction, so neither 'update' nor 'delete' describes it.
 alter table public.audit_log drop constraint audit_log_entity_type_check;
 alter table public.audit_log add constraint audit_log_entity_type_check
   check (entity_type in ('transaction','account','card','category','budget','recurring'));
+
+alter table public.audit_log drop constraint audit_log_action_check;
+alter table public.audit_log add constraint audit_log_action_check
+  check (action in ('create','update','delete','archive','restore',
+                    'adjust-balance','adjust-outstanding','reassign-delete','skip'));
