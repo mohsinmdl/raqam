@@ -100,6 +100,13 @@ const CUSTOM_GROUP = {
 // equivalent exclusion, so they get their own group to stay visually separable.
 const RECOVERABLE_GROUP = 'Recoverable (advances)';
 
+// YNAB reserves a set of internal payee name prefixes and rejects the whole
+// batch with a 400 if any payee starts with one: "Transfer : ",
+// "Starting Balance", "Manual Balance Adjustment",
+// "Reconciliation Balance Adjustment". Opening balances therefore cannot use
+// the obvious name.
+const OPENING_PAYEE = 'Raqam opening balance';
+
 // --------------------------------------------------------------------------
 // YNAB client
 // --------------------------------------------------------------------------
@@ -351,13 +358,13 @@ async function apply() {
       if (!s) continue;
       txs.push({
         account_id: p.ynabId, date: `${s.month}-01`, amount: mu(s.amount),
-        payee_name: 'Starting Balance', category_id: rta.id, memo: `Raqam opening balance ${s.month}`,
+        payee_name: OPENING_PAYEE, category_id: rta.id, memo: `Raqam opening balance ${s.month}`,
         cleared: 'cleared', approved: true, import_id: impId('rqsb:', p.acc.id),
       });
     } else if (p.openingMonth) {
       txs.push({
         account_id: p.ynabId, date: `${p.openingMonth}-01`, amount: mu(p.opening),
-        payee_name: 'Starting Balance', category_id: rta.id, memo: `Raqam opening outstanding ${p.openingMonth}`,
+        payee_name: OPENING_PAYEE, category_id: rta.id, memo: `Raqam opening outstanding ${p.openingMonth}`,
         cleared: 'cleared', approved: true, import_id: impId('rqsb:', p.card.id),
       });
     }
@@ -416,6 +423,23 @@ async function apply() {
     dupes += (d.duplicate_import_ids || []).length;
   }
   console.log(`  created ${created}, skipped as already-imported ${dupes}`);
+
+  // YNAB generates the other half of a transfer itself, always as `uncleared`,
+  // and the POST body cannot influence it. Raqam has one status for the whole
+  // transfer, so the counterpart is patched to match its source — otherwise the
+  // destination's cleared_balance stays short by the transfer amount.
+  const all = (await api('GET', '/transactions')).transactions;
+  const byId = new Map(all.map(t => [t.id, t]));
+  const fixes = [];
+  for (const t of all) {
+    if (!t.transfer_transaction_id || t.import_id) continue; // only the generated side
+    const src = byId.get(t.transfer_transaction_id);
+    if (src && src.cleared !== t.cleared) fixes.push({ id: t.id, cleared: src.cleared });
+  }
+  if (fixes.length) {
+    console.log(`patching ${fixes.length} generated transfer counterpart(s) to match their source's cleared status`);
+    await api('PATCH', '/transactions', { transactions: fixes });
+  }
 
   // --- budget assignments ----------------------------------------------
   // A Raqam budget is ONE standing monthly amount applied to every month
