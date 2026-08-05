@@ -103,15 +103,24 @@ function Body() {
       </div>
 
       <div>
-        <Label required>When</Label>
-        <WhenField showRepeat={showRepeat} repeatLabel={f.editId ? 'Make repeating' : 'Repeat'} />
-        {/* Repeat lives inside the date popover, so a non-default value would be
-            invisible once it closes — name it here instead. */}
-        <Hint>{repeatName
-          ? 'Asia/Karachi · repeats ' + repeatName.toLowerCase() + ' — a recurring rule will be created.'
-          : 'Asia/Karachi · the time orders same-day entries'}</Hint>
-        <FieldError msg={errors.date} />
+        <Label htmlFor="f-merchant">{type === 'income' ? 'Payer / source' : 'Merchant or recipient'}</Label>
+        <TextField id="f-merchant" field="merchant" placeholder="e.g. Imtiaz Super Market" />
       </div>
+
+      {fxCategory && (
+        <div>
+          <Label htmlFor="f-cat" required>Category</Label>
+          <SelectField id="f-cat" field="category">
+            <option value="">Choose…</option>
+            {catOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+            <option value="__new">＋ New category…</option>
+          </SelectField>
+          {f.category === '__new' && (
+            <TextField field="newCat" ariaLabel="New category name" placeholder="New category name" accent />
+          )}
+          <FieldError msg={errors.category} />
+        </div>
+      )}
 
       {fxPayWith && (
         <div>
@@ -215,25 +224,17 @@ function Body() {
         </>
       )}
 
-      {fxCategory && (
-        <div>
-          <Label htmlFor="f-cat" required>Category</Label>
-          <SelectField id="f-cat" field="category">
-            <option value="">Choose…</option>
-            {catOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-            <option value="__new">＋ New category…</option>
-          </SelectField>
-          {f.category === '__new' && (
-            <TextField field="newCat" ariaLabel="New category name" placeholder="New category name" accent />
-          )}
-          <FieldError msg={errors.category} />
-        </div>
-      )}
-
       <div>
-        <Label htmlFor="f-merchant">{type === 'income' ? 'Payer / source' : 'Merchant or recipient'}</Label>
-        <TextField id="f-merchant" field="merchant" placeholder="e.g. Imtiaz Super Market" />
+        <Label required>When</Label>
+        <WhenField showRepeat={showRepeat} repeatLabel={f.editId ? 'Make repeating' : 'Repeat'} />
+        {/* Repeat lives inside the date popover, so a non-default value would be
+            invisible once it closes — name it here instead. */}
+        <Hint>{repeatName
+          ? 'Asia/Karachi · repeats ' + repeatName.toLowerCase() + ' — a recurring rule will be created.'
+          : 'Asia/Karachi · the time orders same-day entries'}</Hint>
+        <FieldError msg={errors.date} />
       </div>
+
       <div>
         <Label htmlFor="f-notes" optional>Notes</Label>
         <TextAreaField id="f-notes" field="notes" />
