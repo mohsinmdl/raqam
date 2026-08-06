@@ -17,7 +17,6 @@ import Dashboard from './screens/Dashboard.jsx';
 import Transactions from './screens/Transactions.jsx';
 import Accounts from './screens/Accounts.jsx';
 import AccountDetail from './screens/AccountDetail.jsx';
-import Cards from './screens/Cards.jsx';
 import Planned from './screens/Planned.jsx';
 import Categories from './screens/Categories.jsx';
 import Budgets from './screens/Budgets.jsx';
@@ -42,7 +41,6 @@ function Shell() {
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/accounts" element={<Accounts />} />
             <Route path="/accounts/:id" element={<AccountDetail />} />
-            <Route path="/cards" element={<Cards />} />
             <Route path="/budgets" element={<Budgets />} />
             <Route path="/recurring" element={<Recurring />} />
             <Route path="/recurring/:id" element={<RecurringDetail />} />

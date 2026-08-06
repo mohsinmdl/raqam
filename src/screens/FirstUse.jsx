@@ -18,13 +18,11 @@ export default function FirstUse({ setup, onSkip }) {
     mk(1, 'Add your first bank account', 'Institution, a nickname, and today’s balance — about a minute.', setup.hasAccount, 'Add account', 'addAccount', false, ''),
     mk(2, 'Confirm your opening balance', 'Locks in your starting position so monthly change is trustworthy.', setup.snapConfirmed, 'Review & confirm', 'snapshot', !setup.hasAccount, 'Add an account first'),
     mk(3, 'Record your first transaction', 'An expense, income, or a transfer between your accounts.', setup.hasTx, 'Add transaction', 'addTx', !setup.hasAccount, 'Add an account first'),
-    mk(4, 'Add a card — optional', 'Track debit cards, credit-card liability, and due dates.', setup.hasCard, 'Add card', 'addCard', false, ''),
   ];
   const stepAct = act => {
     if (act === 'addAccount') openers.addAccount(openDrawer);
     else if (act === 'snapshot') openers.snapshot(S, openDrawer);
     else if (act === 'addTx') openers.addTx(openDrawer);
-    else if (act === 'addCard') openers.addCard(openDrawer);
   };
 
   return (
