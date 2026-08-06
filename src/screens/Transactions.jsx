@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
-import { useMonth } from '../store/MonthContext.jsx';
+import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
@@ -19,7 +19,6 @@ import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
 import PositionStrip from '../components/PositionStrip.jsx';
 
-const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: 'all', impact: 'all', min: '', max: '' };
 const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
 const th = { textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)' };
 const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' };
@@ -27,30 +26,25 @@ const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verti
 export default function Transactions() {
   const { data: S, applyData } = useStore();
   const { ask, notify } = useUI();
-  const { month } = useMonth();
   const fmt = useMoney();
   const { openDrawer } = useDrawer();
   const navigate = useNavigate();
-  const [F, setFilters] = useState(DEFAULT_FILTERS);
-  const [sort, setSort] = useState('date');
+  // The view itself lives above the router (TxViewContext) so leaving this
+  // screen and coming back does not reset it. Everything below is genuinely
+  // per-visit: a selection, an open popover, an open row menu.
+  const {
+    filters: F, setFilters, sort, setSort, range, setRange,
+    schedOpen, setSchedOpen, postedOpen, setPostedOpen, resetView,
+  } = useTxView();
   const [menuOpen, setMenuOpen] = useState(null);
-  // Seeded from the globally selected month: stepping to July on Dashboard and
-  // then opening Transactions should still show July.
-  const [range, setRange] = useState(() => ({ from: month, to: month }));
   const [rangeOpen, setRangeOpen] = useState(false);
   // The popover edits a draft; nothing re-filters until Apply.
   const [draft, setDraft] = useState(range);
   // Ids, not rows: a row object goes stale the moment anything re-renders.
   const [selected, setSelected] = useState(() => new Set());
-  // Collapsed by default: this screen is for the ledger, and the scheduled
-  // group is a standing header above it rather than the reason you came. Its
-  // heading still carries the count and any overdue tally, so nothing is
-  // hidden — only folded.
-  const [schedOpen, setSchedOpen] = useState(false);
-  const [postedOpen, setPostedOpen] = useState(true);
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
-  const reset = () => { setFilters(DEFAULT_FILTERS); setRange(rangeFor('month')); };
+  const reset = () => resetView();
   const openRange = () => { setDraft(range); setRangeOpen(true); };
   const applyRange = () => { setRange(clampRange(draft.from, draft.to)); setRangeOpen(false); };
   const setBound = (key, part, v) => setDraft(d => {
