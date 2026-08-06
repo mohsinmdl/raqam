@@ -21,7 +21,7 @@ const loadUserPrefs = uid => {
   catch { return { skippedSetup: false }; }
 };
 
-function reducer(state, act) {
+export function reducer(state, act) {
   switch (act.type) {
     case 'hydrate':
       // Fresh data from the server: any stack from before is meaningless.
@@ -36,8 +36,13 @@ function reducer(state, act) {
       // Actions no-op by returning the same reference; nothing to undo.
       if (next === state.data) return state;
       // act.system: month rollover and other machine-initiated changes are not
-      // the user's to undo.
-      if (act.system) return { ...state, data: next };
+      // the user's to undo — and they also invalidate every snapshot taken
+      // before them: an older `past` entry predates this month's opening
+      // snapshots, so restoring it would delete rows the sync differ now
+      // treats as real deletes. Losing undo history at a system boundary is
+      // the correct, conventional trade; silently corrupting the new month
+      // is not.
+      if (act.system) return { ...state, data: next, ...emptyStacks() };
       return { ...state, data: next, ...recordChange(state, state.data, labelFor(state.data, next)) };
     }
     case 'undo': {

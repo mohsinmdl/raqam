@@ -118,9 +118,20 @@ for undo are rejected by the DB (sync would retry-fail on those rows only).
   failure; the existing queue retries. Undo introduces no new failure class.
 - **Undo with empty stack / redo after a new action**: no-ops; a new user
   action clears the redo stack (standard editor semantics).
-- **Migration not yet applied**: only the `undo`/`redo` audit rows are
-  rejected by the DB CHECK; data restores still sync. Flagged in the PR as a
-  must-run-first step.
+- **Migration not yet applied**: `audit` is the last collection in
+  `COLLECTIONS`, and `pushDiff` runs every collection's inserts/updates in one
+  loop before any deletes run. A CHECK violation on an undo/redo row therefore
+  throws mid-inserts: the push aborts, `lastPushed` never advances (the
+  poison row stays queued forever), and — because the abort happens before
+  the deletes loop — **no deletes push at all** for the rest of the session,
+  including ordinary user deletes unrelated to undo. The queue then sits in
+  permanent backoff with `syncStatus` pinned to `'error'` ("Not saved —
+  retrying", misleadingly blamed on the network), and `beforeunload` fires on
+  every navigation since the queue never reports clean. It is recoverable — a
+  reload drops the poisoned row, since `audit` is `skipFetch` — and it never
+  corrupts the server, but it degrades the whole session, not just undo.
+  Migration 0010 must be applied **before the code is deployed**, not merely
+  before the feature is first used.
 
 ## Testing (pure, per project norms)
 
