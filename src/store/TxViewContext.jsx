@@ -13,7 +13,12 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { useMonth } from './MonthContext.jsx';
 import { DEFAULT_SORT } from '../lib/sortRows.js';
 
-export const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: 'all', impact: 'all', min: '', max: '' };
+// Search only. The account, category, type, status and budget-impact filters
+// that used to live here were removed with their controls rather than left as
+// state nothing could set — each is returning on the screen that owns the
+// question (sidebar, Categories, Budgets, reporting). Reinstating one means
+// adding its key back here and a branch to the Transactions predicate.
+export const DEFAULT_FILTERS = { q: '' };
 
 const Ctx = createContext(null);
 
