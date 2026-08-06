@@ -11,6 +11,7 @@
 // Same shape as MonthContext — a provider above <Routes>, one hook out.
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useMonth } from './MonthContext.jsx';
+import { DEFAULT_SORT } from '../lib/sortRows.js';
 
 export const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: 'all', impact: 'all', min: '', max: '' };
 
@@ -19,7 +20,9 @@ const Ctx = createContext(null);
 export function TxViewProvider({ children }) {
   const { month } = useMonth();
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [sort, setSort] = useState('date');
+  // { key, dir } — direction was not modelled at all before, so both of the
+  // old sorts were permanently descending.
+  const [sort, setSort] = useState(DEFAULT_SORT);
   const [range, setRange] = useState(() => ({ from: month, to: month }));
   const [schedOpen, setSchedOpen] = useState(false);
   const [postedOpen, setPostedOpen] = useState(true);
@@ -38,7 +41,7 @@ export function TxViewProvider({ children }) {
   const value = useMemo(() => ({
     filters, setFilters, sort, setSort, range, setRange,
     schedOpen, setSchedOpen, postedOpen, setPostedOpen,
-    resetView: () => { setFilters(DEFAULT_FILTERS); setRange({ from: month, to: month }); },
+    resetView: () => { setFilters(DEFAULT_FILTERS); setRange({ from: month, to: month }); setSort(DEFAULT_SORT); },
   }), [filters, sort, range, schedOpen, postedOpen, month]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

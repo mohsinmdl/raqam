@@ -3,6 +3,7 @@
 import { accountDelta, dayLabel, daysAgo, daysUntil, lastActivity, relTime, timeLabel } from './calc.js';
 import { nowIso } from './dates.js';
 import { ruleDueLabel, ruleFromTx, scheduledRules, sourceLabel } from './schedule.js';
+import { scheduledSort, sortRows } from './sortRows.js';
 
 // fmt = { money, moneyS } from useMoney(). forAccountId flips amounts to the
 // perspective of one account (account-detail activity list).
@@ -23,20 +24,29 @@ export function txRowOf(t, S, fmt, forAccountId) {
   else if (t.type === 'refund') { chip = 'Refund'; chipBg = 'var(--info-soft)'; chipFg = 'var(--info)'; }
   else if (t.type === 'adjustment') { chip = 'Adjustment'; chipBg = 'var(--warn-soft)'; chipFg = 'var(--warn)'; }
   else if (t.type === 'cardAdjustment') { chip = 'Card correction'; chipBg = 'var(--warn-soft)'; chipFg = 'var(--warn)'; }
-  let amtLabel, amtColor;
+  // amtValue is the number this cell shows, with its sign — assigned in the
+  // same branch that picks the label so the two can never disagree, which is
+  // what keeps a sorted Amount column reading monotonically. Note the schema
+  // stores an unsigned magnitude and puts direction in `type`
+  // (check: type in ('adjustment','cardAdjustment') or amount >= 0), so sorting
+  // on t.amount directly would be wrong.
+  let amtLabel, amtColor, amtValue;
   if (forAccountId) {
     const d = t.status === 'pending' ? (t.accountId === forAccountId ? -t.amount : t.amount) : accountDelta(t, forAccountId);
-    amtLabel = fmt.moneyS(d); amtColor = t.type === 'transfer' ? 'var(--muted)' : d > 0 ? 'var(--pos)' : 'var(--text)';
-  } else if (t.type === 'expense') { amtLabel = fmt.money(-t.amount); amtColor = 'var(--text)'; }
-  else if (t.type === 'income' || t.type === 'refund') { amtLabel = fmt.moneyS(t.amount); amtColor = 'var(--pos)'; }
-  else if (t.type === 'transfer') { amtLabel = fmt.money(t.amount); amtColor = 'var(--muted)'; }
-  else { amtLabel = fmt.moneyS(t.amount); amtColor = t.amount >= 0 ? 'var(--pos)' : 'var(--text)'; }
+    amtLabel = fmt.moneyS(d); amtColor = t.type === 'transfer' ? 'var(--muted)' : d > 0 ? 'var(--pos)' : 'var(--text)'; amtValue = d;
+  } else if (t.type === 'expense') { amtLabel = fmt.money(-t.amount); amtColor = 'var(--text)'; amtValue = -t.amount; }
+  else if (t.type === 'income' || t.type === 'refund') { amtLabel = fmt.moneyS(t.amount); amtColor = 'var(--pos)'; amtValue = t.amount; }
+  else if (t.type === 'transfer') { amtLabel = fmt.money(t.amount); amtColor = 'var(--muted)'; amtValue = t.amount; }
+  else { amtLabel = fmt.moneyS(t.amount); amtColor = t.amount >= 0 ? 'var(--pos)' : 'var(--text)'; amtValue = t.amount; }
   let acctLabel = '—';
   if (t.type === 'transfer') acctLabel = (acc ? acc.nickname : '?') + ' → ' + (toCard ? toCard.nickname + ' ••' + toCard.last4 : toAcc ? toAcc.nickname : '?');
   else if (card) acctLabel = card.nickname + ' ••' + card.last4;
   else if (acc) acctLabel = acc.nickname;
   return {
     id: t.id, dateLabel: dayLabel(t.date), timeLabel: timeLabel(t.date),
+    // Sort keys: the full timestamp (never the truncated display) and a unique
+    // id, so the tie-break chain always terminates.
+    sortAt: t.date, sortId: t.id,
     merchant: t.merchant || (t.type === 'transfer' ? 'Own-account transfer' : '—'), notes: t.notes || '', hasNotes: !!t.notes,
     hasChip: !!chip, chip, chipBg, chipFg, chipIcon,
     // The other end of a transfer, from THIS account's point of view. acctLabel
@@ -50,7 +60,7 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // Belongs to a recurring rule — including the transaction that seeded it.
     isRepeating: !!ruleFromTx(S, t.id),
     catName: cat ? cat.name : (t.type === 'transfer' ? 'Transfer' : '—'), catColor: cat ? cat.color : 'var(--border)',
-    acctLabel, amtLabel, amtColor,
+    acctLabel, amtLabel, amtColor, amtValue,
     stLabel: t.status === 'pending' ? 'Pending' : 'Cleared', stBg: t.status === 'pending' ? 'var(--warn-soft)' : 'var(--elev)', stFg: t.status === 'pending' ? 'var(--warn)' : 'var(--muted)',
     rowOpacity: t.status === 'pending' ? '.62' : '1', isPending: t.status === 'pending',
     canEdit: t.type !== 'cardAdjustment',
@@ -122,7 +132,8 @@ export function ruleRowOf(r, S, fmt, now) {
   const cat = r.category ? S.categories.find(c => c.id === r.category) : null;
   const overdue = daysUntil(r.nextDate, now) < 0;
   return {
-    key: 'rule:' + r.id, ruleId: r.id, isRule: true, isOverdue: overdue, sortKey: r.nextDate,
+    key: 'rule:' + r.id, ruleId: r.id, isRule: true, isOverdue: overdue,
+    sortAt: r.nextDate, sortId: 'rule:' + r.id,
     dateLabel: withYear(r.nextDate, now), timeLabel: ruleDueLabel(r, now),
     merchant: r.name, notes: '', hasNotes: false,
     hasChip: false, chip: null, chipBg: '', chipFg: '', chipIcon: null, transferOther: null,
@@ -132,6 +143,7 @@ export function ruleRowOf(r, S, fmt, now) {
     // Estimated amounts keep the ~ they carry on the Recurring screen: this is
     // a forecast, and rounding it into a hard figure would be a small lie.
     amtLabel: (r.estimated ? '~' : '') + fmt.money(r.type === 'income' ? r.amount : -r.amount),
+    amtValue: r.type === 'income' ? r.amount : -r.amount,
     amtColor: r.type === 'income' ? 'var(--pos)' : 'var(--text)',
     stLabel: overdue ? 'Overdue' : 'Scheduled',
     stBg: overdue ? 'var(--neg-soft)' : 'var(--info-soft)',
@@ -158,7 +170,7 @@ export function ruleRowOf(r, S, fmt, now) {
 // reminders — a rule has no status, type or merchant, so it cannot honour
 // "Pending" or a search term, and showing rows that contradict an active
 // filter is worse than briefly hiding them.
-export function txGroups(list, S, fmt, now, range, anyFilter) {
+export function txGroups(list, S, fmt, now, range, anyFilter, sort) {
   const futureTx = list.filter(t => t.date > now);
   const postedTx = list.filter(t => t.date <= now);
   const ruleRows = anyFilter ? [] : scheduledRules(S, range.from, range.to, now).map(r => ruleRowOf(r, S, fmt, now));
@@ -174,13 +186,15 @@ export function txGroups(list, S, fmt, now, range, anyFilter) {
   // state, nothing to clean up.
   const rulesPencilledIn = new Set(futureTx.map(t => (ruleFromTx(S, t.id) || {}).id).filter(Boolean));
   const shownRuleRows = ruleRows.filter(r => !rulesPencilledIn.has(r.ruleId));
-  const scheduled = shownRuleRows
-    .map(row => ({ row, at: row.sortKey }))
-    .concat(futureTx.map(t => ({ row: futureTxRowOf(t, S, fmt, now), at: t.date, selId: t.id })))
-    .sort((a, b) => a.at.localeCompare(b.at));
+  // Each group sorts independently and never merges into the other. Rows are
+  // built first and sorted second, so every sort key is the value the cell
+  // renders — see sortRows.js.
+  const scheduledRowObjs = shownRuleRows.concat(futureTx.map(t => futureTxRowOf(t, S, fmt, now)));
+  const scheduled = sortRows(scheduledRowObjs, scheduledSort(sort))
+    .map(row => (row.isRule ? { row } : { row, selId: row.id }));
   return {
     scheduled, futureTx, postedTx,
-    postedRows: postedTx.map(t => txRowOf(t, S, fmt)),
+    postedRows: sortRows(postedTx.map(t => txRowOf(t, S, fmt)), sort),
     overdueCount: scheduled.filter(x => x.row.isOverdue).length,
     hiddenRuleCount: ruleRows.length - shownRuleRows.length,
   };
