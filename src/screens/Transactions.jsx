@@ -473,7 +473,7 @@ export default function Transactions() {
                 did, which keeps the current order stated in words. */}
             <button
               onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
-              aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by amount, lowest first'}
+              aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}
               className="hv-accent-fg"
               style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}
             >

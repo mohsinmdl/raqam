@@ -317,7 +317,8 @@ describe('sortLabel', () => {
   it('reads as plain language', () => {
     expect(sortLabel(DEFAULT_SORT)).toBe('Newest first');
     expect(sortLabel(desc('size'))).toBe('Largest first');
-    expect(sortLabel(asc('signed'))).toBe('Lowest first');
+    expect(sortLabel(asc('signed'))).toBe('Biggest expense first');
+    expect(sortLabel(desc('signed'))).toBe('Biggest income first');
     expect(sortLabel(asc('status'))).toBe('Needs action first');
   });
 });
@@ -444,7 +445,7 @@ describe('every sort has exactly one route', () => {
   it('the toggle round-trips between the default and lowest-first', () => {
     const toggle = s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' });
     const on = toggle(DEFAULT_SORT);
-    expect([on, sortLabel(on)]).toEqual([{ key: 'signed', dir: 'asc' }, 'Lowest first']);
+    expect([on, sortLabel(on)]).toEqual([{ key: 'signed', dir: 'asc' }, 'Biggest expense first']);
     expect(toggle(on)).toEqual(DEFAULT_SORT);
     // From any header sort it lands on the same place, so it is predictable.
     expect(toggle({ key: 'category', dir: 'desc' })).toEqual({ key: 'signed', dir: 'asc' });

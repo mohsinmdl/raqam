@@ -142,6 +142,8 @@ export function sortLabel(sort) {
     account: { asc: 'Account A–Z', desc: 'Account Z–A' },
     status: { asc: 'Needs action first', desc: 'Settled first' },
     size: { asc: 'Smallest first', desc: 'Largest first' },
-    signed: { asc: 'Lowest first', desc: 'Highest first' },
+    // Named for what you are looking for, not the arithmetic: ascending puts
+    // the most negative row on top, which is the biggest expense.
+    signed: { asc: 'Biggest expense first', desc: 'Biggest income first' },
   }[s.key][s.dir];
 }
