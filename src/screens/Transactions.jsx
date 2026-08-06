@@ -1,5 +1,6 @@
 // Transactions list screen — template 268-336, txScreenVals script 1018-1054.
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
@@ -29,6 +30,7 @@ export default function Transactions() {
   const { month } = useMonth();
   const fmt = useMoney();
   const { openDrawer } = useDrawer();
+  const navigate = useNavigate();
   const [F, setFilters] = useState(DEFAULT_FILTERS);
   const [sort, setSort] = useState('date');
   const [menuOpen, setMenuOpen] = useState(null);
@@ -180,6 +182,16 @@ export default function Transactions() {
     if (!ok) return;
     applyData(data => deleteTransaction(data, { id: row.id }));
     notify('Transaction deleted.');
+  };
+
+  // A transaction's relationship to a series, as one menu item. Either it can
+  // still become one, or it already belongs to one — and in that case the row
+  // says so with the ⟳ icon, so the menu should explain rather than just go
+  // quiet: View rule jumps to the rule behind it.
+  const seriesItem = (txId, canRepeat) => {
+    const r = ruleFromTx(S, txId);
+    if (r) return { label: 'View rule', onClick: () => navigate('/recurring/' + r.id) };
+    return canRepeat && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, txId, openDrawer) };
   };
 
   const afterBulk = (msg, next) => { applyData(next); clearSel(); notify(msg); };
@@ -433,16 +445,13 @@ export default function Transactions() {
                             items={x.row.isRule ? [
                               { label: 'Record…', onClick: () => openers.recordRule(S, x.row.ruleId, openDrawer) },
                               { label: 'Skip this one', onClick: () => askSkip(x.row) },
+                              { label: 'View rule', onClick: () => navigate('/recurring/' + x.row.ruleId) },
                               { divider: true },
                               { label: 'Delete rule', onClick: () => askDeleteRule(x.row), tone: 'neg' },
                             ] : [
                               { label: 'Post now', onClick: () => askPostNow(x.row) },
                               { label: 'Edit', onClick: () => openers.editTx(S, x.selId, openDrawer) },
-                              // Same offer as a recorded row: a future-dated
-                              // expense you entered yourself can still become a
-                              // series. It was dropped when this cell held two
-                              // buttons and there was no room; the menu has room.
-                              x.row.canRepeat && !ruleFromTx(S, x.selId) && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, x.selId, openDrawer) },
+                              seriesItem(x.selId, x.row.canRepeat),
                               { divider: true },
                               { label: 'Delete', onClick: () => askDeleteTx(x.row), tone: 'neg' },
                             ]}
@@ -478,7 +487,7 @@ export default function Transactions() {
                         items={(() => {
                           const above = [
                             t.canEdit && { label: 'Edit', onClick: () => openers.editTx(S, t.id, openDrawer) },
-                            t.canRepeat && !ruleFromTx(S, t.id) && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, t.id, openDrawer) },
+                            seriesItem(t.id, t.canRepeat),
                           ].filter(Boolean);
                           return [...above, above.length > 0 && { divider: true }, { label: 'Delete', onClick: () => askDeleteTx(t), tone: 'neg' }];
                         })()}
