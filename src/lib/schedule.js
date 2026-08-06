@@ -248,6 +248,27 @@ const byNext = (a, b) => (a.nextDate < b.nextDate ? -1 : a.nextDate > b.nextDate
 export function overdueRules(store, now) {
   return (store.recurring || []).filter(r => ruleStatus(r, now) === 'overdue').sort(byNext);
 }
+// Rules whose next occurrence falls inside a date range — the Transactions
+// screen works in ranges, not a single month. Overdue rules appear when the
+// range covers the date they were due, which keeps the range meaning exactly
+// what it says rather than smuggling past items into every view.
+export function scheduledRules(store, from, to, now) {
+  return (store.recurring || [])
+    .filter(r => r.status === 'active' && !isEnded(r) && r.nextDate
+      && (!from || r.nextDate.slice(0, 7) >= from)
+      && (!to || r.nextDate.slice(0, 7) <= to))
+    .sort(byNext);
+}
+
+// Which account or card a rule draws on. Lives here rather than in the
+// Recurring screen because the transactions table needs it too, and a screen
+// importing a presenter from another screen is the wrong direction.
+export function sourceLabel(store, r) {
+  if (r.cardId) { const c = (store.cards || []).find(x => x.id === r.cardId); return c ? c.nickname + ' ••' + c.last4 : '—'; }
+  if (r.accountId) { const a = (store.accounts || []).find(x => x.id === r.accountId); return a ? a.nickname : '—'; }
+  return '—';
+}
+
 export function upcomingRules(store, month, now) {
   return (store.recurring || [])
     .filter(r => r.status === 'active' && !isEnded(r) && r.nextDate

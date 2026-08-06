@@ -1,8 +1,8 @@
 // Shared transaction-row and account-freshness presenters, ported from the
 // prototype's txRowOf (script 894-927) and freshInfo (928-933).
-import { accountDelta, dayLabel, daysAgo, lastActivity, relTime, timeLabel } from './calc.js';
+import { accountDelta, dayLabel, daysAgo, daysUntil, lastActivity, relTime, timeLabel } from './calc.js';
 import { nowIso } from './dates.js';
-import { ruleFromTx } from './schedule.js';
+import { ruleDueLabel, ruleFromTx, scheduledRules, sourceLabel } from './schedule.js';
 
 // fmt = { money, moneyS } from useMoney(). forAccountId flips amounts to the
 // perspective of one account (account-detail activity list).
@@ -61,6 +61,65 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // Recoverable-spending indicator — the money moved, it just isn't budget spending.
     excluded: (t.type === 'expense' || t.type === 'refund') && !!(cat && cat.excludeFromBudget),
     excludedLabel: 'Excluded from budgets',
+  };
+}
+
+// A recurring rule presented as a table row, deliberately field-for-field
+// compatible with txRowOf so the Scheduled group reuses the same cells instead
+// of forking the table. The Dashboard's rule shape ({id, name, when, amt}) is
+// too thin for this — it would leave category, account and status blank.
+//
+// The row key is namespaced ('rule:…') because rule ids and transaction ids come
+// from different tables and are only unique within their own. Rules carry no
+// checkbox, so this key never reaches the selection Set — the namespace is a
+// guard against a later change quietly making it possible.
+export function ruleRowOf(r, S, fmt, now) {
+  const cat = r.category ? S.categories.find(c => c.id === r.category) : null;
+  const overdue = daysUntil(r.nextDate, now) < 0;
+  return {
+    key: 'rule:' + r.id, ruleId: r.id, isRule: true, isOverdue: overdue, sortKey: r.nextDate,
+    dateLabel: dayLabel(r.nextDate), timeLabel: ruleDueLabel(r, now),
+    merchant: r.name, notes: '', hasNotes: false,
+    hasChip: false, chip: null, chipBg: '', chipFg: '', chipIcon: null, transferOther: null,
+    isRepeating: true,
+    catName: cat ? cat.name : '—', catColor: cat ? cat.color : 'var(--border)',
+    acctLabel: sourceLabel(S, r),
+    // Estimated amounts keep the ~ they carry on the Recurring screen: this is
+    // a forecast, and rounding it into a hard figure would be a small lie.
+    amtLabel: (r.estimated ? '~' : '') + fmt.money(r.type === 'income' ? r.amount : -r.amount),
+    amtColor: r.type === 'income' ? 'var(--pos)' : 'var(--text)',
+    stLabel: overdue ? 'Overdue' : 'Scheduled',
+    stBg: overdue ? 'var(--neg-soft)' : 'var(--info-soft)',
+    stFg: overdue ? 'var(--neg)' : 'var(--info)',
+    rowOpacity: '1', isPending: false, canEdit: false, canRepeat: false,
+    edited: false, editedLabel: '', excluded: false, excludedLabel: '',
+  };
+}
+
+// The two groups the transactions table renders, from one filtered list.
+//
+// A transaction dated ahead of `now` has not happened yet, so it moves out of
+// the posted rows entirely rather than being greyed out — money that has not
+// left yet should not read as money spent. Recurring rules join it, giving one
+// forward-looking group ordered soonest-first, which puts anything overdue at
+// the top.
+//
+// anyFilter suppresses the rules: a rule has no status, type or merchant, so it
+// cannot honour "Pending" or a search term, and showing rows that contradict an
+// active filter is worse than briefly hiding them. Future-dated transactions are
+// real rows and stay filtered like any other.
+export function txGroups(list, S, fmt, now, range, anyFilter) {
+  const futureTx = list.filter(t => t.date > now);
+  const postedTx = list.filter(t => t.date <= now);
+  const ruleRows = anyFilter ? [] : scheduledRules(S, range.from, range.to, now).map(r => ruleRowOf(r, S, fmt, now));
+  const scheduled = ruleRows
+    .map(row => ({ row, at: row.sortKey }))
+    .concat(futureTx.map(t => ({ row: txRowOf(t, S, fmt), at: t.date, selId: t.id })))
+    .sort((a, b) => a.at.localeCompare(b.at));
+  return {
+    scheduled, futureTx, postedTx,
+    postedRows: postedTx.map(t => txRowOf(t, S, fmt)),
+    overdueCount: scheduled.filter(x => x.row.isOverdue).length,
   };
 }
 
