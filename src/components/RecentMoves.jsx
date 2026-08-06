@@ -10,13 +10,21 @@ import { nowIso } from '../lib/dates.js';
 import { MOVE_FILTERS, filterMoves, groupMovesByDay, moveCount } from '../lib/moves.js';
 import { AUDIT_FETCH_LIMIT } from '../store/sync.js';
 
+// Three bands, not one scrolling box: only the middle scrolls, so the header
+// and footer are ordinary siblings the list cannot slide under. A sticky
+// footer would have had to fight this panel's own padding for the same edge.
 const panelStyle = {
-  position: 'absolute', top: 38, right: 0, zIndex: 30, width: 380, maxWidth: '92vw',
-  maxHeight: 460, overflowY: 'auto', background: 'var(--surface)',
-  border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 14,
+  position: 'absolute', top: 38, right: 0, zIndex: 30, width: 400, maxWidth: '92vw',
+  maxHeight: 460, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+  background: 'var(--surface)', border: '1px solid var(--border)',
+  borderRadius: 12, boxShadow: 'var(--shadow)',
 };
+// minHeight 0 is load-bearing: a flex child defaults to min-height auto, which
+// refuses to shrink below its content, so overflow never engages and the panel
+// grows past maxHeight instead of scrolling.
+const listStyle = { flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 14px 12px' };
 const chipStyle = active => ({
-  height: 26, padding: '0 11px', borderRadius: 999, cursor: 'pointer',
+  height: 26, padding: '0 10px', borderRadius: 999, cursor: 'pointer',
   fontSize: 12, fontWeight: 600,
   border: '1px solid ' + (active ? 'var(--accent)' : 'var(--border)'),
   background: active ? 'var(--accent)' : 'var(--surface)',
@@ -95,37 +103,42 @@ export default function RecentMoves() {
 
       {open && (
         <div role="dialog" aria-label="Recent moves" style={panelStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>Recent moves</span>
-            {MOVE_FILTERS.map(f => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                aria-pressed={String(filter === f.id)}
-                className="hv-soft"
-                style={chipStyle(filter === f.id)}
-              >
-                {f.label}
-                <span style={{ marginLeft: 5, fontSize: 10.5, fontWeight: 500, opacity: 0.65 }}>
-                  {moveCount(audit, f.id)}
-                </span>
-              </button>
-            ))}
+          {/* Title and chips get their own rows — sharing one row left too
+              little width for four chips, so the last wrapped over the title. */}
+          <div style={{ flex: 'none', padding: '12px 14px 11px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Recent moves</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+              {MOVE_FILTERS.map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilter(f.id)}
+                  aria-pressed={String(filter === f.id)}
+                  className="hv-soft"
+                  style={chipStyle(filter === f.id)}
+                >
+                  {f.label}
+                  <span style={{ marginLeft: 5, fontSize: 10.5, fontWeight: 500, opacity: 0.65 }}>
+                    {moveCount(audit, f.id)}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {groups.map(g => <DayGroup key={g.day} group={g} />)}
+          <div style={listStyle}>
+            {groups.map(g => <DayGroup key={g.day} group={g} />)}
 
-          {groups.length === 0 && (
-            <div style={{ padding: '28px 8px', textAlign: 'center', color: 'var(--muted)', fontSize: 12.5 }}>
-              {total === 0 ? 'Nothing recorded yet.' : 'No moves match this filter.'}
-            </div>
-          )}
+            {groups.length === 0 && (
+              <div style={{ padding: '28px 8px', textAlign: 'center', color: 'var(--muted)', fontSize: 12.5 }}>
+                {total === 0 ? 'Nothing recorded yet.' : 'No moves match this filter.'}
+              </div>
+            )}
+          </div>
 
           <div
             style={{
-              position: 'sticky', bottom: 0, background: 'var(--surface)',
-              fontSize: 11, color: 'var(--muted)', marginTop: 12, paddingTop: 10,
-              borderTop: '1px solid var(--border)',
+              flex: 'none', background: 'var(--surface)', padding: '9px 14px 11px',
+              fontSize: 11, color: 'var(--muted)', borderTop: '1px solid var(--border)',
             }}
           >
             {audit.length >= AUDIT_FETCH_LIMIT
