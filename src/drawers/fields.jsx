@@ -59,10 +59,10 @@ export function SelectField({ id, field, disabled, ariaLabel, children }) {
   );
 }
 
-export function TextAreaField({ id, field, rows = 2 }) {
+export function TextAreaField({ id, field, rows = 2, autoFocus }) {
   const { drawer, setField } = useDrawer();
   return (
-    <textarea id={id} rows={rows} value={drawer.form[field] ?? ''} onChange={e => setField(field, e.target.value)} className="field" style={{ height: 'auto', padding: '9px 12px', resize: 'vertical' }} />
+    <textarea id={id} rows={rows} autoFocus={autoFocus} value={drawer.form[field] ?? ''} onChange={e => setField(field, e.target.value)} className="field" style={{ height: 'auto', padding: '9px 12px', resize: 'vertical' }} />
   );
 }
 
