@@ -7,8 +7,7 @@ import { DEFAULT_SORT, nextSortState, sortLabel } from '../lib/sortRows.js';
 import SortIcon from '../ui/SortIcon.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
-import { useMoney, parseAmt } from '../lib/format.js';
-import { isExcludedCat } from '../lib/calc.js';
+import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { inRange, rangeLabel } from '../lib/dateRange.js';
 import { txGroups } from '../lib/txRow.js';
@@ -247,21 +246,12 @@ export default function Transactions() {
 
   const monthTx = S.transactions.filter(t => inRange(t, range.from, range.to));
   const q = F.q.trim().toLowerCase();
-  const minA = parseAmt(F.min), maxA = parseAmt(F.max);
   const catName = id => ((S.categories.find(c => c.id === id) || {}).name || '');
+  // Search is the only filter here now. Account, category, type, status and
+  // budget impact are each moving to the screen they belong to — see the
+  // Reset button's comment for where.
   let list = monthTx.filter(t => {
     if (q && !((t.merchant || '').toLowerCase().includes(q) || (t.notes || '').toLowerCase().includes(q) || catName(t.category).toLowerCase().includes(q))) return false;
-    if (F.acct !== 'all') { const [k, id] = F.acct.split(':'); if (k === 'acc' && !(t.accountId === id || t.toAccountId === id)) return false; if (k === 'card' && !(t.cardId === id || t.toCardId === id)) return false; }
-    if (F.cat !== 'all' && t.category !== F.cat) return false;
-    if (F.type !== 'all' && t.type !== F.type) return false;
-    if (F.status !== 'all' && t.status !== F.status) return false;
-    if (F.impact !== 'all') {
-      // Recoverable = expense/refund in an excluded category (advances etc.).
-      const recoverable = (t.type === 'expense' || t.type === 'refund') && isExcludedCat(S, t.category);
-      if (F.impact === 'excluded' ? !recoverable : recoverable) return false;
-    }
-    if (isFinite(minA) && t.amount < minA) return false;
-    if (isFinite(maxA) && Math.abs(t.amount) > maxA) return false;
     return true;
   });
 
@@ -391,19 +381,8 @@ export default function Transactions() {
     afterBulk('Deleted ' + sel.length + '.', data => deleteTransactions(data, { ids: sel }));
   };
 
-  const filterAcctOpts = S.accounts.filter(a => a.status === 'active').map(a => ({ id: 'acc:' + a.id, label: a.nickname }))
-    .concat(S.cards.map(c => ({ id: 'card:' + c.id, label: c.nickname + ' ••' + c.last4 })));
-  const filterCatOpts = S.categories.map(c => ({ id: c.id, label: c.name }));
-
   const chips = [];
   if (q) chips.push({ k: 'q', label: '“' + F.q + '”' });
-  if (F.acct !== 'all') { const o = filterAcctOpts.find(x => x.id === F.acct); chips.push({ k: 'acct', label: o ? o.label : F.acct }); }
-  if (F.cat !== 'all') chips.push({ k: 'cat', label: catName(F.cat) || F.cat });
-  if (F.type !== 'all') chips.push({ k: 'type', label: F.type.charAt(0).toUpperCase() + F.type.slice(1) });
-  if (F.status !== 'all') chips.push({ k: 'status', label: F.status.charAt(0).toUpperCase() + F.status.slice(1) });
-  if (F.impact !== 'all') chips.push({ k: 'impact', label: F.impact === 'excluded' ? 'Excluded from budgets' : 'Counted in budgets' });
-  if (F.min) chips.push({ k: 'min', label: 'Min Rs ' + F.min });
-  if (F.max) chips.push({ k: 'max', label: 'Max Rs ' + F.max });
 
   const addDisabled = S.accounts.filter(a => a.status === 'active').length === 0;
 
@@ -414,25 +393,12 @@ export default function Transactions() {
         <section aria-label="Filters" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <input aria-label="Search transactions" placeholder="Search merchant, notes, category…" value={F.q} onChange={e => setF('q', e.target.value)} style={{ ...selStyle, flex: 2, minWidth: 220, padding: '0 12px' }} />
-            <select aria-label="Account or card" value={F.acct} onChange={e => setF('acct', e.target.value)} style={{ ...selStyle, maxWidth: 190 }}>
-              <option value="all">All accounts &amp; cards</option>
-              {filterAcctOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-            </select>
-            <select aria-label="Category" value={F.cat} onChange={e => setF('cat', e.target.value)} style={{ ...selStyle, maxWidth: 170 }}>
-              <option value="all">All categories</option>
-              {filterCatOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-            </select>
-            <select aria-label="Type" value={F.type} onChange={e => setF('type', e.target.value)} style={selStyle}>
-              <option value="all">All types</option><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option><option value="refund">Refund</option><option value="adjustment">Balance adjustment</option><option value="cardAdjustment">Card correction</option>
-            </select>
-            <select aria-label="Status" value={F.status} onChange={e => setF('status', e.target.value)} style={selStyle}>
-              <option value="all">Any status</option><option value="cleared">Cleared</option><option value="pending">Pending</option>
-            </select>
-            <select aria-label="Budget impact" value={F.impact} onChange={e => setF('impact', e.target.value)} style={selStyle}>
-              <option value="all">Any budget impact</option><option value="counted">Counted in budgets</option><option value="excluded">Excluded from budgets</option>
-            </select>
-            <input aria-label="Minimum amount" placeholder="Min Rs" inputMode="numeric" value={F.min} onChange={e => setF('min', e.target.value)} style={{ ...selStyle, width: 86, padding: '0 10px' }} />
-            <input aria-label="Maximum amount" placeholder="Max Rs" inputMode="numeric" value={F.max} onChange={e => setF('max', e.target.value)} style={{ ...selStyle, width: 86, padding: '0 10px' }} />
+            {/* Search is deliberately the only filter here. The others moved out
+                to where the question is actually asked: account to the sidebar,
+                category to the Categories screen, budget impact to Budgets.
+                Type returns with the reporting module; status was dropped
+                because the Status column sorts. Reset still clears the range
+                and sort, so it earns its place with one filter. */}
             <button onClick={reset} className="hv-text" style={{ height: 36, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>Reset</button>
           </div>
           {chips.length > 0 && (
@@ -591,8 +557,8 @@ export default function Transactions() {
           )}
           {list.length === 0 && monthTx.length > 0 && (
             <div style={{ padding: '44px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>No matches for these filters</div>
-              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>Try widening the amount range or clearing a filter.</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>No matches for your search</div>
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>Try different words, or widen the date range in the header.</div>
               <button onClick={reset} className="hv-soft" style={{ marginTop: 12, height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Reset filters</button>
             </div>
           )}
