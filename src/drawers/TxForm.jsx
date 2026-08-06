@@ -50,6 +50,11 @@ function Body() {
   const fxTransfer = type === 'transfer';
   const fxAdjust = type === 'adjustment';
   const fxCategory = type === 'expense' || type === 'income' || type === 'refund';
+  // An adjustment is not paid to anyone — it reconciles the record to reality,
+  // and buildTx labels every one of them 'Balance adjustment' regardless of what
+  // is typed here. Asking the question invited a wrong mental model and threw
+  // the answer away; the reason field below is where the explanation belongs.
+  const fxMerchant = type !== 'adjustment';
   // Money in/out only, and never while recording an occurrence — that transaction
   // already belongs to a rule. Editing IS allowed: that is "Make repeating".
   // Hidden once converted, so one transaction can't spawn two rules.
@@ -104,10 +109,12 @@ function Body() {
         </div>
       </div>
 
-      <div>
-        <Label htmlFor="f-merchant">{type === 'income' ? 'Payer / source' : 'Paid to'}</Label>
-        <TextField id="f-merchant" field="merchant" placeholder="e.g. Imtiaz Super Market" />
-      </div>
+      {fxMerchant && (
+        <div>
+          <Label htmlFor="f-merchant">{type === 'income' ? 'Payer / source' : 'Paid to'}</Label>
+          <TextField id="f-merchant" field="merchant" placeholder="e.g. Imtiaz Super Market" />
+        </div>
+      )}
 
       {fxCategory && (
         <div>
