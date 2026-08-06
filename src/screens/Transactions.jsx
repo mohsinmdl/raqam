@@ -4,7 +4,8 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
-import { inMonth, isExcludedCat, monthLabel } from '../lib/calc.js';
+import { isExcludedCat } from '../lib/calc.js';
+import { MONTH_OPTS, RANGE_PRESETS, clampRange, inRange, presetOf, rangeFor, rangeLabel, yearOpts } from '../lib/dateRange.js';
 import { txRowOf } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
@@ -24,12 +25,27 @@ export default function Transactions() {
   const [F, setFilters] = useState(DEFAULT_FILTERS);
   const [sort, setSort] = useState('date');
   const [menuOpen, setMenuOpen] = useState(null);
+  // Seeded from the globally selected month: stepping to July on Dashboard and
+  // then opening Transactions should still show July.
+  const [range, setRange] = useState(() => ({ from: month, to: month }));
+  const [rangeOpen, setRangeOpen] = useState(false);
+  // The popover edits a draft; nothing re-filters until Apply.
+  const [draft, setDraft] = useState(range);
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
-  const reset = () => setFilters(DEFAULT_FILTERS);
+  const reset = () => { setFilters(DEFAULT_FILTERS); setRange(rangeFor('month')); };
+  const openRange = () => { setDraft(range); setRangeOpen(true); };
+  const applyRange = () => { setRange(clampRange(draft.from, draft.to)); setRangeOpen(false); };
+  const setBound = (key, part, v) => setDraft(d => {
+    const cur = d[key] || rangeFor('month').from;
+    const next = part === 'm' ? cur.slice(0, 4) + '-' + v : v + '-' + cur.slice(5);
+    return { ...d, [key]: next };
+  });
+  const years = yearOpts(S);
+  const activePreset = presetOf(draft.from, draft.to);
   const removeChip = k => setF(k, DEFAULT_FILTERS[k]);
 
-  const monthTx = S.transactions.filter(t => inMonth(t, month));
+  const monthTx = S.transactions.filter(t => inRange(t, range.from, range.to));
   const q = F.q.trim().toLowerCase();
   const minA = parseAmt(F.min), maxA = parseAmt(F.max);
   const catName = id => ((S.categories.find(c => c.id === id) || {}).name || '');
@@ -72,6 +88,51 @@ export default function Transactions() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
         <section aria-label="Filters" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={openRange} aria-haspopup="dialog" aria-expanded={rangeOpen}
+                className="hv-soft"
+                style={{ ...selStyle, padding: '0 12px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >{rangeLabel(range.from, range.to)} ▾</button>
+              {rangeOpen && (
+                <>
+                  <div onClick={() => setRangeOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 29 }} />
+                  <div role="dialog" aria-label="Date range" style={{ position: 'absolute', top: 42, left: 0, zIndex: 30, width: 460, maxWidth: '90vw', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 14 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                      {RANGE_PRESETS.map(p => (
+                        <button key={p.id} onClick={() => setDraft(rangeFor(p.id))} className="hv-soft"
+                          style={{ height: 30, padding: '0 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
+                            border: '1px solid ' + (activePreset === p.id ? 'var(--accent)' : 'var(--border)'),
+                            background: activePreset === p.id ? 'var(--accent)' : 'var(--surface)',
+                            color: activePreset === p.id ? 'var(--on-accent)' : 'var(--text)' }}>{p.label}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '12px 0' }}>
+                      {[['from', 'From'], ['to', 'To']].map(([key, label]) => (
+                        <span key={key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 600 }}>{label}:</span>
+                          <select aria-label={label + ' month'} value={(draft[key] || rangeFor('month').from).slice(5)}
+                            onChange={e => setBound(key, 'm', e.target.value)} style={{ ...selStyle, height: 32, maxWidth: 120 }}>
+                            {MONTH_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                          </select>
+                          <select aria-label={label + ' year'} value={(draft[key] || rangeFor('month').from).slice(0, 4)}
+                            onChange={e => setBound(key, 'y', e.target.value)} style={{ ...selStyle, height: 32, maxWidth: 92 }}>
+                            {years.map(y => <option key={y} value={y}>{y}</option>)}
+                          </select>
+                        </span>
+                      ))}
+                    </div>
+                    {!draft.from && !draft.to && (
+                      <div style={{ fontSize: 12, color: 'var(--muted)', paddingBottom: 10 }}>All dates — every transaction you have recorded.</div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                      <button onClick={() => setRangeOpen(false)} className="hv-soft" style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={applyRange} className="hv-accent" style={{ height: 32, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Apply</button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <input aria-label="Search transactions" placeholder="Search merchant, notes, category…" value={F.q} onChange={e => setF('q', e.target.value)} style={{ ...selStyle, flex: 2, minWidth: 220, padding: '0 12px' }} />
             <select aria-label="Account or card" value={F.acct} onChange={e => setF('acct', e.target.value)} style={{ ...selStyle, maxWidth: 190 }}>
               <option value="all">All accounts &amp; cards</option>
@@ -108,7 +169,7 @@ export default function Transactions() {
         {/* No overflow:hidden — it would clip the per-row ⋯ menu on the last rows. */}
         <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Showing {list.length} of {monthTx.length} in {monthLabel(month)} · manually entered</span>
+            <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Showing {list.length} of {monthTx.length} {range.from || range.to ? 'in ' + rangeLabel(range.from, range.to) : 'across all dates'} · manually entered</span>
             <span style={{ flex: 1 }} />
             <button onClick={() => setSort(s => (s === 'date' ? 'amount' : 'date'))} className="hv-accent-fg" style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
               {sort === 'date' ? 'Newest first ↓' : 'Largest first ↓'}
@@ -182,7 +243,7 @@ export default function Transactions() {
           )}
           {monthTx.length === 0 && (
             <div style={{ padding: '44px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Nothing recorded in {monthLabel(month)}</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{range.from || range.to ? 'Nothing recorded in ' + rangeLabel(range.from, range.to) : 'Nothing recorded yet'}</div>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4, maxWidth: '44ch', marginLeft: 'auto', marginRight: 'auto' }}>Transactions you add appear here with search and filters. Recording as you spend keeps your dashboard honest.</div>
               <button onClick={() => openers.addTx(openDrawer)} disabled={addDisabled} className="hv-accent" style={{ marginTop: 12, height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: addDisabled ? 'default' : 'pointer', opacity: addDisabled ? .45 : 1 }}>＋ Add transaction</button>
             </div>

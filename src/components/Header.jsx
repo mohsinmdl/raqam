@@ -32,7 +32,8 @@ export default function Header() {
     const rule = S?.recurring.find(r => r.id === decodeURIComponent(pathname.split('/')[2]));
     title = rule?.name || 'Recurring';
   }
-  const showMonthSel = seg === 'dashboard' || seg === 'transactions' || seg === 'budgets';
+  // Not on transactions: its own date-range filter owns the dates there.
+  const showMonthSel = seg === 'dashboard' || seg === 'budgets';
   const activeAccts = S ? S.accounts.filter(a => a.status === 'active') : [];
   const addDisabled = activeAccts.length === 0;
   const now = nowIso();
