@@ -28,3 +28,37 @@ export function recordChange(stacks, prevData, label) {
   // Drop from the front so the most recent UNDO_CAP steps survive.
   return { past: past.length > UNDO_CAP ? past.slice(past.length - UNDO_CAP) : past, future: [] };
 }
+
+// Restoring an older snapshot would also restore an older `audit`, which the
+// sync engine treats as append-only (sync.js: appendOnly + skipFetch, and the
+// server has no delete policy). Rows already pushed would then be missing
+// locally and the two would silently diverge. So the CURRENT audit is carried
+// across untouched and a new row is prepended: history reads "created X, then
+// undid it", never "nothing happened".
+function restore(currentData, snapshot, auditRow) {
+  return { ...snapshot, audit: [auditRow, ...(currentData.audit || [])] };
+}
+
+export function applyUndo(state, auditRow) {
+  if (state.past.length === 0) return null;
+  const entry = state.past[state.past.length - 1];
+  return {
+    data: restore(state.data, entry.snapshot, auditRow),
+    past: state.past.slice(0, -1),
+    future: [...state.future, { snapshot: state.data, label: entry.label }],
+  };
+}
+
+export function applyRedo(state, auditRow) {
+  if (state.future.length === 0) return null;
+  const entry = state.future[state.future.length - 1];
+  return {
+    data: restore(state.data, entry.snapshot, auditRow),
+    past: [...state.past, { snapshot: state.data, label: entry.label }],
+    future: state.future.slice(0, -1),
+  };
+}
+
+const topLabel = list => (list.length ? list[list.length - 1].label : null);
+export const undoLabel = stacks => topLabel(stacks.past);
+export const redoLabel = stacks => topLabel(stacks.future);

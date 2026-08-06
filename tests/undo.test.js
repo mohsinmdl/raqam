@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { UNDO_CAP, emptyStacks, labelFor, recordChange } from '../src/lib/undo.js';
+import { UNDO_CAP, emptyStacks, labelFor, recordChange, applyUndo, applyRedo, undoLabel, redoLabel } from '../src/lib/undo.js';
 
 const store = over => ({ transactions: [], recurring: [], audit: [], ...(over || {}) });
 const auditRow = summary => ({ id: 'a' + summary, at: '2026-08-06T10:00', summary });
@@ -67,5 +67,87 @@ describe('recordChange', () => {
     const stacks = emptyStacks();
     recordChange(stacks, store(), 'x');
     expect(stacks.past).toEqual([]);
+  });
+});
+
+const undoAudit = { id: 'u1', at: '2026-08-06T11:00', entityType: 'app', entityId: 'undo', action: 'undo', summary: 'Undid: Deleted expense' };
+const redoAudit = { id: 'r1', at: '2026-08-06T11:01', entityType: 'app', entityId: 'redo', action: 'redo', summary: 'Redid: Deleted expense' };
+
+describe('applyUndo', () => {
+  const before = store({ transactions: [{ id: 't1' }], audit: [auditRow('created')] });
+  const after = store({ transactions: [], audit: [auditRow('deleted'), auditRow('created')] });
+  const state = () => ({ data: after, ...recordChange(emptyStacks(), before, 'Deleted expense') });
+
+  it('restores the previous data', () => {
+    expect(applyUndo(state(), undoAudit).data.transactions).toBe(before.transactions);
+  });
+
+  it('keeps the CURRENT audit, never the snapshot\'s — the trail is append-only', () => {
+    const out = applyUndo(state(), undoAudit);
+    expect(out.data.audit).toHaveLength(3);
+    expect(out.data.audit[0]).toBe(undoAudit);
+    expect(out.data.audit[1].summary).toBe('deleted');
+    expect(out.data.audit[2].summary).toBe('created');
+  });
+
+  it('moves the current state onto the redo stack', () => {
+    const out = applyUndo(state(), undoAudit);
+    expect(out.past).toHaveLength(0);
+    expect(out.future).toHaveLength(1);
+    expect(out.future[0].label).toBe('Deleted expense');
+    expect(out.future[0].snapshot).toBe(after);
+  });
+
+  it('returns null when there is nothing to undo', () => {
+    expect(applyUndo({ data: after, ...emptyStacks() }, undoAudit)).toBe(null);
+  });
+});
+
+describe('applyRedo', () => {
+  const before = store({ transactions: [{ id: 't1' }], audit: [auditRow('created')] });
+  const after = store({ transactions: [], audit: [auditRow('deleted'), auditRow('created')] });
+
+  it('reapplies the undone state and keeps the audit growing', () => {
+    const undone = applyUndo({ data: after, ...recordChange(emptyStacks(), before, 'Deleted expense') }, undoAudit);
+    const out = applyRedo(undone, redoAudit);
+    expect(out.data.transactions).toBe(after.transactions);
+    expect(out.data.audit).toHaveLength(4);
+    expect(out.data.audit[0]).toBe(redoAudit);
+    expect(out.past).toHaveLength(1);
+    expect(out.future).toHaveLength(0);
+  });
+
+  it('returns null when there is nothing to redo', () => {
+    expect(applyRedo({ data: after, ...emptyStacks() }, redoAudit)).toBe(null);
+  });
+});
+
+describe('the audit trail never shrinks', () => {
+  it('grows by one on every undo and redo, through any sequence', () => {
+    const v0 = store({ transactions: [], audit: [auditRow('a0')] });
+    const v1 = store({ transactions: [{ id: 't1' }], audit: [auditRow('a1'), auditRow('a0')] });
+    let s = { data: v1, ...recordChange(emptyStacks(), v0, 'added') };
+    let len = s.data.audit.length;
+    for (let i = 0; i < 6; i++) {
+      const step = i % 2 === 0
+        ? applyUndo(s, { ...undoAudit, id: 'u' + i })
+        : applyRedo(s, { ...redoAudit, id: 'r' + i });
+      expect(step).not.toBe(null);
+      expect(step.data.audit.length).toBe(len + 1);
+      len = step.data.audit.length;
+      s = step;
+    }
+  });
+});
+
+describe('labels for the buttons', () => {
+  it('names the step each button would take', () => {
+    const s = recordChange(emptyStacks(), store(), 'Deleted expense of 5000');
+    expect(undoLabel(s)).toBe('Deleted expense of 5000');
+    expect(redoLabel(s)).toBe(null);
+  });
+  it('is null when a stack is empty', () => {
+    expect(undoLabel(emptyStacks())).toBe(null);
+    expect(redoLabel(emptyStacks())).toBe(null);
   });
 });
