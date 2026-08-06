@@ -37,7 +37,7 @@ export default function PositionStrip() {
   return (
     <>
       <section aria-label="Current position" style={{ ...card, padding: '20px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 1fr', gap: 20, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 20, alignItems: 'start' }}>
           <div>
             <div style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>Total bank balance</div>
             <div className="tnum" style={{ fontSize: 31, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 4 }}>{money(M.totalBank)}</div>
@@ -46,8 +46,6 @@ export default function PositionStrip() {
           {[
             ['Start of month', money(M.opening), snapStatusLabel, null],
             ['Change since start', moneyS(M.change), 'vs opening', changeColor],
-            ['Card liability', money(M.cardLiability), 'outstanding on credit cards', null],
-            ['Net worth', money(M.netWorth), 'bank − card liability', null],
           ].map(([label, val, sub, color]) => (
             <div key={label} style={{ borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>{label}</div>

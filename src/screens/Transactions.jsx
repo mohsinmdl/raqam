@@ -46,7 +46,7 @@ const COLUMNS = [
   { key: 'date', label: 'DATE', width: 96 },
   { key: 'details', label: 'DETAILS', width: null },
   { key: 'category', label: 'CATEGORY', width: 150 },
-  { key: 'account', label: 'ACCOUNT / CARD', width: 150 },
+  { key: 'account', label: 'ACCOUNT', width: 150 },
   { key: 'status', label: 'STATUS', width: 96 },
   // altKeys: the signed sort has no header of its own, so AMOUNT stays lit
   // while it drives the order — the reader can always see which column owns

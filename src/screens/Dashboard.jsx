@@ -29,7 +29,7 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   const netColor = M.net > 0 ? 'var(--pos)' : M.net < 0 ? 'var(--neg)' : 'var(--text)';
   v.sumCards = [
     { label: 'Income', val: money(M.income), color: 'var(--text)', sub: C.monthLabel(month) },
-    { label: 'Expenses', val: money(M.expenses), color: 'var(--text)', sub: 'incl. card purchases' },
+    { label: 'Expenses', val: money(M.expenses), color: 'var(--text)', sub: 'incl. transfer fees' },
     { label: 'Net cash flow', val: moneyS(M.net), color: netColor, sub: 'income − expenses' },
     { label: 'Savings', val: money(M.savings), color: 'var(--text)', sub: M.net < 0 ? 'overspent this month' : 'set aside so far' },
     { label: 'Savings rate', val: M.rate == null ? '—' : C.fmtPct(M.rate), color: M.rate != null && M.rate < 0 ? 'var(--neg)' : 'var(--text)', sub: M.rate == null ? 'no income recorded' : 'of income' },

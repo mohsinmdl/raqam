@@ -7,11 +7,9 @@ const ROWS = [
   { term: 'Total bank balance', def: 'Sum of every active account: confirmed opening balance + this month’s cleared activity. Archived accounts are excluded.' },
   { term: 'Start of month', def: 'Your monthly opening snapshot — the combined balance you confirmed at the start of the month. Immutable once confirmed; corrections are versioned.' },
   { term: 'Change since start', def: 'Total bank balance − start-of-month balance.' },
-  { term: 'Income / Expenses', def: 'Cleared income transactions; cleared expenses include card purchases and transfer fees, minus refunds. Transfers and credit-card payments are never counted.' },
+  { term: 'Income / Expenses', def: 'Cleared income transactions; cleared expenses include transfer fees, minus refunds. Transfers themselves are never counted as spending.' },
   { term: 'Net cash flow', def: 'Income − expenses for the month. Negative means you spent more than you earned.' },
   { term: 'Savings & savings rate', def: 'Savings = net cash flow when positive. Savings rate = net cash flow ÷ income (shown as — when there is no income).' },
-  { term: 'Card liability', def: 'Each credit card’s opening outstanding + purchases − payments and refunds. Purchases never reduce a bank balance until you pay the bill.' },
-  { term: 'Net worth', def: 'Total bank balance − card liability. Investments will be added here when investment tracking arrives.' },
   { term: 'Pending', def: 'Pending transactions are shown in lists but excluded from every total until cleared.' },
 ];
 
