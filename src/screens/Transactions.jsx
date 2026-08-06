@@ -16,6 +16,7 @@ import { deleteTransactions, setTransactionsCategory, setTransactionsStatus, ski
 import RowMenu from '../ui/RowMenu.jsx';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
+import PositionStrip from '../components/PositionStrip.jsx';
 
 const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: 'all', impact: 'all', min: '', max: '' };
 const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
@@ -227,6 +228,7 @@ export default function Transactions() {
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
+        <PositionStrip />
         <section aria-label="Filters" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative' }}>

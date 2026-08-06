@@ -7,7 +7,7 @@ import { useMoney } from '../lib/format.js';
 import * as C from '../lib/calc.js';
 import { nowIso, todayStr } from '../lib/dates.js';
 import { txRowOf, freshInfo, instName, setupState } from '../lib/txRow.js';
-import ExplainDialog from '../ui/ExplainDialog.jsx';
+import PositionStrip from '../components/PositionStrip.jsx';
 import FirstUse from './FirstUse.jsx';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
@@ -26,14 +26,6 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   const v = { M, activeAccts };
   v.snapshotPending = !isPast && activeAccts.length > 0 && S.snapshots.some(s => s.month === month && s.status === 'pending') && !snapDismissed;
   v.snapBannerTitle = 'Review your opening balances for ' + C.monthLabel(month) + '.';
-  v.mTotalBank = money(M.totalBank); v.mOpening = money(M.opening);
-  v.mChange = moneyS(M.change); v.mChangeColor = M.change > 0 ? 'var(--pos)' : M.change < 0 ? 'var(--neg)' : 'var(--muted)';
-  v.mLiability = money(M.cardLiability); v.mNetWorth = money(M.netWorth);
-  v.posAsOf = 'across ' + activeAccts.length + (activeAccts.length === 1 ? ' account' : ' accounts');
-  const confirmed = S.snapshots.some(s => s.month === month && s.status === 'confirmed');
-  v.snapStatusLabel = activeAccts.length === 0 ? 'no accounts yet' : confirmed ? 'confirmed snapshot' : 'snapshot pending review';
-  v.hasPendingNote = M.pendingCount > 0;
-  v.pendingNote = M.pendingCount + ' pending transaction' + (M.pendingCount === 1 ? '' : 's') + ' (' + money(M.pendingTotal) + ') excluded until cleared';
   const netColor = M.net > 0 ? 'var(--pos)' : M.net < 0 ? 'var(--neg)' : 'var(--text)';
   v.sumCards = [
     { label: 'Income', val: money(M.income), color: 'var(--text)', sub: C.monthLabel(month) },
@@ -62,7 +54,6 @@ export default function Dashboard() {
   const { money, moneyS, masked } = fmt;
   const nav = useNavigate();
   const { openDrawer } = useDrawer();
-  const [explain, setExplain] = useState(false);
   const [snapDismissed, setSnapDismissed] = useState(false);
   const now = nowIso();
 
@@ -149,31 +140,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        <section aria-label="Current position" style={{ ...card, padding: '20px 24px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 1fr', gap: 20, alignItems: 'start' }}>
-            <div>
-              <div style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>Total bank balance</div>
-              <div className="tnum" style={{ fontSize: 31, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 4 }}>{v.mTotalBank}</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{v.posAsOf}</div>
-            </div>
-            {[
-              ['Start of month', v.mOpening, v.snapStatusLabel, null],
-              ['Change since start', v.mChange, 'vs opening', v.mChangeColor],
-              ['Card liability', v.mLiability, 'outstanding on credit cards', null],
-              ['Net worth', v.mNetWorth, 'bank − card liability', null],
-            ].map(([label, val, sub, color]) => (
-              <div key={label} style={{ borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
-                <div style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>{label}</div>
-                <div className="tnum" style={{ fontSize: 18, fontWeight: 600, marginTop: 6, color: color || 'var(--text)' }}>{val}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{sub}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-            <button onClick={() => setExplain(true)} className="hv-accent-fg" style={linkBtn}>How these are calculated</button>
-            {v.hasPendingNote && <span style={{ fontSize: 12, color: 'var(--warn)', fontWeight: 500 }}>{v.pendingNote}</span>}
-          </div>
-        </section>
+        <PositionStrip />
 
         <section aria-label="Monthly summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
           {v.sumCards.map(s => (
@@ -402,7 +369,6 @@ export default function Dashboard() {
         </section>
       </div>
 
-      <ExplainDialog open={explain} onClose={() => setExplain(false)} />
     </div>
   );
 }
