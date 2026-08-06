@@ -19,8 +19,8 @@ import RowMenu from '../ui/RowMenu.jsx';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
 import PositionStrip from '../components/PositionStrip.jsx';
+import SearchField from '../ui/SearchField.jsx';
 
-const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
 // Sticky against <main>'s scroll. No overflow is introduced here — the section
 // deliberately has none, because it would clip the per-row ⋯ menu. z-index sits
 // below RowMenu's 30 so an open menu still passes over the header.
@@ -242,7 +242,6 @@ export default function Transactions() {
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const reset = () => resetView();
-  const removeChip = k => setF(k, DEFAULT_FILTERS[k]);
 
   const monthTx = S.transactions.filter(t => inRange(t, range.from, range.to));
   const q = F.q.trim().toLowerCase();
@@ -381,36 +380,22 @@ export default function Transactions() {
     afterBulk('Deleted ' + sel.length + '.', data => deleteTransactions(data, { ids: sel }));
   };
 
-  const chips = [];
-  if (q) chips.push({ k: 'q', label: '“' + F.q + '”' });
-
   const addDisabled = S.accounts.filter(a => a.status === 'active').length === 0;
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
-        <PositionStrip />
-        <section aria-label="Filters" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <input aria-label="Search transactions" placeholder="Search merchant, notes, category…" value={F.q} onChange={e => setF('q', e.target.value)} style={{ ...selStyle, flex: 2, minWidth: 220, padding: '0 12px' }} />
-            {/* Search is deliberately the only filter here. The others moved out
-                to where the question is actually asked: account to the sidebar,
-                category to the Categories screen, budget impact to Budgets.
-                Type returns with the reporting module; status was dropped
-                because the Status column sorts. Reset still clears the range
-                and sort, so it earns its place with one filter. */}
-            <button onClick={reset} className="hv-text" style={{ height: 36, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>Reset</button>
-          </div>
-          {chips.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }} aria-label="Active filters">
-              {chips.map(c => (
-                <button key={c.k} onClick={() => removeChip(c.k)} title="Remove filter" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', border: 'none', borderRadius: 999, background: 'var(--soft)', color: 'var(--accent-h)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                  {c.label}<span aria-hidden="true">×</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
+        {/* Search is the screen's only filter, so it rides in the position
+            strip's footer rather than owning a bar of its own. The field
+            collapses to an icon until focused — see SearchField. */}
+        <PositionStrip trailing={
+          <SearchField
+            value={F.q}
+            onChange={v => setF('q', v)}
+            placeholder="Search All Accounts"
+            label="Search transactions"
+          />
+        } />
 
         <BulkBar
           count={sel.length}
