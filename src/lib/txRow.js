@@ -64,6 +64,45 @@ export function txRowOf(t, S, fmt, forAccountId) {
   };
 }
 
+// "6 Mar" is unambiguous inside a month view, which is all dayLabel was ever
+// asked for. The scheduled group reads forward across years, where a bare
+// "6 Mar" is indistinguishable from a date that has already passed — so out-of-
+// year dates carry the year.
+export function withYear(iso, now) {
+  return dayLabel(iso) + (iso.slice(0, 4) === now.slice(0, 4) ? '' : ' ' + iso.slice(0, 4));
+}
+
+// The forward-looking counterpart to timeLabel. A clock time answers "when
+// today", which is the wrong question for a row that has not happened yet —
+// and it was the only cue on a future transaction, leaving it the one row in
+// the group with nothing marking it as still to come.
+export function untilLabel(iso, now) {
+  const d = daysUntil(iso, now);
+  if (d <= 0) return 'Later today';
+  return d === 1 ? 'Tomorrow' : 'In ' + d + ' days';
+}
+
+// A future-dated transaction wearing the scheduled group's clothes. It is a
+// real row — selectable, editable, counted — but "Cleared" directly contradicts
+// the group heading it sits under, so the pill reports its position in time
+// rather than its reconciliation state.
+//
+// A cleared future date is not merely a display quirk: accountDelta has no date
+// guard, so that money has already left the balance months early. Until that is
+// decided, the pill says so on hover rather than silently swallowing it.
+export function futureTxRowOf(t, S, fmt, now) {
+  const row = txRowOf(t, S, fmt);
+  return {
+    ...row, isFuture: true,
+    dateLabel: withYear(t.date, now),
+    timeLabel: untilLabel(t.date, now),
+    stLabel: 'Scheduled', stBg: 'var(--info-soft)', stFg: 'var(--info)',
+    stTitle: t.status === 'cleared'
+      ? 'Dated ahead, but marked cleared — it is already counted in your balances.'
+      : 'Dated ahead — not counted until it clears.',
+  };
+}
+
 // A recurring rule presented as a table row, deliberately field-for-field
 // compatible with txRowOf so the Scheduled group reuses the same cells instead
 // of forking the table. The Dashboard's rule shape ({id, name, when, amt}) is
@@ -78,7 +117,7 @@ export function ruleRowOf(r, S, fmt, now) {
   const overdue = daysUntil(r.nextDate, now) < 0;
   return {
     key: 'rule:' + r.id, ruleId: r.id, isRule: true, isOverdue: overdue, sortKey: r.nextDate,
-    dateLabel: dayLabel(r.nextDate), timeLabel: ruleDueLabel(r, now),
+    dateLabel: withYear(r.nextDate, now), timeLabel: ruleDueLabel(r, now),
     merchant: r.name, notes: '', hasNotes: false,
     hasChip: false, chip: null, chipBg: '', chipFg: '', chipIcon: null, transferOther: null,
     isRepeating: true,
@@ -91,6 +130,7 @@ export function ruleRowOf(r, S, fmt, now) {
     stLabel: overdue ? 'Overdue' : 'Scheduled',
     stBg: overdue ? 'var(--neg-soft)' : 'var(--info-soft)',
     stFg: overdue ? 'var(--neg)' : 'var(--info)',
+    stTitle: overdue ? 'This was due and has not been recorded yet.' : 'A reminder — nothing is recorded until you record it.',
     rowOpacity: '1', isPending: false, canEdit: false, canRepeat: false,
     edited: false, editedLabel: '', excluded: false, excludedLabel: '',
   };
@@ -114,7 +154,7 @@ export function txGroups(list, S, fmt, now, range, anyFilter) {
   const ruleRows = anyFilter ? [] : scheduledRules(S, range.from, range.to, now).map(r => ruleRowOf(r, S, fmt, now));
   const scheduled = ruleRows
     .map(row => ({ row, at: row.sortKey }))
-    .concat(futureTx.map(t => ({ row: txRowOf(t, S, fmt), at: t.date, selId: t.id })))
+    .concat(futureTx.map(t => ({ row: futureTxRowOf(t, S, fmt, now), at: t.date, selId: t.id })))
     .sort((a, b) => a.at.localeCompare(b.at));
   return {
     scheduled, futureTx, postedTx,

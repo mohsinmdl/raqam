@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { scheduledRules, sourceLabel } from '../src/lib/schedule.js';
-import { ruleRowOf, txGroups } from '../src/lib/txRow.js';
+import { futureTxRowOf, ruleRowOf, txGroups, txRowOf } from '../src/lib/txRow.js';
 
 const NOW = '2026-08-06T10:00';
 
@@ -209,5 +209,64 @@ describe('txGroups', () => {
     expect(g.scheduled).toEqual([]);
     expect(g.postedRows).toEqual([]);
     expect(g.overdueCount).toBe(0);
+  });
+});
+
+// --- reading a future row correctly -----------------------------------------
+describe('future-dated transaction presentation', () => {
+  // The real row that prompted this: dated 6 Mar 2027, marked cleared, and
+  // rendering as "6 Mar / 7:26 am / Cleared" — three cues all saying "past".
+  const water = tx({ id: 'w', date: '2027-03-06T07:26', status: 'cleared', merchant: 'Water' });
+
+  it('carries the year when the date is not in the current year', () => {
+    const row = futureTxRowOf(water, store(), fmt, NOW);
+    expect(row.dateLabel).toBe('6 Mar 2027');
+  });
+
+  it('leaves the year off inside the current year', () => {
+    expect(futureTxRowOf(tx({ date: '2026-08-30T09:00' }), store(), fmt, NOW).dateLabel).toBe('30 Aug');
+  });
+
+  it('replaces the clock time with how far off it is', () => {
+    expect(futureTxRowOf(water, store(), fmt, NOW).timeLabel).toBe('In 212 days');
+    expect(futureTxRowOf(tx({ date: '2026-08-07T09:00' }), store(), fmt, NOW).timeLabel).toBe('Tomorrow');
+    expect(futureTxRowOf(tx({ date: '2026-08-06T23:00' }), store(), fmt, NOW).timeLabel).toBe('Later today');
+  });
+
+  it('says Scheduled, not Cleared — the group heading says nothing has been spent', () => {
+    const row = futureTxRowOf(water, store(), fmt, NOW);
+    expect(row.stLabel).toBe('Scheduled');
+    expect(row.stFg).toBe('var(--info)');
+  });
+
+  it('admits on hover that a cleared future row already moves the balance', () => {
+    expect(futureTxRowOf(water, store(), fmt, NOW).stTitle).toMatch(/already counted/);
+    expect(futureTxRowOf(tx({ date: '2027-03-06T07:26', status: 'pending' }), store(), fmt, NOW).stTitle).toMatch(/not counted until/);
+  });
+
+  it('stays a real transaction — selectable, editable, same id and amount', () => {
+    const row = futureTxRowOf(water, store(), fmt, NOW);
+    expect(row.id).toBe('w');
+    expect(row.canEdit).toBe(true);
+    expect(row.amtLabel).toBe(txRowOf(water, store(), fmt).amtLabel);
+  });
+
+  it('gives rules the year too, so the two row kinds read alike', () => {
+    expect(ruleRowOf(rule({ nextDate: '2027-04-06' }), store(), fmt, NOW).dateLabel).toBe('6 Apr 2027');
+    expect(ruleRowOf(rule({ nextDate: '2026-08-20' }), store(), fmt, NOW).dateLabel).toBe('20 Aug');
+  });
+
+  it('reaches the table through txGroups, not just in isolation', () => {
+    const g = txGroups([water], store({ recurring: [] }), fmt, NOW, { from: null, to: null }, false);
+    expect(g.scheduled[0].row.dateLabel).toBe('6 Mar 2027');
+    expect(g.scheduled[0].row.stLabel).toBe('Scheduled');
+    expect(g.postedRows).toEqual([]);
+  });
+
+  it('leaves recorded rows exactly as they were — clock time and true status', () => {
+    const g = txGroups([tx({ id: 'p', date: '2026-08-05T12:00' })], store({ recurring: [] }), fmt, NOW, { from: null, to: null }, false);
+    expect(g.postedRows[0].stLabel).toBe('Cleared');
+    expect(g.postedRows[0].timeLabel).toBe('12:00 pm');
+    expect(g.postedRows[0].dateLabel).toBe('5 Aug');
   });
 });
