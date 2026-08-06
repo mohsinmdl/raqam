@@ -22,6 +22,10 @@ const stripNulls = o => {
 
 // Exported so the sync-contract tests can assert each mapper's column set and
 // round-trip stability directly, rather than inferring them from a diff.
+// Bounded so a years-old ledger does not load its entire history at startup.
+// 300 covers a heavy user's recent past; older rows stay on the server.
+export const AUDIT_FETCH_LIMIT = 300;
+
 export const COLLECTIONS = [
   {
     name: 'institutions', table: 'institutions', keyOf: r => r.id,
@@ -175,16 +179,26 @@ export const COLLECTIONS = [
     }),
   },
   {
-    // Append-only: the differ computes adds only (never changed/deletes), the
-    // server RLS has no update/delete policies, and hydrate never fetches it —
-    // only rows created this session are pushed.
+    // Append-only: the differ computes adds only (never changed/deletes), and
+    // the server RLS has no update/delete policies. It IS fetched now — the
+    // Recent Moves panel needs history that outlives the session — but only
+    // the most recent rows, newest first, which is also the order the rest of
+    // the app assumes (actions prepend, and undo's labelFor reads audit[0]).
     name: 'audit', table: 'audit_log', keyOf: r => r.id,
-    appendOnly: true, skipFetch: true,
+    appendOnly: true,
+    fetchQuery: q => q.order('at', { ascending: false }).limit(AUDIT_FETCH_LIMIT),
     toRow: r => stripNulls({
       id: r.id, entity_type: r.entityType, entity_id: r.entityId, action: r.action,
       summary: r.summary || '', before: r.before ?? null, after: r.after ?? null, at: r.at,
     }),
-    fromRow: r => r, // never fetched
+    // Mirrors toRow exactly. It was a passthrough while audit was never
+    // fetched; leaving it so would hand the app snake_case rows that toRow
+    // then reads as undefined, pushing corrupt duplicates back to the server.
+    fromRow: r => ({
+      id: r.id, at: r.at, entityType: r.entity_type, entityId: r.entity_id,
+      action: r.action, summary: r.summary || '',
+      before: r.before ?? null, after: r.after ?? null,
+    }),
   },
 ];
 
@@ -200,7 +214,10 @@ const DELETE_ORDER = [...COLLECTIONS].reverse();
 export async function fetchAll() {
   const fetched = COLLECTIONS.filter(c => !c.skipFetch);
   const results = await Promise.all(
-    fetched.map(c => supabase.from(c.table).select('*'))
+    fetched.map(c => {
+      const q = supabase.from(c.table).select('*');
+      return c.fetchQuery ? c.fetchQuery(q) : q;
+    })
   );
   const store = {};
   COLLECTIONS.forEach(c => { if (c.skipFetch) store[c.name] = []; });
