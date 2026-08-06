@@ -77,6 +77,28 @@ export function clampRange(from, to) {
   return { from, to };
 }
 
+// Steps a range by whole months, keeping its width: Jan–Jun goes to Feb–Jul,
+// not to a single month. Only the bounds that exist move, so 'From Aug 2026'
+// stays open-ended.
+//
+// Returns null when the step is impossible, which is what disables the arrows.
+// Two reasons: 'All dates' has no bounds to move, and a step outside `years`
+// would put a value in the From/To selects with no matching <option> — the
+// exact failure yearOpts below exists to prevent.
+export function shiftRange(from, to, delta, years) {
+  if (!from && !to) return null;
+  const next = {
+    from: from ? addMonths(from, delta) : null,
+    to: to ? addMonths(to, delta) : null,
+  };
+  if (years && years.length) {
+    const lo = years[0], hi = years[years.length - 1];
+    const outside = ym => ym && (ym.slice(0, 4) < lo || ym.slice(0, 4) > hi);
+    if (outside(next.from) || outside(next.to)) return null;
+  }
+  return next;
+}
+
 // Every year the controls can land on. Last year is always included even with
 // no data there, because the "Last Year" preset selects it — otherwise the
 // select holds a value with no matching option and the browser silently

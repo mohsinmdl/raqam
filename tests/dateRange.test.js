@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  RANGE_PRESETS, rangeFor, inRange, presetOf, rangeLabel, clampRange, yearOpts,
+  RANGE_PRESETS, rangeFor, inRange, presetOf, rangeLabel, clampRange, yearOpts, shiftRange,
 } from '../src/lib/dateRange.js';
 
 const AUG = '2026-08';   // mid-year, nothing wraps
@@ -146,5 +146,58 @@ describe('yearOpts', () => {
         if (bound) expect(years).toContain(bound.slice(0, 4));
       }
     }
+  });
+});
+
+describe('shiftRange', () => {
+  const YEARS = ['2025', '2026', '2027'];
+
+  it('steps a single month', () => {
+    expect(shiftRange(AUG, AUG, 1, YEARS)).toEqual({ from: '2026-09', to: '2026-09' });
+    expect(shiftRange(AUG, AUG, -1, YEARS)).toEqual({ from: '2026-07', to: '2026-07' });
+  });
+
+  it('keeps the width of a multi-month span', () => {
+    // The whole point of the arrows: Jan-Jun must not collapse to one month.
+    expect(shiftRange('2026-01', '2026-06', 1, YEARS)).toEqual({ from: '2026-02', to: '2026-07' });
+    expect(shiftRange('2026-01', '2026-06', -1, YEARS)).toEqual({ from: '2025-12', to: '2026-05' });
+  });
+
+  it('carries a span across a year boundary', () => {
+    expect(shiftRange('2026-11', '2026-12', 1, YEARS)).toEqual({ from: '2026-12', to: '2027-01' });
+  });
+
+  it('moves only the bound that exists, so an open end stays open', () => {
+    expect(shiftRange(AUG, null, 1, YEARS)).toEqual({ from: '2026-09', to: null });
+    expect(shiftRange(null, AUG, 1, YEARS)).toEqual({ from: null, to: '2026-09' });
+  });
+
+  it('refuses to step All Dates — there is nothing to move', () => {
+    expect(shiftRange(null, null, 1, YEARS)).toBeNull();
+    expect(shiftRange(null, null, -1, YEARS)).toBeNull();
+  });
+
+  it('refuses a step past the selectable years, either end', () => {
+    // Landing outside `years` would leave the From/To selects showing a year
+    // they have no option for.
+    expect(shiftRange('2027-12', '2027-12', 1, YEARS)).toBeNull();
+    expect(shiftRange('2025-01', '2025-01', -1, YEARS)).toBeNull();
+    // A span is refused when EITHER end would leave the window, so it can
+    // never be silently truncated.
+    expect(shiftRange('2027-06', '2027-12', 1, YEARS)).toBeNull();
+    expect(shiftRange('2025-01', '2025-06', -1, YEARS)).toBeNull();
+  });
+
+  it('allows a step that stays inside the window', () => {
+    expect(shiftRange('2027-11', '2027-11', 1, YEARS)).toEqual({ from: '2027-12', to: '2027-12' });
+  });
+
+  it('is unbounded when no years are supplied', () => {
+    expect(shiftRange('2099-12', '2099-12', 1)).toEqual({ from: '2100-01', to: '2100-01' });
+  });
+
+  it('round-trips: stepping back undoes stepping forward', () => {
+    const r = shiftRange('2026-01', '2026-06', 1, YEARS);
+    expect(shiftRange(r.from, r.to, -1, YEARS)).toEqual({ from: '2026-01', to: '2026-06' });
   });
 });
