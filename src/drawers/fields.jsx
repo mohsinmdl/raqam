@@ -69,7 +69,7 @@ export function TextAreaField({ id, field, rows = 2 }) {
 // Pill toggle pair/group (tx type, cleared/pending, conventional/islamic).
 export function Pill({ on, warn, onClick, children }) {
   const bg = on ? (warn ? 'var(--warn)' : 'var(--accent)') : 'var(--surface)';
-  const fg = on ? (warn ? '#fff' : 'var(--on-accent)') : 'var(--muted)';
+  const fg = on ? (warn ? 'var(--on-warn)' : 'var(--on-accent)') : 'var(--muted)';
   const br = on ? (warn ? 'var(--warn)' : 'var(--accent)') : 'var(--border)';
   return (
     <button onClick={onClick} aria-pressed={String(on)} style={{ height: 30, padding: '0 12px', border: `1px solid ${br}`, borderRadius: 999, background: bg, color: fg, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>

@@ -1,26 +1,31 @@
 /* Raqam theme — ported from the Hisaab design prototype (template <helmet> styles). */
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
-body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
-a { color: #0F766E; }
-a:hover { color: #115E59; }
+body { font-family: 'IBM Plex Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+a { color: var(--accent); }
+a:hover { color: var(--accent-h); }
 button { font-family: inherit; }
 input, select, textarea { font-family: inherit; color: inherit; }
-:focus-visible { outline: 2px solid #0F766E; outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 :root {
   --bg: #F7F7F3; --surface: #FFFFFF; --elev: #FCFCFA; --text: #14201B; --muted: #66736C;
   --accent: #0F766E; --accent-h: #115E59; --on-accent: #FFFFFF; --soft: #DDF3EC; --border: #DCE4DF;
   --pos: #15803D; --warn: #B7791F; --neg: #C2413B; --info: #2563EB;
   --pos-soft: #E3F2E7; --warn-soft: #F6ECD9; --neg-soft: #F8E4E2; --info-soft: #E3EBFC;
+  --on-neg: #FFFFFF; --on-warn: #FFFFFF;
   --shadow: 0 12px 32px rgba(10, 20, 16, .18); --track: #ECEFEA;
+  --scrim: rgba(8, 16, 13, .44);
 }
 [data-theme="dark"] {
   --bg: #0F1513; --surface: #161D1A; --elev: #1C2420; --text: #E9F0EC; --muted: #9AABA2;
   --accent: #3CBFAB; --accent-h: #5ED3C0; --on-accent: #06211D; --soft: #15302B; --border: #28332E;
   --pos: #5BBE7E; --warn: #D9A852; --neg: #E37A72; --info: #7FA7F2;
   --pos-soft: #12291A; --warn-soft: #2E2412; --neg-soft: #331715; --info-soft: #16233D;
+  /* dark --neg/--warn are light tints, so text on them must be dark */
+  --on-neg: #2A100E; --on-warn: #2E2412;
   --shadow: 0 12px 32px rgba(0, 0, 0, .5); --track: #232B27;
+  --scrim: rgba(0, 0, 0, .62);
 }
 
 @keyframes hsFade { from { opacity: 0; } to { opacity: 1; } }

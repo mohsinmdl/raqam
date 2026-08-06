@@ -1,5 +1,5 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { StoreProvider, useStore } from './store/StoreProvider.jsx';
+import { StoreProvider } from './store/StoreProvider.jsx';
 import ImportLegacy from './components/ImportLegacy.jsx';
 import { PrefsProvider } from './store/PrefsProvider.jsx';
 import { AuthProvider, useAuth } from './auth/AuthProvider.jsx';
@@ -24,10 +24,8 @@ import Recurring from './screens/Recurring.jsx';
 import RecurringDetail from './screens/RecurringDetail.jsx';
 
 function Shell() {
-  const { prefs } = useStore();
   return (
     <div
-      data-theme={prefs.theme}
       style={{
         display: 'grid', gridTemplateColumns: '236px minmax(0,1fr)', height: '100vh',
         background: 'var(--bg)', color: 'var(--text)',
