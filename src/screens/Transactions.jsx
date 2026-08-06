@@ -12,7 +12,7 @@ import { txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
 import { advanceDue, longDate, ruleFromTx } from '../lib/schedule.js';
-import { deleteTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
+import { deleteRule, deleteTransaction, deleteTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import RowMenu from '../ui/RowMenu.jsx';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
@@ -22,7 +22,6 @@ const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: '
 const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
 const th = { textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)' };
 const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' };
-const rowBtn = { height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', flex: 'none' };
 
 export default function Transactions() {
   const { data: S, applyData } = useStore();
@@ -148,6 +147,39 @@ export default function Transactions() {
     if (!ok) return;
     applyData(data => postTransactionNow(data, { id: row.id, now: nowIso() }));
     notify('Posted — dated today and counted.');
+  };
+
+  // Mirrors the Recurring screen's wording: deleting a rule stops the reminders
+  // and leaves every transaction it has already created untouched.
+  const askDeleteRule = async row => {
+    const r = S.recurring.find(x => x.id === row.ruleId);
+    if (!r) return;
+    const n = (r.occurrences || []).filter(o => o.outcome === 'recorded').length;
+    const ok = await ask({
+      title: 'Delete this rule?',
+      body: '“' + r.name + '” stops reminding you. ' + (n > 0
+        ? 'The ' + n + ' transaction' + (n === 1 ? '' : 's') + ' it already created stay exactly as they are.'
+        : 'It has not created any transactions.'),
+      action: 'Delete rule',
+    });
+    if (!ok) return;
+    applyData(data => deleteRule(data, { id: r.id }));
+    notify('Rule deleted.');
+  };
+
+  const askDeleteTx = async row => {
+    const ok = await ask({
+      title: 'Delete this transaction?',
+      // A row still dated ahead is counted by nothing yet, so promising that
+      // balances will change would be untrue.
+      body: row.isFuture
+        ? '“' + row.merchant + '” is dated ' + row.dateLabel + ' and is not counted in any balance yet, so nothing recalculates. This cannot be undone.'
+        : '“' + row.merchant + '” is removed from every balance and total that counted it. This cannot be undone.',
+      action: 'Delete',
+    });
+    if (!ok) return;
+    applyData(data => deleteTransaction(data, { id: row.id }));
+    notify('Transaction deleted.');
   };
 
   const afterBulk = (msg, next) => { applyData(next); clearSel(); notify(msg); };
@@ -381,27 +413,39 @@ export default function Transactions() {
                       hiddenRuleCount > 0 ? hiddenRuleCount + ' more later' : null,
                     ].filter(Boolean).join(' · ')}
                   />
-                  {/* Every scheduled row is the same shape — no checkbox, two
-                      ghost buttons — so the group reads as one list. The verbs
-                      differ because the rows genuinely differ: a reminder has
-                      nothing recorded yet, a future transaction already exists
-                      and is only waiting for its date. */}
-                  {schedOpen && scheduled.map(x => (
-                    <Row
-                      key={x.row.key || x.row.id} t={x.row}
-                      actions={x.row.isRule ? (
-                        <>
-                          <button onClick={() => openers.recordRule(S, x.row.ruleId, openDrawer)} className="hv-soft" style={{ ...rowBtn, color: 'var(--accent)' }}>Record</button>
-                          <button onClick={() => askSkip(x.row)} className="hv-soft" style={{ ...rowBtn, color: 'var(--muted)' }}>Skip</button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => askPostNow(x.row)} className="hv-soft" style={{ ...rowBtn, color: 'var(--accent)' }}>Post now</button>
-                          <button onClick={() => openers.editTx(S, x.selId, openDrawer)} className="hv-soft" style={{ ...rowBtn, color: 'var(--muted)' }}>Edit</button>
-                        </>
-                      )}
-                    />
-                  ))}
+                  {/* Every row in the table — scheduled or recorded — carries the
+                      same single ⋯ control, so the action column is one fixed
+                      width and the verbs live in one place. Only the contents of
+                      the menu differ, because the rows genuinely differ: a
+                      reminder has nothing recorded yet, a future transaction
+                      already exists and is only waiting for its date. */}
+                  {schedOpen && scheduled.map(x => {
+                    const key = x.selId || x.row.key;
+                    return (
+                      <Row
+                        key={key} t={x.row}
+                        actions={(
+                          <RowMenu
+                            open={menuOpen === key}
+                            onToggle={() => setMenuOpen(menuOpen === key ? null : key)}
+                            onClose={() => setMenuOpen(null)}
+                            label={'Actions for ' + x.row.merchant}
+                            items={x.row.isRule ? [
+                              { label: 'Record…', onClick: () => openers.recordRule(S, x.row.ruleId, openDrawer) },
+                              { label: 'Skip this one', onClick: () => askSkip(x.row) },
+                              { divider: true },
+                              { label: 'Delete rule', onClick: () => askDeleteRule(x.row), tone: 'neg' },
+                            ] : [
+                              { label: 'Post now', onClick: () => askPostNow(x.row) },
+                              { label: 'Edit', onClick: () => openers.editTx(S, x.selId, openDrawer) },
+                              { divider: true },
+                              { label: 'Delete', onClick: () => askDeleteTx(x.row), tone: 'neg' },
+                            ]}
+                          />
+                        )}
+                      />
+                    );
+                  })}
                 </tbody>
               )}
               <tbody>
@@ -416,16 +460,23 @@ export default function Transactions() {
                 {postedShown && postedRows.map(t => (
                   <Row
                     key={t.id} t={t} selId={t.id}
-                    actions={(t.canEdit || (t.canRepeat && !ruleFromTx(S, t.id))) && (
+                    actions={(
                       <RowMenu
                         open={menuOpen === t.id}
                         onToggle={() => setMenuOpen(menuOpen === t.id ? null : t.id)}
                         onClose={() => setMenuOpen(null)}
-                        label="Actions for this transaction"
-                        items={[
-                          t.canEdit && { label: 'Edit', onClick: () => openers.editTx(S, t.id, openDrawer) },
-                          t.canRepeat && !ruleFromTx(S, t.id) && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, t.id, openDrawer) },
-                        ]}
+                        label={'Actions for ' + t.merchant}
+                        // Delete is always offered — a card correction cannot be
+                        // edited, but it can be removed, and this menu is the only
+                        // way to reach that for a single row. The divider only
+                        // appears when something sits above it.
+                        items={(() => {
+                          const above = [
+                            t.canEdit && { label: 'Edit', onClick: () => openers.editTx(S, t.id, openDrawer) },
+                            t.canRepeat && !ruleFromTx(S, t.id) && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, t.id, openDrawer) },
+                          ].filter(Boolean);
+                          return [...above, above.length > 0 && { divider: true }, { label: 'Delete', onClick: () => askDeleteTx(t), tone: 'neg' }];
+                        })()}
                       />
                     )}
                   />
