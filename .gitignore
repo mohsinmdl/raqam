@@ -20,5 +20,12 @@ key
 # Local database dump produced by scripts/raqam-dump.sh — every user's rows.
 .raqam-dump/
 
+# Claude Code local state. Worktrees are full checkouts containing a .git
+# file, so `git add .` stages them as gitlinks — broken submodule references
+# that point at nothing for anyone else. settings.local.json is per-machine by
+# name. Skills are left tracked-if-you-add-them, deliberately.
+.claude/worktrees/
+.claude/settings.local.json
+
 # Supabase CLI local state
 supabase/.temp/
