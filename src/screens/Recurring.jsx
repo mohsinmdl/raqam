@@ -34,6 +34,78 @@ const gridCols = { display: 'grid', gridTemplateColumns: 'minmax(0,1.8fr) minmax
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const btn = { height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', flex: 'none' };
 
+// Module scope, not inside Recurring(): a component redefined on every render
+// gets a new function identity, so React remounts the whole list instead of
+// updating it — which resets the scroll position and closes anything open.
+// Row needs a lot of the screen's state, so it arrives as one `ctx` object
+// rather than a dozen props; destructuring it here documents the dependency
+// list in one place.
+function Row({ r, status, ctx }) {
+  const { S, now, money, menuOpen, setMenuOpen, navigate, openDrawer, skip, remove, togglePause } = ctx;
+    const cat = catById(S, r.category);
+    const actionable = status === 'overdue' || status === 'due' || status === 'later';
+    const dueColor = status === 'overdue' ? 'var(--neg)' : status === 'due' ? 'var(--warn)' : 'var(--muted)';
+    return (
+      <div
+        role="button" tabIndex={0}
+        onClick={() => navigate('/recurring/' + r.id)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/recurring/' + r.id); } }}
+        className="hv-elev"
+        style={{ ...gridCols, alignItems: 'center', padding: '11px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <span style={{ flex: 'none', width: 22, height: 22, ...iconStyle(cat?.icon, cat?.color) }} />
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 500, minWidth: 0 }}>
+              <RepeatIcon size={11} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+            </span>
+            <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{freqLabel(r.schedule)}</span>
+          </span>
+        </span>
+        <span style={{ fontSize: 12.5, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sourceLabel(S, r)}</span>
+        <span>
+          <span style={{ display: 'block', fontSize: 12.5, color: dueColor, fontWeight: status === 'overdue' ? 600 : 400 }}>
+            {status === 'paused' ? 'Paused' : status === 'ended' ? 'Ended' : ruleDueLabel(r, now)}
+          </span>
+          <span className="tnum" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{longDate(r.nextDate, now)}</span>
+        </span>
+        <span style={{ textAlign: 'right' }}>
+          <span className="tnum" style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: r.type === 'income' ? 'var(--pos)' : 'var(--text)' }}>
+            {(r.estimated ? '~' : '') + money(r.amount)}
+          </span>
+          <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)' }}>{(r.type === 'income' ? 'in' : 'out') + (r.estimated ? ' · varies' : '')}</span>
+        </span>
+        <span onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          {actionable && (
+            <>
+              <button onClick={() => openers.recordRule(S, r.id, openDrawer)} className="hv-soft" style={{ ...btn, color: 'var(--accent)' }}>Record</button>
+              <button onClick={() => skip(r)} className="hv-soft" style={{ ...btn, color: 'var(--muted)' }}>Skip</button>
+            </>
+          )}
+          {status === 'paused' && (
+            <button onClick={() => togglePause(r)} className="hv-soft" style={{ ...btn, color: 'var(--accent)' }}>Resume</button>
+          )}
+        </span>
+        <span onClick={e => e.stopPropagation()} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <RowMenu
+            open={menuOpen === r.id}
+            onToggle={() => setMenuOpen(menuOpen === r.id ? null : r.id)}
+            onClose={() => setMenuOpen(null)}
+            label={'Actions for ' + r.name}
+            items={[
+              { label: 'View history', onClick: () => navigate('/recurring/' + r.id) },
+              { label: 'Edit rule', onClick: () => openers.editRule(S, r.id, openDrawer) },
+              ...(actionable ? [{ label: 'Record now', onClick: () => openers.recordRule(S, r.id, openDrawer) }, { label: 'Skip this one', onClick: () => skip(r) }] : []),
+              ...(status !== 'ended' ? [{ label: r.status === 'paused' ? 'Resume rule' : 'Pause rule', onClick: () => togglePause(r) }] : []),
+              { label: 'Delete rule', onClick: () => remove(r), tone: 'neg', divider: true },
+            ]}
+          />
+        </span>
+      </div>
+    );
+}
+
 export default function Recurring() {
   const { data: S, applyData } = useStore();
   const { money } = useMoney();
@@ -81,70 +153,9 @@ export default function Recurring() {
     notify(r.status === 'paused' ? '“' + r.name + '” resumed.' : '“' + r.name + '” paused — no more reminders until you resume it.');
   };
 
-  const Row = ({ r, status }) => {
-    const cat = catById(S, r.category);
-    const actionable = status === 'overdue' || status === 'due' || status === 'later';
-    const dueColor = status === 'overdue' ? 'var(--neg)' : status === 'due' ? 'var(--warn)' : 'var(--muted)';
-    return (
-      <div
-        role="button" tabIndex={0}
-        onClick={() => navigate('/recurring/' + r.id)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/recurring/' + r.id); } }}
-        className="hv-elev"
-        style={{ ...gridCols, alignItems: 'center', padding: '11px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <span style={{ flex: 'none', width: 22, height: 22, ...iconStyle(cat?.icon, cat?.color) }} />
-          <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 500, minWidth: 0 }}>
-              <RepeatIcon size={11} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-            </span>
-            <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{freqLabel(r.schedule)}</span>
-          </span>
-        </span>
-        <span style={{ fontSize: 12.5, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sourceLabel(S, r)}</span>
-        <span>
-          <span style={{ display: 'block', fontSize: 12.5, color: dueColor, fontWeight: status === 'overdue' ? 600 : 400 }}>
-            {status === 'paused' ? 'Paused' : status === 'ended' ? 'Ended' : ruleDueLabel(r, now)}
-          </span>
-          <span className="tnum" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{longDate(r.nextDate, now)}</span>
-        </span>
-        <span style={{ textAlign: 'right' }}>
-          <span className="tnum" style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: r.type === 'income' ? 'var(--pos)' : 'var(--text)' }}>
-            {(r.estimated ? '~' : '') + money(r.amount)}
-          </span>
-          <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)' }}>{(r.type === 'income' ? 'in' : 'out') + (r.estimated ? ' · varies' : '')}</span>
-        </span>
-        <span onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          {actionable && (
-            <>
-              <button onClick={() => openers.recordRule(S, r.id, openDrawer)} className="hv-soft" style={{ ...btn, color: 'var(--accent)' }}>Record</button>
-              <button onClick={() => askSkip(r)} className="hv-soft" style={{ ...btn, color: 'var(--muted)' }}>Skip</button>
-            </>
-          )}
-          {status === 'paused' && (
-            <button onClick={() => togglePause(r)} className="hv-soft" style={{ ...btn, color: 'var(--accent)' }}>Resume</button>
-          )}
-        </span>
-        <span onClick={e => e.stopPropagation()} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <RowMenu
-            open={menuOpen === r.id}
-            onToggle={() => setMenuOpen(menuOpen === r.id ? null : r.id)}
-            onClose={() => setMenuOpen(null)}
-            label={'Actions for ' + r.name}
-            items={[
-              { label: 'View history', onClick: () => navigate('/recurring/' + r.id) },
-              { label: 'Edit rule', onClick: () => openers.editRule(S, r.id, openDrawer) },
-              ...(actionable ? [{ label: 'Record now', onClick: () => openers.recordRule(S, r.id, openDrawer) }, { label: 'Skip this one', onClick: () => askSkip(r) }] : []),
-              ...(status !== 'ended' ? [{ label: r.status === 'paused' ? 'Resume rule' : 'Pause rule', onClick: () => togglePause(r) }] : []),
-              { label: 'Delete rule', onClick: () => askDelete(r), tone: 'neg', divider: true },
-            ]}
-          />
-        </span>
-      </div>
-    );
-  };
+  // Everything Row needs from this screen, in one object. Built after the
+  // handlers above so every binding is initialised — no forward references.
+  const ctx = { S, now, money, menuOpen, setMenuOpen, navigate, openDrawer, skip: askSkip, remove: askDelete, togglePause };
 
   return (
     <div onClick={() => setMenuOpen(null)} style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
@@ -181,7 +192,7 @@ export default function Recurring() {
             <div style={{ ...gridCols, padding: '0 14px 6px', ...colHeader }}>
               <span>RULE</span><span>FROM</span><span>NEXT DUE</span><span style={{ textAlign: 'right' }}>AMOUNT</span><span /><span />
             </div>
-            {g.rows.map(x => <Row key={x.r.id} {...x} />)}
+            {g.rows.map(x => <Row key={x.r.id} {...x} ctx={ctx} />)}
           </section>
         ))}
 

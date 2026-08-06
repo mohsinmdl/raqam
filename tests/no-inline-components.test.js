@@ -12,15 +12,11 @@ import { join } from 'node:path';
 // The symptom is easy to misread as a menu-positioning bug, and nothing in a
 // build or a normal test catches it, so it is worth pinning here.
 //
-// Known remaining case, allowed loudly rather than skipped silently:
-// Recurring.jsx defines its Row inside the component and closes over roughly
-// ten bindings (store, money, menu state, four handlers), so hoisting it is a
-// real refactor rather than a move — not something to fold into an unrelated
-// fix. Its list is also short enough that the scroll jump barely shows.
-// RecurringDetail.jsx had the same shape but its Stat closed over nothing but
-// module constants, so that one was simply hoisted. Delete this entry when
-// Recurring.jsx follows.
-const ALLOWED = new Set(['Recurring.jsx']);
+// The allowlist is empty, and should stay that way. Recurring.jsx was the last
+// holdout — its Row closed over ten bindings, which now arrive as a single
+// `ctx` object. If a screen ever needs an entry here, the comment should say
+// what makes hoisting genuinely hard, not just that nobody got round to it.
+const ALLOWED = new Set();
 
 const SCREENS = join(process.cwd(), 'src/screens');
 
