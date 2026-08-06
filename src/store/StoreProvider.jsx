@@ -131,7 +131,7 @@ export function StoreProvider({ userId, children }) {
   const setPrefs = useCallback(patch => {
     const device = {}, user = {};
     Object.entries(patch).forEach(([k, v]) => {
-      (k === 'theme' || k === 'masked' ? device : user)[k] = v;
+      (k === 'theme' || k === 'masked' || k === 'density' ? device : user)[k] = v;
     });
     if (Object.keys(device).length) setDevicePrefs(device);
     if (Object.keys(user).length) {
@@ -147,7 +147,7 @@ export function StoreProvider({ userId, children }) {
     data: state.data,
     syncStatus,
     // Facade: consumers (Header, format.js, Dashboard) see one flat prefs object.
-    prefs: { ...userPrefs, theme: devicePrefs.theme, masked: devicePrefs.masked },
+    prefs: { ...userPrefs, theme: devicePrefs.theme, masked: devicePrefs.masked, density: devicePrefs.density || 'comfortable' },
     setPrefs,
     // apply a pure action: applyData(store => newStore)
     applyData: fn => dispatch({ type: 'data', fn }),
