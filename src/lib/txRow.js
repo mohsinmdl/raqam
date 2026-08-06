@@ -1,6 +1,6 @@
 // Shared transaction-row and account-freshness presenters, ported from the
 // prototype's txRowOf (script 894-927) and freshInfo (928-933).
-import { accountDelta, dayLabel, daysAgo, daysUntil, lastActivity, relTime, timeLabel } from './calc.js';
+import { accountDelta, dayLabel, daysAgo, daysUntil, hasOccurred, lastActivity, relTime, timeLabel } from './calc.js';
 import { nowIso } from './dates.js';
 import { ruleDueLabel, ruleFromTx, scheduledRules, sourceLabel } from './schedule.js';
 import { scheduledSort, sortRows } from './sortRows.js';
@@ -171,8 +171,10 @@ export function ruleRowOf(r, S, fmt, now) {
 // "Pending" or a search term, and showing rows that contradict an active
 // filter is worse than briefly hiding them.
 export function txGroups(list, S, fmt, now, range, anyFilter, sort) {
-  const futureTx = list.filter(t => t.date > now);
-  const postedTx = list.filter(t => t.date <= now);
+  // One predicate shared with the money math, so a row can never be counted in
+  // a balance while being displayed as still to come, or the reverse.
+  const futureTx = list.filter(t => !hasOccurred(t, now));
+  const postedTx = list.filter(t => hasOccurred(t, now));
   const ruleRows = anyFilter ? [] : scheduledRules(S, range.from, range.to, now).map(r => ruleRowOf(r, S, fmt, now));
   // A rule with money already pencilled in doesn't also nag you. Recording an
   // occurrence that isn't due yet leaves a future-dated transaction AND
