@@ -24,7 +24,7 @@ export default function ExplainDialog({ open, onClose }) {
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(8,16,13,.44)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'hsFade .15s ease', zIndex: 50 }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'hsFade .15s ease', zIndex: 50 }}>
       <FocusTrap>
         <div role="dialog" aria-modal="true" aria-label="How these numbers are calculated" onClick={e => e.stopPropagation()} style={{ width: 600, maxWidth: '94vw', maxHeight: '84vh', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow)', padding: '24px 26px', animation: 'hsUp .18s ease', color: 'var(--text)' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>

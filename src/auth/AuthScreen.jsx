@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAuth } from './AuthProvider.jsx';
-import { useDevicePrefs } from '../store/PrefsProvider.jsx';
 
 // Login/registration gate — rendered instead of the app when there is no session.
 // Not a route: whatever #/route the user wanted survives login untouched.
@@ -8,7 +7,6 @@ const label = { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6
 
 export default function AuthScreen() {
   const { configured, signIn, signUp, signInGoogle } = useAuth();
-  const { devicePrefs } = useDevicePrefs();
   const [mode, setMode] = useState('signin'); // signin | signup
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,7 +37,7 @@ export default function AuthScreen() {
   };
 
   return (
-    <div data-theme={devicePrefs.theme} style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)', fontFamily: "'IBM Plex Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.45, padding: 20 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)', fontFamily: "'IBM Plex Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.45, padding: 20 }}>
       <div style={{ width: 380, maxWidth: '94vw' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, justifyContent: 'center' }}>
           <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--accent)', color: 'var(--on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 17 }}>₨</div>

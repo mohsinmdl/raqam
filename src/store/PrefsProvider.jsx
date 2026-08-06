@@ -18,6 +18,11 @@ export function PrefsProvider({ children }) {
   useEffect(() => {
     try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch {}
   }, [prefs]);
+  // On the document element, not a wrapper div: custom properties only inherit
+  // downward, and the drawer, confirm dialog and toast render as SIBLINGS of the
+  // app shell (their providers emit them after {children}). Themed on a nested
+  // div they resolved every var() against :root — the light palette — forever.
+  useEffect(() => { document.documentElement.dataset.theme = prefs.theme; }, [prefs.theme]);
   const value = useMemo(() => ({
     devicePrefs: prefs,
     setDevicePrefs: patch => setPrefsState(p => ({ ...p, ...patch })),
