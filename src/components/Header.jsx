@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
@@ -16,11 +17,50 @@ const btnStyle = {
   background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
 };
 
+const iconBtnStyle = {
+  width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)',
+  color: 'var(--text)', fontSize: 14, cursor: 'pointer', flex: 'none',
+};
+
+function HistoryButton({ glyph, label, hint, disabled, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={disabled ? label : label + ': ' + hint}
+      className="hv-elev"
+      style={{ ...iconBtnStyle, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1 }}
+    >
+      {glyph}
+    </button>
+  );
+}
+
 export default function Header() {
   const { pathname } = useLocation();
-  const { data: S, prefs, setPrefs, syncStatus } = useStore();
+  const { data: S, prefs, setPrefs, syncStatus, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
   const { month, isPast, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
-  const { openDrawer } = useDrawer();
+  const { drawer, openDrawer } = useDrawer();
+
+  useEffect(() => {
+    const onKey = e => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'z' && k !== 'y') return;
+      // Text fields own Cmd+Z; a drawer open over the table means a form is
+      // mid-edit, and pulling the store out from under it would leave the
+      // drawer editing a row that no longer exists.
+      const el = document.activeElement;
+      const tag = el ? el.tagName : '';
+      if (drawer || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el && el.isContentEditable)) return;
+      e.preventDefault();
+      if (k === 'y' || e.shiftKey) redo(); else undo();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [drawer, undo, redo]);
 
   const seg = pathname.split('/')[1] || 'dashboard';
   let title = TITLES[seg] || 'Dashboard';
@@ -60,6 +100,10 @@ export default function Header() {
       )}
       <span style={{ fontSize: 12, color: 'var(--muted)' }}>
         {isPast && showMonthSel ? 'Closed month' : 'As of ' + shortDate(now) + ' · ' + timeLabel(now)}
+      </span>
+      <span style={{ display: 'flex', gap: 6 }}>
+        <HistoryButton glyph="↶" label="Undo" hint={undoLabel || ''} disabled={!canUndo} onClick={undo} />
+        <HistoryButton glyph="↷" label="Redo" hint={redoLabel || ''} disabled={!canRedo} onClick={redo} />
       </span>
       <button onClick={() => setPrefs({ masked: !prefs.masked })} aria-pressed={String(prefs.masked)} className="hv-elev" style={btnStyle}>
         {prefs.masked ? 'Show amounts' : 'Hide amounts'}

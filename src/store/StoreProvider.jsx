@@ -6,6 +6,8 @@ import { rolloverMonth } from './actions.js';
 import { CATEGORIES } from './seed.js';
 import { currentMonth } from '../lib/dates.js';
 import LoadingScreen from '../components/LoadingScreen.jsx';
+import { makeAudit } from './audit.js';
+import { applyRedo, applyUndo, emptyStacks, labelFor, recordChange, redoLabel, undoLabel } from '../lib/undo.js';
 
 // Server-backed store. The in-memory store + pure actions are unchanged from the
 // localStorage era; persistence is now: hydrate from Supabase once per login, then
@@ -19,25 +21,48 @@ const loadUserPrefs = uid => {
   catch { return { skippedSetup: false }; }
 };
 
-function reducer(state, act) {
+export function reducer(state, act) {
   switch (act.type) {
     case 'hydrate':
-      return { ...state, status: 'ready', data: act.data };
+      // Fresh data from the server: any stack from before is meaningless.
+      return { ...state, status: 'ready', data: act.data, ...emptyStacks() };
     case 'hydrateError':
       return { ...state, status: 'error', error: act.error };
     case 'retry':
       return { ...state, status: 'loading', error: null };
-    case 'data': // act.fn: (data) => newData — pure actions from actions.js
-      return state.status === 'ready' ? { ...state, data: act.fn(state.data) } : state;
+    case 'data': { // act.fn: (data) => newData — pure actions from actions.js
+      if (state.status !== 'ready') return state;
+      const next = act.fn(state.data);
+      // Actions no-op by returning the same reference; nothing to undo.
+      if (next === state.data) return state;
+      // act.system: month rollover and other machine-initiated changes are not
+      // the user's to undo — and they also invalidate every snapshot taken
+      // before them: an older `past` entry predates this month's opening
+      // snapshots, so restoring it would delete rows the sync differ now
+      // treats as real deletes. Losing undo history at a system boundary is
+      // the correct, conventional trade; silently corrupting the new month
+      // is not.
+      if (act.system) return { ...state, data: next, ...emptyStacks() };
+      return { ...state, data: next, ...recordChange(state, state.data, labelFor(state.data, next)) };
+    }
+    case 'undo': {
+      const out = state.status === 'ready' ? applyUndo(state, act.auditRow) : null;
+      return out ? { ...state, ...out } : state;
+    }
+    case 'redo': {
+      const out = state.status === 'ready' ? applyRedo(state, act.auditRow) : null;
+      return out ? { ...state, ...out } : state;
+    }
     case 'replaceData':
-      return state.status === 'ready' ? { ...state, data: act.data } : state;
+      // Legacy import and other wholesale replacements: not undoable.
+      return state.status === 'ready' ? { ...state, data: act.data, ...emptyStacks() } : state;
     default:
       return state;
   }
 }
 
 export function StoreProvider({ userId, children }) {
-  const [state, dispatch] = useReducer(reducer, { status: 'loading', data: null, error: null });
+  const [state, dispatch] = useReducer(reducer, { status: 'loading', data: null, error: null, ...emptyStacks() });
   const { devicePrefs, setDevicePrefs } = useDevicePrefs();
   const { registerBeforeSignOut } = useAuth();
   const [userPrefs, setUserPrefs] = useState(() => loadUserPrefs(userId));
@@ -120,7 +145,7 @@ export function StoreProvider({ userId, children }) {
     const check = () => {
       if (currentMonth() !== known) {
         known = currentMonth();
-        dispatch({ type: 'data', fn: rolloverMonth });
+        dispatch({ type: 'data', fn: rolloverMonth, system: true });
       }
     };
     const t = setInterval(check, 60_000);
@@ -154,7 +179,19 @@ export function StoreProvider({ userId, children }) {
     replaceData: data => dispatch({ type: 'replaceData', data }),
     // Await everything reaching the server (used by the legacy import flow).
     drainSync: () => (queueRef.current ? queueRef.current.drain() : Promise.resolve(true)),
-  }), [state.data, syncStatus, userPrefs, devicePrefs, setPrefs]);
+    undo: () => dispatch({ type: 'undo', auditRow: makeAudit({
+      entityType: 'app', entityId: 'undo', action: 'undo',
+      summary: 'Undid: ' + (undoLabel(state) || 'last change'),
+    }) }),
+    redo: () => dispatch({ type: 'redo', auditRow: makeAudit({
+      entityType: 'app', entityId: 'redo', action: 'redo',
+      summary: 'Redid: ' + (redoLabel(state) || 'last change'),
+    }) }),
+    canUndo: state.past.length > 0,
+    canRedo: state.future.length > 0,
+    undoLabel: undoLabel(state),
+    redoLabel: redoLabel(state),
+  }), [state.data, state.past, state.future, syncStatus, userPrefs, devicePrefs, setPrefs]);
 
   if (state.status === 'loading') return <LoadingScreen message="Loading your data…" />;
   if (state.status === 'error') {
