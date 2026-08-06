@@ -6,6 +6,7 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { openers } from '../drawers/openers.js';
 import { monthLabel, shortDate, timeLabel } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
+import RecentMoves from './RecentMoves.jsx';
 
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
@@ -105,6 +106,7 @@ export default function Header() {
         <HistoryButton glyph="↶" label="Undo" hint={undoLabel || ''} disabled={!canUndo} onClick={undo} />
         <HistoryButton glyph="↷" label="Redo" hint={redoLabel || ''} disabled={!canRedo} onClick={redo} />
       </span>
+      <RecentMoves />
       <button onClick={() => setPrefs({ masked: !prefs.masked })} aria-pressed={String(prefs.masked)} className="hv-elev" style={btnStyle}>
         {prefs.masked ? 'Show amounts' : 'Hide amounts'}
       </button>
