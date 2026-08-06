@@ -23,6 +23,78 @@ const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border
 const th = { textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)' };
 const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' };
 
+// Row and GroupHead live at MODULE scope on purpose. Defined inside
+// Transactions() they were rebuilt on every render, so React saw a new
+// component *type* each time and unmounted/remounted every row. That destroyed
+// and rebuilt the table on any state change — opening a row menu, typing in
+// the search box, ticking a checkbox — which collapsed <main>'s scroll height
+// and snapped it back to the top, taking the just-opened menu off screen.
+//
+// One row renderer for both groups. ruleRowOf returns a txRowOf-shaped object,
+// so these cells never branch on which population they are drawing — the only
+// differences are handed in: selId (rules have none, so no checkbox) and the
+// action cell.
+function Row({ t, selId, checked, onToggleRow, actions }) {
+  return (
+    <tr className="hv-elev" style={{ opacity: t.rowOpacity, background: checked ? 'var(--soft)' : undefined }}>
+      <td style={{ ...td, padding: '10px 4px 10px 18px' }}>
+        {selId && (
+          <Checkbox
+            checked={checked}
+            onChange={on => onToggleRow(selId, on)}
+            label={'Select ' + t.merchant + ' on ' + t.dateLabel}
+          />
+        )}
+      </td>
+      <td style={{ ...td, padding: '10px 8px' }}>
+        <div className="tnum" style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>{t.dateLabel}</div>
+        <div style={{ fontSize: 11.5, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : 'var(--muted)', fontWeight: t.isOverdue ? 600 : 400 }}>{t.timeLabel}</div>
+      </td>
+      <td style={{ ...td, maxWidth: 280 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
+          <TxChips row={t} meta />
+        </div>
+        {t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
+      </td>
+      <td style={td}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
+          <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.catName}</span>
+        </div>
+      </td>
+      <td style={td}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
+      <td style={td}><span title={t.stTitle || undefined} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: t.stBg, color: t.stFg }}>{t.stLabel}</span></td>
+      <td style={{ ...td, padding: '10px 8px', textAlign: 'right' }}>
+        <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
+      </td>
+      <td style={{ ...td, padding: '10px 18px 10px 8px', textAlign: 'right' }}>
+        <span style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>{actions}</span>
+      </td>
+    </tr>
+  );
+}
+
+// Group heading inside the table. A single full-width cell keeps the column
+// grid intact — a separate table per group would let the two drift apart.
+function GroupHead({ open, onToggle, label, count, note }) {
+  return (
+    <tr>
+      <td colSpan={8} style={{ padding: 0, borderBottom: '1px solid var(--border)', background: 'var(--elev)' }}>
+        <button
+          onClick={onToggle} aria-expanded={open}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 18px', border: 'none', background: 'none', color: 'var(--text)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--muted)', width: 10 }}>{open ? '▾' : '▸'}</span>
+          <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.05em' }}>{label}</span>
+          <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{count}</span>
+          {note && <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>· {note}</span>}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 export default function Transactions() {
   const { data: S, applyData } = useStore();
   const { ask, notify } = useUI();
@@ -219,67 +291,6 @@ export default function Transactions() {
 
   const addDisabled = S.accounts.filter(a => a.status === 'active').length === 0;
 
-  // One row renderer for both groups. ruleRowOf returns a txRowOf-shaped object,
-  // so these cells never branch on which population they are drawing — the only
-  // differences are handed in: selId (rules have none, so no checkbox) and the
-  // action cell.
-  const Row = ({ t, selId, actions }) => (
-    <tr className="hv-elev" style={{ opacity: t.rowOpacity, background: selId && selected.has(selId) ? 'var(--soft)' : undefined }}>
-      <td style={{ ...td, padding: '10px 4px 10px 18px' }}>
-        {selId && (
-          <Checkbox
-            checked={selected.has(selId)}
-            onChange={on => toggleRow(selId, on)}
-            label={'Select ' + t.merchant + ' on ' + t.dateLabel}
-          />
-        )}
-      </td>
-      <td style={{ ...td, padding: '10px 8px' }}>
-        <div className="tnum" style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>{t.dateLabel}</div>
-        <div style={{ fontSize: 11.5, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : 'var(--muted)', fontWeight: t.isOverdue ? 600 : 400 }}>{t.timeLabel}</div>
-      </td>
-      <td style={{ ...td, maxWidth: 280 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
-          <TxChips row={t} meta />
-        </div>
-        {t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
-      </td>
-      <td style={td}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
-          <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.catName}</span>
-        </div>
-      </td>
-      <td style={td}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
-      <td style={td}><span title={t.stTitle || undefined} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: t.stBg, color: t.stFg }}>{t.stLabel}</span></td>
-      <td style={{ ...td, padding: '10px 8px', textAlign: 'right' }}>
-        <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
-      </td>
-      <td style={{ ...td, padding: '10px 18px 10px 8px', textAlign: 'right' }}>
-        <span style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>{actions}</span>
-      </td>
-    </tr>
-  );
-
-  // Group heading inside the table. A single full-width cell keeps the column
-  // grid intact — a separate table per group would let the two drift apart.
-  const GroupHead = ({ open, onToggle, label, count, note }) => (
-    <tr>
-      <td colSpan={8} style={{ padding: 0, borderBottom: '1px solid var(--border)', background: 'var(--elev)' }}>
-        <button
-          onClick={onToggle} aria-expanded={open}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 18px', border: 'none', background: 'none', color: 'var(--text)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }}
-        >
-          <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--muted)', width: 10 }}>{open ? '▾' : '▸'}</span>
-          <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.05em' }}>{label}</span>
-          <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{count}</span>
-          {note && <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>· {note}</span>}
-        </button>
-      </td>
-    </tr>
-  );
-
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
@@ -429,7 +440,7 @@ export default function Transactions() {
                     const key = x.selId || x.row.key;
                     return (
                       <Row
-                        key={key} t={x.row}
+                        key={key} t={x.row} checked={false} onToggleRow={toggleRow}
                         actions={(
                           <RowMenu
                             open={menuOpen === key}
@@ -468,6 +479,7 @@ export default function Transactions() {
                 {postedShown && postedRows.map(t => (
                   <Row
                     key={t.id} t={t} selId={t.id}
+                    checked={selected.has(t.id)} onToggleRow={toggleRow}
                     actions={(
                       <RowMenu
                         open={menuOpen === t.id}
