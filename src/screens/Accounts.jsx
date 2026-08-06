@@ -6,6 +6,7 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
 import { accountBalance, accountDeletePolicy, dayLabel, kindLabel, lastActivity } from '../lib/calc.js';
+import { nowIso } from '../lib/dates.js';
 import { freshInfo, instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import { deleteAccountPermanently, setAccountStatus } from '../store/actions.js';
@@ -20,6 +21,7 @@ export default function Accounts() {
   const { openDrawer } = useDrawer();
   const { notify, ask } = useUI();
   const nav = useNavigate();
+  const now = nowIso();
 
   const active = S.accounts.filter(a => a.status === 'active');
   const rows = active.map(a => {
@@ -28,7 +30,7 @@ export default function Accounts() {
     return {
       // The bank's category IS the account's — no separate per-account flag.
       id: a.id, nick: a.nickname, inst: inst ? inst.name : '—', kind: inst ? kindLabel(inst.kind) : '—', type: a.type,
-      bal: money(accountBalance(a, S, month)), asOf: dayLabel(lastActivity(a, S)),
+      bal: money(accountBalance(a, S, month, now)), asOf: dayLabel(lastActivity(a, S)),
       dot: f.dot, fresh: f.label, last4: a.last4 ? '•• ' + a.last4 : '—',
     };
   });

@@ -239,9 +239,10 @@ describe('future-dated transaction presentation', () => {
     expect(row.stFg).toBe('var(--info)');
   });
 
-  it('admits on hover that a cleared future row already moves the balance', () => {
-    expect(futureTxRowOf(water, store(), fmt, NOW).stTitle).toMatch(/already counted/);
-    expect(futureTxRowOf(tx({ date: '2027-03-06T07:26', status: 'pending' }), store(), fmt, NOW).stTitle).toMatch(/not counted until/);
+  it('says plainly that nothing counts it yet — true now the date guard is in', () => {
+    expect(futureTxRowOf(water, store(), fmt, NOW).stTitle).toMatch(/not counted in any balance or budget/);
+    expect(futureTxRowOf(tx({ date: '2027-03-06T07:26', status: 'pending' }), store(), fmt, NOW).stTitle)
+      .toBe(futureTxRowOf(water, store(), fmt, NOW).stTitle);
   });
 
   it('stays a real transaction — selectable, editable, same id and amount', () => {

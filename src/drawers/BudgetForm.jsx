@@ -6,7 +6,7 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { budgetSpent, catById, listCats, monthLabel } from '../lib/calc.js';
-import { currentMonth } from '../lib/dates.js';
+import { currentMonth, nowIso } from '../lib/dates.js';
 import { validate } from '../lib/validate.js';
 import { upsertBudget, deleteBudget } from '../store/actions.js';
 import { Label, FieldError, Hint, AmountField, noteBox } from './fields.jsx';
@@ -26,7 +26,7 @@ function Body() {
   const noCatsLeft = !fixedCat && !overall && catOpts.length === 0;
 
   const on = !!f.rollover;
-  const spentNow = f.editId ? budgetSpent(S, { category: overall ? null : f.category, amount: 0 }, currentMonth()) : null;
+  const spentNow = f.editId ? budgetSpent(S, { category: overall ? null : f.category, amount: 0 }, currentMonth(), null, nowIso()) : null;
 
   return (
     <>

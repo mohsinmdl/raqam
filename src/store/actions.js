@@ -424,7 +424,15 @@ export function rolloverMonth(data) {
       ...missing.map(a => ({
         month,
         accountId: a.id,
-        amount: accountBalance(a, data, prev), // previous month's computed closing balance
+        // Previous month's computed closing balance. Deliberately NOT date-
+        // guarded: this is frozen into a snapshot and becomes the opening figure
+        // every later month is measured from, so it must mean "the complete
+        // month", never "the month as it looked at the moment of rollover".
+        // As written, `prev` is always the month before the current one and so
+        // entirely in the past, which means a guard would change nothing today.
+        // That is a property of when this happens to run, not of what the value
+        // means — and a frozen snapshot should not start depending on it.
+        amount: accountBalance(a, data, prev),
         status: 'pending',
       })),
     ];
@@ -434,6 +442,7 @@ export function rolloverMonth(data) {
   if (cardsMissing.length > 0) {
     next.cards = next.cards.map(c => {
       if (c.type !== 'credit' || (c.openingOutstanding && c.openingOutstanding[month] != null)) return c;
+      // Not date-guarded, for the same reason as the account snapshot above.
       return { ...c, openingOutstanding: { ...(c.openingOutstanding || {}), [month]: cardOutstanding(c, data, prev) } };
     });
   }

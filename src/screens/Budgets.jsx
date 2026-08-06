@@ -38,7 +38,7 @@ export default function Budgets() {
   // categories back into every figure on this screen. Never touches stored data.
   const inc = !!prefs.includeRecoverable;
   const view = inc ? { includeExcluded: true } : undefined;
-  const rec = recoverableSpending(S, month);
+  const rec = recoverableSpending(S, month, now);
 
   const deltaOf = (spent, prevSpent) => {
     if (prevSpent <= 0 && spent <= 0) return { label: 'No spending either month', color: 'var(--muted)' };
@@ -74,13 +74,13 @@ export default function Budgets() {
   if (overall) {
     const roll = budgetRollover(S, overall, month, view);
     const eff = overall.amount + roll;
-    const spent = budgetSpent(S, overall, month, view);
+    const spent = budgetSpent(S, overall, month, view, now);
     const pct = eff > 0 ? (spent / eff) * 100 : 0;
     const stx = budgetState(pct, spent);
     const tone = TONES[stx.tone];
     const rem = eff - spent;
     const proj = budgetProjection(month, spent, now);
-    const d = deltaOf(spent, budgetSpent(S, overall, prev, view));
+    const d = deltaOf(spent, budgetSpent(S, overall, prev, view, now));
     ov = {
       spent: money(spent), budget: money(eff),
       stateLabel: stx.label, stateBg: tone[0], stateFg: tone[1], barColor: tone[2],
@@ -100,14 +100,14 @@ export default function Budgets() {
     const cat = catById(S, b.category);
     const roll = budgetRollover(S, b, month, view);
     const eff = b.amount + roll;
-    const spent = budgetSpent(S, b, month, view);
+    const spent = budgetSpent(S, b, month, view, now);
     const pct = eff > 0 ? (spent / eff) * 100 : 0;
     const stx = budgetState(pct, spent);
     const tone = TONES[stx.tone];
     const rem = eff - spent;
     const proj = budgetProjection(month, spent, now);
     const overPace = !!(proj && proj.projected > eff && rem >= 0);
-    const d = deltaOf(spent, budgetSpent(S, b, prev, view));
+    const d = deltaOf(spent, budgetSpent(S, b, prev, view, now));
     return {
       raw: b, id: b.id, pct, name: cat ? cat.name : 'Unknown category',
       icon: cat ? cat.icon : 'square', color: cat && cat.color ? cat.color : 'var(--muted)',
@@ -123,7 +123,7 @@ export default function Budgets() {
     };
   }).sort((a, b) => b.pct - a.pct);
 
-  const un = unbudgetedSpend(S, month);
+  const un = unbudgetedSpend(S, month, now);
   const budgetsEmpty = !overall && rows.length === 0 && un.length === 0;
 
   return (

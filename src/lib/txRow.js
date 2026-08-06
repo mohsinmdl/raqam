@@ -87,9 +87,9 @@ export function untilLabel(iso, now) {
 // the group heading it sits under, so the pill reports its position in time
 // rather than its reconciliation state.
 //
-// A cleared future date is not merely a display quirk: accountDelta has no date
-// guard, so that money has already left the balance months early. Until that is
-// decided, the pill says so on hover rather than silently swallowing it.
+// The cleared/pending distinction stops mattering here: hasOccurred() keeps
+// anything dated ahead out of balances, spending and budgets regardless, so the
+// pill can report position in time without hiding anything.
 export function futureTxRowOf(t, S, fmt, now) {
   const row = txRowOf(t, S, fmt);
   return {
@@ -97,9 +97,7 @@ export function futureTxRowOf(t, S, fmt, now) {
     dateLabel: withYear(t.date, now),
     timeLabel: untilLabel(t.date, now),
     stLabel: 'Scheduled', stBg: 'var(--info-soft)', stFg: 'var(--info)',
-    stTitle: t.status === 'cleared'
-      ? 'Dated ahead, but marked cleared — it is already counted in your balances.'
-      : 'Dated ahead — not counted until it clears.',
+    stTitle: 'Dated ahead — not counted in any balance or budget until then.',
   };
 }
 

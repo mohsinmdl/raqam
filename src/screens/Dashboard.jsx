@@ -20,7 +20,8 @@ const linkBtn = { border: 'none', background: 'none', color: 'var(--accent)', fo
 // Port of the prototype's dashboardVals (script 934-999) — same names, same math.
 function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   const { money, moneyS, moneyRaw } = fmt;
-  const M = C.monthMetrics(S, month);
+  const now = nowIso();
+  const M = C.monthMetrics(S, month, now);
   const activeAccts = S.accounts.filter(a => a.status === 'active');
   const v = { M, activeAccts };
   v.snapshotPending = !isPast && activeAccts.length > 0 && S.snapshots.some(s => s.month === month && s.status === 'pending') && !snapDismissed;
@@ -41,14 +42,14 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
     { label: 'Savings', val: money(M.savings), color: 'var(--text)', sub: M.net < 0 ? 'overspent this month' : 'set aside so far' },
     { label: 'Savings rate', val: M.rate == null ? '—' : C.fmtPct(M.rate), color: M.rate != null && M.rate < 0 ? 'var(--neg)' : 'var(--text)', sub: M.rate == null ? 'no income recorded' : 'of income' },
   ];
-  const daily = C.dailySpending(S, month, view); const dmax = Math.max(...daily.map(d => d.amt), 1);
+  const daily = C.dailySpending(S, month, view, now); const dmax = Math.max(...daily.map(d => d.amt), 1);
   const dtotal = daily.reduce((s, d) => s + d.amt, 0);
   const today = todayStr().slice(0, 7) === month ? +todayStr().slice(8, 10) : null;
   v.trendBars = daily.map(d => ({ h: d.amt > 0 ? Math.max(Math.round(d.amt / dmax * 100), 4) + '%' : '2%', bg: d.amt > 0 ? (today === d.day ? 'var(--accent-h)' : 'var(--accent)') : 'var(--track)', label: (d.day === 1 || d.day % 5 === 0) ? String(d.day) : '', tip: d.day + ' ' + C.monthLabel(month).slice(0, 3) + ' — ' + moneyRaw(d.amt) }));
   v.trendTotal = money(dtotal); v.trendEmpty = dtotal === 0; v.trendHas = dtotal > 0;
   const peak = daily.reduce((a, b) => (b.amt > a.amt ? b : a), daily[0]);
   v.trendSummary = 'Daily cleared spending in ' + C.monthLabel(month) + ', total ' + moneyRaw(dtotal) + (peak && peak.amt > 0 ? ', highest on day ' + peak.day : '');
-  const cats = C.categorySpending(S, month, view); const cmaxAmt = Math.max(...cats.map(c => c.amt), 1);
+  const cats = C.categorySpending(S, month, view, now); const cmaxAmt = Math.max(...cats.map(c => c.amt), 1);
   v.catBars = cats.slice(0, 6).map(c => ({ id: c.id, name: c.cat ? c.cat.name : c.id, color: c.cat ? c.cat.color : 'var(--border)', amt: money(c.amt), w: Math.max(Math.round(c.amt / cmaxAmt * 100), 3) + '%' }));
   v.hasCat = cats.length > 0; v.noCat = cats.length === 0;
   return { v, cats, daily, M };
@@ -63,6 +64,7 @@ export default function Dashboard() {
   const { openDrawer } = useDrawer();
   const [explain, setExplain] = useState(false);
   const [snapDismissed, setSnapDismissed] = useState(false);
+  const now = nowIso();
 
   const setup = setupState(S);
   const showFirstUse = !setup.complete && !prefs.skippedSetup;
@@ -99,7 +101,7 @@ export default function Dashboard() {
   const prevIdx = months.indexOf(month) - 1;
   const cmp = prevIdx >= 0 ? (() => {
     const prevMonth = months[prevIdx];
-    const P = C.monthMetrics(S, prevMonth);
+    const P = C.monthMetrics(S, prevMonth, now);
     const mk = (label, a, b, bColor) => { const mx = Math.max(a, b, 1); return { label, aVal: money(a), bVal: money(b), aW: Math.round(a / mx * 100) + '%', bW: Math.round(b / mx * 100) + '%', bColor }; };
     return { prevName: C.monthLabel(prevMonth).split(' ')[0], curName: monthName.split(' ')[0], rows: [mk('Income', P.income, M.income, 'var(--accent)'), mk('Expenses', P.expenses, M.expenses, 'var(--warn)')] };
   })() : null;
@@ -107,7 +109,7 @@ export default function Dashboard() {
   const budgetRow = b => {
     // Personal-budget view always: budgetSpent excludes recoverable categories
     // and clamps at zero, matching the Budgets screen's default view.
-    const spent = C.budgetSpent(S, b, month);
+    const spent = C.budgetSpent(S, b, month, null, now);
     const eff = C.effectiveBudget(S, b, month); // rollover-effective amount
     const pct = eff > 0 ? (spent / eff) * 100 : 0;
     const stx = C.budgetState(pct, spent);
@@ -130,7 +132,7 @@ export default function Dashboard() {
   const largestRows = lg.map(t => ({ id: t.id, merchant: t.merchant || '—', cat: (S.categories.find(c => c.id === t.category) || {}).name || '—', amt: money(t.amount) }));
   const recent = S.transactions.filter(t => C.inMonth(t, month)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
   const recentRows = recent.map(t => txRowOf(t, S, fmt));
-  const acctMini = v.activeAccts.map(a => { const f = freshInfo(a, S); return { id: a.id, nick: a.nickname, inst: instName(S, a.instId), bal: money(C.accountBalance(a, S, month)), dot: f.dot, freshTip: f.tip }; });
+  const acctMini = v.activeAccts.map(a => { const f = freshInfo(a, S); return { id: a.id, nick: a.nickname, inst: instName(S, a.instId), bal: money(C.accountBalance(a, S, month, now)), dot: f.dot, freshTip: f.tip }; });
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>

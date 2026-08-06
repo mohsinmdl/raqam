@@ -24,9 +24,21 @@ export function daysInMonth(ym) { const [y, m] = ym.split('-').map(Number); retu
 export function daysAgo(iso, nowIso) { return Math.floor((new Date(nowIso) - new Date(iso)) / 86400000); }
 export function daysUntil(iso, nowIso) { return Math.ceil((new Date(iso.slice(0, 10)) - new Date(nowIso.slice(0, 10))) / 86400000); }
 
+// Has this transaction actually happened yet?
+//
+// `now` is optional throughout the money math, and omitting it counts every
+// transaction in the month — deliberately the old behaviour, because the one
+// caller that MUST NOT be time-guarded is the month rollover: ensureMonth
+// freezes a month's closing balance into the next month's opening snapshot, and
+// a guard there would drop anything still dated ahead at that moment, losing
+// the money permanently once the snapshot is written. Forgetting to pass `now`
+// therefore degrades to a cosmetic bug, never to a wrong balance.
+export function hasOccurred(t, now) { return !now || t.date <= now; }
+
 // Effect of a cleared transaction on a bank account balance.
-export function accountDelta(t, accId) {
+export function accountDelta(t, accId, now) {
   if (t.status === 'pending') return 0;
+  if (!hasOccurred(t, now)) return 0;
   if (t.type === 'transfer') {
     let d = 0;
     if (t.accountId === accId) d -= t.amount + (t.fee || 0);
@@ -40,8 +52,9 @@ export function accountDelta(t, accId) {
   return 0;
 }
 // Effect on a credit card's outstanding liability.
-export function cardDelta(t, cardId) {
+export function cardDelta(t, cardId, now) {
   if (t.status === 'pending') return 0;
+  if (!hasOccurred(t, now)) return 0;
   if (t.type === 'expense' && t.cardId === cardId) return t.amount;
   if (t.type === 'refund' && t.cardId === cardId) return -t.amount;
   if (t.type === 'transfer' && t.toCardId === cardId) return -t.amount; // card payment
@@ -52,14 +65,14 @@ export function openingOf(acc, snapshots, month) {
   const s = snapshots.find(x => x.accountId === acc.id && x.month === month);
   return s ? s.amount : 0;
 }
-export function accountBalance(acc, store, month) {
+export function accountBalance(acc, store, month, now) {
   const open = openingOf(acc, store.snapshots, month);
-  return open + store.transactions.filter(t => inMonth(t, month)).reduce((s, t) => s + accountDelta(t, acc.id), 0);
+  return open + store.transactions.filter(t => inMonth(t, month)).reduce((s, t) => s + accountDelta(t, acc.id, now), 0);
 }
-export function cardOutstanding(card, store, month) {
+export function cardOutstanding(card, store, month, now) {
   if (card.type !== 'credit') return 0;
   const open = (card.openingOutstanding && card.openingOutstanding[month] != null) ? card.openingOutstanding[month] : (card.openingOutstanding ? Object.values(card.openingOutstanding).slice(-1)[0] || 0 : 0);
-  return open + store.transactions.filter(t => inMonth(t, month)).reduce((s, t) => s + cardDelta(t, card.id), 0);
+  return open + store.transactions.filter(t => inMonth(t, month)).reduce((s, t) => s + cardDelta(t, card.id, now), 0);
 }
 export function lastActivity(acc, store) {
   const tx = store.transactions.filter(t => t.accountId === acc.id || t.toAccountId === acc.id).sort((a, b) => b.date.localeCompare(a.date));
@@ -67,8 +80,8 @@ export function lastActivity(acc, store) {
 }
 
 // Income = income tx. Expenses = expense tx (bank + card) + transfer fees − refunds. Transfers & card payments excluded.
-export function monthMetrics(store, month) {
-  const mtx = store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending');
+export function monthMetrics(store, month, now) {
+  const mtx = store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending' && hasOccurred(t, now));
   const income = mtx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const refunds = mtx.filter(t => t.type === 'refund').reduce((s, t) => s + t.amount, 0);
   const gross = mtx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
@@ -77,9 +90,9 @@ export function monthMetrics(store, month) {
   const net = income - expenses;
   const active = store.accounts.filter(a => a.status === 'active');
   const opening = active.reduce((s, a) => s + openingOf(a, store.snapshots, month), 0);
-  const totalBank = active.reduce((s, a) => s + accountBalance(a, store, month), 0);
-  const cardLiability = store.cards.filter(c => c.type === 'credit' && c.status !== 'closed').reduce((s, c) => s + cardOutstanding(c, store, month), 0);
-  const pend = store.transactions.filter(t => inMonth(t, month) && t.status === 'pending');
+  const totalBank = active.reduce((s, a) => s + accountBalance(a, store, month, now), 0);
+  const cardLiability = store.cards.filter(c => c.type === 'credit' && c.status !== 'closed').reduce((s, c) => s + cardOutstanding(c, store, month, now), 0);
+  const pend = store.transactions.filter(t => inMonth(t, month) && t.status === 'pending' && hasOccurred(t, now));
   return {
     income, expenses, net, savings: Math.max(net, 0), rate: income > 0 ? net / income : null,
     opening, totalBank, change: totalBank - opening, cardLiability, netWorth: totalBank - cardLiability,
@@ -88,9 +101,9 @@ export function monthMetrics(store, month) {
 }
 // Spending charts hide excluded (recoverable) categories unless the caller
 // opts in — advances are not "spending by category", they are money on loan.
-export function categorySpending(store, month, opts) {
+export function categorySpending(store, month, opts, now) {
   const map = {};
-  store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending').forEach(t => {
+  store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending' && hasOccurred(t, now)).forEach(t => {
     if (t.type === 'expense') map[t.category] = (map[t.category] || 0) + t.amount;
     if (t.type === 'refund') map[t.category] = (map[t.category] || 0) - t.amount;
   });
@@ -98,19 +111,19 @@ export function categorySpending(store, month, opts) {
   return Object.entries(map).map(([id, amt]) => ({ id, amt, cat: store.categories.find(c => c.id === id) }))
     .filter(x => x.amt > 0 && !(skip && isExcludedCat(store, x.id))).sort((a, b) => b.amt - a.amt);
 }
-export function dailySpending(store, month, opts) {
+export function dailySpending(store, month, opts, now) {
   const n = daysInMonth(month); const out = [];
   const skip = !(opts && opts.includeExcluded);
   for (let d = 1; d <= n; d++) {
     const key = month + '-' + String(d).padStart(2, '0');
-    const amt = store.transactions.filter(t => t.date.slice(0, 10) === key && t.status !== 'pending' && !(skip && (t.type === 'expense' || t.type === 'refund') && isExcludedCat(store, t.category)))
+    const amt = store.transactions.filter(t => t.date.slice(0, 10) === key && t.status !== 'pending' && hasOccurred(t, now) && !(skip && (t.type === 'expense' || t.type === 'refund') && isExcludedCat(store, t.category)))
       .reduce((s, t) => s + (t.type === 'expense' ? t.amount : t.type === 'refund' ? -t.amount : 0), 0);
     out.push({ day: d, amt: Math.max(amt, 0) });
   }
   return out;
 }
-export function largestExpenses(store, month, n) {
-  return store.transactions.filter(t => inMonth(t, month) && t.type === 'expense' && t.status !== 'pending')
+export function largestExpenses(store, month, n, now) {
+  return store.transactions.filter(t => inMonth(t, month) && t.type === 'expense' && t.status !== 'pending' && hasOccurred(t, now))
     .sort((a, b) => b.amount - a.amount).slice(0, n || 5);
 }
 export function budgetState(pct, spent) {
@@ -149,9 +162,9 @@ export function catRefs(store, id) {
   const recurring = store.recurring.filter(r => r.category === id).length;
   return { transactions, budgets, recurring, total: transactions + budgets + recurring };
 }
-export function catMonthTotal(store, id, month) {
+export function catMonthTotal(store, id, month, now) {
   return store.transactions
-    .filter(t => inMonth(t, month) && t.status !== 'pending' && t.category === id)
+    .filter(t => inMonth(t, month) && t.status !== 'pending' && t.category === id && hasOccurred(t, now))
     .reduce((s, t) => s + (t.type === 'expense' || t.type === 'income' ? t.amount : t.type === 'refund' ? -t.amount : 0), 0);
 }
 
@@ -174,10 +187,10 @@ export function availableCredit(card, outstanding, fmt) {
 // ---------------------------------------------------------------------------
 // Accounts & cards — what would break if this were archived/closed
 // ---------------------------------------------------------------------------
-export function accountRefs(store, id, month) {
+export function accountRefs(store, id, month, now) {
   const acc = store.accounts.find(a => a.id === id);
   return {
-    balance: acc ? accountBalance(acc, store, month) : 0,
+    balance: acc ? accountBalance(acc, store, month, now) : 0,
     cards: store.cards.filter(c => c.linkedAccountId === id && c.status !== 'closed').length,
     recurring: store.recurring.filter(r => r.accountId === id && r.status === 'active').length,
     pending: store.transactions.filter(t => t.status === 'pending' && (t.accountId === id || t.toAccountId === id)).length,
@@ -202,10 +215,10 @@ export function accountDeletePolicy(store, id) {
   return { mode: blockers.length ? 'blocked' : 'delete', refs, blockers };
 }
 
-export function cardRefs(store, id, month) {
+export function cardRefs(store, id, month, now) {
   const card = store.cards.find(c => c.id === id);
   return {
-    outstanding: card ? cardOutstanding(card, store, month) : 0,
+    outstanding: card ? cardOutstanding(card, store, month, now) : 0,
     recurring: store.recurring.filter(r => r.cardId === id && r.status === 'active').length,
     pending: store.transactions.filter(t => t.status === 'pending' && (t.cardId === id || t.toCardId === id)).length,
     transactions: store.transactions.filter(t => t.cardId === id || t.toCardId === id).length,
@@ -291,25 +304,25 @@ export function txBudgetImpact(store, t, opts) {
 }
 // The overall budget's basis — deliberately NOT monthMetrics().expenses, which
 // stays cash-based for the dashboard and includes excluded categories.
-export function monthBudgetSpending(store, month, opts) {
-  return store.transactions.filter(t => inMonth(t, month)).reduce((s, t) => s + txBudgetImpact(store, t, opts), 0);
+export function monthBudgetSpending(store, month, opts, now) {
+  return store.transactions.filter(t => inMonth(t, month) && hasOccurred(t, now)).reduce((s, t) => s + txBudgetImpact(store, t, opts), 0);
 }
 // What a budget is measured against: one category, or every expense for the overall budget.
-export function budgetSpent(store, budget, month, opts) {
-  if (!budget.category) return monthBudgetSpending(store, month, opts);
+export function budgetSpent(store, budget, month, opts, now) {
+  if (!budget.category) return monthBudgetSpending(store, month, opts, now);
   const net = store.transactions
-    .filter(t => inMonth(t, month) && t.category === budget.category)
+    .filter(t => inMonth(t, month) && t.category === budget.category && hasOccurred(t, now))
     .reduce((s, t) => s + txBudgetImpact(store, t, opts), 0);
   return Math.max(net, 0);
 }
 // Last month's unspent amount, carried forward only when the budget opts in.
 // Never negative — an overspend does not become this month's debt.
-export function budgetRollover(store, budget, month, opts) {
+export function budgetRollover(store, budget, month, opts, now) {
   if (!budget.rollover) return 0;
-  return Math.max(0, budget.amount - budgetSpent(store, budget, prevMonth(month), opts));
+  return Math.max(0, budget.amount - budgetSpent(store, budget, prevMonth(month), opts, now));
 }
-export function effectiveBudget(store, budget, month, opts) {
-  return budget.amount + budgetRollover(store, budget, month, opts);
+export function effectiveBudget(store, budget, month, opts, now) {
+  return budget.amount + budgetRollover(store, budget, month, opts, now);
 }
 // Straight-line pace projection. Only meaningful for a month still in progress,
 // and only once enough of it has elapsed for the pace to mean anything.
@@ -322,9 +335,9 @@ export function budgetProjection(month, spent, nowIso) {
 // Expense categories with spending this month and no budget attached. Excluded
 // categories never appear here — in the gross view they get their own
 // "Recoverable spending" section instead.
-export function unbudgetedSpend(store, month) {
+export function unbudgetedSpend(store, month, now) {
   const budgeted = store.budgets.filter(b => b.category).map(b => b.category);
-  return categorySpending(store, month)
+  return categorySpending(store, month, null, now)
     .filter(x => x.cat && x.cat.type === 'expense' && budgeted.indexOf(x.id) < 0 && !x.cat.excludeFromBudget)
     .map(x => ({ id: x.id, name: x.cat.name, amt: x.amt, cat: x.cat }));
 }
@@ -349,11 +362,11 @@ export function unbudgetedSpend(store, month) {
  * To change the policy, edit the `.filter` below (~5 lines).
  * ─────────────────────────────────────────────────────────────────────────────
  */
-export function recoverableSpending(store, month) {
+export function recoverableSpending(store, month, now) {
   const rows = store.categories
     .filter(c => c.type === 'expense' && c.excludeFromBudget && c.status !== 'archived')
     .map(c => {
-      const mtx = store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending' && t.category === c.id);
+      const mtx = store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending' && t.category === c.id && hasOccurred(t, now));
       const paid = mtx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
       const returned = mtx.filter(t => t.type === 'refund').reduce((s, t) => s + t.amount, 0);
       return { id: c.id, name: c.name, cat: c, paid, returned, outstanding: Math.max(paid - returned, 0) };
