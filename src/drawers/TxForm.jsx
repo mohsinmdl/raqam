@@ -3,6 +3,7 @@
 // Deviation from prototype (bug fix): the prototype validated an account for type
 // "adjustment" but never rendered a selector for it — here the account picker also
 // shows for adjustments ("Account to adjust").
+import { useState } from 'react';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
@@ -42,6 +43,8 @@ function Body() {
   const { moneyRaw } = useMoney();
   const f = drawer.form, errors = drawer.errors;
   const type = f.type || 'expense';
+  // Body remounts per drawer (keyed by name), so this resets between opens.
+  const [noteOpen, setNoteOpen] = useState(!!f.notes);
 
   const fxPayWith = type === 'expense' || type === 'refund';
   const fxAccount = type === 'income' || type === 'adjustment';
@@ -235,10 +238,24 @@ function Body() {
         <FieldError msg={errors.date} />
       </div>
 
-      <div>
-        <Label htmlFor="f-notes" optional>Notes</Label>
-        <TextAreaField id="f-notes" field="notes" />
-      </div>
+      {/* The note is the tallest thing in the form and the least used, so it
+          stays folded away until asked for — that is what keeps the drawer
+          from scrolling. A transaction that already has one opens expanded, so
+          nothing is ever hidden from you. */}
+      {noteOpen ? (
+        <div>
+          <Label htmlFor="f-notes" optional>Notes</Label>
+          <TextAreaField id="f-notes" field="notes" autoFocus={!f.notes} />
+        </div>
+      ) : (
+        <div>
+          <button
+            type="button" onClick={() => setNoteOpen(true)}
+            className="hv-soft"
+            style={{ height: 30, padding: '0 10px', border: '1px dashed var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+          >＋ Add note</button>
+        </div>
+      )}
 
       <div role="group" aria-label="Status" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 500 }}>Status:</span>
