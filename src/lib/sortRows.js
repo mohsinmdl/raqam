@@ -38,7 +38,17 @@ export const SORT_COLUMNS = {
   category: { defaultDir: 'asc', type: 'collate', get: r => r.catName },
   account: { defaultDir: 'asc', type: 'collate', get: r => r.acctLabel },
   status: { defaultDir: 'asc', type: 'number', get: statusRank },
-  amount: { defaultDir: 'desc', type: 'number', get: r => r.amtValue },
+  // Amount has two modes, because they answer different questions.
+  //
+  // `size` ignores the sign — "what were my biggest transactions?" — and is
+  // what the AMOUNT header sorts by, since that is the common one. Direction
+  // is still legible while it sorts, because the amount is coloured.
+  //
+  // `signed` ranks by effect on the balance — "what moved my position most?" —
+  // and lives in the Sort by dropdown. It has no header of its own, so it is
+  // never reachable by clicking; nextSortState only ever produces `size`.
+  size: { defaultDir: 'desc', type: 'number', get: r => (Number.isFinite(r.amtValue) ? Math.abs(r.amtValue) : null) },
+  signed: { defaultDir: 'desc', type: 'number', get: r => r.amtValue },
 };
 
 export const isSortable = key => Object.prototype.hasOwnProperty.call(SORT_COLUMNS, key);
@@ -131,6 +141,7 @@ export function sortLabel(sort) {
     category: { asc: 'Category A–Z', desc: 'Category Z–A' },
     account: { asc: 'Account A–Z', desc: 'Account Z–A' },
     status: { asc: 'Needs action first', desc: 'Settled first' },
-    amount: { asc: 'Lowest first', desc: 'Highest first' },
+    size: { asc: 'Smallest first', desc: 'Largest first' },
+    signed: { asc: 'Lowest first', desc: 'Highest first' },
   }[s.key][s.dir];
 }

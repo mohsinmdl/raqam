@@ -17,8 +17,8 @@ const desc = k => ({ key: k, dir: 'desc' });
 
 describe('sort model', () => {
   it('defaults to newest-first by date', () => expect(DEFAULT_SORT).toEqual({ key: 'date', dir: 'desc' }));
-  it('sorts exactly the six data columns', () =>
-    expect(Object.keys(SORT_COLUMNS)).toEqual(['date', 'details', 'category', 'account', 'status', 'amount']));
+  it('sorts the six data columns, amount in two modes', () =>
+    expect(Object.keys(SORT_COLUMNS)).toEqual(['date', 'details', 'category', 'account', 'status', 'size', 'signed']));
   it('rejects columns that are not sortable', () => {
     expect(isSortable('select')).toBe(false);
     expect(isSortable('actions')).toBe(false);
@@ -34,7 +34,7 @@ describe('sort model', () => {
 describe('header click cycle', () => {
   it('gives a column its default direction first', () => {
     expect(nextSortState(DEFAULT_SORT, 'details')).toEqual({ key: 'details', dir: 'asc' });
-    expect(nextSortState(DEFAULT_SORT, 'amount')).toEqual({ key: 'amount', dir: 'desc' });
+    expect(nextSortState(DEFAULT_SORT, 'size')).toEqual({ key: 'size', dir: 'desc' });
   });
   it('toggles, then clears back to the table default', () => {
     const one = nextSortState(DEFAULT_SORT, 'category');
@@ -109,15 +109,24 @@ describe('blanks sink to the bottom in BOTH directions', () => {
       expect(ids(sortRows(rows, desc(col))).slice(2).sort()).toEqual(['blank', 'dash']);
     });
   }
-  it('amount: a missing number sinks in both directions', () => {
+  it('signed: a missing number sinks in both directions', () => {
     const rows = [
       row({ sortId: 'none', amtValue: null }),
       row({ sortId: 'nan', amtValue: NaN }),
       row({ sortId: 'lo', amtValue: -500 }),
       row({ sortId: 'hi', amtValue: 900 }),
     ];
-    expect(ids(sortRows(rows, asc('amount'))).slice(0, 2)).toEqual(['lo', 'hi']);
-    expect(ids(sortRows(rows, desc('amount'))).slice(0, 2)).toEqual(['hi', 'lo']);
+    expect(ids(sortRows(rows, asc('signed'))).slice(0, 2)).toEqual(['lo', 'hi']);
+    expect(ids(sortRows(rows, desc('signed'))).slice(0, 2)).toEqual(['hi', 'lo']);
+  });
+  it('size: a missing number sinks in both directions too', () => {
+    const rows = [
+      row({ sortId: 'none', amtValue: null }),
+      row({ sortId: 'small', amtValue: -5 }),
+      row({ sortId: 'big', amtValue: 900 }),
+    ];
+    expect(ids(sortRows(rows, asc('size')))).toEqual(['small', 'big', 'none']);
+    expect(ids(sortRows(rows, desc('size')))).toEqual(['big', 'small', 'none']);
   });
 });
 
@@ -190,16 +199,16 @@ describe('amount is signed, and comes from the presenter', () => {
     ].map(r => ({ ...r, sortId: r.id }));
     // The old Math.abs() sort put the 50,000s adjacent; signed puts them at
     // opposite ends with the small row between.
-    expect(ids(sortRows(rows, desc('amount')))).toEqual(['in', 'mid', 'out']);
-    expect(ids(sortRows(rows, asc('amount')))).toEqual(['out', 'mid', 'in']);
+    expect(ids(sortRows(rows, desc('signed')))).toEqual(['in', 'mid', 'out']);
+    expect(ids(sortRows(rows, asc('signed')))).toEqual(['out', 'mid', 'in']);
   });
   it('places zero between negatives and positives', () => {
     const rows = [row({ sortId: 'p', amtValue: 5 }), row({ sortId: 'z', amtValue: 0 }), row({ sortId: 'n', amtValue: -5 })];
-    expect(ids(sortRows(rows, asc('amount')))).toEqual(['n', 'z', 'p']);
+    expect(ids(sortRows(rows, asc('signed')))).toEqual(['n', 'z', 'p']);
   });
   it('ignores currency formatting entirely', () => {
     const rows = [row({ sortId: 'big', amtValue: 1000000 }), row({ sortId: 'small', amtValue: 9 })];
-    expect(ids(sortRows(rows, desc('amount')))).toEqual(['big', 'small']);
+    expect(ids(sortRows(rows, desc('signed')))).toEqual(['big', 'small']);
   });
 });
 
@@ -242,8 +251,8 @@ describe('tie-breakers are deterministic', () => {
   });
   it('compareRows agrees with sortRows', () => {
     const [x, y] = [row({ sortId: 'x', amtValue: 10 }), row({ sortId: 'y', amtValue: 20 })];
-    expect(compareRows(x, y, asc('amount'))).toBeLessThan(0);
-    expect(compareRows(x, y, desc('amount'))).toBeGreaterThan(0);
+    expect(compareRows(x, y, asc('signed'))).toBeLessThan(0);
+    expect(compareRows(x, y, desc('signed'))).toBeGreaterThan(0);
   });
 });
 
@@ -253,7 +262,7 @@ describe('scheduled group', () => {
     expect(scheduledSort(asc('date'))).toEqual({ key: 'date', dir: 'asc' });
   });
   it('follows every other column normally', () => {
-    expect(scheduledSort(desc('amount'))).toEqual(desc('amount'));
+    expect(scheduledSort(desc('size'))).toEqual(desc('size'));
     expect(scheduledSort(asc('details'))).toEqual(asc('details'));
   });
   it('leaves overdue at the top under the default sort, without pinning it', () => {
@@ -281,7 +290,7 @@ describe('groups sort independently', () => {
 
   it('applies the chosen sort inside each group without merging them', () => {
     const list = [tx('p1', '2026-08-01T09:00', 100), tx('p2', '2026-08-02T09:00', 900), tx('f1', '2026-08-30T09:00', 400)];
-    const g = txGroups(list, S, fmt, NOW, { from: null, to: null }, false, desc('amount'));
+    const g = txGroups(list, S, fmt, NOW, { from: null, to: null }, false, desc('signed'));
     // Recorded: -100 before -900 descending. Scheduled keeps the future row.
     expect(g.postedRows.map(r => r.id)).toEqual(['p1', 'p2']);
     expect(g.scheduled.map(x => x.selId || x.row.ruleId)).toContain('f1');
@@ -307,7 +316,8 @@ describe('sortLabel', () => {
   });
   it('reads as plain language', () => {
     expect(sortLabel(DEFAULT_SORT)).toBe('Newest first');
-    expect(sortLabel(asc('amount'))).toBe('Lowest first');
+    expect(sortLabel(desc('size'))).toBe('Largest first');
+    expect(sortLabel(asc('signed'))).toBe('Lowest first');
     expect(sortLabel(asc('status'))).toBe('Needs action first');
   });
 });
@@ -350,9 +360,59 @@ describe('amount colour states the direction the sign is too thin to carry', () 
       txRowOf(tx({ id: 'small', type: 'expense', amount: 70 }), S, fmt),
       txRowOf(tx({ id: 'adj', type: 'adjustment', amount: 45 }), S, fmt),
     ].map(r => ({ ...r, sortId: r.id }));
-    const colours = sortRows(rows, asc('amount')).map(r => r.amtColor);
+    const colours = sortRows(rows, asc('signed')).map(r => r.amtColor);
     expect(colours).toEqual(['var(--neg)', 'var(--neg)', 'var(--pos)', 'var(--pos)']);
     // no colour appears, disappears, then returns
     expect(new Set(colours).size).toBe(colours.filter((c, i) => c !== colours[i - 1]).length);
+  });
+});
+
+// --- size: rank by how big, not which way -----------------------------------
+describe('size ignores the sign', () => {
+  const rows = [
+    row({ sortId: 'bigOut', amtValue: -60850 }),
+    row({ sortId: 'midIn', amtValue: 20000 }),
+    row({ sortId: 'smallOut', amtValue: -70 }),
+    row({ sortId: 'bigIn', amtValue: 100000 }),
+  ];
+
+  it('ranks a large expense above a smaller income', () => {
+    expect(ids(sortRows(rows, desc('size')))).toEqual(['bigIn', 'bigOut', 'midIn', 'smallOut']);
+  });
+  it('reverses to smallest first', () => {
+    expect(ids(sortRows(rows, asc('size')))).toEqual(['smallOut', 'midIn', 'bigOut', 'bigIn']);
+  });
+  it('is the mode the AMOUNT header drives', () => {
+    const one = nextSortState(DEFAULT_SORT, 'size');
+    expect([one, sortLabel(one)]).toEqual([{ key: 'size', dir: 'desc' }, 'Largest first']);
+    const two = nextSortState(one, 'size');
+    expect([two, sortLabel(two)]).toEqual([{ key: 'size', dir: 'asc' }, 'Smallest first']);
+    expect(nextSortState(two, 'size')).toEqual(DEFAULT_SORT);
+  });
+  it('never produces the signed mode from a header click — that is dropdown-only', () => {
+    for (const k of ['date', 'details', 'category', 'account', 'status', 'size']) {
+      expect(nextSortState(DEFAULT_SORT, k).key).not.toBe('signed');
+    }
+  });
+  it('resolves an equal-size pair of opposite signs deterministically', () => {
+    const pair = [
+      row({ sortId: 'plus', amtValue: 500, merchant: 'Zed', sortAt: '2026-08-03T12:00' }),
+      row({ sortId: 'minus', amtValue: -500, merchant: 'Ada', sortAt: '2026-08-03T12:00' }),
+    ];
+    // Sizes tie, so the fallback chain decides — details before id.
+    const out = ids(sortRows(pair, desc('size')));
+    expect(out).toEqual(['minus', 'plus']);
+    expect(ids(sortRows([...pair].reverse(), desc('size')))).toEqual(out);
+  });
+  it('deliberately interleaves the colours, unlike the signed mode', () => {
+    const coloured = [
+      { ...row({ sortId: 'a', amtValue: -60850 }), amtColor: 'var(--neg)' },
+      { ...row({ sortId: 'b', amtValue: 20000 }), amtColor: 'var(--pos)' },
+      { ...row({ sortId: 'c', amtValue: -70 }), amtColor: 'var(--neg)' },
+    ];
+    // Size sort mixes red and green — which is exactly why the amount is
+    // coloured: under this sort, colour is the only direction cue.
+    expect(sortRows(coloured, desc('size')).map(r => r.amtColor))
+      .toEqual(['var(--neg)', 'var(--pos)', 'var(--neg)']);
   });
 });

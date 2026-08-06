@@ -48,13 +48,16 @@ const COLUMNS = [
   { key: 'category', label: 'CATEGORY', width: 150 },
   { key: 'account', label: 'ACCOUNT / CARD', width: 150 },
   { key: 'status', label: 'STATUS', width: 96 },
-  { key: 'amount', label: 'AMOUNT', width: 120, align: 'right' },
+  // altKeys: the signed sort has no header of its own, so AMOUNT stays lit
+  // while it drives the order — the reader can always see which column owns
+  // the ordering, even when the mode came from the dropdown.
+  { key: 'size', label: 'AMOUNT', width: 120, align: 'right', altKeys: ['signed'] },
 ];
 
 // A sortable column header. The whole cell is the control, so the target is the
 // full header height rather than the width of the label text.
 function SortableHeader({ col, sort, onSort }) {
-  const active = sort.key === col.key;
+  const active = sort.key === col.key || (col.altKeys || []).includes(sort.key);
   const dir = active ? sort.dir : null;
   const nextDir = nextSortState(sort, col.key).dir;
   const nextWord = {
@@ -63,7 +66,7 @@ function SortableHeader({ col, sort, onSort }) {
     category: { asc: 'A to Z', desc: 'Z to A' },
     account: { asc: 'A to Z', desc: 'Z to A' },
     status: { asc: 'needs action first', desc: 'settled first' },
-    amount: { asc: 'lowest first', desc: 'highest first' },
+    size: { asc: 'smallest first', desc: 'largest first' },
   }[col.key][nextDir];
   return (
     <th
