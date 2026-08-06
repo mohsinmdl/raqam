@@ -148,6 +148,37 @@ export function deleteTransaction(data, { id }) {
   };
 }
 
+// "I paid this early." A transaction dated ahead of now sits in the Scheduled
+// group and is kept out of every balance by hasOccurred(); if the money has in
+// fact already moved, the honest fix is the date — the day it moved is the day
+// it happened. So this action changes one field and nothing else. Leaving
+// Scheduled, joining Recorded and starting to count are all consequences the
+// presenters draw from that date, not extra state to keep in step.
+//
+// `now` is passed in rather than read here, matching the money math's
+// convention (calc.js hasOccurred): a pure action stays testable without
+// mocking the clock.
+export function postTransactionNow(data, { id, now }) {
+  const i = data.transactions.findIndex(x => x.id === id);
+  if (i < 0) return data;
+  const before = data.transactions[i];
+  // Already in the past — nothing to bring forward. Same reference back, so a
+  // double-click cannot re-stamp an edit or write a second audit row.
+  if (!now || before.date <= now) return data;
+  const after = stampUpdate({ ...before, date: now });
+  const transactions = [...data.transactions];
+  transactions[i] = after;
+  return {
+    ...data,
+    transactions,
+    audit: [makeAudit({
+      entityType: 'transaction', entityId: before.id, action: 'update',
+      summary: 'Posted now — moved from ' + before.date.slice(0, 10) + ' to today',
+      before: { date: before.date }, after: { date: after.date },
+    }), ...(data.audit || [])],
+  };
+}
+
 // payload: validated addAccount form + parsed bal. Seeds a pending opening snapshot.
 export function addAccount(data, { form: f, bal }) {
   const next = { ...data, institutions: [...data.institutions], accounts: [...data.accounts], snapshots: [...data.snapshots] };

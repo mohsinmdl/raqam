@@ -158,7 +158,10 @@ describe('txGroups', () => {
     expect(g.scheduled.map(x => x.selId || x.row.ruleId)).toEqual(['early', 'r1', 'late']);
   });
 
-  it('gives future transactions a selectable id and reminders none', () => {
+  it('tags future transactions with their id and reminders with none', () => {
+    // selId is what tells the two species apart in the group: it is the handle
+    // Post now and Edit act on. Scheduled rows carry no checkbox, so it is no
+    // longer wired to selection — the ledger below owns that.
     const g = txGroups([tx({ id: 'ahead', date: '2026-08-30T09:00' })], store(), fmt, NOW, RANGE, false);
     expect(g.scheduled.find(x => x.row.isRule).selId).toBeUndefined();
     expect(g.scheduled.find(x => !x.row.isRule).selId).toBe('ahead');

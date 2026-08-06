@@ -12,7 +12,7 @@ import { txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
 import { advanceDue, longDate, ruleFromTx } from '../lib/schedule.js';
-import { deleteTransactions, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
+import { deleteTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import RowMenu from '../ui/RowMenu.jsx';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
@@ -84,7 +84,7 @@ export default function Transactions() {
   // the rules for which row lands where, and is tested there.
   const now = nowIso();
   const anyFilter = Object.keys(DEFAULT_FILTERS).some(k => F[k] !== DEFAULT_FILTERS[k]);
-  const { scheduled, postedRows, postedTx, futureTx, overdueCount } = txGroups(list, S, fmt, now, range, anyFilter);
+  const { scheduled, postedRows, postedTx, overdueCount } = txGroups(list, S, fmt, now, range, anyFilter);
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter
   // has hidden would let the toolbar claim "12 selected" while showing three,
@@ -97,7 +97,10 @@ export default function Transactions() {
   // left on screen to expand them again.
   const grouped = scheduled.length > 0;
   const postedShown = !grouped || postedOpen;
-  const visibleIds = (schedOpen ? futureTx : []).concat(postedShown ? postedTx : []).map(t => t.id);
+  // Scheduled rows carry no checkbox at all — selection belongs to the ledger
+  // below — so only the recorded rows are ever selectable, and collapsing the
+  // scheduled group no longer changes what "select all" means.
+  const visibleIds = postedShown ? postedTx.map(t => t.id) : [];
   const sel = visibleIds.filter(id => selected.has(id));
   const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
   const clearSel = () => setSelected(new Set());
@@ -131,6 +134,18 @@ export default function Transactions() {
     if (!ok) return;
     applyData(data => skipOccurrence(data, { id: r.id, due: r.nextDate }));
     notify('Skipped — nothing recorded. Next due ' + longDate(after, now) + '.');
+  };
+
+  const askPostNow = async row => {
+    const ok = await ask({
+      title: 'Move this to today?',
+      body: '“' + row.merchant + '” is dated ' + row.dateLabel + '. Posting it now re-dates it to today, so it counts in your balance straight away.',
+      action: 'Post now',
+      tone: 'accent',
+    });
+    if (!ok) return;
+    applyData(data => postTransactionNow(data, { id: row.id, now: nowIso() }));
+    notify('Posted — dated today and counted.');
   };
 
   const afterBulk = (msg, next) => { applyData(next); clearSel(); notify(msg); };
@@ -359,25 +374,24 @@ export default function Transactions() {
                     count={scheduled.length + (scheduled.length === 1 ? ' item' : ' items')}
                     note={overdueCount > 0 ? overdueCount + ' overdue' : 'not yet spent'}
                   />
+                  {/* Every scheduled row is the same shape — no checkbox, two
+                      ghost buttons — so the group reads as one list. The verbs
+                      differ because the rows genuinely differ: a reminder has
+                      nothing recorded yet, a future transaction already exists
+                      and is only waiting for its date. */}
                   {schedOpen && scheduled.map(x => (
                     <Row
-                      key={x.row.key || x.row.id} t={x.row} selId={x.selId}
+                      key={x.row.key || x.row.id} t={x.row}
                       actions={x.row.isRule ? (
                         <>
                           <button onClick={() => openers.recordRule(S, x.row.ruleId, openDrawer)} className="hv-soft" style={{ ...rowBtn, color: 'var(--accent)' }}>Record</button>
                           <button onClick={() => askSkip(x.row)} className="hv-soft" style={{ ...rowBtn, color: 'var(--muted)' }}>Skip</button>
                         </>
                       ) : (
-                        <RowMenu
-                          open={menuOpen === x.selId}
-                          onToggle={() => setMenuOpen(menuOpen === x.selId ? null : x.selId)}
-                          onClose={() => setMenuOpen(null)}
-                          label="Actions for this transaction"
-                          items={[
-                            x.row.canEdit && { label: 'Edit', onClick: () => openers.editTx(S, x.selId, openDrawer) },
-                            x.row.canRepeat && !ruleFromTx(S, x.selId) && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, x.selId, openDrawer) },
-                          ]}
-                        />
+                        <>
+                          <button onClick={() => askPostNow(x.row)} className="hv-soft" style={{ ...rowBtn, color: 'var(--accent)' }}>Post now</button>
+                          <button onClick={() => openers.editTx(S, x.selId, openDrawer)} className="hv-soft" style={{ ...rowBtn, color: 'var(--muted)' }}>Edit</button>
+                        </>
                       )}
                     />
                   ))}
