@@ -33,7 +33,14 @@ export function daysUntil(iso, nowIso) { return Math.ceil((new Date(iso.slice(0,
 // a guard there would drop anything still dated ahead at that moment, losing
 // the money permanently once the snapshot is written. Forgetting to pass `now`
 // therefore degrades to a cosmetic bug, never to a wrong balance.
-export function hasOccurred(t, now) { return !now || t.date <= now; }
+// Day-granular on purpose. The clock time on a transaction is an ordering hint
+// within its day, not a claim about the minute money moved — adjustments, card
+// adjustments and card payments are all stamped at a flat T12:00 by the actions
+// that create them (actions.js). Comparing full timestamps meant an adjustment
+// made at 02:00 was dated "noon today", read as the future, and silently left
+// out of every balance until midday. A transaction dated today has happened
+// today; only a later DATE is still to come.
+export function hasOccurred(t, now) { return !now || t.date.slice(0, 10) <= now.slice(0, 10); }
 
 // Effect of a cleared transaction on a bank account balance.
 export function accountDelta(t, accId, now) {
