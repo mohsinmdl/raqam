@@ -5,13 +5,6 @@ import { nowIso } from './dates.js';
 import { ruleDueLabel, ruleFromTx, scheduledRules, sourceLabel } from './schedule.js';
 import { scheduledSort, sortRows } from './sortRows.js';
 
-// Direction as colour. A sign glyph is thin and loses to a bold five-digit
-// number, so under an amount sort the eye read the column as a V of magnitudes
-// rather than one ordered line. Colour carries the direction instead, and the
-// sorted column resolves into two solid bands. Zero is neither, so it stays
-// plain — a zero adjustment is not a loss.
-const signColor = n => (n > 0 ? 'var(--pos)' : n < 0 ? 'var(--neg)' : 'var(--text)');
-
 // fmt = { money, moneyS } from useMoney(). forAccountId flips amounts to the
 // perspective of one account (account-detail activity list).
 export function txRowOf(t, S, fmt, forAccountId) {
@@ -40,11 +33,11 @@ export function txRowOf(t, S, fmt, forAccountId) {
   let amtLabel, amtColor, amtValue;
   if (forAccountId) {
     const d = t.status === 'pending' ? (t.accountId === forAccountId ? -t.amount : t.amount) : accountDelta(t, forAccountId);
-    amtLabel = fmt.moneyS(d); amtColor = t.type === 'transfer' ? 'var(--muted)' : signColor(d); amtValue = d;
-  } else if (t.type === 'expense') { amtLabel = fmt.money(-t.amount); amtColor = 'var(--neg)'; amtValue = -t.amount; }
+    amtLabel = fmt.moneyS(d); amtColor = t.type === 'transfer' ? 'var(--muted)' : d > 0 ? 'var(--pos)' : 'var(--text)'; amtValue = d;
+  } else if (t.type === 'expense') { amtLabel = fmt.money(-t.amount); amtColor = 'var(--text)'; amtValue = -t.amount; }
   else if (t.type === 'income' || t.type === 'refund') { amtLabel = fmt.moneyS(t.amount); amtColor = 'var(--pos)'; amtValue = t.amount; }
   else if (t.type === 'transfer') { amtLabel = fmt.money(t.amount); amtColor = 'var(--muted)'; amtValue = t.amount; }
-  else { amtLabel = fmt.moneyS(t.amount); amtColor = signColor(t.amount); amtValue = t.amount; }
+  else { amtLabel = fmt.moneyS(t.amount); amtColor = t.amount >= 0 ? 'var(--pos)' : 'var(--text)'; amtValue = t.amount; }
   let acctLabel = '—';
   if (t.type === 'transfer') acctLabel = (acc ? acc.nickname : '?') + ' → ' + (toCard ? toCard.nickname + ' ••' + toCard.last4 : toAcc ? toAcc.nickname : '?');
   else if (card) acctLabel = card.nickname + ' ••' + card.last4;
@@ -151,9 +144,7 @@ export function ruleRowOf(r, S, fmt, now) {
     // a forecast, and rounding it into a hard figure would be a small lie.
     amtLabel: (r.estimated ? '~' : '') + fmt.money(r.type === 'income' ? r.amount : -r.amount),
     amtValue: r.type === 'income' ? r.amount : -r.amount,
-    // Money that will go out reads the same as money that has: leaving these
-    // plain would make the Scheduled group the odd one out under an amount sort.
-    amtColor: r.type === 'income' ? 'var(--pos)' : 'var(--neg)',
+    amtColor: r.type === 'income' ? 'var(--pos)' : 'var(--text)',
     stLabel: overdue ? 'Overdue' : 'Scheduled',
     stBg: overdue ? 'var(--neg-soft)' : 'var(--info-soft)',
     stFg: overdue ? 'var(--neg)' : 'var(--info)',

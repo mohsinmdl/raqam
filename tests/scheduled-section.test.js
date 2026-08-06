@@ -113,7 +113,7 @@ describe('ruleRowOf', () => {
 
   it('colours income differently from money going out', () => {
     expect(ruleRowOf(rule({ type: 'income' }), store(), fmt, NOW).amtColor).toBe('var(--pos)');
-    expect(ruleRowOf(rule(), store(), fmt, NOW).amtColor).toBe('var(--neg)');
+    expect(ruleRowOf(rule(), store(), fmt, NOW).amtColor).toBe('var(--text)');
   });
 
   it('exposes the sort keys the table orders on', () => {

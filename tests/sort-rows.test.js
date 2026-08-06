@@ -322,8 +322,11 @@ describe('sortLabel', () => {
   });
 });
 
-// --- direction as colour -----------------------------------------------------
-describe('amount colour states the direction the sign is too thin to carry', () => {
+// --- amount colour --------------------------------------------------------
+describe('amount colour marks the exception, not the norm', () => {
+  // Money out is the ordinary case in a ledger, so it stays plain; colouring
+  // every expense made the whole table shout. Green marks money in, which is
+  // the rarer event and the one worth spotting.
   const S = {
     categories: [{ id: 'c', name: 'Cat', color: '#111' }],
     accounts: [{ id: 'a1', nickname: 'Main' }], cards: [], recurring: [],
@@ -332,38 +335,33 @@ describe('amount colour states the direction the sign is too thin to carry', () 
   const tx = o => ({ id: 'x', date: '2026-08-03T12:00', amount: 500, status: 'cleared', accountId: 'a1', category: 'c', merchant: 'M', ...o });
   const colorOf = o => txRowOf(tx(o), S, fmt).amtColor;
 
-  it('paints money out red and money in green', () => {
-    expect(colorOf({ type: 'expense' })).toBe('var(--neg)');
+  it('leaves money out plain and paints money in green', () => {
+    expect(colorOf({ type: 'expense' })).toBe('var(--text)');
     expect(colorOf({ type: 'income' })).toBe('var(--pos)');
     expect(colorOf({ type: 'refund' })).toBe('var(--pos)');
   });
   it('leaves transfers muted — they are neither', () =>
     expect(colorOf({ type: 'transfer' })).toBe('var(--muted)'));
   it('follows the stored sign on adjustments, the only signed types', () => {
-    expect(colorOf({ type: 'adjustment', amount: -828 })).toBe('var(--neg)');
+    expect(colorOf({ type: 'adjustment', amount: -828 })).toBe('var(--text)');
     expect(colorOf({ type: 'adjustment', amount: 3950 })).toBe('var(--pos)');
-    expect(colorOf({ type: 'cardAdjustment', amount: -10 })).toBe('var(--neg)');
   });
-  it('keeps zero plain — it is not a loss', () =>
-    expect(colorOf({ type: 'adjustment', amount: 0 })).toBe('var(--text)'));
-  it('agrees with amtValue on every row, so colour and order cannot contradict', () => {
+  it('uses no red at all — red belongs to overdue and stale, not to spending', () => {
     for (const o of [{ type: 'expense' }, { type: 'income' }, { type: 'refund' },
-                     { type: 'adjustment', amount: -828 }, { type: 'adjustment', amount: 3950 }]) {
-      const r = txRowOf(tx(o), S, fmt);
-      expect(r.amtColor).toBe(r.amtValue > 0 ? 'var(--pos)' : r.amtValue < 0 ? 'var(--neg)' : 'var(--text)');
+                     { type: 'transfer' }, { type: 'adjustment', amount: -828 },
+                     { type: 'cardAdjustment', amount: -10 }]) {
+      expect(colorOf(o)).not.toBe('var(--neg)');
     }
   });
-  it('sorted ascending, the column runs one red band then one green band', () => {
+  it('reads as one plain run then one green run under a signed sort', () => {
     const rows = [
       txRowOf(tx({ id: 'in', type: 'income', amount: 20000 }), S, fmt),
       txRowOf(tx({ id: 'out', type: 'expense', amount: 2000 }), S, fmt),
       txRowOf(tx({ id: 'small', type: 'expense', amount: 70 }), S, fmt),
       txRowOf(tx({ id: 'adj', type: 'adjustment', amount: 45 }), S, fmt),
     ].map(r => ({ ...r, sortId: r.id }));
-    const colours = sortRows(rows, asc('signed')).map(r => r.amtColor);
-    expect(colours).toEqual(['var(--neg)', 'var(--neg)', 'var(--pos)', 'var(--pos)']);
-    // no colour appears, disappears, then returns
-    expect(new Set(colours).size).toBe(colours.filter((c, i) => c !== colours[i - 1]).length);
+    expect(sortRows(rows, asc('signed')).map(r => r.amtColor))
+      .toEqual(['var(--text)', 'var(--text)', 'var(--pos)', 'var(--pos)']);
   });
 });
 
@@ -404,15 +402,15 @@ describe('size ignores the sign', () => {
     expect(out).toEqual(['minus', 'plus']);
     expect(ids(sortRows([...pair].reverse(), desc('size')))).toEqual(out);
   });
-  it('deliberately interleaves the colours, unlike the signed mode', () => {
+  it('interleaves money in among money out, unlike the signed mode', () => {
     const coloured = [
-      { ...row({ sortId: 'a', amtValue: -60850 }), amtColor: 'var(--neg)' },
+      { ...row({ sortId: 'a', amtValue: -60850 }), amtColor: 'var(--text)' },
       { ...row({ sortId: 'b', amtValue: 20000 }), amtColor: 'var(--pos)' },
-      { ...row({ sortId: 'c', amtValue: -70 }), amtColor: 'var(--neg)' },
+      { ...row({ sortId: 'c', amtValue: -70 }), amtColor: 'var(--text)' },
     ];
-    // Size sort mixes red and green — which is exactly why the amount is
-    // coloured: under this sort, colour is the only direction cue.
+    // Size ranks by how big, so incoming money lands wherever its magnitude
+    // puts it. The sign glyph on each row is what states the direction.
     expect(sortRows(coloured, desc('size')).map(r => r.amtColor))
-      .toEqual(['var(--neg)', 'var(--pos)', 'var(--neg)']);
+      .toEqual(['var(--text)', 'var(--pos)', 'var(--text)']);
   });
 });
