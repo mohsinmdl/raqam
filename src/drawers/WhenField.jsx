@@ -50,6 +50,7 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
   const today = todayStr();
   const rowRef = useRef(null);
   const panelRef = useRef(null);
+  const colsRef = useRef(null);
   const [open, setOpen] = useState(null); // 'date' | 'time' | null
   const [pos, setPos] = useState(null);
   const [month, setMonth] = useState(() => String(f.date || today).slice(0, 7));
@@ -64,9 +65,8 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
     // The panel is pinned to a viewport position, so scrolling the page or the
     // drawer body invalidates it — but scrolling INSIDE it must not. This
     // listener is on document in capture phase, so it also sees the time
-    // picker's own columns: centring the selected hour on mount is a
-    // programmatic scroll, and without this guard it closed the popover before
-    // it could be seen.
+    // picker's own columns: aligning them below is a programmatic scroll, and
+    // without this guard it closed the popover before it could be seen.
     const onScroll = e => {
       if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
       close();
@@ -113,9 +113,39 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
     setPos({ top, left, maxHeight });
   }, [open, month, calH, calW]);
 
-  const pickDate = ymd => { setForm({ date: ymd }); setMonth(ymd.slice(0, 7)); close(); };
+  // Line the selected hour and minute up with the selected AM/PM, so all three
+  // highlighted chips read across on one row. The AM/PM column is only two
+  // items tall and never scrolls, so it is the anchor the others move to.
+  //
+  // Runs on open only. Re-aligning on every pick would yank the list out from
+  // under the finger that just tapped it. Measured with rects rather than
+  // offsetTop, which is relative to the nearest positioned ancestor (the panel)
+  // and not to the column being scrolled.
+  useLayoutEffect(() => {
+    if (open !== 'time' || !colsRef.current) return;
+    const [hourCol, minCol, merCol] = [...colsRef.current.querySelectorAll('[role="listbox"]')];
+    if (!merCol) return;
+    const merOn = merCol.querySelector('[data-on="true"]');
+    const anchor = merOn ? merOn.getBoundingClientRect().top - merCol.getBoundingClientRect().top : 0;
+    for (const col of [hourCol, minCol]) {
+      const on = col && col.querySelector('[data-on="true"]');
+      if (!on) continue;
+      col.scrollTop += (on.getBoundingClientRect().top - col.getBoundingClientRect().top) - anchor;
+    }
+  }, [open, pos]);
+
+  // Picking deliberately does NOT close: you may want to correct the date, jump
+  // back with Today, or set the time straight after. The scrim, Escape and the
+  // trigger all still close it.
+  const pickDate = ymd => { setForm({ date: ymd }); setMonth(ymd.slice(0, 7)); };
   const [hh, mm] = String(f.time || '12:00').split(':').map(Number);
   const pm = hh >= 12;
+  // The column offers minutes in fives, but the default time is the current
+  // wall clock — 5:19 matched no chip, so nothing highlighted and the column
+  // had nothing to align to. Highlight the five below instead: 5:19 shows :15.
+  // It only marks the nearest option; the stored time stays 5:19 until you
+  // actually pick one, because opening a picker must not edit the record.
+  const mmSlot = Math.floor(mm / 5) * 5;
   const setTime = (h, m) => setForm({ time: p2(h) + ':' + p2(m) });
 
   return (
@@ -185,14 +215,14 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
             <div ref={panelRef} role="dialog" aria-label="Choose a time" style={{ ...panel, top: pos.top, left: pos.left, width: TIME_W, maxHeight: pos.maxHeight }}>
               <div style={{ display: 'flex', gap: 6, padding: '10px 10px 8px', flexWrap: 'wrap', flex: 'none' }}>
                 {QUICK.map(q => (
-                  <button key={q.v} type="button" onClick={() => { setForm({ time: q.v }); close(); }} className="hv-soft" style={chip(f.time === q.v)}>{q.l}</button>
+                  <button key={q.v} type="button" onClick={() => setForm({ time: q.v })} className="hv-soft" style={chip(f.time === q.v)}>{q.l}</button>
                 ))}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 58px', gap: 6, padding: '0 10px 8px', minHeight: 0, flex: 1 }}>
+              <div ref={colsRef} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 58px', gap: 6, padding: '0 10px 8px', minHeight: 0, flex: 1 }}>
                 <Column label="Hour" items={Array.from({ length: 12 }, (_, i) => ({ v: i + 1, l: String(i + 1) }))}
                   isOn={v => (hh % 12 || 12) === v} onPick={v => setTime((v % 12) + (pm ? 12 : 0), mm)} />
                 <Column label="Minute" items={Array.from({ length: 12 }, (_, i) => ({ v: i * 5, l: p2(i * 5) }))}
-                  isOn={v => mm === v} onPick={v => setTime(hh, v)} />
+                  isOn={v => mmSlot === v} onPick={v => setTime(hh, v)} />
                 <Column label="AM/PM" items={[{ v: 'am', l: 'AM' }, { v: 'pm', l: 'PM' }]}
                   isOn={v => (v === 'pm') === pm} onPick={v => setTime((hh % 12) + (v === 'pm' ? 12 : 0), mm)} />
               </div>
@@ -206,13 +236,10 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
 }
 
 function Column({ label, items, isOn, onPick }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const on = ref.current?.querySelector('[data-on="true"]');
-    if (on) ref.current.scrollTop = on.offsetTop - 60;
-  }, []);
+  // Scroll position is set by the parent, which alone can see all three
+  // columns and align them to the AM/PM selection.
   return (
-    <div ref={ref} role="listbox" aria-label={label} style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3, minHeight: 0 }}>
+    <div role="listbox" aria-label={label} style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3, minHeight: 0 }}>
       {items.map(it => {
         const on = isOn(it.v);
         return (
