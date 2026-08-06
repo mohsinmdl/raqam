@@ -269,3 +269,70 @@ describe('future-dated transaction presentation', () => {
     expect(g.postedRows[0].dateLabel).toBe('5 Aug');
   });
 });
+
+// --- a pencilled-in payment silences its reminder ---------------------------
+describe('txGroups — one row per rule', () => {
+  // Recording a not-yet-due occurrence is what creates the pair: it leaves a
+  // future-dated transaction AND advances the rule. markOccurrenceRecorded
+  // links the two through occurrences[].txId, which is what ruleFromTx reads.
+  const recorded = (id, txId, due) => rule({
+    id, nextDate: due, occurrences: [{ due: '2026-08-20', outcome: 'recorded', amount: 45000, txId, at: NOW }],
+  });
+  const futureTx = (id, date) => tx({ id, date, merchant: 'Rent' });
+
+  it('hides the reminder while its rule has money pencilled in', () => {
+    const S = store({ recurring: [recorded('r1', 'pencil', '2026-09-20')] });
+    const g = txGroups([futureTx('pencil', '2026-08-20T09:00')], S, fmt, NOW, { from: null, to: null }, false);
+    expect(g.scheduled.map(x => x.selId)).toEqual(['pencil']);
+    expect(g.scheduled.some(x => x.row.isRule)).toBe(false);
+    expect(g.hiddenRuleCount).toBe(1);
+  });
+
+  it('leaves other rules alone', () => {
+    const S = store({ recurring: [recorded('r1', 'pencil', '2026-09-20'), rule({ id: 'other', nextDate: '2026-08-25' })] });
+    const g = txGroups([futureTx('pencil', '2026-08-20T09:00')], S, fmt, NOW, { from: null, to: null }, false);
+    expect(g.scheduled.map(x => x.selId || x.row.ruleId)).toEqual(['pencil', 'other']);
+    expect(g.hiddenRuleCount).toBe(1);
+  });
+
+  it('shows every pre-entered transaction — only the reminder folds', () => {
+    const S = store({
+      recurring: [rule({
+        id: 'r1', nextDate: '2026-10-20',
+        occurrences: [
+          { due: '2026-08-20', outcome: 'recorded', amount: 1, txId: 'p1', at: NOW },
+          { due: '2026-09-20', outcome: 'recorded', amount: 1, txId: 'p2', at: NOW },
+        ],
+      })],
+    });
+    const g = txGroups([futureTx('p1', '2026-08-20T09:00'), futureTx('p2', '2026-09-20T09:00')], S, fmt, NOW, { from: null, to: null }, false);
+    expect(g.scheduled.map(x => x.selId)).toEqual(['p1', 'p2']);
+    expect(g.hiddenRuleCount).toBe(1);
+  });
+
+  it('a future transaction belonging to no rule hides nothing', () => {
+    // Dated after the rule's own due date, so the ordering here is plain date
+    // order rather than the same-day tie between a date and a datetime.
+    const S = store();
+    const g = txGroups([futureTx('loose', '2026-08-25T09:00')], S, fmt, NOW, { from: null, to: null }, false);
+    expect(g.scheduled.map(x => x.selId || x.row.ruleId)).toEqual(['r1', 'loose']);
+    expect(g.hiddenRuleCount).toBe(0);
+  });
+
+  it('gives the reminder back once the pencilled-in date passes — no cleanup needed', () => {
+    const S = store({ recurring: [recorded('r1', 'pencil', '2026-09-20')] });
+    const list = [futureTx('pencil', '2026-08-20T09:00')];
+    const later = '2026-08-21T10:00';
+    const g = txGroups(list, S, fmt, later, { from: null, to: null }, false);
+    expect(g.scheduled.map(x => x.row.ruleId)).toEqual(['r1']);
+    expect(g.postedRows.map(r => r.id)).toEqual(['pencil']);
+    expect(g.hiddenRuleCount).toBe(0);
+  });
+
+  it('counts only the rows it shows as overdue', () => {
+    const S = store({ recurring: [recorded('r1', 'pencil', '2026-08-01')] });
+    const g = txGroups([futureTx('pencil', '2026-08-20T09:00')], S, fmt, NOW, { from: null, to: null }, false);
+    expect(g.overdueCount).toBe(0);
+    expect(g.hiddenRuleCount).toBe(1);
+  });
+});

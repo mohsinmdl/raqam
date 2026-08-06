@@ -86,7 +86,7 @@ export default function Transactions() {
   // the rules for which row lands where, and is tested there.
   const now = nowIso();
   const anyFilter = Object.keys(DEFAULT_FILTERS).some(k => F[k] !== DEFAULT_FILTERS[k]);
-  const { scheduled, postedRows, postedTx, overdueCount } = txGroups(list, S, fmt, now, range, anyFilter);
+  const { scheduled, postedRows, postedTx, overdueCount, hiddenRuleCount } = txGroups(list, S, fmt, now, range, anyFilter);
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter
   // has hidden would let the toolbar claim "12 selected" while showing three,
@@ -374,7 +374,12 @@ export default function Transactions() {
                   <GroupHead
                     open={schedOpen} onToggle={() => setSchedOpen(o => !o)} label="SCHEDULED"
                     count={scheduled.length + (scheduled.length === 1 ? ' item' : ' items')}
-                    note={overdueCount > 0 ? overdueCount + ' overdue' : 'not yet spent'}
+                    note={[
+                      overdueCount > 0 ? overdueCount + ' overdue' : 'not yet spent',
+                      // Say so rather than truncating silently: a folded reminder
+                      // is a real future obligation the reader can't see.
+                      hiddenRuleCount > 0 ? hiddenRuleCount + ' more later' : null,
+                    ].filter(Boolean).join(' · ')}
                   />
                   {/* Every scheduled row is the same shape — no checkbox, two
                       ghost buttons — so the group reads as one list. The verbs

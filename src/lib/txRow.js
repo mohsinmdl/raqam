@@ -162,7 +162,19 @@ export function txGroups(list, S, fmt, now, range, anyFilter) {
   const futureTx = list.filter(t => t.date > now);
   const postedTx = list.filter(t => t.date <= now);
   const ruleRows = anyFilter ? [] : scheduledRules(S, range.from, range.to, now).map(r => ruleRowOf(r, S, fmt, now));
-  const scheduled = ruleRows
+  // A rule with money already pencilled in doesn't also nag you. Recording an
+  // occurrence that isn't due yet leaves a future-dated transaction AND
+  // advances the rule, so the same commitment would appear twice — once as
+  // the pencilled-in payment, once as the next reminder.
+  //
+  // The transaction always wins: it is real money, and it has to stay visible
+  // when a filter matches it. Only the reminder folds, and only while the
+  // transaction is still ahead — once its date passes it leaves futureTx, the
+  // rule drops out of this set, and the reminder returns on its own. No stored
+  // state, nothing to clean up.
+  const rulesPencilledIn = new Set(futureTx.map(t => (ruleFromTx(S, t.id) || {}).id).filter(Boolean));
+  const shownRuleRows = ruleRows.filter(r => !rulesPencilledIn.has(r.ruleId));
+  const scheduled = shownRuleRows
     .map(row => ({ row, at: row.sortKey }))
     .concat(futureTx.map(t => ({ row: futureTxRowOf(t, S, fmt, now), at: t.date, selId: t.id })))
     .sort((a, b) => a.at.localeCompare(b.at));
@@ -170,6 +182,7 @@ export function txGroups(list, S, fmt, now, range, anyFilter) {
     scheduled, futureTx, postedTx,
     postedRows: postedTx.map(t => txRowOf(t, S, fmt)),
     overdueCount: scheduled.filter(x => x.row.isOverdue).length,
+    hiddenRuleCount: ruleRows.length - shownRuleRows.length,
   };
 }
 
