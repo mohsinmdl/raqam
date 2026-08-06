@@ -140,6 +140,12 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
   const pickDate = ymd => { setForm({ date: ymd }); setMonth(ymd.slice(0, 7)); };
   const [hh, mm] = String(f.time || '12:00').split(':').map(Number);
   const pm = hh >= 12;
+  // The column offers minutes in fives, but the default time is the current
+  // wall clock — 5:19 matched no chip, so nothing highlighted and the column
+  // had nothing to align to. Highlight the five below instead: 5:19 shows :15.
+  // It only marks the nearest option; the stored time stays 5:19 until you
+  // actually pick one, because opening a picker must not edit the record.
+  const mmSlot = Math.floor(mm / 5) * 5;
   const setTime = (h, m) => setForm({ time: p2(h) + ':' + p2(m) });
 
   return (
@@ -216,7 +222,7 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
                 <Column label="Hour" items={Array.from({ length: 12 }, (_, i) => ({ v: i + 1, l: String(i + 1) }))}
                   isOn={v => (hh % 12 || 12) === v} onPick={v => setTime((v % 12) + (pm ? 12 : 0), mm)} />
                 <Column label="Minute" items={Array.from({ length: 12 }, (_, i) => ({ v: i * 5, l: p2(i * 5) }))}
-                  isOn={v => mm === v} onPick={v => setTime(hh, v)} />
+                  isOn={v => mmSlot === v} onPick={v => setTime(hh, v)} />
                 <Column label="AM/PM" items={[{ v: 'am', l: 'AM' }, { v: 'pm', l: 'PM' }]}
                   isOn={v => (v === 'pm') === pm} onPick={v => setTime((hh % 12) + (v === 'pm' ? 12 : 0), mm)} />
               </div>
