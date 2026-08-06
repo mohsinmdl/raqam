@@ -7,6 +7,7 @@ import { openers } from '../drawers/openers.js';
 import { monthLabel, shortDate, timeLabel } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 import RecentMoves from './RecentMoves.jsx';
+import TxMonthNav from './TxMonthNav.jsx';
 
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
@@ -73,8 +74,10 @@ export default function Header() {
     const rule = S?.recurring.find(r => r.id === decodeURIComponent(pathname.split('/')[2]));
     title = rule?.name || 'Recurring';
   }
-  // Not on transactions: its own date-range filter owns the dates there.
+  // Transactions gets its own control in this slot: it filters by a date range,
+  // not a single month, so it cannot share the stepper below.
   const showMonthSel = seg === 'dashboard' || seg === 'budgets';
+  const showTxNav = seg === 'transactions';
   const activeAccts = S ? S.accounts.filter(a => a.status === 'active') : [];
   const addDisabled = activeAccts.length === 0;
   const now = nowIso();
@@ -93,6 +96,7 @@ export default function Header() {
           {isPast && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--info-soft)', color: 'var(--info)' }}>Closed month</span>}
         </>
       )}
+      {showTxNav && <TxMonthNav />}
       <div style={{ flex: 1 }} />
       {(syncStatus === 'retrying' || syncStatus === 'error') && (
         <span role="status" title="Changes are kept locally and pushed automatically when the connection recovers" style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
