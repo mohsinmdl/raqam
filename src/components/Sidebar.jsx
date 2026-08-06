@@ -2,9 +2,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 
 const MAIN = [
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'transactions', label: 'Transactions' },
+  { id: 'transactions', label: 'All Accounts' },
   { id: 'accounts', label: 'Accounts' },
-  { id: 'cards', label: 'Cards' },
   { id: 'budgets', label: 'Budgets' },
   { id: 'recurring', label: 'Recurring' },
   { id: 'categories', label: 'Categories' },

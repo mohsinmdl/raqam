@@ -8,7 +8,7 @@ import { monthLabel, shortDate, timeLabel } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 
 const TITLES = {
-  dashboard: 'Dashboard', transactions: 'Transactions', accounts: 'Accounts', cards: 'Cards',
+  dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
   budgets: 'Budgets', recurring: 'Recurring', reports: 'Reports', categories: 'Categories', settings: 'Settings',
 };
 
