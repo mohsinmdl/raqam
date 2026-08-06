@@ -134,7 +134,7 @@ describe('fetched rows are already in the sync baseline', () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/audit-fetch.test.js`
-Expected: FAIL — `COLLECTIONS` and `diffStores` are not exported, and `AUDIT_FETCH_LIMIT` does not exist.
+Expected: FAIL — `AUDIT_FETCH_LIMIT` is not exported yet, so the import is undefined and the first assertion throws. (`COLLECTIONS` and `diffStores` already export cleanly, so the failure should be about the limit and the audit spec, nothing else. If you see an import resolution error instead, stop and report it.)
 
 - [ ] **Step 3: Export what the test needs, and add the fetch hook**
 
