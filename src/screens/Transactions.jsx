@@ -41,9 +41,11 @@ export default function Transactions() {
   const [draft, setDraft] = useState(range);
   // Ids, not rows: a row object goes stale the moment anything re-renders.
   const [selected, setSelected] = useState(() => new Set());
-  // Open by default: the point of the group is that money you have committed to
-  // is visible without a click.
-  const [schedOpen, setSchedOpen] = useState(true);
+  // Collapsed by default: this screen is for the ledger, and the scheduled
+  // group is a standing header above it rather than the reason you came. Its
+  // heading still carries the count and any overdue tally, so nothing is
+  // hidden — only folded.
+  const [schedOpen, setSchedOpen] = useState(false);
   const [postedOpen, setPostedOpen] = useState(true);
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
