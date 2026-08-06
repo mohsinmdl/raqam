@@ -148,9 +148,12 @@ function Row({ t, selId, checked, onToggleRow, actions, dense }) {
   const pad = dense ? '3px 8px' : '10px 8px';
   return (
     <tr className="hv-elev" title={dense && t.hasNotes ? t.notes : undefined} style={{ opacity: t.rowOpacity, background: checked ? 'var(--soft)' : undefined }}>
-      <td style={{ ...td, padding: dense ? '3px 4px 3px 18px' : '10px 4px 10px 18px', verticalAlign: 'middle' }}>
+      {/* Padding moves onto the checkbox's own label so the whole cell, not
+          just the 13px box, is the target. */}
+      <td style={{ ...td, padding: 0, position: 'relative', verticalAlign: 'middle' }}>
         {selId && (
           <Checkbox
+            fill
             checked={checked}
             onChange={on => onToggleRow(selId, on)}
             label={'Select ' + t.merchant + ' on ' + t.dateLabel}
@@ -547,8 +550,9 @@ export default function Transactions() {
               </colgroup>
               <thead>
                 <tr>
-                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px' }}>
+                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px', position: 'relative' }}>
                     <Checkbox
+                      fill
                       checked={allVisibleSelected}
                       indeterminate={sel.length > 0 && !allVisibleSelected}
                       onChange={toggleAll}
