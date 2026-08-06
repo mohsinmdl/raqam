@@ -100,10 +100,55 @@ function SortableHeader({ col, sort, onSort }) {
   );
 }
 
-function Row({ t, selId, checked, onToggleRow, actions }) {
+// Row bar icons for the density toggle, drawn inline so no asset pipeline is
+// involved. Comfortable = two spaced bars, compact = four tight ones — the
+// icons literally depict the row heights they produce.
+function DensityIcon({ kind }) {
+  const bars = kind === 'compact' ? [1.5, 5, 8.5, 12] : [2.5, 9.5];
   return (
-    <tr className="hv-elev" style={{ opacity: t.rowOpacity, background: checked ? 'var(--soft)' : undefined }}>
-      <td style={{ ...td, padding: '10px 4px 10px 18px' }}>
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14">
+      {bars.map(y => <rect key={y} x="1.5" y={y} width="11" height={kind === 'compact' ? 1.8 : 3} rx="0.9" fill="currentColor" />)}
+    </svg>
+  );
+}
+
+// Segmented two-state control, matching the reference: two icon buttons in one
+// bordered pill, the active side filled. aria-pressed carries the state.
+function DensityToggle({ density, onChange }) {
+  const seg = (kind, label) => (
+    <button
+      onClick={() => onChange(kind)}
+      aria-pressed={density === kind}
+      aria-label={label}
+      title={label}
+      className="hv-soft"
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 30, height: 26, border: 'none', cursor: 'pointer',
+        background: density === kind ? 'var(--elev)' : 'transparent',
+        color: density === kind ? 'var(--text)' : 'var(--muted)',
+      }}
+    >
+      <DensityIcon kind={kind} />
+    </button>
+  );
+  return (
+    <span role="group" aria-label="Row density" style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 7, overflow: 'hidden', flex: 'none' }}>
+      {seg('comfortable', 'Comfortable rows')}
+      {seg('compact', 'Compact rows')}
+    </span>
+  );
+}
+
+function Row({ t, selId, checked, onToggleRow, actions, dense }) {
+  // Compact folds each two-line cell to one: date and time share a line, and
+  // notes leave the flow entirely — the row's title carries them, so the text
+  // is a hover away rather than gone. The ⋯ button (30px) sets the floor, so
+  // compact rows land at ~36px against ~56px comfortable.
+  const pad = dense ? '3px 8px' : '10px 8px';
+  return (
+    <tr className="hv-elev" title={dense && t.hasNotes ? t.notes : undefined} style={{ opacity: t.rowOpacity, background: checked ? 'var(--soft)' : undefined }}>
+      <td style={{ ...td, padding: dense ? '3px 4px 3px 18px' : '10px 4px 10px 18px', verticalAlign: 'middle' }}>
         {selId && (
           <Checkbox
             checked={checked}
@@ -112,29 +157,38 @@ function Row({ t, selId, checked, onToggleRow, actions }) {
           />
         )}
       </td>
-      <td style={{ ...td, padding: '10px 8px' }}>
-        <div className="tnum" style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>{t.dateLabel}</div>
-        <div style={{ fontSize: 11.5, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : 'var(--muted)', fontWeight: t.isOverdue ? 600 : 400 }}>{t.timeLabel}</div>
+      <td style={{ ...td, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
+        {dense ? (
+          <div style={{ whiteSpace: 'nowrap' }}>
+            <span className="tnum" style={{ fontSize: 12.5, fontWeight: 500 }}>{t.dateLabel}</span>
+            <span style={{ fontSize: 11, marginLeft: 6, color: t.isOverdue ? 'var(--neg)' : 'var(--muted)', fontWeight: t.isOverdue ? 600 : 400 }}>{t.timeLabel}</span>
+          </div>
+        ) : (
+          <>
+            <div className="tnum" style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>{t.dateLabel}</div>
+            <div style={{ fontSize: 11.5, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : 'var(--muted)', fontWeight: t.isOverdue ? 600 : 400 }}>{t.timeLabel}</div>
+          </>
+        )}
       </td>
-      <td style={{ ...td, maxWidth: 280 }}>
+      <td style={{ ...td, maxWidth: 280, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
+          <span style={{ fontSize: dense ? 13 : 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
           <TxChips row={t} meta />
         </div>
-        {t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
+        {!dense && t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
       </td>
-      <td style={td}>
+      <td style={{ ...td, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
           <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.catName}</span>
         </div>
       </td>
-      <td style={td}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
-      <td style={td}><span title={t.stTitle || undefined} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: t.stBg, color: t.stFg }}>{t.stLabel}</span></td>
-      <td style={{ ...td, padding: '10px 8px', textAlign: 'right' }}>
-        <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
+      <td style={{ ...td, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
+      <td style={{ ...td, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}><span title={t.stTitle || undefined} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: t.stBg, color: t.stFg }}>{t.stLabel}</span></td>
+      <td style={{ ...td, padding: pad, textAlign: 'right', verticalAlign: dense ? 'middle' : 'top' }}>
+        <span className="tnum" style={{ fontSize: dense ? 13 : 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
       </td>
-      <td style={{ ...td, padding: '10px 18px 10px 8px', textAlign: 'right' }}>
+      <td style={{ ...td, padding: dense ? '3px 18px 3px 8px' : '10px 18px 10px 8px', textAlign: 'right', verticalAlign: 'middle' }}>
         <span style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>{actions}</span>
       </td>
     </tr>
@@ -162,7 +216,9 @@ function GroupHead({ open, onToggle, label, count, note }) {
 }
 
 export default function Transactions() {
-  const { data: S, applyData } = useStore();
+  const { data: S, applyData, prefs, setPrefs } = useStore();
+  const density = prefs.density === 'compact' ? 'compact' : 'comfortable';
+  const dense = density === 'compact';
   const { ask, notify } = useUI();
   const fmt = useMoney();
   const { openDrawer } = useDrawer();
@@ -471,6 +527,7 @@ export default function Transactions() {
                 than by size — so this is the one control that reaches it.
                 Shows the active sort, the way the pre-sortable-header button
                 did, which keeps the current order stated in words. */}
+            <DensityToggle density={density} onChange={d => setPrefs({ density: d })} />
             <button
               onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
               aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}
@@ -524,7 +581,7 @@ export default function Transactions() {
                     const key = x.selId || x.row.key;
                     return (
                       <Row
-                        key={key} t={x.row} checked={false} onToggleRow={toggleRow}
+                        key={key} t={x.row} dense={dense} checked={false} onToggleRow={toggleRow}
                         actions={(
                           <RowMenu
                             open={menuOpen === key}
@@ -562,7 +619,7 @@ export default function Transactions() {
                 )}
                 {postedShown && postedRows.map(t => (
                   <Row
-                    key={t.id} t={t} selId={t.id}
+                    key={t.id} t={t} selId={t.id} dense={dense}
                     checked={selected.has(t.id)} onToggleRow={toggleRow}
                     actions={(
                       <RowMenu
