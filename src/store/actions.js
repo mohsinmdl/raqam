@@ -448,6 +448,92 @@ export function rolloverMonth(data) {
   return next;
 }
 
+// ---- Bulk transaction actions ----------------------------------------------
+//
+// Narrow and id-keyed, unlike updateTransaction, which takes a whole drawer
+// form and rebuilds each record from scratch — correct for an edit, unusable
+// for "change the category on twenty rows". The shape follows
+// reassignDeleteCategory: one pure pass over the collection.
+//
+// Auditing is one row per transaction, because makeAudit's entityId is singular
+// and audit_log is append-only. A synthetic batch entity_type would be rejected
+// by the CHECK constraint, so instead every row of a batch carries the same
+// batchId in its `after` payload — enough to collapse the trail later, and free
+// now. Retrofitting it once the table holds real data would not be.
+
+const bulkIds = ids => new Set(Array.isArray(ids) ? ids : []);
+
+function bulkAudit(rows, action, summary, batchId, payload) {
+  return rows.map(t => makeAudit({
+    entityType: 'transaction', entityId: t.id, action,
+    summary, before: payload.before(t), after: { ...payload.after(t), batchId },
+  }));
+}
+
+export function deleteTransactions(data, { ids }) {
+  const set = bulkIds(ids);
+  const hit = data.transactions.filter(t => set.has(t.id));
+  if (hit.length === 0) return data;
+  const batchId = uid();
+  return {
+    ...data,
+    transactions: data.transactions.filter(t => !set.has(t.id)),
+    audit: [
+      ...bulkAudit(hit, 'delete', 'Deleted ' + hit.length + ' transaction' + (hit.length === 1 ? '' : 's'), batchId, {
+        before: t => ({ type: t.type, amount: t.amount, date: t.date, merchant: t.merchant }),
+        after: () => ({}),
+      }),
+      ...(data.audit || []),
+    ],
+  };
+}
+
+export function setTransactionsCategory(data, { ids, categoryId }) {
+  const cat = data.categories.find(c => c.id === categoryId);
+  if (!cat) return data;
+  const set = bulkIds(ids);
+  // Only rows that CAN carry this category, and only where it actually changes.
+  // Transfers have no category and adjustments are labelled, not categorised.
+  const canCategorise = t => t.type === 'expense' || t.type === 'income' || t.type === 'refund';
+  const hit = data.transactions.filter(t => set.has(t.id) && canCategorise(t) && t.category !== categoryId
+    && (t.type === 'income') === (cat.type === 'income'));
+  if (hit.length === 0) return data;
+  const hitIds = new Set(hit.map(t => t.id));
+  const batchId = uid();
+  return {
+    ...data,
+    transactions: data.transactions.map(t => (hitIds.has(t.id) ? stampUpdate({ ...t, category: categoryId }) : t)),
+    audit: [
+      ...bulkAudit(hit, 'update', 'Recategorised ' + hit.length + ' to “' + cat.name + '”', batchId, {
+        before: t => ({ category: t.category }),
+        after: () => ({ category: categoryId }),
+      }),
+      ...(data.audit || []),
+    ],
+  };
+}
+
+export function setTransactionsStatus(data, { ids, status }) {
+  if (status !== 'cleared' && status !== 'pending') return data;
+  const set = bulkIds(ids);
+  // cardAdjustment rows are machine-generated corrections and are never pending.
+  const hit = data.transactions.filter(t => set.has(t.id) && t.status !== status && t.type !== 'cardAdjustment');
+  if (hit.length === 0) return data;
+  const hitIds = new Set(hit.map(t => t.id));
+  const batchId = uid();
+  return {
+    ...data,
+    transactions: data.transactions.map(t => (hitIds.has(t.id) ? stampUpdate({ ...t, status }) : t)),
+    audit: [
+      ...bulkAudit(hit, 'update', 'Marked ' + hit.length + ' as ' + status, batchId, {
+        before: t => ({ status: t.status }),
+        after: () => ({ status }),
+      }),
+      ...(data.audit || []),
+    ],
+  };
+}
+
 // ---- Recurring rules (design iteration 003) --------------------------------
 
 const RULE_AUDIT_FIELDS = ['name', 'type', 'amount', 'estimated', 'schedule', 'nextDate', 'accountId', 'cardId', 'category', 'autoPost', 'status'];

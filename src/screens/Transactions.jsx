@@ -1,8 +1,9 @@
 // Transactions list screen — template 268-336, txScreenVals script 1018-1054.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
+import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { isExcludedCat } from '../lib/calc.js';
 import { MONTH_OPTS, RANGE_PRESETS, clampRange, inRange, presetOf, rangeFor, rangeLabel, yearOpts } from '../lib/dateRange.js';
@@ -10,7 +11,10 @@ import { txRowOf } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
 import { ruleFromTx } from '../lib/schedule.js';
+import { deleteTransactions, setTransactionsCategory, setTransactionsStatus } from '../store/actions.js';
 import RowMenu from '../ui/RowMenu.jsx';
+import Checkbox from '../ui/Checkbox.jsx';
+import BulkBar from '../ui/BulkBar.jsx';
 
 const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: 'all', impact: 'all', min: '', max: '' };
 const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
@@ -18,7 +22,8 @@ const th = { textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '.
 const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' };
 
 export default function Transactions() {
-  const { data: S } = useStore();
+  const { data: S, applyData } = useStore();
+  const { ask, notify } = useUI();
   const { month } = useMonth();
   const fmt = useMoney();
   const { openDrawer } = useDrawer();
@@ -31,6 +36,8 @@ export default function Transactions() {
   const [rangeOpen, setRangeOpen] = useState(false);
   // The popover edits a draft; nothing re-filters until Apply.
   const [draft, setDraft] = useState(range);
+  // Ids, not rows: a row object goes stale the moment anything re-renders.
+  const [selected, setSelected] = useState(() => new Set());
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const reset = () => { setFilters(DEFAULT_FILTERS); setRange(rangeFor('month')); };
@@ -66,6 +73,45 @@ export default function Transactions() {
   });
   list = list.sort((a, b) => (sort === 'amount' ? Math.abs(b.amount) - Math.abs(a.amount) : b.date.localeCompare(a.date)));
   const txRows = list.map(t => txRowOf(t, S, fmt));
+
+  // Selection is pruned to what is currently visible. Keeping ids that a filter
+  // has hidden would let the toolbar claim "12 selected" while showing three,
+  // and then act on all twelve.
+  const visibleIds = list.map(t => t.id);
+  const sel = visibleIds.filter(id => selected.has(id));
+  const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
+  const clearSel = () => setSelected(new Set());
+  const toggleRow = (id, on) => setSelected(prev => {
+    const next = new Set(prev);
+    if (on) next.add(id); else next.delete(id);
+    return next;
+  });
+  const toggleAll = on => setSelected(on ? new Set(visibleIds) : new Set());
+
+  // Escape clears the selection. Bubble phase, so RowMenu's capture-phase
+  // handler still wins while a row menu is open, and the range popover — which
+  // also stops propagation — keeps its own Escape.
+  useEffect(() => {
+    if (sel.length === 0) return;
+    const onKey = e => { if (e.key === 'Escape') clearSel(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [sel.length]);
+
+  const afterBulk = (msg, next) => { applyData(next); clearSel(); notify(msg); };
+  const bulkStatus = status => afterBulk(
+    'Marked ' + sel.length + ' as ' + status + '.',
+    data => setTransactionsStatus(data, { ids: sel, status }),
+  );
+  const bulkDelete = async () => {
+    const ok = await ask({
+      title: 'Delete ' + sel.length + ' transaction' + (sel.length === 1 ? '' : 's') + '?',
+      body: 'They are removed from every balance and total that counted them. This cannot be undone.',
+      action: 'Delete ' + sel.length,
+    });
+    if (!ok) return;
+    afterBulk('Deleted ' + sel.length + '.', data => deleteTransactions(data, { ids: sel }));
+  };
 
   const filterAcctOpts = S.accounts.filter(a => a.status === 'active').map(a => ({ id: 'acc:' + a.id, label: a.nickname }))
     .concat(S.cards.map(c => ({ id: 'card:' + c.id, label: c.nickname + ' ••' + c.last4 })));
@@ -169,6 +215,16 @@ export default function Transactions() {
           )}
         </section>
 
+        <BulkBar
+          count={sel.length}
+          onClear={clearSel}
+          actions={[
+            { label: 'Mark cleared', onClick: () => bulkStatus('cleared') },
+            { label: 'Mark pending', onClick: () => bulkStatus('pending') },
+            { label: 'Delete', onClick: bulkDelete, tone: 'neg' },
+          ]}
+        />
+
         {/* No overflow:hidden — it would clip the per-row ⋯ menu on the last rows. */}
         <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
@@ -182,7 +238,15 @@ export default function Transactions() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th scope="col" style={{ ...th, padding: '9px 8px 9px 18px' }}>DATE</th>
+                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px', width: 34 }}>
+              <Checkbox
+                checked={allVisibleSelected}
+                indeterminate={sel.length > 0 && !allVisibleSelected}
+                onChange={toggleAll}
+                label={allVisibleSelected ? 'Clear selection' : 'Select all ' + visibleIds.length + ' visible transactions'}
+              />
+            </th>
+            <th scope="col" style={{ ...th, padding: '9px 8px' }}>DATE</th>
                   <th scope="col" style={th}>DETAILS</th>
                   <th scope="col" style={th}>CATEGORY</th>
                   <th scope="col" style={th}>ACCOUNT / CARD</th>
@@ -193,8 +257,15 @@ export default function Transactions() {
               </thead>
               <tbody>
                 {txRows.map(t => (
-                  <tr key={t.id} className="hv-elev" style={{ opacity: t.rowOpacity }}>
-                    <td style={{ ...td, padding: '10px 8px 10px 18px' }}>
+                  <tr key={t.id} className="hv-elev" style={{ opacity: t.rowOpacity, background: selected.has(t.id) ? 'var(--soft)' : undefined }}>
+                    <td style={{ ...td, padding: '10px 4px 10px 18px' }}>
+                      <Checkbox
+                        checked={selected.has(t.id)}
+                        onChange={on => toggleRow(t.id, on)}
+                        label={'Select ' + t.merchant + ' on ' + t.dateLabel}
+                      />
+                    </td>
+                    <td style={{ ...td, padding: '10px 8px' }}>
                       <div className="tnum" style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>{t.dateLabel}</div>
                       <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{t.timeLabel}</div>
                     </td>

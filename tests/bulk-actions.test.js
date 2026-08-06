@@ -1,0 +1,152 @@
+import { describe, it, expect } from 'vitest';
+import { deleteTransactions, setTransactionsCategory, setTransactionsStatus } from '../src/store/actions.js';
+
+const tx = over => ({
+  id: 't1', date: '2026-08-05T12:00', type: 'expense', amount: 100, status: 'cleared',
+  accountId: 'a1', category: 'rent', merchant: 'Shop', notes: '', ...(over || {}),
+});
+const store = over => ({
+  institutions: [], cardProducts: [],
+  categories: [
+    { id: 'rent', name: 'Rent', type: 'expense', status: 'active' },
+    { id: 'groc', name: 'Groceries', type: 'expense', status: 'active' },
+    { id: 'salary', name: 'Salary', type: 'income', status: 'active' },
+  ],
+  accounts: [{ id: 'a1', nickname: 'Main', type: 'Current', status: 'active' }],
+  cards: [], snapshots: [], budgets: [], recurring: [], audit: [],
+  transactions: [
+    tx({ id: 't1' }),
+    tx({ id: 't2', amount: 200 }),
+    tx({ id: 't3', amount: 300, status: 'pending' }),
+  ],
+  ...(over || {}),
+});
+const auditFor = (s, id) => s.audit.filter(a => a.entityId === id);
+
+describe('deleteTransactions', () => {
+  it('removes exactly the selected rows', () => {
+    const s = deleteTransactions(store(), { ids: ['t1', 't3'] });
+    expect(s.transactions.map(t => t.id)).toEqual(['t2']);
+  });
+
+  it('writes one audit row per transaction, sharing a batchId', () => {
+    const s = deleteTransactions(store(), { ids: ['t1', 't3'] });
+    const rows = s.audit.filter(a => a.action === 'delete');
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map(a => a.after.batchId)).size).toBe(1);
+    // entity_type and action must stay inside the existing CHECK constraints
+    expect(new Set(rows.map(a => a.entityType))).toEqual(new Set(['transaction']));
+  });
+
+  it('keeps each row individually queryable by entityId', () => {
+    const s = deleteTransactions(store(), { ids: ['t1', 't3'] });
+    expect(auditFor(s, 't1')).toHaveLength(1);
+    expect(auditFor(s, 't3')).toHaveLength(1);
+    expect(auditFor(s, 't2')).toHaveLength(0);
+  });
+
+  it('ignores ids that no longer exist', () => {
+    const s = deleteTransactions(store(), { ids: ['t1', 'gone'] });
+    expect(s.transactions.map(t => t.id)).toEqual(['t2', 't3']);
+    expect(s.audit.filter(a => a.action === 'delete')).toHaveLength(1);
+  });
+
+  it('is a no-op for an empty or missing selection', () => {
+    const base = store();
+    expect(deleteTransactions(base, { ids: [] })).toBe(base);
+    expect(deleteTransactions(base, { ids: ['nope'] })).toBe(base);
+    expect(deleteTransactions(base, {})).toBe(base);
+  });
+});
+
+describe('setTransactionsCategory', () => {
+  it('recategorises the selected rows', () => {
+    const s = setTransactionsCategory(store(), { ids: ['t1', 't2'], categoryId: 'groc' });
+    expect(s.transactions.filter(t => t.category === 'groc').map(t => t.id)).toEqual(['t1', 't2']);
+    expect(s.transactions.find(t => t.id === 't3').category).toBe('rent');
+  });
+
+  it('stamps the rows it changed', () => {
+    const s = setTransactionsCategory(store(), { ids: ['t1'], categoryId: 'groc' });
+    expect(s.transactions.find(t => t.id === 't1').editCount).toBe(1);
+  });
+
+  it('skips rows already in that category rather than churning them', () => {
+    // Every selected row is already 'rent', so this must return the SAME store
+    // — no edit stamps, no audit noise, no pointless sync push.
+    const base = store();
+    expect(setTransactionsCategory(base, { ids: ['t1', 't2'], categoryId: 'rent' })).toBe(base);
+  });
+
+  it('changes only the rows that differ when the selection is mixed', () => {
+    const base = store({
+      transactions: [tx({ id: 't1', category: 'rent' }), tx({ id: 't2', category: 'groc' })],
+    });
+    const s = setTransactionsCategory(base, { ids: ['t1', 't2'], categoryId: 'groc' });
+    expect(s.transactions.map(t => t.category)).toEqual(['groc', 'groc']);
+    expect(s.audit.filter(a => a.action === 'update')).toHaveLength(1);   // t2 was already groc
+    expect(s.transactions.find(t => t.id === 't2').editCount).toBeUndefined();
+  });
+
+  it('refuses a category whose type does not match the transaction', () => {
+    // 'salary' is income; the selection is all expenses
+    const base = store();
+    expect(setTransactionsCategory(base, { ids: ['t1', 't2'], categoryId: 'salary' })).toBe(base);
+  });
+
+  it('leaves transfers and adjustments alone — they carry no category', () => {
+    const base = store({
+      transactions: [
+        tx({ id: 'x1', type: 'transfer', category: undefined, toAccountId: 'a2' }),
+        tx({ id: 'x2', type: 'adjustment', category: undefined }),
+      ],
+    });
+    expect(setTransactionsCategory(base, { ids: ['x1', 'x2'], categoryId: 'groc' })).toBe(base);
+  });
+
+  it('is a no-op for an unknown category', () => {
+    const base = store();
+    expect(setTransactionsCategory(base, { ids: ['t1'], categoryId: 'nope' })).toBe(base);
+  });
+});
+
+describe('setTransactionsStatus', () => {
+  it('marks the selected rows cleared', () => {
+    const s = setTransactionsStatus(store(), { ids: ['t3'], status: 'cleared' });
+    expect(s.transactions.find(t => t.id === 't3').status).toBe('cleared');
+  });
+
+  it('marks the selected rows pending', () => {
+    const s = setTransactionsStatus(store(), { ids: ['t1', 't2'], status: 'pending' });
+    expect(s.transactions.filter(t => t.status === 'pending').map(t => t.id)).toEqual(['t1', 't2', 't3']);
+  });
+
+  it('only touches rows whose status actually changes', () => {
+    const s = setTransactionsStatus(store(), { ids: ['t1', 't2', 't3'], status: 'cleared' });
+    expect(s.audit.filter(a => a.action === 'update')).toHaveLength(1); // only t3 was pending
+  });
+
+  it('never marks a card correction pending — it is machine-generated', () => {
+    const base = store({ transactions: [tx({ id: 'c1', type: 'cardAdjustment', cardId: 'card1', accountId: undefined })] });
+    expect(setTransactionsStatus(base, { ids: ['c1'], status: 'pending' })).toBe(base);
+  });
+
+  it('rejects a status outside the schema', () => {
+    const base = store();
+    expect(setTransactionsStatus(base, { ids: ['t1'], status: 'archived' })).toBe(base);
+  });
+});
+
+describe('immutability', () => {
+  it('never mutates the store it was given', () => {
+    const base = store();
+    Object.freeze(base);
+    Object.freeze(base.transactions);
+    base.transactions.forEach(Object.freeze);
+    expect(() => deleteTransactions(base, { ids: ['t1'] })).not.toThrow();
+    expect(() => setTransactionsCategory(base, { ids: ['t1'], categoryId: 'groc' })).not.toThrow();
+    expect(() => setTransactionsStatus(base, { ids: ['t3'], status: 'cleared' })).not.toThrow();
+    expect(base.transactions).toHaveLength(3);
+    expect(base.transactions[0].category).toBe('rent');
+  });
+});
