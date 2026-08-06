@@ -27,6 +27,19 @@ const TINT = {
 };
 const STATUS_LABEL = { overdue: 'Overdue', due: 'Due soon', later: 'Scheduled', paused: 'Paused', ended: 'Ended' };
 
+// Module scope, not inside the component: a component redefined on every render
+// gets a new function identity, so React remounts it instead of updating it.
+// Stat closes over nothing but module constants, so it costs nothing to hoist.
+function Stat({ label, value, note, color }) {
+  return (
+    <div style={{ ...card, padding: '12px 14px' }}>
+      <div style={colHeader}>{label}</div>
+      <div className="tnum" style={{ fontSize: 17, fontWeight: 600, marginTop: 4, color: color || 'var(--text)' }}>{value}</div>
+      <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{note}</div>
+    </div>
+  );
+}
+
 export default function RecurringDetail() {
   const { id } = useParams();
   const { data: S, applyData } = useStore();
@@ -84,14 +97,6 @@ export default function RecurringDetail() {
     notify('Rule deleted.');
     navigate('/recurring');
   };
-
-  const Stat = ({ label, value, note, color }) => (
-    <div style={{ ...card, padding: '12px 14px' }}>
-      <div style={colHeader}>{label}</div>
-      <div className="tnum" style={{ fontSize: 17, fontWeight: 600, marginTop: 4, color: color || 'var(--text)' }}>{value}</div>
-      <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{note}</div>
-    </div>
-  );
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
