@@ -77,16 +77,22 @@ export function clampRange(from, to) {
   return { from, to };
 }
 
-// Years worth offering: earliest data through this year, never an empty list.
+// Every year the controls can land on. Last year is always included even with
+// no data there, because the "Last Year" preset selects it — otherwise the
+// select holds a value with no matching option and the browser silently
+// displays a different year. Data years beyond this one are included for the
+// same reason: a future-dated transaction must be reachable.
 export function yearOpts(store, today) {
   const now = today || currentMonth();
   const thisYear = Number(now.slice(0, 4));
-  let earliest = thisYear;
+  let earliest = thisYear - 1, latest = thisYear;
   for (const t of (store && store.transactions) || []) {
     const y = Number(String(t.date).slice(0, 4));
-    if (y && y < earliest) earliest = y;
+    if (!y) continue;
+    if (y < earliest) earliest = y;
+    if (y > latest) latest = y;
   }
   const out = [];
-  for (let y = earliest; y <= thisYear; y++) out.push(String(y));
+  for (let y = earliest; y <= latest; y++) out.push(String(y));
   return out;
 }

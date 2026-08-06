@@ -125,13 +125,26 @@ describe('yearOpts', () => {
     expect(yearOpts(store, AUG)).toEqual(['2024', '2025', '2026']);
   });
 
-  it('never returns an empty list', () => {
-    expect(yearOpts({ transactions: [] }, AUG)).toEqual(['2026']);
-    expect(yearOpts(null, AUG)).toEqual(['2026']);
+  it('always offers last year, so the Last Year preset has an option to select', () => {
+    // Without this the select holds 2025 with no matching option and the
+    // browser silently shows a different year.
+    expect(yearOpts({ transactions: [{ date: '2026-08-01T12:00' }] }, AUG)).toEqual(['2025', '2026']);
+    expect(yearOpts({ transactions: [] }, AUG)).toEqual(['2025', '2026']);
+    expect(yearOpts(null, AUG)).toEqual(['2025', '2026']);
   });
 
-  it('ignores future-dated transactions rather than padding the list forward', () => {
-    const store = { transactions: [{ date: '2030-01-01T12:00' }] };
-    expect(yearOpts(store, AUG)).toEqual(['2026']);
+  it('reaches forward to a future-dated transaction so it stays selectable', () => {
+    const store = { transactions: [{ date: '2028-01-01T12:00' }] };
+    expect(yearOpts(store, AUG)).toEqual(['2025', '2026', '2027', '2028']);
+  });
+
+  it('covers every year each preset can select', () => {
+    const years = yearOpts({ transactions: [] }, AUG);
+    for (const p of RANGE_PRESETS) {
+      const r = rangeFor(p.id, AUG);
+      for (const bound of [r.from, r.to]) {
+        if (bound) expect(years).toContain(bound.slice(0, 4));
+      }
+    }
   });
 });
