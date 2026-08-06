@@ -17,6 +17,20 @@ const instKindOf = f => (INST_KINDS.includes(f.customInstKind) ? f.customInstKin
 // Fields that participate in transaction update-audit diffs.
 const TX_AUDIT_FIELDS = ['type', 'amount', 'date', 'status', 'accountId', 'toAccountId', 'cardId', 'toCardId', 'category', 'merchant', 'notes', 'fee', 'adjustmentReason'];
 
+// Adjustments and card payments carry an effective DATE the user picks, not a
+// moment in time. Dated today, the row should carry the real clock time: it is
+// what the ledger displays, and it is what orders the row among the day's other
+// entries. Dated any other day, a neutral midday is honest — nobody supplied a
+// time, and inventing one would claim precision that does not exist.
+//
+// `now` is injected rather than read here so this stays pure and testable,
+// matching the convention the money math uses.
+export function stampFor(date, now) {
+  const today = now.slice(0, 10);
+  const d = date || today;
+  return d === today ? now : d + 'T12:00';
+}
+
 // Build a transaction record from scratch from the form — used by add AND edit,
 // so a type change can never leave stale cross-type fields behind (design buildTx).
 export function buildTx(f, type, amt, fee, catId, id) {
@@ -243,7 +257,7 @@ export function deleteInstitution(data, { id }) {
 export function payCard(data, { cardId, cardName, from, amt, date }) {
   const t = {
     id: uid(), type: 'transfer', amount: amt, accountId: from.slice(4), toCardId: cardId, isCardPayment: true,
-    date: (date || todayStr()) + 'T12:00', status: 'cleared', merchant: (cardName || 'Card') + ' payment', notes: 'Credit card payment',
+    date: stampFor(date, nowIso()), status: 'cleared', merchant: (cardName || 'Card') + ' payment', notes: 'Credit card payment',
   };
   return { ...data, transactions: [t, ...data.transactions] };
 }
@@ -276,7 +290,7 @@ export function adjustBalance(data, { accountId, delta, reason, date, currentBal
   if (!acc || !delta) return data;
   const t = {
     id: uid(), type: 'adjustment', amount: delta, accountId,
-    date: (date || todayStr()) + 'T12:00', status: 'cleared',
+    date: stampFor(date, nowIso()), status: 'cleared',
     merchant: 'Balance adjustment', adjustmentReason: reason.trim(), notes: '',
   };
   return {
@@ -397,7 +411,7 @@ export function adjustCardOutstanding(data, { cardId, delta, reason, date, curre
   if (!card || !delta) return data;
   const t = {
     id: uid(), type: 'cardAdjustment', amount: delta, cardId,
-    date: (date || todayStr()) + 'T12:00', status: 'cleared',
+    date: stampFor(date, nowIso()), status: 'cleared',
     merchant: 'Outstanding correction', adjustmentReason: reason.trim(), notes: '',
   };
   return {
