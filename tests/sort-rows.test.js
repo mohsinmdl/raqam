@@ -311,3 +311,48 @@ describe('sortLabel', () => {
     expect(sortLabel(asc('status'))).toBe('Needs action first');
   });
 });
+
+// --- direction as colour -----------------------------------------------------
+describe('amount colour states the direction the sign is too thin to carry', () => {
+  const S = {
+    categories: [{ id: 'c', name: 'Cat', color: '#111' }],
+    accounts: [{ id: 'a1', nickname: 'Main' }], cards: [], recurring: [],
+  };
+  const fmt = { money: n => 'Rs ' + Math.abs(n), moneyS: n => (n < 0 ? '-' : '+') + 'Rs ' + Math.abs(n) };
+  const tx = o => ({ id: 'x', date: '2026-08-03T12:00', amount: 500, status: 'cleared', accountId: 'a1', category: 'c', merchant: 'M', ...o });
+  const colorOf = o => txRowOf(tx(o), S, fmt).amtColor;
+
+  it('paints money out red and money in green', () => {
+    expect(colorOf({ type: 'expense' })).toBe('var(--neg)');
+    expect(colorOf({ type: 'income' })).toBe('var(--pos)');
+    expect(colorOf({ type: 'refund' })).toBe('var(--pos)');
+  });
+  it('leaves transfers muted — they are neither', () =>
+    expect(colorOf({ type: 'transfer' })).toBe('var(--muted)'));
+  it('follows the stored sign on adjustments, the only signed types', () => {
+    expect(colorOf({ type: 'adjustment', amount: -828 })).toBe('var(--neg)');
+    expect(colorOf({ type: 'adjustment', amount: 3950 })).toBe('var(--pos)');
+    expect(colorOf({ type: 'cardAdjustment', amount: -10 })).toBe('var(--neg)');
+  });
+  it('keeps zero plain — it is not a loss', () =>
+    expect(colorOf({ type: 'adjustment', amount: 0 })).toBe('var(--text)'));
+  it('agrees with amtValue on every row, so colour and order cannot contradict', () => {
+    for (const o of [{ type: 'expense' }, { type: 'income' }, { type: 'refund' },
+                     { type: 'adjustment', amount: -828 }, { type: 'adjustment', amount: 3950 }]) {
+      const r = txRowOf(tx(o), S, fmt);
+      expect(r.amtColor).toBe(r.amtValue > 0 ? 'var(--pos)' : r.amtValue < 0 ? 'var(--neg)' : 'var(--text)');
+    }
+  });
+  it('sorted ascending, the column runs one red band then one green band', () => {
+    const rows = [
+      txRowOf(tx({ id: 'in', type: 'income', amount: 20000 }), S, fmt),
+      txRowOf(tx({ id: 'out', type: 'expense', amount: 2000 }), S, fmt),
+      txRowOf(tx({ id: 'small', type: 'expense', amount: 70 }), S, fmt),
+      txRowOf(tx({ id: 'adj', type: 'adjustment', amount: 45 }), S, fmt),
+    ].map(r => ({ ...r, sortId: r.id }));
+    const colours = sortRows(rows, asc('amount')).map(r => r.amtColor);
+    expect(colours).toEqual(['var(--neg)', 'var(--neg)', 'var(--pos)', 'var(--pos)']);
+    // no colour appears, disappears, then returns
+    expect(new Set(colours).size).toBe(colours.filter((c, i) => c !== colours[i - 1]).length);
+  });
+});
