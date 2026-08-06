@@ -87,17 +87,25 @@ export function untilLabel(iso, now) {
 // the group heading it sits under, so the pill reports its position in time
 // rather than its reconciliation state.
 //
-// A transaction dated ahead of now, still shown among the recorded rows —
-// because a transaction you entered is a fact, not a plan, whatever its date.
-// Only the two cues that made it unreadable change: the year, and a distance
-// instead of a clock time. Its status stays its real status; hasOccurred()
-// already keeps it out of balances, so the pill has nothing to hide.
+// A transaction dated ahead of now. Three overrides make it read as what it
+// is: the year (a bare "6 Mar" is indistinguishable from a past date), a
+// distance instead of a clock time, and a "Scheduled" pill in place of the
+// stored status — "Cleared" answers "did the money move?", which cannot be
+// yes for a date still ahead. The stored status is untouched (the schema only
+// knows cleared|pending) and the pill reverts to it by itself the day the
+// date arrives, when txGroups stops routing the row through here. The real
+// distinction the label was hiding moves to the tooltip: cleared counts
+// automatically on its date, pending waits for you. Pending rows also keep
+// their dim, so the two kinds stay tellable apart at a glance.
 export function futureTxRowOf(t, S, fmt, now) {
   return {
     ...txRowOf(t, S, fmt), isFuture: true,
     dateLabel: withYear(t.date, now),
     timeLabel: untilLabel(t.date, now),
-    stTitle: 'Dated ahead — not counted in any balance or budget until then.',
+    stLabel: 'Scheduled', stBg: 'var(--info-soft)', stFg: 'var(--info)',
+    stTitle: t.status === 'pending'
+      ? 'Dated ahead and pending — stays out of totals until you mark it cleared.'
+      : 'Dated ahead — counts automatically when its date arrives.',
   };
 }
 
@@ -136,24 +144,32 @@ export function ruleRowOf(r, S, fmt, now) {
 
 // The two groups the transactions table renders.
 //
-// Scheduled holds recurring occurrences and nothing else — things you have not
-// recorded yet, ordered soonest-first so anything overdue sits at the top. A
-// transaction you have entered is a fact rather than a plan, so it stays among
-// the recorded rows whatever its date; being dated ahead is a property of the
-// transaction, not a reason to reclassify it. What that used to protect against
-// — future money counting as spent — is now handled properly by hasOccurred()
-// in the money math, so the grouping no longer has to carry it.
+// Scheduled is everything still ahead: recurring reminders AND future-dated
+// transactions, interleaved soonest-first so anything overdue sits at the top.
+// The owner tried both arrangements live and settled here (2026-08-06,
+// reversing an earlier reminders-only call): a future-dated transaction reads
+// better beside the reminders it resembles than among money already spent.
+// Correctness never depended on the grouping — hasOccurred() keeps future rows
+// out of every balance and budget wherever they are displayed.
 //
-// anyFilter suppresses the rules: a rule has no status, type or merchant, so it
-// cannot honour "Pending" or a search term, and showing rows that contradict an
-// active filter is worse than briefly hiding them.
+// The two populations keep their natures: future transactions are real rows
+// (selId → checkbox, ⋯ menu, all filters apply); reminders are projections of
+// rule.nextDate (no selId, Record/Skip). anyFilter suppresses only the
+// reminders — a rule has no status, type or merchant, so it cannot honour
+// "Pending" or a search term, and showing rows that contradict an active
+// filter is worse than briefly hiding them.
 export function txGroups(list, S, fmt, now, range, anyFilter) {
+  const futureTx = list.filter(t => t.date > now);
+  const postedTx = list.filter(t => t.date <= now);
   const ruleRows = anyFilter ? [] : scheduledRules(S, range.from, range.to, now).map(r => ruleRowOf(r, S, fmt, now));
+  const scheduled = ruleRows
+    .map(row => ({ row, at: row.sortKey }))
+    .concat(futureTx.map(t => ({ row: futureTxRowOf(t, S, fmt, now), at: t.date, selId: t.id })))
+    .sort((a, b) => a.at.localeCompare(b.at));
   return {
-    scheduled: ruleRows.map(row => ({ row, at: row.sortKey })),
-    postedRows: list.map(t => (t.date > now ? futureTxRowOf(t, S, fmt, now) : txRowOf(t, S, fmt))),
-    overdueCount: ruleRows.filter(r => r.isOverdue).length,
-    futureCount: list.filter(t => t.date > now).length,
+    scheduled, futureTx, postedTx,
+    postedRows: postedTx.map(t => txRowOf(t, S, fmt)),
+    overdueCount: scheduled.filter(x => x.row.isOverdue).length,
   };
 }
 

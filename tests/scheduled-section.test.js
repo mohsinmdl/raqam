@@ -144,24 +144,33 @@ const RANGE = { from: '2026-08', to: '2026-08' };
 describe('txGroups', () => {
   const S = store();
 
-  it('keeps a transaction dated ahead among the recorded rows — it is a fact, not a plan', () => {
+  it('sends a transaction dated ahead to the scheduled group, beside the reminders', () => {
     const list = [tx({ id: 'past' }), tx({ id: 'ahead', date: '2026-08-30T09:00' })];
     const g = txGroups(list, S, fmt, NOW, RANGE, true);
-    expect(g.postedRows.map(r => r.id)).toEqual(['past', 'ahead']);
-    expect(g.scheduled).toEqual([]);
-    expect(g.futureCount).toBe(1);
+    expect(g.postedRows.map(r => r.id)).toEqual(['past']);
+    expect(g.scheduled.map(x => x.selId)).toEqual(['ahead']);
   });
 
-  it('puts only recurring reminders in the scheduled group', () => {
+  it('interleaves reminders and future transactions soonest first', () => {
+    const S2 = store({ recurring: [rule({ id: 'r1', nextDate: '2026-08-20' })] });
+    const list = [tx({ id: 'early', date: '2026-08-10T09:00' }), tx({ id: 'late', date: '2026-08-25T09:00' })];
+    const g = txGroups(list, S2, fmt, NOW, RANGE, false);
+    expect(g.scheduled.map(x => x.selId || x.row.ruleId)).toEqual(['early', 'r1', 'late']);
+  });
+
+  it('gives future transactions a selectable id and reminders none', () => {
     const g = txGroups([tx({ id: 'ahead', date: '2026-08-30T09:00' })], store(), fmt, NOW, RANGE, false);
-    expect(g.scheduled.every(x => x.row.isRule)).toBe(true);
-    expect(g.scheduled.map(x => x.row.ruleId)).toEqual(['r1']);
+    expect(g.scheduled.find(x => x.row.isRule).selId).toBeUndefined();
+    expect(g.scheduled.find(x => !x.row.isRule).selId).toBe('ahead');
   });
 
-  it('never drops or duplicates a transaction', () => {
+  it('never lets a row appear in both groups', () => {
     const list = [tx({ id: 'a' }), tx({ id: 'b', date: '2026-08-30T09:00' }), tx({ id: 'c' })];
     const g = txGroups(list, store(), fmt, NOW, RANGE, false);
-    expect(g.postedRows.map(r => r.id)).toEqual(['a', 'b', 'c']);
+    const posted = g.postedRows.map(r => r.id);
+    const sched = g.scheduled.map(x => x.selId).filter(Boolean);
+    expect(posted.filter(id => sched.includes(id))).toEqual([]);
+    expect(posted.length + sched.length).toBe(list.length);
   });
 
   it('orders reminders soonest first, so overdue sits at the top', () => {
@@ -171,11 +180,11 @@ describe('txGroups', () => {
     expect(g.overdueCount).toBe(1);
   });
 
-  it('drops the reminders while a filter is on, leaving the transactions alone', () => {
+  it('drops the reminders while a filter is on, leaving future transactions in place', () => {
     const list = [tx({ id: 'ahead', date: '2026-08-30T09:00' })];
-    expect(txGroups(list, S, fmt, NOW, RANGE, true).scheduled).toEqual([]);
-    expect(txGroups(list, S, fmt, NOW, RANGE, true).postedRows.map(r => r.id)).toEqual(['ahead']);
-    expect(txGroups(list, S, fmt, NOW, RANGE, false).scheduled.length).toBe(1);
+    const on = txGroups(list, S, fmt, NOW, RANGE, true);
+    expect(on.scheduled.map(x => x.selId)).toEqual(['ahead']);
+    expect(txGroups(list, S, fmt, NOW, RANGE, false).scheduled.length).toBe(2);
   });
 
   it('honours the range for reminders — one due next month stays out', () => {
@@ -189,7 +198,6 @@ describe('txGroups', () => {
     expect(g.scheduled).toEqual([]);
     expect(g.postedRows).toEqual([]);
     expect(g.overdueCount).toBe(0);
-    expect(g.futureCount).toBe(0);
   });
 });
 
@@ -214,15 +222,20 @@ describe('future-dated transaction presentation', () => {
     expect(futureTxRowOf(tx({ date: '2026-08-06T23:00' }), store(), fmt, NOW).timeLabel).toBe('Later today');
   });
 
-  it('keeps its real status — it sits among the recorded rows now', () => {
-    expect(futureTxRowOf(water, store(), fmt, NOW).stLabel).toBe('Cleared');
-    expect(futureTxRowOf(tx({ date: '2027-03-06T07:26', status: 'pending' }), store(), fmt, NOW).stLabel).toBe('Pending');
+  it('says Scheduled, not Cleared — the stored status answers a question the date makes unanswerable', () => {
+    expect(futureTxRowOf(water, store(), fmt, NOW).stLabel).toBe('Scheduled');
+    expect(futureTxRowOf(water, store(), fmt, NOW).stFg).toBe('var(--info)');
+    expect(futureTxRowOf(tx({ date: '2027-03-06T07:26', status: 'pending' }), store(), fmt, NOW).stLabel).toBe('Scheduled');
   });
 
-  it('says plainly that nothing counts it yet — true now the date guard is in', () => {
-    expect(futureTxRowOf(water, store(), fmt, NOW).stTitle).toMatch(/not counted in any balance or budget/);
-    expect(futureTxRowOf(tx({ date: '2027-03-06T07:26', status: 'pending' }), store(), fmt, NOW).stTitle)
-      .toBe(futureTxRowOf(water, store(), fmt, NOW).stTitle);
+  it('moves the real distinction into the tooltip: auto-counts vs waits for you', () => {
+    expect(futureTxRowOf(water, store(), fmt, NOW).stTitle).toMatch(/counts automatically/);
+    expect(futureTxRowOf(tx({ date: '2027-03-06T07:26', status: 'pending' }), store(), fmt, NOW).stTitle).toMatch(/until you mark it cleared/);
+  });
+
+  it('keeps the pending dim, so the two kinds of future row stay tellable apart', () => {
+    expect(futureTxRowOf(water, store(), fmt, NOW).rowOpacity).toBe('1');
+    expect(futureTxRowOf(tx({ date: '2027-03-06T07:26', status: 'pending' }), store(), fmt, NOW).rowOpacity).toBe('.62');
   });
 
   it('stays a real transaction — selectable, editable, same id and amount', () => {
@@ -239,10 +252,11 @@ describe('future-dated transaction presentation', () => {
 
   it('reaches the table through txGroups, not just in isolation', () => {
     const g = txGroups([water], store({ recurring: [] }), fmt, NOW, { from: null, to: null }, false);
-    expect(g.postedRows[0].dateLabel).toBe('6 Mar 2027');
-    expect(g.postedRows[0].timeLabel).toBe('In 212 days');
-    expect(g.postedRows[0].stLabel).toBe('Cleared');
-    expect(g.scheduled).toEqual([]);
+    expect(g.scheduled[0].row.dateLabel).toBe('6 Mar 2027');
+    expect(g.scheduled[0].row.timeLabel).toBe('In 212 days');
+    expect(g.scheduled[0].row.stLabel).toBe('Scheduled');
+    expect(g.scheduled[0].selId).toBe('w');
+    expect(g.postedRows).toEqual([]);
   });
 
   it('leaves recorded rows exactly as they were — clock time and true status', () => {
