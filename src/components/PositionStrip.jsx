@@ -17,7 +17,9 @@ import ExplainDialog from '../ui/ExplainDialog.jsx';
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const linkBtn = { border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 };
 
-export default function PositionStrip() {
+// `trailing` is an optional right-aligned slot in the footer row — Transactions
+// puts its search there; Dashboard passes nothing and the row is unchanged.
+export default function PositionStrip({ trailing }) {
   const { data: S } = useStore();
   const { month } = useMonth();
   const { money, moneyS } = useMoney();
@@ -57,6 +59,7 @@ export default function PositionStrip() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
           <button onClick={() => setExplain(true)} className="hv-accent-fg" style={linkBtn}>How these are calculated</button>
           {pendingNote && <span style={{ fontSize: 12, color: 'var(--warn)', fontWeight: 500 }}>{pendingNote}</span>}
+          {trailing && <div style={{ marginLeft: 'auto', flex: 'none' }}>{trailing}</div>}
         </div>
       </section>
       <ExplainDialog open={explain} onClose={() => setExplain(false)} />
