@@ -70,6 +70,16 @@ describe('filterMoves', () => {
     expect(filterMoves(undefined, 'all')).toEqual([]);
     expect(filterMoves(null, 'all')).toEqual([]);
   });
+
+  it('leaves the array it was given untouched — the caller passes live store state', () => {
+    const rows = [
+      row('old', { at: '2026-08-01T09:00' }),
+      row('new', { at: '2026-08-07T09:00' }),
+    ];
+    const before = rows.map(r => r.id);
+    filterMoves(rows, 'all');
+    expect(rows.map(r => r.id)).toEqual(before);
+  });
 });
 
 describe('moveCount', () => {

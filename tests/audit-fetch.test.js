@@ -1,5 +1,26 @@
-import { describe, it, expect } from 'vitest';
-import { AUDIT_FETCH_LIMIT, COLLECTIONS, diffStores } from '../src/store/sync.js';
+import { describe, it, expect, vi } from 'vitest';
+
+// A fake PostgREST builder per table, recording which chain methods were
+// called on it. `select('*')` starts the chain; `order`/`limit` (applied only
+// by audit's fetchQuery) mutate the same object and record the call against
+// its table. The builder itself is the resolved value fetchAll awaits — it
+// carries `data`/`error` directly, no `.then` needed for Promise.all to work.
+vi.mock('../src/lib/supabase.js', () => {
+  const calls = [];
+  const makeBuilder = table => {
+    const builder = {
+      data: [], error: null,
+      select: () => builder,
+      order: (col, opts) => { calls.push([table, 'order', col, opts]); return builder; },
+      limit: n => { calls.push([table, 'limit', n]); return builder; },
+    };
+    return builder;
+  };
+  return { supabase: { from: table => makeBuilder(table) }, __calls: calls };
+});
+
+import { AUDIT_FETCH_LIMIT, COLLECTIONS, diffStores, fetchAll } from '../src/store/sync.js';
+import { __calls as fetchCalls } from '../src/lib/supabase.js';
 
 const audit = COLLECTIONS.find(c => c.name === 'audit');
 
@@ -89,5 +110,35 @@ describe('fetched rows are already in the sync baseline', () => {
     const shorter = store([localRow({ id: 'a1' })]);
     const diff = diffStores(baseline, shorter);
     expect(diff.find(d => d.collection.name === 'audit')).toBeUndefined();
+  });
+});
+
+describe('fetchAll actually applies fetchQuery, not just the hook that defines it', () => {
+  // A prior version of this suite only unit-tested audit.fetchQuery in
+  // isolation, handing it a fake builder directly. That proved the hook does
+  // the right thing if called — it never proved fetchAll calls it. Reverting
+  // fetchAll to `fetched.map(c => supabase.from(c.table).select('*'))` (no
+  // fetchQuery applied at all) would leave every one of those tests green
+  // while every user fetched their whole unbounded audit history, unordered,
+  // on every login. This test goes through fetchAll itself against a mocked
+  // client and checks the bound is scoped to audit_log specifically.
+  it('orders and limits the audit_log query but leaves other tables alone', async () => {
+    fetchCalls.length = 0;
+    await fetchAll();
+
+    const auditCalls = fetchCalls.filter(c => c[0] === 'audit_log');
+    expect(auditCalls).toEqual([
+      ['audit_log', 'order', 'at', { ascending: false }],
+      ['audit_log', 'limit', AUDIT_FETCH_LIMIT],
+    ]);
+
+    const txCalls = fetchCalls.filter(c => c[0] === 'transactions');
+    expect(txCalls).toEqual([]);
+
+    // No table other than audit_log saw an order/limit call at all.
+    const boundedTables = new Set(
+      fetchCalls.filter(c => c[1] === 'order' || c[1] === 'limit').map(c => c[0])
+    );
+    expect([...boundedTables]).toEqual(['audit_log']);
   });
 });

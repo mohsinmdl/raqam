@@ -30,11 +30,13 @@ export function recordChange(stacks, prevData, label) {
 }
 
 // Restoring an older snapshot would also restore an older `audit`, which the
-// sync engine treats as append-only (sync.js: appendOnly + skipFetch, and the
-// server has no delete policy). Rows already pushed would then be missing
-// locally and the two would silently diverge. So the CURRENT audit is carried
-// across untouched and a new row is prepended: history reads "created X, then
-// undid it", never "nothing happened".
+// sync engine treats as append-only (sync.js: appendOnly, and the server has
+// no delete policy) — rows already pushed would then be missing locally and
+// the two would silently diverge for the rest of the session (a reload
+// re-fetches history and self-heals, since audit is fetched now rather than
+// skipped). So the CURRENT audit is carried across untouched and a new row
+// is prepended: history reads "created X, then undid it", never "nothing
+// happened".
 function restore(currentData, snapshot, auditRow) {
   return { ...snapshot, audit: [auditRow, ...(currentData.audit || [])] };
 }

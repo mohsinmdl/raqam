@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/StoreProvider.jsx';
 import { nowIso } from '../lib/dates.js';
 import { MOVE_FILTERS, filterMoves, groupMovesByDay, moveCount } from '../lib/moves.js';
+import { AUDIT_FETCH_LIMIT } from '../store/sync.js';
 
 const panelStyle = {
   position: 'absolute', top: 38, right: 0, zIndex: 30, width: 380, maxWidth: '92vw',
@@ -105,6 +106,9 @@ export default function RecentMoves() {
                 style={chipStyle(filter === f.id)}
               >
                 {f.label}
+                <span style={{ marginLeft: 5, fontSize: 10.5, fontWeight: 500, opacity: 0.65 }}>
+                  {moveCount(audit, f.id)}
+                </span>
               </button>
             ))}
           </div>
@@ -117,8 +121,16 @@ export default function RecentMoves() {
             </div>
           )}
 
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-            Showing your most recent activity. Undo and redo steps are not listed.
+          <div
+            style={{
+              position: 'sticky', bottom: 0, background: 'var(--surface)',
+              fontSize: 11, color: 'var(--muted)', marginTop: 12, paddingTop: 10,
+              borderTop: '1px solid var(--border)',
+            }}
+          >
+            {audit.length >= AUDIT_FETCH_LIMIT
+              ? `Showing your ${AUDIT_FETCH_LIMIT} most recent changes. Older history is kept but not listed, and undo and redo steps are not listed.`
+              : 'Undo and redo steps are not listed.'}
           </div>
         </div>
       )}
