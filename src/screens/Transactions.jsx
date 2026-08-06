@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
+import { DEFAULT_SORT, nextSortState, sortLabel } from '../lib/sortRows.js';
+import SortIcon from '../ui/SortIcon.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
@@ -20,7 +22,10 @@ import BulkBar from '../ui/BulkBar.jsx';
 import PositionStrip from '../components/PositionStrip.jsx';
 
 const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
-const th = { textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)' };
+// Sticky against <main>'s scroll. No overflow is introduced here — the section
+// deliberately has none, because it would clip the per-row ⋯ menu. z-index sits
+// below RowMenu's 30 so an open menu still passes over the header.
+const th = { textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)' };
 const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' };
 
 // Row and GroupHead live at MODULE scope on purpose. Defined inside
@@ -34,6 +39,67 @@ const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verti
 // so these cells never branch on which population they are drawing — the only
 // differences are handed in: selId (rules have none, so no checkbox) and the
 // action cell.
+// The sortable data columns, in render order. Widths live here so <colgroup>
+// and the cells cannot disagree; this array is also what a future
+// drag-to-reorder stage would permute, instead of the markup.
+const COLUMNS = [
+  { key: 'date', label: 'DATE', width: 96 },
+  { key: 'details', label: 'DETAILS', width: null },
+  { key: 'category', label: 'CATEGORY', width: 150 },
+  { key: 'account', label: 'ACCOUNT / CARD', width: 150 },
+  { key: 'status', label: 'STATUS', width: 96 },
+  // altKeys: the signed sort has no header of its own, so AMOUNT stays lit
+  // while it drives the order — the reader can always see which column owns
+  // the ordering, even when the mode came from the dropdown.
+  { key: 'size', label: 'AMOUNT', width: 120, align: 'right', altKeys: ['signed'] },
+];
+
+// A sortable column header. The whole cell is the control, so the target is the
+// full header height rather than the width of the label text.
+function SortableHeader({ col, sort, onSort }) {
+  const active = sort.key === col.key || (col.altKeys || []).includes(sort.key);
+  const dir = active ? sort.dir : null;
+  const nextDir = nextSortState(sort, col.key).dir;
+  const nextWord = {
+    date: { asc: 'oldest first', desc: 'newest first' },
+    details: { asc: 'A to Z', desc: 'Z to A' },
+    category: { asc: 'A to Z', desc: 'Z to A' },
+    account: { asc: 'A to Z', desc: 'Z to A' },
+    status: { asc: 'needs action first', desc: 'settled first' },
+    size: { asc: 'smallest first', desc: 'largest first' },
+  }[col.key][nextDir];
+  return (
+    <th
+      scope="col"
+      aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      style={{ ...th, padding: 0, textAlign: col.align || 'left' }}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(col.key)}
+        // Label states the ACTION, not the state — a screen reader reads it
+        // before activation, when what matters is what pressing it will do.
+        // The resulting state is announced separately through the live region.
+        aria-label={'Sort ' + col.label.toLowerCase() + ' ' + nextWord}
+        className="hv-soft"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 5, width: '100%',
+          minHeight: 44, padding: '9px 8px',
+          justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start',
+          border: 'none', background: 'none', font: 'inherit', cursor: 'pointer',
+          letterSpacing: '.05em',
+          color: active ? 'var(--text)' : 'var(--muted)',
+          fontWeight: active ? 700 : 600,
+        }}
+      >
+        {col.align === 'right' && <SortIcon dir={dir} />}
+        <span>{col.label}</span>
+        {col.align !== 'right' && <SortIcon dir={dir} />}
+      </button>
+    </th>
+  );
+}
+
 function Row({ t, selId, checked, onToggleRow, actions }) {
   return (
     <tr className="hv-elev" style={{ opacity: t.rowOpacity, background: checked ? 'var(--soft)' : undefined }}>
@@ -109,6 +175,10 @@ export default function Transactions() {
     schedOpen, setSchedOpen, postedOpen, setPostedOpen, resetView,
   } = useTxView();
   const [menuOpen, setMenuOpen] = useState(null);
+  // Focus stays on the header after sorting (React keeps the node, since
+  // SortableHeader is a stable module-scope type), so the result is announced
+  // through a live region rather than by moving focus.
+  const onSort = key => setSort(s => nextSortState(s, key));
   const [rangeOpen, setRangeOpen] = useState(false);
   // The popover edits a draft; nothing re-filters until Apply.
   const [draft, setDraft] = useState(range);
@@ -147,13 +217,12 @@ export default function Transactions() {
     if (isFinite(maxA) && Math.abs(t.amount) > maxA) return false;
     return true;
   });
-  list = list.sort((a, b) => (sort === 'amount' ? Math.abs(b.amount) - Math.abs(a.amount) : b.date.localeCompare(a.date)));
 
   // Scheduled and recorded are two populations, not one list — txGroups holds
   // the rules for which row lands where, and is tested there.
   const now = nowIso();
   const anyFilter = Object.keys(DEFAULT_FILTERS).some(k => F[k] !== DEFAULT_FILTERS[k]);
-  const { scheduled, postedRows, postedTx, overdueCount, hiddenRuleCount } = txGroups(list, S, fmt, now, range, anyFilter);
+  const { scheduled, postedRows, postedTx, overdueCount, hiddenRuleCount } = txGroups(list, S, fmt, now, range, anyFilter, sort);
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter
   // has hidden would let the toolbar claim "12 selected" while showing three,
@@ -392,16 +461,36 @@ export default function Transactions() {
         <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Showing {list.length} of {monthTx.length} {range.from || range.to ? 'in ' + rangeLabel(range.from, range.to) : 'across all dates'} · manually entered</span>
+            <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
+              {sortLabel(sort) + ', ' + list.length + ' row' + (list.length === 1 ? '' : 's')}
+            </span>
             <span style={{ flex: 1 }} />
-            <button onClick={() => setSort(s => (s === 'date' ? 'amount' : 'date'))} className="hv-accent-fg" style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
-              {sort === 'date' ? 'Newest first ↓' : 'Largest first ↓'}
+            {/* Every column sorts from its own header, so a dropdown listing
+                those same sorts was a second route to the same place. What has
+                no header is `signed` — ranking by effect on the balance rather
+                than by size — so this is the one control that reaches it.
+                Shows the active sort, the way the pre-sortable-header button
+                did, which keeps the current order stated in words. */}
+            <button
+              onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
+              aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}
+              className="hv-accent-fg"
+              style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}
+            >
+              {sortLabel(sort) + ' ' + (sort.dir === 'asc' ? '↑' : '↓')}
             </button>
           </div>
           {(postedRows.length > 0 || scheduled.length > 0) && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              {/* Widths declared once, so a header and its cells cannot drift. */}
+              <colgroup>
+                <col style={{ width: 34 }} />
+                {COLUMNS.map(c => <col key={c.key} style={c.width ? { width: c.width } : undefined} />)}
+                <col style={{ width: 56 }} />
+              </colgroup>
               <thead>
                 <tr>
-                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px', width: 34 }}>
+                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px' }}>
                     <Checkbox
                       checked={allVisibleSelected}
                       indeterminate={sel.length > 0 && !allVisibleSelected}
@@ -409,13 +498,8 @@ export default function Transactions() {
                       label={allVisibleSelected ? 'Clear selection' : 'Select all ' + visibleIds.length + ' visible transactions'}
                     />
                   </th>
-                  <th scope="col" style={{ ...th, padding: '9px 8px' }}>DATE</th>
-                  <th scope="col" style={th}>DETAILS</th>
-                  <th scope="col" style={th}>CATEGORY</th>
-                  <th scope="col" style={th}>ACCOUNT / CARD</th>
-                  <th scope="col" style={th}>STATUS</th>
-                  <th scope="col" style={{ ...th, textAlign: 'right', padding: '9px 8px' }}>AMOUNT</th>
-                  <th scope="col" style={{ ...th, padding: '9px 18px 9px 8px', width: 56 }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span></th>
+                  {COLUMNS.map(c => <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} />)}
+                  <th scope="col" style={{ ...th, padding: '9px 18px 9px 8px' }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span></th>
                 </tr>
               </thead>
               {scheduled.length > 0 && (

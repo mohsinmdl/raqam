@@ -116,8 +116,11 @@ describe('ruleRowOf', () => {
     expect(ruleRowOf(rule(), store(), fmt, NOW).amtColor).toBe('var(--text)');
   });
 
-  it('sorts on the due date', () => {
-    expect(ruleRowOf(rule(), store(), fmt, NOW).sortKey).toBe('2026-08-20');
+  it('exposes the sort keys the table orders on', () => {
+    const row = ruleRowOf(rule(), store(), fmt, NOW);
+    expect(row.sortAt).toBe('2026-08-20');
+    expect(row.sortId).toBe('rule:r1');
+    expect(row.amtValue).toBe(-45000);
   });
 
   it('offers nothing selectable or editable — a rule is not a transaction', () => {
