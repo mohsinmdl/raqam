@@ -6,6 +6,7 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
 import { accountBalance, accountDelta, dayLabel, inMonth, kindLabel, lastActivity, monthLabel, openingOf, relTime } from '../lib/calc.js';
+import { nowIso } from '../lib/dates.js';
 import { txRowOf, instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
@@ -24,6 +25,7 @@ export default function AccountDetail() {
   const { openDrawer } = useDrawer();
   const { ask, notify } = useUI();
   const nav = useNavigate();
+  const now = nowIso();
 
   const a = S.accounts.find(x => x.id === id);
   const monthName = monthLabel(month);
@@ -37,12 +39,12 @@ export default function AccountDetail() {
   }
 
   const inst = S.institutions.find(i => i.id === a.instId);
-  const bal = accountBalance(a, S, month);
+  const bal = accountBalance(a, S, month, now);
   const snap = S.snapshots.find(s => s.accountId === a.id && s.month === month);
   const opening = snap ? snap.amount : 0;
   const atx = S.transactions.filter(t => inMonth(t, month) && (t.accountId === a.id || t.toAccountId === a.id)).sort((x, y) => y.date.localeCompare(x.date));
-  const inflow = atx.reduce((s, t) => { const d = accountDelta(t, a.id); return s + (d > 0 ? d : 0); }, 0);
-  const outflow = atx.reduce((s, t) => { const d = accountDelta(t, a.id); return s + (d < 0 ? -d : 0); }, 0);
+  const inflow = atx.reduce((s, t) => { const d = accountDelta(t, a.id, now); return s + (d > 0 ? d : 0); }, 0);
+  const outflow = atx.reduce((s, t) => { const d = accountDelta(t, a.id, now); return s + (d < 0 ? -d : 0); }, 0);
   const change = bal - opening;
   const detTx = atx.map(t => txRowOf(t, S, fmt, a.id));
   const linkedCards = S.cards.filter(c => c.linkedAccountId === a.id);

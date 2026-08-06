@@ -4,7 +4,7 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { accountBalance, cardOutstanding, cardRefs } from '../lib/calc.js';
-import { currentMonth } from '../lib/dates.js';
+import { currentMonth, nowIso } from '../lib/dates.js';
 import { addCard, updateCard } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
 import { useInstGroups } from './AccountForm.jsx';
@@ -33,7 +33,7 @@ function Body() {
       ].filter(Boolean).join(', ')
     : '';
   const month = currentMonth();
-  const bankOpts = S.accounts.filter(a => a.status === 'active').map(a => ({ id: 'acc:' + a.id, label: a.nickname + ' — ' + money(accountBalance(a, S, month)) }));
+  const bankOpts = S.accounts.filter(a => a.status === 'active').map(a => ({ id: 'acc:' + a.id, label: a.nickname + ' — ' + money(accountBalance(a, S, month, nowIso())) }));
 
   return (
     <>

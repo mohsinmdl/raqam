@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './auth/AuthProvider.jsx';
 import AuthScreen from './auth/AuthScreen.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import { MonthProvider } from './store/MonthContext.jsx';
+import { TxViewProvider } from './store/TxViewContext.jsx';
 import { UIProvider } from './ui/UIProvider.jsx';
 import { DrawerProvider } from './ui/DrawerProvider.jsx';
 import { drawerRegistry } from './drawers/index.js';
@@ -65,12 +66,14 @@ function Gate() {
     // Keyed by user so switching accounts remounts the store with no stale state.
     <StoreProvider key={user.id} userId={user.id}>
       <MonthProvider>
-        <UIProvider>
-          <DrawerProvider registry={drawerRegistry}>
-            <Shell />
-            <ImportLegacy />
-          </DrawerProvider>
-        </UIProvider>
+        <TxViewProvider>
+          <UIProvider>
+            <DrawerProvider registry={drawerRegistry}>
+              <Shell />
+              <ImportLegacy />
+            </DrawerProvider>
+          </UIProvider>
+        </TxViewProvider>
       </MonthProvider>
     </StoreProvider>
   );

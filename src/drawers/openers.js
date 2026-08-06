@@ -70,7 +70,7 @@ export const openers = {
     const m = currentMonth(), f = {};
     S.accounts.filter(a => a.status === 'active').forEach(a => {
       const snap = S.snapshots.find(x => x.accountId === a.id && x.month === m);
-      f['snap_' + a.id] = String(snap ? snap.amount : accountBalance(a, S, m));
+      f['snap_' + a.id] = String(snap ? snap.amount : accountBalance(a, S, m, nowIso()));
     });
     openDrawer('snapshot', f);
   },
@@ -78,14 +78,14 @@ export const openers = {
   payCard: (S, cardId, openDrawer) => {
     const c = S.cards.find(x => x.id === cardId);
     if (!c) return;
-    const out = cardOutstanding(c, S, currentMonth());
+    const out = cardOutstanding(c, S, currentMonth(), nowIso());
     openDrawer('payCard', { cardId: c.id, from: c.linkedAccountId ? 'acc:' + c.linkedAccountId : '', amount: String(out), date: todayStr() });
   },
 
   // Target-value balance correction: prefill with the CURRENT computed balance.
   adjust: (S, accountId, openDrawer) => {
     const acc = S.accounts.find(a => a.id === accountId);
-    const cur = acc ? accountBalance(acc, S, currentMonth()) : 0;
+    const cur = acc ? accountBalance(acc, S, currentMonth(), nowIso()) : 0;
     openDrawer('adjust', { accountId, newBalance: String(cur), reason: '', date: todayStr(), currentBalance: cur });
   },
 
@@ -114,7 +114,7 @@ export const openers = {
   adjustCard: (S, cardId, openDrawer) => {
     const c = S.cards.find(x => x.id === cardId);
     if (!c) return;
-    const out = cardOutstanding(c, S, currentMonth());
+    const out = cardOutstanding(c, S, currentMonth(), nowIso());
     openDrawer('adjustCard', { cardId, newOutstanding: String(out), reason: '', date: todayStr(), currentOutstanding: out });
   },
 

@@ -9,12 +9,11 @@ import { catById, shortDate } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 import { iconStyle } from '../lib/catIcon.js';
 import {
-  advanceDue, estimatedSuggestion, freqLabel, longDate, nextOccurrences, ruleDueLabel, ruleStatus,
+  advanceDue, estimatedSuggestion, freqLabel, longDate, nextOccurrences, ruleDueLabel, ruleStatus, sourceLabel,
 } from '../lib/schedule.js';
 import { skipOccurrence, toggleRulePause, deleteRule } from '../store/actions.js';
 import { openers } from '../drawers/openers.js';
 import { RepeatIcon } from '../ui/icons.jsx';
-import { sourceLabel } from './Recurring.jsx';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const colHeader = { fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)' };

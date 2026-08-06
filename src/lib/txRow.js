@@ -1,8 +1,8 @@
 // Shared transaction-row and account-freshness presenters, ported from the
 // prototype's txRowOf (script 894-927) and freshInfo (928-933).
-import { accountDelta, dayLabel, daysAgo, lastActivity, relTime, timeLabel } from './calc.js';
+import { accountDelta, dayLabel, daysAgo, daysUntil, lastActivity, relTime, timeLabel } from './calc.js';
 import { nowIso } from './dates.js';
-import { ruleFromTx } from './schedule.js';
+import { ruleDueLabel, ruleFromTx, scheduledRules, sourceLabel } from './schedule.js';
 
 // fmt = { money, moneyS } from useMoney(). forAccountId flips amounts to the
 // perspective of one account (account-detail activity list).
@@ -61,6 +61,128 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // Recoverable-spending indicator — the money moved, it just isn't budget spending.
     excluded: (t.type === 'expense' || t.type === 'refund') && !!(cat && cat.excludeFromBudget),
     excludedLabel: 'Excluded from budgets',
+  };
+}
+
+// "6 Mar" is unambiguous inside a month view, which is all dayLabel was ever
+// asked for. The scheduled group reads forward across years, where a bare
+// "6 Mar" is indistinguishable from a date that has already passed — so out-of-
+// year dates carry the year.
+export function withYear(iso, now) {
+  return dayLabel(iso) + (iso.slice(0, 4) === now.slice(0, 4) ? '' : ' ' + iso.slice(0, 4));
+}
+
+// The forward-looking counterpart to timeLabel. A clock time answers "when
+// today", which is the wrong question for a row that has not happened yet —
+// and it was the only cue on a future transaction, leaving it the one row in
+// the group with nothing marking it as still to come.
+export function untilLabel(iso, now) {
+  const d = daysUntil(iso, now);
+  if (d <= 0) return 'Later today';
+  return d === 1 ? 'Tomorrow' : 'In ' + d + ' days';
+}
+
+// A future-dated transaction wearing the scheduled group's clothes. It is a
+// real row — selectable, editable, counted — but "Cleared" directly contradicts
+// the group heading it sits under, so the pill reports its position in time
+// rather than its reconciliation state.
+//
+// A transaction dated ahead of now. Three overrides make it read as what it
+// is: the year (a bare "6 Mar" is indistinguishable from a past date), a
+// distance instead of a clock time, and a "Scheduled" pill in place of the
+// stored status — "Cleared" answers "did the money move?", which cannot be
+// yes for a date still ahead. The stored status is untouched (the schema only
+// knows cleared|pending) and the pill reverts to it by itself the day the
+// date arrives, when txGroups stops routing the row through here. The real
+// distinction the label was hiding moves to the tooltip: cleared counts
+// automatically on its date, pending waits for you. Pending rows also keep
+// their dim, so the two kinds stay tellable apart at a glance.
+export function futureTxRowOf(t, S, fmt, now) {
+  return {
+    ...txRowOf(t, S, fmt), isFuture: true,
+    dateLabel: withYear(t.date, now),
+    timeLabel: untilLabel(t.date, now),
+    stLabel: 'Scheduled', stBg: 'var(--info-soft)', stFg: 'var(--info)',
+    stTitle: t.status === 'pending'
+      ? 'Dated ahead and pending — stays out of totals until you mark it cleared.'
+      : 'Dated ahead — counts automatically when its date arrives.',
+  };
+}
+
+// A recurring rule presented as a table row, deliberately field-for-field
+// compatible with txRowOf so the Scheduled group reuses the same cells instead
+// of forking the table. The Dashboard's rule shape ({id, name, when, amt}) is
+// too thin for this — it would leave category, account and status blank.
+//
+// The row key is namespaced ('rule:…') because rule ids and transaction ids come
+// from different tables and are only unique within their own. Rules carry no
+// checkbox, so this key never reaches the selection Set — the namespace is a
+// guard against a later change quietly making it possible.
+export function ruleRowOf(r, S, fmt, now) {
+  const cat = r.category ? S.categories.find(c => c.id === r.category) : null;
+  const overdue = daysUntil(r.nextDate, now) < 0;
+  return {
+    key: 'rule:' + r.id, ruleId: r.id, isRule: true, isOverdue: overdue, sortKey: r.nextDate,
+    dateLabel: withYear(r.nextDate, now), timeLabel: ruleDueLabel(r, now),
+    merchant: r.name, notes: '', hasNotes: false,
+    hasChip: false, chip: null, chipBg: '', chipFg: '', chipIcon: null, transferOther: null,
+    isRepeating: true,
+    catName: cat ? cat.name : '—', catColor: cat ? cat.color : 'var(--border)',
+    acctLabel: sourceLabel(S, r),
+    // Estimated amounts keep the ~ they carry on the Recurring screen: this is
+    // a forecast, and rounding it into a hard figure would be a small lie.
+    amtLabel: (r.estimated ? '~' : '') + fmt.money(r.type === 'income' ? r.amount : -r.amount),
+    amtColor: r.type === 'income' ? 'var(--pos)' : 'var(--text)',
+    stLabel: overdue ? 'Overdue' : 'Scheduled',
+    stBg: overdue ? 'var(--neg-soft)' : 'var(--info-soft)',
+    stFg: overdue ? 'var(--neg)' : 'var(--info)',
+    stTitle: overdue ? 'This was due and has not been recorded yet.' : 'A reminder — nothing is recorded until you record it.',
+    rowOpacity: '1', isPending: false, canEdit: false, canRepeat: false,
+    edited: false, editedLabel: '', excluded: false, excludedLabel: '',
+  };
+}
+
+// The two groups the transactions table renders.
+//
+// Scheduled is everything still ahead: recurring reminders AND future-dated
+// transactions, interleaved soonest-first so anything overdue sits at the top.
+// The owner tried both arrangements live and settled here (2026-08-06,
+// reversing an earlier reminders-only call): a future-dated transaction reads
+// better beside the reminders it resembles than among money already spent.
+// Correctness never depended on the grouping — hasOccurred() keeps future rows
+// out of every balance and budget wherever they are displayed.
+//
+// The two populations keep their natures: future transactions are real rows
+// (selId → checkbox, ⋯ menu, all filters apply); reminders are projections of
+// rule.nextDate (no selId, Record/Skip). anyFilter suppresses only the
+// reminders — a rule has no status, type or merchant, so it cannot honour
+// "Pending" or a search term, and showing rows that contradict an active
+// filter is worse than briefly hiding them.
+export function txGroups(list, S, fmt, now, range, anyFilter) {
+  const futureTx = list.filter(t => t.date > now);
+  const postedTx = list.filter(t => t.date <= now);
+  const ruleRows = anyFilter ? [] : scheduledRules(S, range.from, range.to, now).map(r => ruleRowOf(r, S, fmt, now));
+  // A rule with money already pencilled in doesn't also nag you. Recording an
+  // occurrence that isn't due yet leaves a future-dated transaction AND
+  // advances the rule, so the same commitment would appear twice — once as
+  // the pencilled-in payment, once as the next reminder.
+  //
+  // The transaction always wins: it is real money, and it has to stay visible
+  // when a filter matches it. Only the reminder folds, and only while the
+  // transaction is still ahead — once its date passes it leaves futureTx, the
+  // rule drops out of this set, and the reminder returns on its own. No stored
+  // state, nothing to clean up.
+  const rulesPencilledIn = new Set(futureTx.map(t => (ruleFromTx(S, t.id) || {}).id).filter(Boolean));
+  const shownRuleRows = ruleRows.filter(r => !rulesPencilledIn.has(r.ruleId));
+  const scheduled = shownRuleRows
+    .map(row => ({ row, at: row.sortKey }))
+    .concat(futureTx.map(t => ({ row: futureTxRowOf(t, S, fmt, now), at: t.date, selId: t.id })))
+    .sort((a, b) => a.at.localeCompare(b.at));
+  return {
+    scheduled, futureTx, postedTx,
+    postedRows: postedTx.map(t => txRowOf(t, S, fmt)),
+    overdueCount: scheduled.filter(x => x.row.isOverdue).length,
+    hiddenRuleCount: ruleRows.length - shownRuleRows.length,
   };
 }
 

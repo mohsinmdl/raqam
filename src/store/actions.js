@@ -148,6 +148,37 @@ export function deleteTransaction(data, { id }) {
   };
 }
 
+// "I paid this early." A transaction dated ahead of now sits in the Scheduled
+// group and is kept out of every balance by hasOccurred(); if the money has in
+// fact already moved, the honest fix is the date — the day it moved is the day
+// it happened. So this action changes one field and nothing else. Leaving
+// Scheduled, joining Recorded and starting to count are all consequences the
+// presenters draw from that date, not extra state to keep in step.
+//
+// `now` is passed in rather than read here, matching the money math's
+// convention (calc.js hasOccurred): a pure action stays testable without
+// mocking the clock.
+export function postTransactionNow(data, { id, now }) {
+  const i = data.transactions.findIndex(x => x.id === id);
+  if (i < 0) return data;
+  const before = data.transactions[i];
+  // Already in the past — nothing to bring forward. Same reference back, so a
+  // double-click cannot re-stamp an edit or write a second audit row.
+  if (!now || before.date <= now) return data;
+  const after = stampUpdate({ ...before, date: now });
+  const transactions = [...data.transactions];
+  transactions[i] = after;
+  return {
+    ...data,
+    transactions,
+    audit: [makeAudit({
+      entityType: 'transaction', entityId: before.id, action: 'update',
+      summary: 'Posted now — moved from ' + before.date.slice(0, 10) + ' to today',
+      before: { date: before.date }, after: { date: after.date },
+    }), ...(data.audit || [])],
+  };
+}
+
 // payload: validated addAccount form + parsed bal. Seeds a pending opening snapshot.
 export function addAccount(data, { form: f, bal }) {
   const next = { ...data, institutions: [...data.institutions], accounts: [...data.accounts], snapshots: [...data.snapshots] };
@@ -424,7 +455,15 @@ export function rolloverMonth(data) {
       ...missing.map(a => ({
         month,
         accountId: a.id,
-        amount: accountBalance(a, data, prev), // previous month's computed closing balance
+        // Previous month's computed closing balance. Deliberately NOT date-
+        // guarded: this is frozen into a snapshot and becomes the opening figure
+        // every later month is measured from, so it must mean "the complete
+        // month", never "the month as it looked at the moment of rollover".
+        // As written, `prev` is always the month before the current one and so
+        // entirely in the past, which means a guard would change nothing today.
+        // That is a property of when this happens to run, not of what the value
+        // means — and a frozen snapshot should not start depending on it.
+        amount: accountBalance(a, data, prev),
         status: 'pending',
       })),
     ];
@@ -434,6 +473,7 @@ export function rolloverMonth(data) {
   if (cardsMissing.length > 0) {
     next.cards = next.cards.map(c => {
       if (c.type !== 'credit' || (c.openingOutstanding && c.openingOutstanding[month] != null)) return c;
+      // Not date-guarded, for the same reason as the account snapshot above.
       return { ...c, openingOutstanding: { ...(c.openingOutstanding || {}), [month]: cardOutstanding(c, data, prev) } };
     });
   }

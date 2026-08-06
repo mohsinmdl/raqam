@@ -34,7 +34,7 @@ export default function Cards() {
       editedLabel: c.editedAt ? 'Edited ' + relTime(c.editedAt) : '',
     };
     if (c.type === 'credit') {
-      const out = cardOutstanding(c, S, month);
+      const out = cardOutstanding(c, S, month, now);
       const ac = availableCredit(c, out, money);
       const pct = ac.pct;
       const dd = c.dueDate ? daysUntil(c.dueDate, now) : null;
@@ -50,7 +50,7 @@ export default function Cards() {
     } else {
       const la = S.accounts.find(a => a.id === c.linkedAccountId);
       base.linked = la ? la.nickname + ' · ' + instName(S, la.instId) : 'Not linked';
-      base.linkedBal = la ? money(accountBalance(la, S, month)) : '—';
+      base.linkedBal = la ? money(accountBalance(la, S, month, now)) : '—';
     }
     return base;
   });

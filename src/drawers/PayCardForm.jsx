@@ -4,7 +4,7 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { accountBalance, cardOutstanding } from '../lib/calc.js';
-import { currentMonth } from '../lib/dates.js';
+import { currentMonth, nowIso } from '../lib/dates.js';
 import { payCard } from '../store/actions.js';
 import { Label, FieldError, AmountField, TextField, SelectField, grid2, noteBox } from './fields.jsx';
 
@@ -15,14 +15,14 @@ function Body() {
   const f = drawer.form, errors = drawer.errors;
   const month = currentMonth();
   const card = S.cards.find(x => x.id === f.cardId);
-  const bankOpts = S.accounts.filter(a => a.status === 'active').map(a => ({ id: 'acc:' + a.id, label: a.nickname + ' — ' + money(accountBalance(a, S, month)) }));
+  const bankOpts = S.accounts.filter(a => a.status === 'active').map(a => ({ id: 'acc:' + a.id, label: a.nickname + ' — ' + money(accountBalance(a, S, month, nowIso())) }));
 
   return (
     <>
       <div style={{ padding: '12px 14px', borderRadius: 10, background: 'var(--elev)', border: '1px solid var(--border)' }}>
         <div style={{ fontSize: 13, fontWeight: 600 }}>{card ? card.nickname + ' ••' + card.last4 : ''}</div>
         <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>
-          Outstanding: <span className="tnum" style={{ fontWeight: 600, color: 'var(--text)' }}>{card ? money(cardOutstanding(card, S, month)) : ''}</span>
+          Outstanding: <span className="tnum" style={{ fontWeight: 600, color: 'var(--text)' }}>{card ? money(cardOutstanding(card, S, month, nowIso())) : ''}</span>
         </div>
       </div>
       <div>

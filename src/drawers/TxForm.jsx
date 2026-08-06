@@ -9,7 +9,7 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { accountBalance, cardOutstanding, dayLabel, findDuplicate, listCats, monthLabel, relTime } from '../lib/calc.js';
-import { currentMonth, todayStr } from '../lib/dates.js';
+import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { addTransaction, updateTransaction, deleteTransaction } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
 import { PRESETS, ruleFromTx } from '../lib/schedule.js';
@@ -30,9 +30,9 @@ function useOpts() {
   const { money } = useMoney();
   const month = currentMonth();
   const activeAccts = S.accounts.filter(a => a.status === 'active');
-  const bankOpts = activeAccts.map(a => ({ id: 'acc:' + a.id, label: a.nickname + ' — ' + money(accountBalance(a, S, month)) }));
+  const bankOpts = activeAccts.map(a => ({ id: 'acc:' + a.id, label: a.nickname + ' — ' + money(accountBalance(a, S, month, nowIso())) }));
   const credit = S.cards.filter(c => c.type === 'credit' && c.status === 'active');
-  const creditOpts = credit.map(c => ({ id: 'card:' + c.id, label: c.nickname + ' ••' + c.last4 + ' — ' + money(Math.max((c.limit || 0) - cardOutstanding(c, S, month), 0)) + ' available' }));
+  const creditOpts = credit.map(c => ({ id: 'card:' + c.id, label: c.nickname + ' ••' + c.last4 + ' — ' + money(Math.max((c.limit || 0) - cardOutstanding(c, S, month, nowIso()), 0)) + ' available' }));
   return { S, activeAccts, bankOpts, creditOpts };
 }
 

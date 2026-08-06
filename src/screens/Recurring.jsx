@@ -10,7 +10,7 @@ import { useMoney } from '../lib/format.js';
 import { catById } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 import { iconStyle } from '../lib/catIcon.js';
-import { advanceDue, freqLabel, longDate, ruleDueLabel, ruleStatus } from '../lib/schedule.js';
+import { advanceDue, freqLabel, longDate, ruleDueLabel, ruleStatus, sourceLabel } from '../lib/schedule.js';
 import { skipOccurrence, toggleRulePause, deleteRule } from '../store/actions.js';
 import RowMenu from '../ui/RowMenu.jsx';
 import { RepeatIcon } from '../ui/icons.jsx';
@@ -33,12 +33,6 @@ const gridCols = { display: 'grid', gridTemplateColumns: 'minmax(0,1.8fr) minmax
 // menu, which RowMenu positions absolutely inside the row.
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const btn = { height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', flex: 'none' };
-
-export function sourceLabel(S, r) {
-  if (r.cardId) { const c = S.cards.find(x => x.id === r.cardId); return c ? c.nickname + ' ••' + c.last4 : '—'; }
-  if (r.accountId) { const a = S.accounts.find(x => x.id === r.accountId); return a ? a.nickname : '—'; }
-  return '—';
-}
 
 export default function Recurring() {
   const { data: S, applyData } = useStore();

@@ -1,22 +1,24 @@
 // Transactions list screen — template 268-336, txScreenVals script 1018-1054.
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
-import { useMonth } from '../store/MonthContext.jsx';
+import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { isExcludedCat } from '../lib/calc.js';
+import { nowIso } from '../lib/dates.js';
 import { MONTH_OPTS, RANGE_PRESETS, clampRange, inRange, presetOf, rangeFor, rangeLabel, yearOpts } from '../lib/dateRange.js';
-import { txRowOf } from '../lib/txRow.js';
+import { txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
-import { ruleFromTx } from '../lib/schedule.js';
-import { deleteTransactions, setTransactionsCategory, setTransactionsStatus } from '../store/actions.js';
+import { advanceDue, longDate, ruleFromTx } from '../lib/schedule.js';
+import { deleteRule, deleteTransaction, deleteTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import RowMenu from '../ui/RowMenu.jsx';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
+import PositionStrip from '../components/PositionStrip.jsx';
 
-const DEFAULT_FILTERS = { q: '', acct: 'all', cat: 'all', type: 'all', status: 'all', impact: 'all', min: '', max: '' };
 const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
 const th = { textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)' };
 const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' };
@@ -24,15 +26,17 @@ const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verti
 export default function Transactions() {
   const { data: S, applyData } = useStore();
   const { ask, notify } = useUI();
-  const { month } = useMonth();
   const fmt = useMoney();
   const { openDrawer } = useDrawer();
-  const [F, setFilters] = useState(DEFAULT_FILTERS);
-  const [sort, setSort] = useState('date');
+  const navigate = useNavigate();
+  // The view itself lives above the router (TxViewContext) so leaving this
+  // screen and coming back does not reset it. Everything below is genuinely
+  // per-visit: a selection, an open popover, an open row menu.
+  const {
+    filters: F, setFilters, sort, setSort, range, setRange,
+    schedOpen, setSchedOpen, postedOpen, setPostedOpen, resetView,
+  } = useTxView();
   const [menuOpen, setMenuOpen] = useState(null);
-  // Seeded from the globally selected month: stepping to July on Dashboard and
-  // then opening Transactions should still show July.
-  const [range, setRange] = useState(() => ({ from: month, to: month }));
   const [rangeOpen, setRangeOpen] = useState(false);
   // The popover edits a draft; nothing re-filters until Apply.
   const [draft, setDraft] = useState(range);
@@ -40,7 +44,7 @@ export default function Transactions() {
   const [selected, setSelected] = useState(() => new Set());
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
-  const reset = () => { setFilters(DEFAULT_FILTERS); setRange(rangeFor('month')); };
+  const reset = () => resetView();
   const openRange = () => { setDraft(range); setRangeOpen(true); };
   const applyRange = () => { setRange(clampRange(draft.from, draft.to)); setRangeOpen(false); };
   const setBound = (key, part, v) => setDraft(d => {
@@ -72,12 +76,28 @@ export default function Transactions() {
     return true;
   });
   list = list.sort((a, b) => (sort === 'amount' ? Math.abs(b.amount) - Math.abs(a.amount) : b.date.localeCompare(a.date)));
-  const txRows = list.map(t => txRowOf(t, S, fmt));
+
+  // Scheduled and recorded are two populations, not one list — txGroups holds
+  // the rules for which row lands where, and is tested there.
+  const now = nowIso();
+  const anyFilter = Object.keys(DEFAULT_FILTERS).some(k => F[k] !== DEFAULT_FILTERS[k]);
+  const { scheduled, postedRows, postedTx, overdueCount, hiddenRuleCount } = txGroups(list, S, fmt, now, range, anyFilter);
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter
   // has hidden would let the toolbar claim "12 selected" while showing three,
-  // and then act on all twelve.
-  const visibleIds = list.map(t => t.id);
+  // and then act on all twelve. Collapsing the scheduled group hides its rows,
+  // so its ids leave the visible set for exactly the same reason.
+  // Grouping only appears when there is something scheduled to separate from.
+  // Without it the recorded rows carry no heading, so they must be treated as
+  // open regardless of postedOpen — otherwise collapsing the group and then
+  // filtering the scheduled rows away would strand the rows with no control
+  // left on screen to expand them again.
+  const grouped = scheduled.length > 0;
+  const postedShown = !grouped || postedOpen;
+  // Scheduled rows carry no checkbox at all — selection belongs to the ledger
+  // below — so only the recorded rows are ever selectable, and collapsing the
+  // scheduled group no longer changes what "select all" means.
+  const visibleIds = postedShown ? postedTx.map(t => t.id) : [];
   const sel = visibleIds.filter(id => selected.has(id));
   const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
   const clearSel = () => setSelected(new Set());
@@ -97,6 +117,76 @@ export default function Transactions() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [sel.length]);
+
+  const askSkip = async row => {
+    const r = S.recurring.find(x => x.id === row.ruleId);
+    if (!r) return;
+    const after = advanceDue(r.schedule, r.nextDate);
+    const ok = await ask({
+      title: 'Skip this one?',
+      body: 'Nothing is recorded for ' + longDate(r.nextDate, now) + '. “' + r.name + '” moves on to ' + longDate(after, now) + '.',
+      action: 'Skip this one',
+      tone: 'accent',
+    });
+    if (!ok) return;
+    applyData(data => skipOccurrence(data, { id: r.id, due: r.nextDate }));
+    notify('Skipped — nothing recorded. Next due ' + longDate(after, now) + '.');
+  };
+
+  const askPostNow = async row => {
+    const ok = await ask({
+      title: 'Move this to today?',
+      body: '“' + row.merchant + '” is dated ' + row.dateLabel + '. Posting it now re-dates it to today, so it counts in your balance straight away.',
+      action: 'Post now',
+      tone: 'accent',
+    });
+    if (!ok) return;
+    applyData(data => postTransactionNow(data, { id: row.id, now: nowIso() }));
+    notify('Posted — dated today and counted.');
+  };
+
+  // Mirrors the Recurring screen's wording: deleting a rule stops the reminders
+  // and leaves every transaction it has already created untouched.
+  const askDeleteRule = async row => {
+    const r = S.recurring.find(x => x.id === row.ruleId);
+    if (!r) return;
+    const n = (r.occurrences || []).filter(o => o.outcome === 'recorded').length;
+    const ok = await ask({
+      title: 'Delete this rule?',
+      body: '“' + r.name + '” stops reminding you. ' + (n > 0
+        ? 'The ' + n + ' transaction' + (n === 1 ? '' : 's') + ' it already created stay exactly as they are.'
+        : 'It has not created any transactions.'),
+      action: 'Delete rule',
+    });
+    if (!ok) return;
+    applyData(data => deleteRule(data, { id: r.id }));
+    notify('Rule deleted.');
+  };
+
+  const askDeleteTx = async row => {
+    const ok = await ask({
+      title: 'Delete this transaction?',
+      // A row still dated ahead is counted by nothing yet, so promising that
+      // balances will change would be untrue.
+      body: row.isFuture
+        ? '“' + row.merchant + '” is dated ' + row.dateLabel + ' and is not counted in any balance yet, so nothing recalculates. This cannot be undone.'
+        : '“' + row.merchant + '” is removed from every balance and total that counted it. This cannot be undone.',
+      action: 'Delete',
+    });
+    if (!ok) return;
+    applyData(data => deleteTransaction(data, { id: row.id }));
+    notify('Transaction deleted.');
+  };
+
+  // A transaction's relationship to a series, as one menu item. Either it can
+  // still become one, or it already belongs to one — and in that case the row
+  // says so with the ⟳ icon, so the menu should explain rather than just go
+  // quiet: View rule jumps to the rule behind it.
+  const seriesItem = (txId, canRepeat) => {
+    const r = ruleFromTx(S, txId);
+    if (r) return { label: 'View rule', onClick: () => navigate('/recurring/' + r.id) };
+    return canRepeat && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, txId, openDrawer) };
+  };
 
   const afterBulk = (msg, next) => { applyData(next); clearSel(); notify(msg); };
   const bulkStatus = status => afterBulk(
@@ -129,9 +219,71 @@ export default function Transactions() {
 
   const addDisabled = S.accounts.filter(a => a.status === 'active').length === 0;
 
+  // One row renderer for both groups. ruleRowOf returns a txRowOf-shaped object,
+  // so these cells never branch on which population they are drawing — the only
+  // differences are handed in: selId (rules have none, so no checkbox) and the
+  // action cell.
+  const Row = ({ t, selId, actions }) => (
+    <tr className="hv-elev" style={{ opacity: t.rowOpacity, background: selId && selected.has(selId) ? 'var(--soft)' : undefined }}>
+      <td style={{ ...td, padding: '10px 4px 10px 18px' }}>
+        {selId && (
+          <Checkbox
+            checked={selected.has(selId)}
+            onChange={on => toggleRow(selId, on)}
+            label={'Select ' + t.merchant + ' on ' + t.dateLabel}
+          />
+        )}
+      </td>
+      <td style={{ ...td, padding: '10px 8px' }}>
+        <div className="tnum" style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>{t.dateLabel}</div>
+        <div style={{ fontSize: 11.5, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : 'var(--muted)', fontWeight: t.isOverdue ? 600 : 400 }}>{t.timeLabel}</div>
+      </td>
+      <td style={{ ...td, maxWidth: 280 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
+          <TxChips row={t} meta />
+        </div>
+        {t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
+      </td>
+      <td style={td}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
+          <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.catName}</span>
+        </div>
+      </td>
+      <td style={td}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
+      <td style={td}><span title={t.stTitle || undefined} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: t.stBg, color: t.stFg }}>{t.stLabel}</span></td>
+      <td style={{ ...td, padding: '10px 8px', textAlign: 'right' }}>
+        <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
+      </td>
+      <td style={{ ...td, padding: '10px 18px 10px 8px', textAlign: 'right' }}>
+        <span style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>{actions}</span>
+      </td>
+    </tr>
+  );
+
+  // Group heading inside the table. A single full-width cell keeps the column
+  // grid intact — a separate table per group would let the two drift apart.
+  const GroupHead = ({ open, onToggle, label, count, note }) => (
+    <tr>
+      <td colSpan={8} style={{ padding: 0, borderBottom: '1px solid var(--border)', background: 'var(--elev)' }}>
+        <button
+          onClick={onToggle} aria-expanded={open}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 18px', border: 'none', background: 'none', color: 'var(--text)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--muted)', width: 10 }}>{open ? '▾' : '▸'}</span>
+          <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.05em' }}>{label}</span>
+          <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{count}</span>
+          {note && <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>· {note}</span>}
+        </button>
+      </td>
+    </tr>
+  );
+
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
+        <PositionStrip />
         <section aria-label="Filters" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative' }}>
@@ -234,19 +386,19 @@ export default function Transactions() {
               {sort === 'date' ? 'Newest first ↓' : 'Largest first ↓'}
             </button>
           </div>
-          {txRows.length > 0 && (
+          {(postedRows.length > 0 || scheduled.length > 0) && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
                   <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px', width: 34 }}>
-              <Checkbox
-                checked={allVisibleSelected}
-                indeterminate={sel.length > 0 && !allVisibleSelected}
-                onChange={toggleAll}
-                label={allVisibleSelected ? 'Clear selection' : 'Select all ' + visibleIds.length + ' visible transactions'}
-              />
-            </th>
-            <th scope="col" style={{ ...th, padding: '9px 8px' }}>DATE</th>
+                    <Checkbox
+                      checked={allVisibleSelected}
+                      indeterminate={sel.length > 0 && !allVisibleSelected}
+                      onChange={toggleAll}
+                      label={allVisibleSelected ? 'Clear selection' : 'Select all ' + visibleIds.length + ' visible transactions'}
+                    />
+                  </th>
+                  <th scope="col" style={{ ...th, padding: '9px 8px' }}>DATE</th>
                   <th scope="col" style={th}>DETAILS</th>
                   <th scope="col" style={th}>CATEGORY</th>
                   <th scope="col" style={th}>ACCOUNT / CARD</th>
@@ -255,55 +407,87 @@ export default function Transactions() {
                   <th scope="col" style={{ ...th, padding: '9px 18px 9px 8px', width: 56 }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span></th>
                 </tr>
               </thead>
-              <tbody>
-                {txRows.map(t => (
-                  <tr key={t.id} className="hv-elev" style={{ opacity: t.rowOpacity, background: selected.has(t.id) ? 'var(--soft)' : undefined }}>
-                    <td style={{ ...td, padding: '10px 4px 10px 18px' }}>
-                      <Checkbox
-                        checked={selected.has(t.id)}
-                        onChange={on => toggleRow(t.id, on)}
-                        label={'Select ' + t.merchant + ' on ' + t.dateLabel}
-                      />
-                    </td>
-                    <td style={{ ...td, padding: '10px 8px' }}>
-                      <div className="tnum" style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>{t.dateLabel}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{t.timeLabel}</div>
-                    </td>
-                    <td style={{ ...td, maxWidth: 280 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
-                        <TxChips row={t} meta />
-                      </div>
-                      {t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
-                    </td>
-                    <td style={td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
-                        <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.catName}</span>
-                      </div>
-                    </td>
-                    <td style={td}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
-                    <td style={td}><span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: t.stBg, color: t.stFg }}>{t.stLabel}</span></td>
-                    <td style={{ ...td, padding: '10px 8px', textAlign: 'right' }}>
-                      <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
-                    </td>
-                    <td style={{ ...td, padding: '10px 18px 10px 8px', textAlign: 'right' }}>
-                      <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        {(t.canEdit || (t.canRepeat && !ruleFromTx(S, t.id))) && (
+              {scheduled.length > 0 && (
+                <tbody>
+                  <GroupHead
+                    open={schedOpen} onToggle={() => setSchedOpen(o => !o)} label="SCHEDULED"
+                    count={scheduled.length + (scheduled.length === 1 ? ' item' : ' items')}
+                    note={[
+                      overdueCount > 0 ? overdueCount + ' overdue' : 'not yet spent',
+                      // Say so rather than truncating silently: a folded reminder
+                      // is a real future obligation the reader can't see.
+                      hiddenRuleCount > 0 ? hiddenRuleCount + ' more later' : null,
+                    ].filter(Boolean).join(' · ')}
+                  />
+                  {/* Every row in the table — scheduled or recorded — carries the
+                      same single ⋯ control, so the action column is one fixed
+                      width and the verbs live in one place. Only the contents of
+                      the menu differ, because the rows genuinely differ: a
+                      reminder has nothing recorded yet, a future transaction
+                      already exists and is only waiting for its date. */}
+                  {schedOpen && scheduled.map(x => {
+                    const key = x.selId || x.row.key;
+                    return (
+                      <Row
+                        key={key} t={x.row}
+                        actions={(
                           <RowMenu
-                            open={menuOpen === t.id}
-                            onToggle={() => setMenuOpen(menuOpen === t.id ? null : t.id)}
+                            open={menuOpen === key}
+                            onToggle={() => setMenuOpen(menuOpen === key ? null : key)}
                             onClose={() => setMenuOpen(null)}
-                            label="Actions for this transaction"
-                            items={[
-                              t.canEdit && { label: 'Edit', onClick: () => openers.editTx(S, t.id, openDrawer) },
-                              t.canRepeat && !ruleFromTx(S, t.id) && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, t.id, openDrawer) },
+                            label={'Actions for ' + x.row.merchant}
+                            items={x.row.isRule ? [
+                              { label: 'Record…', onClick: () => openers.recordRule(S, x.row.ruleId, openDrawer) },
+                              { label: 'Skip this one', onClick: () => askSkip(x.row) },
+                              { label: 'View rule', onClick: () => navigate('/recurring/' + x.row.ruleId) },
+                              { divider: true },
+                              { label: 'Delete rule', onClick: () => askDeleteRule(x.row), tone: 'neg' },
+                            ] : [
+                              { label: 'Post now', onClick: () => askPostNow(x.row) },
+                              { label: 'Edit', onClick: () => openers.editTx(S, x.selId, openDrawer) },
+                              seriesItem(x.selId, x.row.canRepeat),
+                              { divider: true },
+                              { label: 'Delete', onClick: () => askDeleteTx(x.row), tone: 'neg' },
                             ]}
                           />
                         )}
-                      </span>
-                    </td>
-                  </tr>
+                      />
+                    );
+                  })}
+                </tbody>
+              )}
+              <tbody>
+                {/* The recorded heading only appears when there is a scheduled
+                    group above it — on its own it would label the obvious. */}
+                {grouped && postedRows.length > 0 && (
+                  <GroupHead
+                    open={postedOpen} onToggle={() => setPostedOpen(o => !o)} label="RECORDED"
+                    count={postedRows.length + (postedRows.length === 1 ? ' item' : ' items')}
+                  />
+                )}
+                {postedShown && postedRows.map(t => (
+                  <Row
+                    key={t.id} t={t} selId={t.id}
+                    actions={(
+                      <RowMenu
+                        open={menuOpen === t.id}
+                        onToggle={() => setMenuOpen(menuOpen === t.id ? null : t.id)}
+                        onClose={() => setMenuOpen(null)}
+                        label={'Actions for ' + t.merchant}
+                        // Delete is always offered — a card correction cannot be
+                        // edited, but it can be removed, and this menu is the only
+                        // way to reach that for a single row. The divider only
+                        // appears when something sits above it.
+                        items={(() => {
+                          const above = [
+                            t.canEdit && { label: 'Edit', onClick: () => openers.editTx(S, t.id, openDrawer) },
+                            seriesItem(t.id, t.canRepeat),
+                          ].filter(Boolean);
+                          return [...above, above.length > 0 && { divider: true }, { label: 'Delete', onClick: () => askDeleteTx(t), tone: 'neg' }];
+                        })()}
+                      />
+                    )}
+                  />
                 ))}
               </tbody>
             </table>
@@ -315,7 +499,7 @@ export default function Transactions() {
               <button onClick={reset} className="hv-soft" style={{ marginTop: 12, height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Reset filters</button>
             </div>
           )}
-          {monthTx.length === 0 && (
+          {monthTx.length === 0 && scheduled.length === 0 && (
             <div style={{ padding: '44px 20px', textAlign: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{range.from || range.to ? 'Nothing recorded in ' + rangeLabel(range.from, range.to) : 'Nothing recorded yet'}</div>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4, maxWidth: '44ch', marginLeft: 'auto', marginRight: 'auto' }}>Transactions you add appear here with search and filters. Recording as you spend keeps your dashboard honest.</div>
