@@ -144,61 +144,41 @@ const RANGE = { from: '2026-08', to: '2026-08' };
 describe('txGroups', () => {
   const S = store();
 
-  it('sends a transaction dated ahead of now to the scheduled group', () => {
+  it('keeps a transaction dated ahead among the recorded rows — it is a fact, not a plan', () => {
     const list = [tx({ id: 'past' }), tx({ id: 'ahead', date: '2026-08-30T09:00' })];
     const g = txGroups(list, S, fmt, NOW, RANGE, true);
-    expect(g.postedRows.map(r => r.id)).toEqual(['past']);
-    expect(g.scheduled.map(x => x.selId)).toEqual(['ahead']);
-  });
-
-  it('counts a transaction dated exactly now as posted, not scheduled', () => {
-    const g = txGroups([tx({ id: 'now', date: NOW })], S, fmt, NOW, RANGE, true);
-    expect(g.postedRows.map(r => r.id)).toEqual(['now']);
+    expect(g.postedRows.map(r => r.id)).toEqual(['past', 'ahead']);
     expect(g.scheduled).toEqual([]);
+    expect(g.futureCount).toBe(1);
   });
 
-  it('never lets a row appear in both groups', () => {
+  it('puts only recurring reminders in the scheduled group', () => {
+    const g = txGroups([tx({ id: 'ahead', date: '2026-08-30T09:00' })], store(), fmt, NOW, RANGE, false);
+    expect(g.scheduled.every(x => x.row.isRule)).toBe(true);
+    expect(g.scheduled.map(x => x.row.ruleId)).toEqual(['r1']);
+  });
+
+  it('never drops or duplicates a transaction', () => {
     const list = [tx({ id: 'a' }), tx({ id: 'b', date: '2026-08-30T09:00' }), tx({ id: 'c' })];
-    const g = txGroups(list, S, fmt, NOW, RANGE, false);
-    const posted = g.postedRows.map(r => r.id);
-    const sched = g.scheduled.map(x => x.selId).filter(Boolean);
-    expect(posted.filter(id => sched.includes(id))).toEqual([]);
-    expect(posted.length + sched.length).toBe(list.length);
+    const g = txGroups(list, store(), fmt, NOW, RANGE, false);
+    expect(g.postedRows.map(r => r.id)).toEqual(['a', 'b', 'c']);
   });
 
-  it('interleaves rules and future transactions soonest first', () => {
-    const S2 = store({ recurring: [rule({ id: 'r1', nextDate: '2026-08-20' })] });
-    const list = [tx({ id: 'early', date: '2026-08-10T09:00' }), tx({ id: 'late', date: '2026-08-25T09:00' })];
-    const g = txGroups(list, S2, fmt, NOW, RANGE, false);
-    expect(g.scheduled.map(x => x.selId || x.row.ruleId)).toEqual(['early', 'r1', 'late']);
-  });
-
-  it('puts an overdue rule at the top of the group and counts it', () => {
+  it('orders reminders soonest first, so overdue sits at the top', () => {
     const S2 = store({ recurring: [rule({ id: 'due', nextDate: '2026-08-20' }), rule({ id: 'late', nextDate: '2026-08-01' })] });
     const g = txGroups([], S2, fmt, NOW, RANGE, false);
     expect(g.scheduled.map(x => x.row.ruleId)).toEqual(['late', 'due']);
     expect(g.overdueCount).toBe(1);
   });
 
-  it('drops the rules while a filter is on but keeps future transactions', () => {
+  it('drops the reminders while a filter is on, leaving the transactions alone', () => {
     const list = [tx({ id: 'ahead', date: '2026-08-30T09:00' })];
-    const on = txGroups(list, S, fmt, NOW, RANGE, true);
-    expect(on.scheduled.map(x => x.selId)).toEqual(['ahead']);
-    expect(on.overdueCount).toBe(0);
-    const off = txGroups(list, S, fmt, NOW, RANGE, false);
-    expect(off.scheduled.length).toBe(2);
+    expect(txGroups(list, S, fmt, NOW, RANGE, true).scheduled).toEqual([]);
+    expect(txGroups(list, S, fmt, NOW, RANGE, true).postedRows.map(r => r.id)).toEqual(['ahead']);
+    expect(txGroups(list, S, fmt, NOW, RANGE, false).scheduled.length).toBe(1);
   });
 
-  it('gives future transactions a selectable id and rules none', () => {
-    const S2 = store();
-    const g = txGroups([tx({ id: 'ahead', date: '2026-08-30T09:00' })], S2, fmt, NOW, RANGE, false);
-    const ruleEntry = g.scheduled.find(x => x.row.isRule);
-    const txEntry = g.scheduled.find(x => !x.row.isRule);
-    expect(ruleEntry.selId).toBeUndefined();
-    expect(txEntry.selId).toBe('ahead');
-  });
-
-  it('honours the range for rules — a rule due next month stays out', () => {
+  it('honours the range for reminders — one due next month stays out', () => {
     const S2 = store({ recurring: [rule({ nextDate: '2026-09-20' })] });
     expect(txGroups([], S2, fmt, NOW, RANGE, false).scheduled).toEqual([]);
     expect(txGroups([], S2, fmt, NOW, { from: '2026-08', to: '2026-09' }, false).scheduled.length).toBe(1);
@@ -209,6 +189,7 @@ describe('txGroups', () => {
     expect(g.scheduled).toEqual([]);
     expect(g.postedRows).toEqual([]);
     expect(g.overdueCount).toBe(0);
+    expect(g.futureCount).toBe(0);
   });
 });
 
@@ -233,10 +214,9 @@ describe('future-dated transaction presentation', () => {
     expect(futureTxRowOf(tx({ date: '2026-08-06T23:00' }), store(), fmt, NOW).timeLabel).toBe('Later today');
   });
 
-  it('says Scheduled, not Cleared — the group heading says nothing has been spent', () => {
-    const row = futureTxRowOf(water, store(), fmt, NOW);
-    expect(row.stLabel).toBe('Scheduled');
-    expect(row.stFg).toBe('var(--info)');
+  it('keeps its real status — it sits among the recorded rows now', () => {
+    expect(futureTxRowOf(water, store(), fmt, NOW).stLabel).toBe('Cleared');
+    expect(futureTxRowOf(tx({ date: '2027-03-06T07:26', status: 'pending' }), store(), fmt, NOW).stLabel).toBe('Pending');
   });
 
   it('says plainly that nothing counts it yet — true now the date guard is in', () => {
@@ -259,9 +239,10 @@ describe('future-dated transaction presentation', () => {
 
   it('reaches the table through txGroups, not just in isolation', () => {
     const g = txGroups([water], store({ recurring: [] }), fmt, NOW, { from: null, to: null }, false);
-    expect(g.scheduled[0].row.dateLabel).toBe('6 Mar 2027');
-    expect(g.scheduled[0].row.stLabel).toBe('Scheduled');
-    expect(g.postedRows).toEqual([]);
+    expect(g.postedRows[0].dateLabel).toBe('6 Mar 2027');
+    expect(g.postedRows[0].timeLabel).toBe('In 212 days');
+    expect(g.postedRows[0].stLabel).toBe('Cleared');
+    expect(g.scheduled).toEqual([]);
   });
 
   it('leaves recorded rows exactly as they were — clock time and true status', () => {

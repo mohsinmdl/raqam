@@ -83,7 +83,7 @@ export default function Transactions() {
   // the rules for which row lands where, and is tested there.
   const now = nowIso();
   const anyFilter = Object.keys(DEFAULT_FILTERS).some(k => F[k] !== DEFAULT_FILTERS[k]);
-  const { scheduled, postedRows, postedTx, futureTx, overdueCount } = txGroups(list, S, fmt, now, range, anyFilter);
+  const { scheduled, postedRows, overdueCount } = txGroups(list, S, fmt, now, range, anyFilter);
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter
   // has hidden would let the toolbar claim "12 selected" while showing three,
@@ -96,7 +96,7 @@ export default function Transactions() {
   // left on screen to expand them again.
   const grouped = scheduled.length > 0;
   const postedShown = !grouped || postedOpen;
-  const visibleIds = (schedOpen ? futureTx : []).concat(postedShown ? postedTx : []).map(t => t.id);
+  const visibleIds = postedShown ? list.map(t => t.id) : [];
   const sel = visibleIds.filter(id => selected.has(id));
   const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
   const clearSel = () => setSelected(new Set());
@@ -354,28 +354,17 @@ export default function Transactions() {
                 <tbody>
                   <GroupHead
                     open={schedOpen} onToggle={() => setSchedOpen(o => !o)} label="SCHEDULED"
-                    count={scheduled.length + (scheduled.length === 1 ? ' item' : ' items')}
-                    note={overdueCount > 0 ? overdueCount + ' overdue' : 'not yet spent'}
+                    count={scheduled.length + (scheduled.length === 1 ? ' reminder' : ' reminders')}
+                    note={overdueCount > 0 ? overdueCount + ' overdue' : 'nothing recorded yet'}
                   />
                   {schedOpen && scheduled.map(x => (
                     <Row
-                      key={x.row.key || x.row.id} t={x.row} selId={x.selId}
-                      actions={x.row.isRule ? (
+                      key={x.row.key} t={x.row}
+                      actions={(
                         <>
                           <button onClick={() => openers.recordRule(S, x.row.ruleId, openDrawer)} className="hv-soft" style={{ ...rowBtn, color: 'var(--accent)' }}>Record</button>
                           <button onClick={() => askSkip(x.row)} className="hv-soft" style={{ ...rowBtn, color: 'var(--muted)' }}>Skip</button>
                         </>
-                      ) : (
-                        <RowMenu
-                          open={menuOpen === x.selId}
-                          onToggle={() => setMenuOpen(menuOpen === x.selId ? null : x.selId)}
-                          onClose={() => setMenuOpen(null)}
-                          label="Actions for this transaction"
-                          items={[
-                            x.row.canEdit && { label: 'Edit', onClick: () => openers.editTx(S, x.selId, openDrawer) },
-                            x.row.canRepeat && !ruleFromTx(S, x.selId) && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, x.selId, openDrawer) },
-                          ]}
-                        />
                       )}
                     />
                   ))}

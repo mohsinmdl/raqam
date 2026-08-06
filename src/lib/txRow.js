@@ -87,16 +87,16 @@ export function untilLabel(iso, now) {
 // the group heading it sits under, so the pill reports its position in time
 // rather than its reconciliation state.
 //
-// The cleared/pending distinction stops mattering here: hasOccurred() keeps
-// anything dated ahead out of balances, spending and budgets regardless, so the
-// pill can report position in time without hiding anything.
+// A transaction dated ahead of now, still shown among the recorded rows —
+// because a transaction you entered is a fact, not a plan, whatever its date.
+// Only the two cues that made it unreadable change: the year, and a distance
+// instead of a clock time. Its status stays its real status; hasOccurred()
+// already keeps it out of balances, so the pill has nothing to hide.
 export function futureTxRowOf(t, S, fmt, now) {
-  const row = txRowOf(t, S, fmt);
   return {
-    ...row, isFuture: true,
+    ...txRowOf(t, S, fmt), isFuture: true,
     dateLabel: withYear(t.date, now),
     timeLabel: untilLabel(t.date, now),
-    stLabel: 'Scheduled', stBg: 'var(--info-soft)', stFg: 'var(--info)',
     stTitle: 'Dated ahead — not counted in any balance or budget until then.',
   };
 }
@@ -134,30 +134,26 @@ export function ruleRowOf(r, S, fmt, now) {
   };
 }
 
-// The two groups the transactions table renders, from one filtered list.
+// The two groups the transactions table renders.
 //
-// A transaction dated ahead of `now` has not happened yet, so it moves out of
-// the posted rows entirely rather than being greyed out — money that has not
-// left yet should not read as money spent. Recurring rules join it, giving one
-// forward-looking group ordered soonest-first, which puts anything overdue at
-// the top.
+// Scheduled holds recurring occurrences and nothing else — things you have not
+// recorded yet, ordered soonest-first so anything overdue sits at the top. A
+// transaction you have entered is a fact rather than a plan, so it stays among
+// the recorded rows whatever its date; being dated ahead is a property of the
+// transaction, not a reason to reclassify it. What that used to protect against
+// — future money counting as spent — is now handled properly by hasOccurred()
+// in the money math, so the grouping no longer has to carry it.
 //
 // anyFilter suppresses the rules: a rule has no status, type or merchant, so it
 // cannot honour "Pending" or a search term, and showing rows that contradict an
-// active filter is worse than briefly hiding them. Future-dated transactions are
-// real rows and stay filtered like any other.
+// active filter is worse than briefly hiding them.
 export function txGroups(list, S, fmt, now, range, anyFilter) {
-  const futureTx = list.filter(t => t.date > now);
-  const postedTx = list.filter(t => t.date <= now);
   const ruleRows = anyFilter ? [] : scheduledRules(S, range.from, range.to, now).map(r => ruleRowOf(r, S, fmt, now));
-  const scheduled = ruleRows
-    .map(row => ({ row, at: row.sortKey }))
-    .concat(futureTx.map(t => ({ row: futureTxRowOf(t, S, fmt, now), at: t.date, selId: t.id })))
-    .sort((a, b) => a.at.localeCompare(b.at));
   return {
-    scheduled, futureTx, postedTx,
-    postedRows: postedTx.map(t => txRowOf(t, S, fmt)),
-    overdueCount: scheduled.filter(x => x.row.isOverdue).length,
+    scheduled: ruleRows.map(row => ({ row, at: row.sortKey })),
+    postedRows: list.map(t => (t.date > now ? futureTxRowOf(t, S, fmt, now) : txRowOf(t, S, fmt))),
+    overdueCount: ruleRows.filter(r => r.isOverdue).length,
+    futureCount: list.filter(t => t.date > now).length,
   };
 }
 
