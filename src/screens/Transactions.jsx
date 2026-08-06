@@ -438,6 +438,11 @@ export default function Transactions() {
                             ] : [
                               { label: 'Post now', onClick: () => askPostNow(x.row) },
                               { label: 'Edit', onClick: () => openers.editTx(S, x.selId, openDrawer) },
+                              // Same offer as a recorded row: a future-dated
+                              // expense you entered yourself can still become a
+                              // series. It was dropped when this cell held two
+                              // buttons and there was no room; the menu has room.
+                              x.row.canRepeat && !ruleFromTx(S, x.selId) && { label: 'Make repeating', onClick: () => openers.makeRepeating(S, x.selId, openDrawer) },
                               { divider: true },
                               { label: 'Delete', onClick: () => askDeleteTx(x.row), tone: 'neg' },
                             ]}
