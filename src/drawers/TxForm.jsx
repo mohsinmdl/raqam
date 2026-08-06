@@ -103,7 +103,7 @@ function Body() {
       </div>
 
       <div>
-        <Label htmlFor="f-merchant">{type === 'income' ? 'Payer / source' : 'Merchant or recipient'}</Label>
+        <Label htmlFor="f-merchant">{type === 'income' ? 'Payer / source' : 'Paid to'}</Label>
         <TextField id="f-merchant" field="merchant" placeholder="e.g. Imtiaz Super Market" />
       </div>
 
