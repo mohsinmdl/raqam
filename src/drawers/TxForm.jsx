@@ -22,8 +22,7 @@ const HINTS = {
   income: 'Money received into an account.',
   transfer: 'Between your own accounts — never counted as income or an expense.',
   refund: 'Money returned to you — offsets the original category; distinct from income.',
-  adjustment: 'Correct a balance with a clearly labelled entry.',
-};
+};  // adjustment has no hint: the note under its fields already says more
 const CTAS = { expense: 'Record expense', income: 'Record income', transfer: 'Record transfer', refund: 'Record refund', adjustment: 'Record adjustment' };
 
 function useOpts() {
@@ -93,7 +92,7 @@ function Body() {
           </Pill>
         ))}
       </div>
-      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: -4 }}>{HINTS[type]}</div>
+      {HINTS[type] && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: -4 }}>{HINTS[type]}</div>}
 
       {/* Amount keeps the two-column grid to itself: the empty second track is
           what holds its width steady now that When has moved to its own row. */}
@@ -231,10 +230,10 @@ function Body() {
         <Label required>When</Label>
         <WhenField showRepeat={showRepeat} repeatLabel={f.editId ? 'Make repeating' : 'Repeat'} />
         {/* Repeat lives inside the date popover, so a non-default value would be
-            invisible once it closes — name it here instead. */}
-        <Hint>{repeatName
-          ? 'Asia/Karachi · repeats ' + repeatName.toLowerCase() + ' — a recurring rule will be created.'
-          : 'Asia/Karachi · the time orders same-day entries'}</Hint>
+            invisible once it closes. The standing timezone hint is gone for
+            height, but this line stays: without it nothing says a rule is about
+            to be created. */}
+        {repeatName && <Hint>Repeats {repeatName.toLowerCase()} — a recurring rule will be created.</Hint>}
         <FieldError msg={errors.date} />
       </div>
 
