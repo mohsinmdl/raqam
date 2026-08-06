@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
-import { SORT_COLUMNS, nextSortState, sortLabel } from '../lib/sortRows.js';
+import { DEFAULT_SORT, nextSortState, sortLabel } from '../lib/sortRows.js';
 import SortIcon from '../ui/SortIcon.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
@@ -465,21 +465,20 @@ export default function Transactions() {
               {sortLabel(sort) + ', ' + list.length + ' row' + (list.length === 1 ? '' : 's')}
             </span>
             <span style={{ flex: 1 }} />
-            {/* Sorting stays reachable when narrow layouts hide columns, and
-                doubles as the always-visible statement of the active sort. */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--muted)' }}>
-              <span>Sort by</span>
-              <select
-                aria-label="Sort transactions by"
-                value={sort.key + ':' + sort.dir}
-                onChange={e => { const [key, dir] = e.target.value.split(':'); setSort({ key, dir }); }}
-                style={{ ...selStyle, height: 30, fontSize: 12.5, fontWeight: 600, color: 'var(--accent)' }}
-              >
-                {Object.keys(SORT_COLUMNS).flatMap(k => ['asc', 'desc'].map(d => (
-                  <option key={k + ':' + d} value={k + ':' + d}>{sortLabel({ key: k, dir: d })}</option>
-                )))}
-              </select>
-            </label>
+            {/* Every column sorts from its own header, so a dropdown listing
+                those same sorts was a second route to the same place. What has
+                no header is `signed` — ranking by effect on the balance rather
+                than by size — so this is the one control that reaches it.
+                Shows the active sort, the way the pre-sortable-header button
+                did, which keeps the current order stated in words. */}
+            <button
+              onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
+              aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by amount, lowest first'}
+              className="hv-accent-fg"
+              style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}
+            >
+              {sortLabel(sort) + ' ' + (sort.dir === 'asc' ? '↑' : '↓')}
+            </button>
           </div>
           {(postedRows.length > 0 || scheduled.length > 0) && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>

@@ -414,3 +414,39 @@ describe('size ignores the sign', () => {
       .toEqual(['var(--text)', 'var(--pos)', 'var(--text)']);
   });
 });
+
+// --- what the header can reach, and what the toggle is for -------------------
+describe('every sort has exactly one route', () => {
+  const HEADER_KEYS = ['date', 'details', 'category', 'account', 'status', 'size'];
+
+  it('a header click can reach every column sort, both directions', () => {
+    for (const k of HEADER_KEYS) {
+      const first = nextSortState(DEFAULT_SORT, k);
+      const second = nextSortState(first, k);
+      expect(new Set([first.dir, second.dir])).toEqual(new Set(['asc', 'desc']));
+      expect(first.key).toBe(k);
+      expect(second.key).toBe(k);
+    }
+  });
+
+  it('leaves signed as the only sort no header can produce', () => {
+    // Which is why the list header keeps one button for it — clicking a column
+    // gives size (how big), never signed (which way the balance moved).
+    const reachable = new Set();
+    for (const k of HEADER_KEYS) {
+      let s = DEFAULT_SORT;
+      for (let i = 0; i < 4; i++) { s = nextSortState(s, k); reachable.add(s.key); }
+    }
+    expect(reachable.has('signed')).toBe(false);
+    expect(Object.keys(SORT_COLUMNS).filter(k => !reachable.has(k))).toEqual(['signed']);
+  });
+
+  it('the toggle round-trips between the default and lowest-first', () => {
+    const toggle = s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' });
+    const on = toggle(DEFAULT_SORT);
+    expect([on, sortLabel(on)]).toEqual([{ key: 'signed', dir: 'asc' }, 'Lowest first']);
+    expect(toggle(on)).toEqual(DEFAULT_SORT);
+    // From any header sort it lands on the same place, so it is predictable.
+    expect(toggle({ key: 'category', dir: 'desc' })).toEqual({ key: 'signed', dir: 'asc' });
+  });
+});
