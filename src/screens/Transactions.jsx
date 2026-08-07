@@ -223,8 +223,12 @@ function GroupHead({ open, onToggle, label, count, note, bg }) {
 }
 
 // Lives in the list toolbar where the "Showing N of M" caption used to be.
-// Reads as plain accent text at rest; on hover it grows a border + surface
-// fill so it reads as a button only when you reach for it.
+// Reads as plain accent text at rest; on hover the inner pill fills into a
+// solid accent button. Two layers: the OUTER button is a roomy, invisible hit
+// area — its padding gives the extra clickable margin and an equal negative
+// margin cancels it, so the toolbar layout never moves. The INNER pill is the
+// only visible part; its hover padding grows by 8px each side, compensated by
+// its own negative margin, so the label stays put (no jerk).
 function AddTxButton({ onClick, disabled }) {
   const [hover, setHover] = useState(false);
   const raised = hover && !disabled;
@@ -236,23 +240,27 @@ function AddTxButton({ onClick, disabled }) {
       onMouseLeave={() => setHover(false)}
       title={disabled ? 'Add a bank account first' : 'Record an expense, income, transfer, refund, or adjustment'}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
-        // At rest it's plain accent text; on hover it fills into a solid accent
-        // button with a bit more horizontal padding. That extra padding grows by
-        // 8px each side, and a matching negative margin cancels it so the label
-        // and the button's outer footprint never move. Padding/margin are not
-        // transitioned (they'd shift mid-tween); only the fill + text colour fade.
-        padding: raised ? '0 14px' : '0 6px',
-        margin: raised ? '0 -8px' : '0',
-        borderRadius: 8, border: 'none',
-        background: raised ? 'var(--accent)' : 'transparent',
-        color: raised ? 'var(--on-accent)' : (disabled ? 'var(--muted)' : 'var(--accent)'),
-        fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap',
-        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
-        transition: 'background .15s ease, color .15s ease',
+        display: 'inline-flex', border: 'none', background: 'transparent',
+        cursor: disabled ? 'default' : 'pointer',
+        padding: '12px 16px', margin: '-12px -16px',
       }}
     >
-      <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>＋</span> Add transaction
+      <span
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
+          padding: raised ? '0 14px' : '0 6px',
+          margin: raised ? '0 -8px' : '0',
+          borderRadius: 8,
+          // Subtle tint on hover — the same --soft the sidebar's selected tab
+          // uses — with the accent label kept.
+          background: raised ? 'var(--soft)' : 'transparent',
+          color: disabled ? 'var(--muted)' : 'var(--accent)',
+          fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', opacity: disabled ? 0.6 : 1,
+          transition: 'background .15s ease',
+        }}
+      >
+        <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>＋</span> Add transaction
+      </span>
     </button>
   );
 }
