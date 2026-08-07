@@ -43,9 +43,9 @@ export default function Sidebar() {
 
   return (
     <aside style={{ borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      {/* No brand block — kept minimal. The top padding holds the nav at its
-          former height so Budget doesn't ride up against the top edge. */}
-      <nav aria-label="Main" style={{ padding: '64px 12px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* No brand block — kept minimal. A little top padding is just breathing
+          room so the nav isn't flush against the edge. */}
+      <nav aria-label="Main" style={{ padding: '16px 12px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {NAV.map(n => <NavButton key={n.to} {...n} active={isActive(n.to)} />)}
       </nav>
       <AccountList />
