@@ -285,13 +285,15 @@ export function confirmSnapshots(data, { values }) {
 
 // Target-value balance correction: you type what the bank actually shows; the
 // signed delta becomes a labelled adjustment transaction.
-export function adjustBalance(data, { accountId, delta, reason, date, currentBalance }) {
+export function adjustBalance(data, { accountId, delta, reason, date, currentBalance, merchant, notes }) {
   const acc = data.accounts.find(a => a.id === accountId);
   if (!acc || !delta) return data;
   const t = {
     id: uid(), type: 'adjustment', amount: delta, accountId,
     date: stampFor(date, nowIso()), status: 'cleared',
-    merchant: 'Balance adjustment', adjustmentReason: reason.trim(), notes: '',
+    // merchant/notes default to the generic adjustment labelling; callers such
+    // as closeAccount override them to say why the adjustment exists.
+    merchant: merchant || 'Balance adjustment', adjustmentReason: reason.trim(), notes: notes || '',
   };
   return {
     ...data,
@@ -350,7 +352,7 @@ export function setAccountStatus(data, { accountId, status }) {
 export function closeAccount(data, { accountId, currentBalance }) {
   const hasBal = Math.abs(currentBalance) > 0.005;
   const zeroed = hasBal
-    ? adjustBalance(data, { accountId, delta: -currentBalance, reason: 'Balance zeroed on account close', date: todayStr(), currentBalance })
+    ? adjustBalance(data, { accountId, delta: -currentBalance, reason: 'Balance zeroed on account close', date: todayStr(), currentBalance, merchant: 'Manual Balance Adjustment', notes: 'Closed Account' })
     : data;
   return setAccountStatus(zeroed, { accountId, status: 'closed' });
 }
