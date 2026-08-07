@@ -37,6 +37,7 @@ export const SORT_COLUMNS = {
   details: { defaultDir: 'asc', type: 'collate', get: r => r.merchant },
   category: { defaultDir: 'asc', type: 'collate', get: r => r.catName },
   account: { defaultDir: 'asc', type: 'collate', get: r => r.acctLabel },
+  notes: { defaultDir: 'asc', type: 'collate', get: r => r.notes },
   status: { defaultDir: 'asc', type: 'number', get: statusRank },
   // Amount has two modes, because they answer different questions.
   //
@@ -140,6 +141,7 @@ export function sortLabel(sort) {
     details: { asc: 'Details A–Z', desc: 'Details Z–A' },
     category: { asc: 'Category A–Z', desc: 'Category Z–A' },
     account: { asc: 'Account A–Z', desc: 'Account Z–A' },
+    notes: { asc: 'Notes A–Z', desc: 'Notes Z–A' },
     status: { asc: 'Needs action first', desc: 'Settled first' },
     size: { asc: 'Smallest first', desc: 'Largest first' },
     // Named for what you are looking for, not the arithmetic: ascending puts

@@ -18,7 +18,7 @@ const desc = k => ({ key: k, dir: 'desc' });
 describe('sort model', () => {
   it('defaults to newest-first by date', () => expect(DEFAULT_SORT).toEqual({ key: 'date', dir: 'desc' }));
   it('sorts the six data columns, amount in two modes', () =>
-    expect(Object.keys(SORT_COLUMNS)).toEqual(['date', 'details', 'category', 'account', 'status', 'size', 'signed']));
+    expect(Object.keys(SORT_COLUMNS)).toEqual(['date', 'details', 'category', 'account', 'notes', 'status', 'size', 'signed']));
   it('rejects columns that are not sortable', () => {
     expect(isSortable('select')).toBe(false);
     expect(isSortable('actions')).toBe(false);
@@ -418,7 +418,7 @@ describe('size ignores the sign', () => {
 
 // --- what the header can reach, and what the toggle is for -------------------
 describe('every sort has exactly one route', () => {
-  const HEADER_KEYS = ['date', 'details', 'category', 'account', 'status', 'size'];
+  const HEADER_KEYS = ['date', 'details', 'category', 'account', 'notes', 'status', 'size'];
 
   it('a header click can reach every column sort, both directions', () => {
     for (const k of HEADER_KEYS) {

@@ -15,7 +15,6 @@ import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
 import { advanceDue, longDate, ruleFromTx } from '../lib/schedule.js';
 import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
-import RowMenu from '../ui/RowMenu.jsx';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
 import PositionStrip from '../components/PositionStrip.jsx';
@@ -42,17 +41,21 @@ const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verti
 // The sortable data columns, in render order. Widths live here so <colgroup>
 // and the cells cannot disagree; this array is also what a future
 // drag-to-reorder stage would permute, instead of the markup.
+// Order here MUST match the cell order in Row(): the header and colgroup are
+// driven by this array while the body cells are laid out by hand, so the two
+// line up only if they agree.
 const COLUMNS = [
+  { key: 'account', label: 'ACCOUNT', width: 150 },
   { key: 'date', label: 'DATE', width: 96 },
   { key: 'details', label: 'DETAILS', width: null },
-  { key: 'category', label: 'CATEGORY', width: 150 },
-  { key: 'account', label: 'ACCOUNT', width: 150 },
-  // Just a one-letter badge now, so the column is narrow and centred.
-  { key: 'status', label: 'STATUS', width: 68, align: 'center' },
+  { key: 'category', label: 'CATEGORY', width: 190 },
+  { key: 'notes', label: 'NOTES', width: 180 },
   // altKeys: the signed sort has no header of its own, so AMOUNT stays lit
   // while it drives the order — the reader can always see which column owns
   // the ordering, even when the mode came from the dropdown.
   { key: 'size', label: 'AMOUNT', width: 120, align: 'right', altKeys: ['signed'] },
+  // Just a small one-letter badge, so the column is narrow and centred.
+  { key: 'status', label: 'STATUS', width: 68, align: 'center' },
 ];
 
 // A sortable column header. The whole cell is the control, so the target is the
@@ -66,6 +69,7 @@ function SortableHeader({ col, sort, onSort }) {
     details: { asc: 'A to Z', desc: 'Z to A' },
     category: { asc: 'A to Z', desc: 'Z to A' },
     account: { asc: 'A to Z', desc: 'Z to A' },
+    notes: { asc: 'A to Z', desc: 'Z to A' },
     status: { asc: 'needs action first', desc: 'settled first' },
     size: { asc: 'smallest first', desc: 'largest first' },
   }[col.key][nextDir];
@@ -155,12 +159,12 @@ function DensityToggle({ density, onChange }) {
   );
 }
 
-function Row({ t, selId, checked, onToggleRow, actions, dense, showActions }) {
+function Row({ t, selId, checked, onToggleRow, dense, scheduled }) {
   // Compact folds each two-line cell to one: date and time share a line, and
   // notes leave the flow entirely — the row's title carries them, so the text
   // is a hover away rather than gone. The ⋯ button (30px) sets the floor, so
   // compact rows land at ~36px against ~56px comfortable.
-  const pad = dense ? '3px 8px' : '10px 8px';
+  const pad = dense ? '3px 8px' : '13px 12px';
   // A pending row dims to rowOpacity. That dim lives on the data cells, NOT the
   // <tr> — CSS opacity on the row would flatten its whole subtree into one
   // translucent group, and the RowMenu popover (absolutely positioned inside
@@ -178,8 +182,10 @@ function Row({ t, selId, checked, onToggleRow, actions, dense, showActions }) {
       // --soft when checked — the selection highlight only appeared once the
       // cursor left. Dropping hv-elev while checked lets --soft show at once.
       className={checked ? undefined : 'hv-elev'}
-      title={dense && t.hasNotes ? t.notes : undefined}
-      style={{ background: checked ? 'var(--soft)' : undefined, cursor: selId ? 'pointer' : undefined }}
+      // Scheduled rows sit on a SUBTLE warm wash — the full --warn-soft (used on
+      // the group heading) is too heavy per row, so blend it down into the
+      // surface. Theme-adaptive, and a checked row's --soft still wins.
+      style={{ background: checked ? 'var(--soft)' : scheduled ? 'color-mix(in srgb, var(--warn-soft) 40%, var(--surface))' : undefined, cursor: selId ? 'pointer' : undefined }}
     >
       {/* Padding moves onto the checkbox's own label so the whole cell, not
           just the 13px box, is the target. */}
@@ -193,64 +199,56 @@ function Row({ t, selId, checked, onToggleRow, actions, dense, showActions }) {
           />
         )}
       </td>
+      <td style={{ ...td, ...dim, maxWidth: 160, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}><span style={{ display: 'block', fontSize: dense ? 12.5 : 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span></td>
       <td style={{ ...td, ...dim, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
-        {dense ? (
-          <div style={{ whiteSpace: 'nowrap' }}>
-            <span className="tnum" style={{ fontSize: 12.5, fontWeight: 500 }}>{t.dateLabel}</span>
-            <span style={{ fontSize: 11, marginLeft: 6, color: t.isOverdue ? 'var(--neg)' : 'var(--muted)', fontWeight: t.isOverdue ? 600 : 400 }}>{t.timeLabel}</span>
-          </div>
-        ) : (
-          <>
-            <div className="tnum" style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>{t.dateLabel}</div>
-            <div style={{ fontSize: 11.5, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : 'var(--muted)', fontWeight: t.isOverdue ? 600 : 400 }}>{t.timeLabel}</div>
-          </>
-        )}
+        {/* Date only — no clock time, no "in N days". Overdue rows carry the
+            cue on the date itself, since the second line that held it is gone. */}
+        <span className="tnum" style={{ fontSize: dense ? 12.5 : 14, fontWeight: dense ? 500 : 400, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : undefined }}>{t.dateLabel}</span>
       </td>
       <td style={{ ...td, ...dim, maxWidth: 280, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: dense ? 13 : 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
+          <span style={{ fontSize: dense ? 13 : 14, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
           <TxChips row={t} meta />
         </div>
-        {!dense && t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
       </td>
-      <td style={{ ...td, ...dim, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+      <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
           <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
-          <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.catName}</span>
+          <span style={{ fontSize: dense ? 12.5 : 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
         </div>
       </td>
-      <td style={{ ...td, ...dim, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
-      <td style={{ ...td, ...dim, padding: pad, textAlign: 'center', verticalAlign: dense ? 'middle' : 'top' }}>
-        <span
-          role="img" aria-label={t.stLabel} title={t.stTitle || t.stLabel}
-          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 999, boxSizing: 'border-box',
-            background: t.stOutline ? 'transparent' : t.stColor,
-            color: t.stOutline ? t.stColor : t.stOn,
-            border: t.stOutline ? ('1.5px solid ' + t.stColor) : 'none',
-            fontSize: 11, fontWeight: 700, lineHeight: 1, flex: 'none' }}
-        >{t.stGlyph}</span>
+      {/* Notes: free text, truncated with an ellipsis and the full value on hover. */}
+      <td style={{ ...td, ...dim, maxWidth: 200, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
+        <span title={t.notes || undefined} style={{ display: 'block', fontSize: dense ? 12.5 : 14, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</span>
       </td>
       <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: dense ? 'middle' : 'top' }}>
-        <span className="tnum" style={{ fontSize: dense ? 13 : 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
+        <span className="tnum" style={{ fontSize: dense ? 13 : 14, fontWeight: dense ? 600 : 500, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
       </td>
-      {/* The action (⋯) cell exists only while a scheduled group is present —
-          recorded rows now act through the bulk bar, so their cell is empty and,
-          when nothing is scheduled, the column is dropped entirely. */}
-      {showActions && (
-        <td style={{ ...td, padding: dense ? '3px 18px 3px 8px' : '10px 18px 10px 8px', textAlign: 'right', verticalAlign: 'middle' }}>
-          <span style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>{actions}</span>
-        </td>
-      )}
+      {/* No status badge on scheduled rows — the warm band and the SCHEDULED
+          heading already say what they are, so only recorded rows show C. */}
+      <td style={{ ...td, ...dim, padding: pad, textAlign: 'center', verticalAlign: dense ? 'middle' : 'top' }}>
+        {!scheduled && (
+          <span
+            role="img" aria-label={t.stLabel} title={t.stTitle || t.stLabel}
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 15, height: 15, borderRadius: 999, boxSizing: 'border-box',
+              background: t.stOutline ? 'transparent' : t.stColor,
+              color: t.stOutline ? t.stColor : t.stOn,
+              border: t.stOutline ? ('1.25px solid ' + t.stColor) : 'none',
+              fontSize: 9, fontWeight: 700, lineHeight: 1, flex: 'none' }}
+          >{t.stGlyph}</span>
+        )}
+      </td>
     </tr>
   );
 }
 
 // Group heading inside the table. A single full-width cell keeps the column
 // grid intact — a separate table per group would let the two drift apart.
-function GroupHead({ open, onToggle, label, count, note }) {
+function GroupHead({ open, onToggle, label, count, note, bg }) {
   return (
     <tr>
-      <td colSpan={8} style={{ padding: 0, borderBottom: '1px solid var(--border)', background: 'var(--elev)' }}>
+      {/* checkbox + data columns. Derived so adding a column can't leave it stale. */}
+      <td colSpan={COLUMNS.length + 1} style={{ padding: 0, borderBottom: '1px solid var(--border)', background: bg || 'var(--elev)' }}>
         <button
           onClick={onToggle} aria-expanded={open}
           style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 18px', border: 'none', background: 'none', color: 'var(--text)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }}
@@ -270,8 +268,9 @@ export default function Transactions() {
   const density = prefs.density === 'compact' ? 'compact' : 'comfortable';
   const dense = density === 'compact';
   // Full-width view: lifts the page's max-width and drops the table's card frame
-  // so the rows use all the space available. Persisted like density.
-  const wide = !!prefs.wide;
+  // so the rows use all the space available. On by default; the toggle only
+  // stores an explicit `false` to opt back into the narrow, boxed layout.
+  const wide = prefs.wide !== false;
   const { ask, notify } = useUI();
   const fmt = useMoney();
   const { openDrawer } = useDrawer();
@@ -283,13 +282,17 @@ export default function Transactions() {
     filters: F, setFilters, sort, setSort, range,
     schedOpen, setSchedOpen, postedOpen, setPostedOpen, resetView,
   } = useTxView();
-  const [menuOpen, setMenuOpen] = useState(null);
   // Focus stays on the header after sorting (React keeps the node, since
   // SortableHeader is a stable module-scope type), so the result is announced
   // through a live region rather than by moving focus.
   const onSort = key => setSort(s => nextSortState(s, key));
   // Ids, not rows: a row object goes stale the moment anything re-renders.
   const [selected, setSelected] = useState(() => new Set());
+  // Scheduled rows have their own selection (keyed by row key — a tx id for a
+  // future-dated row, 'rule:…' for a reminder), because their actions differ
+  // from a recorded row's. The two selections are mutually exclusive so only one
+  // bulk bar is ever up.
+  const [schedSel, setSchedSel] = useState(() => new Set());
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const reset = () => resetView();
@@ -324,22 +327,35 @@ export default function Transactions() {
   const sel = visibleIds.filter(id => selected.has(id));
   const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
   const clearSel = () => setSelected(new Set());
-  const toggleRow = (id, on) => setSelected(prev => {
-    const next = new Set(prev);
-    if (on) next.add(id); else next.delete(id);
-    return next;
-  });
-  const toggleAll = on => setSelected(on ? new Set(visibleIds) : new Set());
+  const clearSched = () => setSchedSel(new Set());
+  const toggleRow = (id, on) => {
+    setSchedSel(new Set()); // mutual exclusion with the scheduled selection
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (on) next.add(id); else next.delete(id);
+      return next;
+    });
+  };
+  const toggleAll = on => { setSchedSel(new Set()); setSelected(on ? new Set(visibleIds) : new Set()); };
+  const toggleSched = (key, on) => {
+    setSelected(new Set()); // mutual exclusion with the recorded selection
+    setSchedSel(prev => {
+      const next = new Set(prev);
+      if (on) next.add(key) ; else next.delete(key);
+      return next;
+    });
+  };
+  const schedKey = x => x.selId || x.row.key;
+  const selSched = scheduled.filter(x => schedSel.has(schedKey(x)));
 
-  // Escape clears the selection. Bubble phase, so RowMenu's capture-phase
-  // handler still wins while a row menu is open, and the range popover — which
-  // also stops propagation — keeps its own Escape.
+  // Escape clears whichever selection is active. Bubble phase, so the range
+  // popover — which stops propagation — keeps its own Escape.
   useEffect(() => {
-    if (sel.length === 0) return;
-    const onKey = e => { if (e.key === 'Escape') clearSel(); };
+    if (sel.length === 0 && schedSel.size === 0) return;
+    const onKey = e => { if (e.key === 'Escape') { clearSel(); clearSched(); } };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [sel.length]);
+  }, [sel.length, schedSel.size]);
 
   const askSkip = async row => {
     const r = S.recurring.find(x => x.id === row.ruleId);
@@ -453,6 +469,47 @@ export default function Transactions() {
     return { label: 'Edit', icon: 'edit', onClick: () => { const id = t.id; clearSel(); openers.editTx(S, id, openDrawer); } };
   };
 
+  // Scheduled bulk actions. A reminder and a future-dated transaction have
+  // different verbs, and most are one-row (open a drawer, navigate), so the full
+  // set shows only for a lone selection; a multi-select offers just Delete,
+  // which spans both kinds. Each item clears the selection, then runs the same
+  // handler the ⋯ menu used to call.
+  const schedBulkDelete = async () => {
+    const ok = await ask({
+      title: 'Delete ' + selSched.length + ' scheduled item' + (selSched.length === 1 ? '' : 's') + '?',
+      body: 'Reminders stop and any dated-ahead transactions are removed. This cannot be undone.',
+      action: 'Delete ' + selSched.length,
+    });
+    if (!ok) return;
+    applyData(data => selSched.reduce((d, x) => (x.row.isRule
+      ? deleteRule(d, { id: x.row.ruleId })
+      : deleteTransaction(d, { id: x.selId })), data));
+    clearSched();
+    notify('Deleted ' + selSched.length + '.');
+  };
+  const schedMore = () => {
+    if (selSched.length !== 1) return [{ label: 'Delete ' + selSched.length, tone: 'neg', onClick: schedBulkDelete }];
+    const x = selSched[0];
+    const run = fn => () => { clearSched(); fn(); };
+    if (x.row.isRule) {
+      return [
+        { label: 'Record…', onClick: run(() => openers.recordRule(S, x.row.ruleId, openDrawer)) },
+        { label: 'Skip this one', onClick: run(() => askSkip(x.row)) },
+        { label: 'View rule', onClick: run(() => navigate('/recurring/' + x.row.ruleId)) },
+        { divider: true },
+        { label: 'Delete rule', tone: 'neg', onClick: run(() => askDeleteRule(x.row)) },
+      ];
+    }
+    const series = seriesItem(x.selId, x.row.canRepeat);
+    return [
+      { label: 'Post now', onClick: run(() => askPostNow(x.row)) },
+      x.row.canEdit && { label: 'Edit', icon: 'edit', onClick: run(() => openers.editTx(S, x.selId, openDrawer)) },
+      series && { label: series.label, icon: 'repeat', onClick: run(series.onClick) },
+      { divider: true },
+      { label: 'Delete', icon: 'delete', tone: 'neg', onClick: run(() => askDeleteTx(x.row)) },
+    ];
+  };
+
   const addDisabled = S.accounts.filter(a => a.status === 'active').length === 0;
 
   return (
@@ -472,21 +529,27 @@ export default function Transactions() {
           />
         } />
 
-        <BulkBar
-          count={sel.length}
-          onClear={clearSel}
-          actions={[
-            { label: 'Mark cleared', onClick: () => bulkStatus('cleared') },
-            { label: 'Mark uncleared', onClick: () => bulkStatus('pending') },
-          ]}
-          more={[
-            singleEditItem(),
-            { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate },
-            singleRepeatItem(),
-            { divider: true },
-            { label: 'Delete', icon: 'delete', onClick: bulkDelete, tone: 'neg' },
-          ]}
-        />
+        {/* One bar at a time: recorded selection wins, else the scheduled one.
+            The two selections are mutually exclusive, so only one has a count. */}
+        {sel.length > 0 ? (
+          <BulkBar
+            count={sel.length}
+            onClear={clearSel}
+            actions={[
+              { label: 'Mark cleared', onClick: () => bulkStatus('cleared') },
+              { label: 'Mark uncleared', onClick: () => bulkStatus('pending') },
+            ]}
+            more={[
+              singleEditItem(),
+              { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate },
+              singleRepeatItem(),
+              { divider: true },
+              { label: 'Delete', icon: 'delete', onClick: bulkDelete, tone: 'neg' },
+            ]}
+          />
+        ) : (
+          <BulkBar count={schedSel.size} onClear={clearSched} actions={[]} more={schedMore()} />
+        )}
 
         {/* No overflow:hidden — it would clip the per-row ⋯ menu on the last rows. */}
         <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: wide ? 'none' : '1px solid var(--border)', borderRadius: wide ? 0 : 12 }}>
@@ -528,7 +591,6 @@ export default function Transactions() {
               <colgroup>
                 <col style={{ width: 34 }} />
                 {COLUMNS.map(c => <col key={c.key} style={c.width ? { width: c.width } : undefined} />)}
-                {grouped && <col style={{ width: 56 }} />}
               </colgroup>
               <thead>
                 <tr>
@@ -542,13 +604,12 @@ export default function Transactions() {
                     />
                   </th>
                   {COLUMNS.map(c => <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} />)}
-                  {grouped && <th scope="col" style={{ ...th, padding: '9px 18px 9px 8px' }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span></th>}
                 </tr>
               </thead>
               {scheduled.length > 0 && (
                 <tbody>
                   <GroupHead
-                    open={schedOpen} onToggle={() => setSchedOpen(o => !o)} label="SCHEDULED"
+                    open={schedOpen} onToggle={() => setSchedOpen(o => !o)} label="SCHEDULED" bg="var(--warn-soft)"
                     count={scheduled.length + (scheduled.length === 1 ? ' item' : ' items')}
                     note={[
                       overdueCount > 0 ? overdueCount + ' overdue' : 'not yet spent',
@@ -557,39 +618,15 @@ export default function Transactions() {
                       hiddenRuleCount > 0 ? hiddenRuleCount + ' more later' : null,
                     ].filter(Boolean).join(' · ')}
                   />
-                  {/* Every row in the table — scheduled or recorded — carries the
-                      same single ⋯ control, so the action column is one fixed
-                      width and the verbs live in one place. Only the contents of
-                      the menu differ, because the rows genuinely differ: a
-                      reminder has nothing recorded yet, a future transaction
-                      already exists and is only waiting for its date. */}
+                  {/* Scheduled rows are selectable now (keyed by row key, since a
+                      reminder has no tx id), and their verbs live in the bulk bar
+                      like recorded rows — no per-row ⋯ anywhere. */}
                   {schedOpen && scheduled.map(x => {
-                    const key = x.selId || x.row.key;
+                    const key = schedKey(x);
                     return (
                       <Row
-                        key={key} t={x.row} dense={dense} checked={false} onToggleRow={toggleRow}
-                        showActions={grouped}
-                        actions={(
-                          <RowMenu
-                            open={menuOpen === key}
-                            onToggle={() => setMenuOpen(menuOpen === key ? null : key)}
-                            onClose={() => setMenuOpen(null)}
-                            label={'Actions for ' + x.row.merchant}
-                            items={x.row.isRule ? [
-                              { label: 'Record…', onClick: () => openers.recordRule(S, x.row.ruleId, openDrawer) },
-                              { label: 'Skip this one', onClick: () => askSkip(x.row) },
-                              { label: 'View rule', onClick: () => navigate('/recurring/' + x.row.ruleId) },
-                              { divider: true },
-                              { label: 'Delete rule', onClick: () => askDeleteRule(x.row), tone: 'neg' },
-                            ] : [
-                              { label: 'Post now', onClick: () => askPostNow(x.row) },
-                              { label: 'Edit', onClick: () => openers.editTx(S, x.selId, openDrawer) },
-                              seriesItem(x.selId, x.row.canRepeat),
-                              { divider: true },
-                              { label: 'Delete', onClick: () => askDeleteTx(x.row), tone: 'neg' },
-                            ]}
-                          />
-                        )}
+                        key={key} t={x.row} dense={dense} selId={key} scheduled
+                        checked={schedSel.has(key)} onToggleRow={toggleSched}
                       />
                     );
                   })}
@@ -604,16 +641,11 @@ export default function Transactions() {
                     count={postedRows.length + (postedRows.length === 1 ? ' item' : ' items')}
                   />
                 )}
-                {/* Recorded rows carry no ⋯ — Edit / Duplicate / Make repeating /
-                    Delete all live in the bulk bar once a row is selected. The
-                    action cell only renders at all when a scheduled group needs
-                    it (showActions), and then it is left empty for these rows. */}
+                {/* Recorded rows act through the bulk bar once selected — no ⋯. */}
                 {postedShown && postedRows.map(t => (
                   <Row
                     key={t.id} t={t} selId={t.id} dense={dense}
                     checked={selected.has(t.id)} onToggleRow={toggleRow}
-                    showActions={grouped}
-                    actions={null}
                   />
                 ))}
               </tbody>

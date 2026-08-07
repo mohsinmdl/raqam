@@ -132,6 +132,7 @@ export default function BulkBar({ count, actions, more, onClear }) {
   // early return so the hook order is stable).
   useBottomBar(count > 0);
   if (!count) return null;
+  const inlineActions = (actions || []).filter(Boolean);
   const moreItems = (more || []).filter(Boolean);
   return (
     <div
@@ -163,8 +164,8 @@ export default function BulkBar({ count, actions, more, onClear }) {
           {count} selected
         </span>
       </button>
-      {divider}
-      {actions.filter(Boolean).map(a => (
+      {inlineActions.length > 0 && divider}
+      {inlineActions.map(a => (
         <button
           key={a.label} onClick={a.onClick} disabled={a.disabled} title={a.title}
           style={{ ...btn, opacity: a.disabled ? 0.4 : 1, cursor: a.disabled ? 'default' : 'pointer', color: a.tone === 'neg' ? 'var(--neg)' : 'var(--bg)' }}

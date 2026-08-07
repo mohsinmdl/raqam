@@ -29,7 +29,7 @@ export function TxViewProvider({ children }) {
   // old sorts were permanently descending.
   const [sort, setSort] = useState(DEFAULT_SORT);
   const [range, setRange] = useState(() => ({ from: month, to: month }));
-  const [schedOpen, setSchedOpen] = useState(false);
+  const [schedOpen, setSchedOpen] = useState(true);
   const [postedOpen, setPostedOpen] = useState(true);
 
   // The header's month stepper still drives the range — stepping to July on the
