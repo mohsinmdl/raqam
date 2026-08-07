@@ -115,6 +115,18 @@ function DensityIcon({ kind }) {
   );
 }
 
+// Full-width toggle glyph: arrows pushing outward to the edges.
+function WideIcon() {
+  return (
+    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 8L3 12l5 4" />
+      <path d="M16 8l5 4-5 4" />
+      <path d="M3 12h18" />
+    </svg>
+  );
+}
+
 // Segmented two-state control, matching the reference: two icon buttons in one
 // bordered pill, the active side filled. aria-pressed carries the state.
 function DensityToggle({ density, onChange }) {
@@ -143,7 +155,7 @@ function DensityToggle({ density, onChange }) {
   );
 }
 
-function Row({ t, selId, checked, onToggleRow, actions, dense }) {
+function Row({ t, selId, checked, onToggleRow, actions, dense, showActions }) {
   // Compact folds each two-line cell to one: date and time share a line, and
   // notes leave the flow entirely — the row's title carries them, so the text
   // is a hover away rather than gone. The ⋯ button (30px) sets the floor, so
@@ -221,9 +233,14 @@ function Row({ t, selId, checked, onToggleRow, actions, dense }) {
       <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: dense ? 'middle' : 'top' }}>
         <span className="tnum" style={{ fontSize: dense ? 13 : 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
       </td>
-      <td style={{ ...td, padding: dense ? '3px 18px 3px 8px' : '10px 18px 10px 8px', textAlign: 'right', verticalAlign: 'middle' }}>
-        <span style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>{actions}</span>
-      </td>
+      {/* The action (⋯) cell exists only while a scheduled group is present —
+          recorded rows now act through the bulk bar, so their cell is empty and,
+          when nothing is scheduled, the column is dropped entirely. */}
+      {showActions && (
+        <td style={{ ...td, padding: dense ? '3px 18px 3px 8px' : '10px 18px 10px 8px', textAlign: 'right', verticalAlign: 'middle' }}>
+          <span style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>{actions}</span>
+        </td>
+      )}
     </tr>
   );
 }
@@ -252,6 +269,9 @@ export default function Transactions() {
   const { data: S, applyData, prefs, setPrefs } = useStore();
   const density = prefs.density === 'compact' ? 'compact' : 'comfortable';
   const dense = density === 'compact';
+  // Full-width view: lifts the page's max-width and drops the table's card frame
+  // so the rows use all the space available. Persisted like density.
+  const wide = !!prefs.wide;
   const { ask, notify } = useUI();
   const fmt = useMoney();
   const { openDrawer } = useDrawer();
@@ -423,16 +443,27 @@ export default function Transactions() {
     if (!item) return null;
     return { label: item.label, icon: 'repeat', onClick: () => { clearSel(); item.onClick(); } };
   };
+  // Editing is a one-row action, so it appears in the bulk menu only for a lone
+  // selection — the same rule as Make repeating. Card corrections cannot be
+  // edited (canEdit is false for them).
+  const singleEditItem = () => {
+    if (sel.length !== 1) return null;
+    const t = S.transactions.find(x => x.id === sel[0]);
+    if (!t || t.type === 'cardAdjustment') return null;
+    return { label: 'Edit', icon: 'edit', onClick: () => { const id = t.id; clearSel(); openers.editTx(S, id, openDrawer); } };
+  };
 
   const addDisabled = S.accounts.filter(a => a.status === 'active').length === 0;
 
   return (
-    <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
+    <div style={{ maxWidth: wide ? 'none' : 1180, margin: '0 auto', padding: wide ? '0 0 56px' : '24px 28px 56px' }}>
+      {/* Wide mode is flush and seamless: no column gap, so the sections meet at
+          a single divider line rather than sitting apart as separate cards. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: wide ? 0 : 14, animation: 'hsFade .25s ease' }}>
         {/* Search is the screen's only filter, so it rides in the position
             strip's footer rather than owning a bar of its own. The field
             collapses to an icon until focused — see SearchField. */}
-        <PositionStrip compact trailing={
+        <PositionStrip compact wide={wide} trailing={
           <SearchField
             value={F.q}
             onChange={v => setF('q', v)}
@@ -449,6 +480,7 @@ export default function Transactions() {
             { label: 'Mark uncleared', onClick: () => bulkStatus('pending') },
           ]}
           more={[
+            singleEditItem(),
             { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate },
             singleRepeatItem(),
             { divider: true },
@@ -457,7 +489,7 @@ export default function Transactions() {
         />
 
         {/* No overflow:hidden — it would clip the per-row ⋯ menu on the last rows. */}
-        <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
+        <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: wide ? 'none' : '1px solid var(--border)', borderRadius: wide ? 0 : 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Showing {list.length} of {monthTx.length} {range.from || range.to ? 'in ' + rangeLabel(range.from, range.to) : 'across all dates'} · manually entered</span>
             <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
@@ -470,6 +502,16 @@ export default function Transactions() {
                 than by size — so this is the one control that reaches it.
                 Shows the active sort, the way the pre-sortable-header button
                 did, which keeps the current order stated in words. */}
+            <button
+              onClick={() => setPrefs({ wide: !wide })}
+              aria-pressed={wide}
+              aria-label={wide ? 'Fit table to page width' : 'Expand table to full width'}
+              title={wide ? 'Fit width' : 'Full width'}
+              className="hv-soft"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 7, background: wide ? 'var(--elev)' : 'transparent', color: wide ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', flex: 'none' }}
+            >
+              <WideIcon />
+            </button>
             <DensityToggle density={density} onChange={d => setPrefs({ density: d })} />
             <button
               onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
@@ -486,7 +528,7 @@ export default function Transactions() {
               <colgroup>
                 <col style={{ width: 34 }} />
                 {COLUMNS.map(c => <col key={c.key} style={c.width ? { width: c.width } : undefined} />)}
-                <col style={{ width: 56 }} />
+                {grouped && <col style={{ width: 56 }} />}
               </colgroup>
               <thead>
                 <tr>
@@ -500,7 +542,7 @@ export default function Transactions() {
                     />
                   </th>
                   {COLUMNS.map(c => <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} />)}
-                  <th scope="col" style={{ ...th, padding: '9px 18px 9px 8px' }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span></th>
+                  {grouped && <th scope="col" style={{ ...th, padding: '9px 18px 9px 8px' }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span></th>}
                 </tr>
               </thead>
               {scheduled.length > 0 && (
@@ -526,6 +568,7 @@ export default function Transactions() {
                     return (
                       <Row
                         key={key} t={x.row} dense={dense} checked={false} onToggleRow={toggleRow}
+                        showActions={grouped}
                         actions={(
                           <RowMenu
                             open={menuOpen === key}
@@ -561,29 +604,16 @@ export default function Transactions() {
                     count={postedRows.length + (postedRows.length === 1 ? ' item' : ' items')}
                   />
                 )}
+                {/* Recorded rows carry no ⋯ — Edit / Duplicate / Make repeating /
+                    Delete all live in the bulk bar once a row is selected. The
+                    action cell only renders at all when a scheduled group needs
+                    it (showActions), and then it is left empty for these rows. */}
                 {postedShown && postedRows.map(t => (
                   <Row
                     key={t.id} t={t} selId={t.id} dense={dense}
                     checked={selected.has(t.id)} onToggleRow={toggleRow}
-                    actions={(
-                      <RowMenu
-                        open={menuOpen === t.id}
-                        onToggle={() => setMenuOpen(menuOpen === t.id ? null : t.id)}
-                        onClose={() => setMenuOpen(null)}
-                        label={'Actions for ' + t.merchant}
-                        // Delete is always offered — a card correction cannot be
-                        // edited, but it can be removed, and this menu is the only
-                        // way to reach that for a single row. The divider only
-                        // appears when something sits above it.
-                        items={(() => {
-                          const above = [
-                            t.canEdit && { label: 'Edit', onClick: () => openers.editTx(S, t.id, openDrawer) },
-                            seriesItem(t.id, t.canRepeat),
-                          ].filter(Boolean);
-                          return [...above, above.length > 0 && { divider: true }, { label: 'Delete', onClick: () => askDeleteTx(t), tone: 'neg' }];
-                        })()}
-                      />
-                    )}
+                    showActions={grouped}
+                    actions={null}
                   />
                 ))}
               </tbody>

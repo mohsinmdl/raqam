@@ -24,7 +24,7 @@ const linkBtn = { border: 'none', background: 'none', color: 'var(--accent)', fo
 // Working row (Transactions only). It is deliberately much shorter: the month
 // figures (opening, change) live on the Dashboard, and this screen just wants
 // the balances that a ledger cares about.
-export default function PositionStrip({ trailing, compact }) {
+export default function PositionStrip({ trailing, compact, wide }) {
   const { data: S } = useStore();
   const { month } = useMonth();
   const { money, moneyS } = useMoney();
@@ -53,8 +53,13 @@ export default function PositionStrip({ trailing, compact }) {
       </div>
     );
     const op = s => <span aria-hidden="true" style={{ fontSize: 17, color: 'var(--muted)', padding: '0 8px' }}>{s}</span>;
+    // Wide mode drops the card frame for a flush strip whose only edge is the
+    // single bottom divider between it and the table below.
+    const compactCard = wide
+      ? { background: 'var(--surface)', borderBottom: '1px solid var(--border)' }
+      : card;
     return (
-      <section aria-label="Current position" style={{ ...card, padding: '11px 18px', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+      <section aria-label="Current position" style={{ ...compactCard, padding: '11px 18px', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         {cell(M.totalBank, 'Cleared Balance', cBadge(true))}
         {op('+')}
         {cell(M.uncleared, 'Uncleared Balance', cBadge(false))}
