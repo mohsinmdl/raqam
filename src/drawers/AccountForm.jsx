@@ -84,20 +84,11 @@ function Body() {
       )}
 
       {editing && (
-        <>
-          <div>
-            <Label htmlFor="a-wbal">Working Balance</Label>
-            <AmountField id="a-wbal" field="workingBalance" />
-            <Hint>An adjustment transaction is created automatically if you change this amount.</Hint>
-          </div>
-          <div style={{ marginTop: 4, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-            <button type="button" onClick={() => runClose(f.editId)} className="hv-neg-soft"
-              style={{ height: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              Close account
-            </button>
-            <Hint>Removes it from your totals and the sidebar. History is kept — you can restore it later from Accounts.</Hint>
-          </div>
-        </>
+        <div>
+          <Label htmlFor="a-wbal">Working Balance</Label>
+          <AmountField id="a-wbal" field="workingBalance" />
+          <Hint>An adjustment transaction is created automatically if you change this amount.</Hint>
+        </div>
       )}
 
       <div>
@@ -111,6 +102,20 @@ function Body() {
         <Label htmlFor="a-notes" optional>Notes</Label>
         <TextAreaField id="a-notes" field="notes" />
       </div>
+
+      {/* The one destructive action, isolated at the very bottom past every
+          editable field so it never interrupts the form flow. Closing is
+          reversible (history kept, restorable), so it stays calm — a divider
+          and a red-outlined button, no shouting. */}
+      {editing && (
+        <div style={{ marginTop: 8, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <span style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>Removes it from your totals and the sidebar. History is kept — you can restore it later from Accounts.</span>
+          <button type="button" onClick={() => runClose(f.editId)} className="hv-neg-soft"
+            style={{ flex: 'none', height: 36, padding: '0 14px', border: '1px solid var(--neg)', borderRadius: 8, background: 'var(--surface)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Close account
+          </button>
+        </div>
+      )}
     </>
   );
 }
