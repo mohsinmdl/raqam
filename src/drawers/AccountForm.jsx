@@ -3,13 +3,14 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { parseAmt } from '../lib/format.js';
-import { accountBalance, accountRefs, INST_KINDS } from '../lib/calc.js';
+import { accountBalance, INST_KINDS } from '../lib/calc.js';
 import BankKindField, { KindOptions } from './BankKindField.jsx';
 import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { ACCOUNT_TYPES } from '../store/seed.js';
 import { addAccount, adjustBalance, updateAccount } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, grid2 } from './fields.jsx';
+import { useCloseAccount } from './useCloseAccount.jsx';
 
 export function useInstGroups() {
   const { data: S } = useStore();
@@ -25,13 +26,7 @@ function Body() {
   const instGroups = useInstGroups();
   const f = drawer.form, errors = drawer.errors;
   const editing = !!f.editId;
-  const refs = editing ? accountRefs(S, f.editId, currentMonth()) : null;
-  const statusWarn = editing && f.status && f.status !== 'active'
-    ? [refs.cards ? refs.cards + ' linked card' + (refs.cards === 1 ? '' : 's') : null,
-       refs.recurring ? refs.recurring + ' active recurring rule' + (refs.recurring === 1 ? '' : 's') : null,
-       refs.pending ? refs.pending + ' uncleared transaction' + (refs.pending === 1 ? '' : 's') : null,
-      ].filter(Boolean).join(', ')
-    : '';
+  const runClose = useCloseAccount();
 
   return (
     <>
@@ -91,22 +86,16 @@ function Body() {
       {editing && (
         <>
           <div>
-            <Label htmlFor="a-status">Status</Label>
-            <SelectField id="a-status" field="status">
-              <option value="active">Active — counts towards totals</option>
-              <option value="archived">Archived — kept in history, excluded from totals</option>
-              <option value="closed">Closed — no longer exists at the bank</option>
-            </SelectField>
-            {statusWarn && (
-              <div role="alert" style={{ marginTop: 6, padding: '8px 12px', borderRadius: 8, background: 'var(--warn-soft)', fontSize: 12 }}>
-                <span style={{ fontWeight: 700, color: 'var(--warn)' }}>Still in use — </span>{statusWarn}. History is always kept.
-              </div>
-            )}
-          </div>
-          <div>
             <Label htmlFor="a-wbal">Working Balance</Label>
             <AmountField id="a-wbal" field="workingBalance" />
             <Hint>An adjustment transaction is created automatically if you change this amount.</Hint>
+          </div>
+          <div style={{ marginTop: 4, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+            <button type="button" onClick={() => runClose(f.editId)} className="hv-neg-soft"
+              style={{ height: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              Close account
+            </button>
+            <Hint>Removes it from your totals and the sidebar. History is kept — you can restore it later from Accounts.</Hint>
           </div>
         </>
       )}
