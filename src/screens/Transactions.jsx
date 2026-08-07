@@ -164,7 +164,10 @@ function Row({ t, selId, checked, onToggleRow, dense, scheduled }) {
   // notes leave the flow entirely — the row's title carries them, so the text
   // is a hover away rather than gone. The ⋯ button (30px) sets the floor, so
   // compact rows land at ~36px against ~56px comfortable.
-  const pad = dense ? '3px 8px' : '13px 12px';
+  // Fixed 2.25rem (36px) row height, YNAB-style — so the vertical padding is
+  // zero and content is centred by the cells' middle alignment; horizontal
+  // padding is all that remains.
+  const pad = dense ? '0 8px' : '0 12px';
   // A pending row dims to rowOpacity. That dim lives on the data cells, NOT the
   // <tr> — CSS opacity on the row would flatten its whole subtree into one
   // translucent group, and the RowMenu popover (absolutely positioned inside
@@ -185,7 +188,7 @@ function Row({ t, selId, checked, onToggleRow, dense, scheduled }) {
       // Scheduled rows sit on a SUBTLE warm wash — the full --warn-soft (used on
       // the group heading) is too heavy per row, so blend it down into the
       // surface. Theme-adaptive, and a checked row's --soft still wins.
-      style={{ background: checked ? 'var(--soft)' : scheduled ? 'color-mix(in srgb, var(--warn-soft) 40%, var(--surface))' : undefined, cursor: selId ? 'pointer' : undefined }}
+      style={{ height: '2.25rem', background: checked ? 'var(--soft)' : scheduled ? 'color-mix(in srgb, var(--warn-soft) 40%, var(--surface))' : undefined, cursor: selId ? 'pointer' : undefined }}
     >
       {/* Padding moves onto the checkbox's own label so the whole cell, not
           just the 13px box, is the target. */}
@@ -199,34 +202,34 @@ function Row({ t, selId, checked, onToggleRow, dense, scheduled }) {
           />
         )}
       </td>
-      <td style={{ ...td, ...dim, maxWidth: 160, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}><span style={{ display: 'block', fontSize: dense ? 12.5 : 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span></td>
-      <td style={{ ...td, ...dim, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, maxWidth: 160, padding: pad, verticalAlign: 'middle' }}><span style={{ display: 'block', fontSize: dense ? 12.5 : 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span></td>
+      <td style={{ ...td, ...dim, padding: pad, verticalAlign: 'middle' }}>
         {/* Date only — no clock time, no "in N days". Overdue rows carry the
             cue on the date itself, since the second line that held it is gone. */}
         <span className="tnum" style={{ fontSize: dense ? 12.5 : 14, fontWeight: dense ? 500 : 400, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : undefined }}>{t.dateLabel}</span>
       </td>
-      <td style={{ ...td, ...dim, maxWidth: 280, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, maxWidth: 280, padding: pad, verticalAlign: 'middle' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: dense ? 13 : 14, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
           <TxChips row={t} meta />
         </div>
       </td>
-      <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: 'middle' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
           <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
           <span style={{ fontSize: dense ? 12.5 : 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
         </div>
       </td>
       {/* Notes: free text, truncated with an ellipsis and the full value on hover. */}
-      <td style={{ ...td, ...dim, maxWidth: 200, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, maxWidth: 200, padding: pad, verticalAlign: 'middle' }}>
         <span title={t.notes || undefined} style={{ display: 'block', fontSize: dense ? 12.5 : 14, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</span>
       </td>
-      <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: 'middle' }}>
         <span className="tnum" style={{ fontSize: dense ? 13 : 14, fontWeight: dense ? 600 : 500, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
       </td>
       {/* No status badge on scheduled rows — the warm band and the SCHEDULED
           heading already say what they are, so only recorded rows show C. */}
-      <td style={{ ...td, ...dim, padding: pad, textAlign: 'center', verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, padding: pad, textAlign: 'center', verticalAlign: 'middle' }}>
         {!scheduled && (
           <span
             role="img" aria-label={t.stLabel} title={t.stTitle || t.stLabel}
@@ -280,7 +283,7 @@ export default function Transactions() {
   // per-visit: a selection, an open popover, an open row menu.
   const {
     filters: F, setFilters, sort, setSort, range,
-    schedOpen, setSchedOpen, postedOpen, setPostedOpen, resetView,
+    schedOpen, setSchedOpen, resetView,
   } = useTxView();
   // Focus stays on the header after sorting (React keeps the node, since
   // SortableHeader is a stable module-scope type), so the result is announced
@@ -311,19 +314,11 @@ export default function Transactions() {
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter
   // has hidden would let the toolbar claim "12 selected" while showing three,
-  // and then act on all twelve. Collapsing the scheduled group hides its rows,
-  // so its ids leave the visible set for exactly the same reason.
-  // Grouping only appears when there is something scheduled to separate from.
-  // Without it the recorded rows carry no heading, so they must be treated as
-  // open regardless of postedOpen — otherwise collapsing the group and then
-  // filtering the scheduled rows away would strand the rows with no control
-  // left on screen to expand them again.
+  // and then act on all twelve. Recorded rows are always shown — there is no
+  // recorded heading to collapse them under (the scheduled band separates the
+  // two on its own), so every recorded id is selectable.
   const grouped = scheduled.length > 0;
-  const postedShown = !grouped || postedOpen;
-  // Scheduled rows carry no checkbox at all — selection belongs to the ledger
-  // below — so only the recorded rows are ever selectable, and collapsing the
-  // scheduled group no longer changes what "select all" means.
-  const visibleIds = postedShown ? postedTx.map(t => t.id) : [];
+  const visibleIds = postedTx.map(t => t.id);
   const sel = visibleIds.filter(id => selected.has(id));
   const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
   const clearSel = () => setSelected(new Set());
@@ -594,7 +589,12 @@ export default function Transactions() {
               </colgroup>
               <thead>
                 <tr>
-                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px', position: 'relative' }}>
+                  {/* No `position: relative` here — it would override the sticky
+                      position from `th` and this one header cell would scroll
+                      away while the rest stuck, letting rows bleed through.
+                      Sticky already provides the containing block the fill
+                      checkbox needs. */}
+                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px' }}>
                     <Checkbox
                       fill
                       checked={allVisibleSelected}
@@ -633,16 +633,15 @@ export default function Transactions() {
                 </tbody>
               )}
               <tbody>
-                {/* The recorded heading only appears when there is a scheduled
-                    group above it — on its own it would label the obvious. */}
+                {/* An empty spacer row separates scheduled from recorded — like
+                    YNAB — instead of a "RECORDED" heading. Only between the two. */}
                 {grouped && postedRows.length > 0 && (
-                  <GroupHead
-                    open={postedOpen} onToggle={() => setPostedOpen(o => !o)} label="RECORDED"
-                    count={postedRows.length + (postedRows.length === 1 ? ' item' : ' items')}
-                  />
+                  <tr aria-hidden="true">
+                    <td colSpan={COLUMNS.length + 1} style={{ height: '.3125rem', background: 'var(--warn-soft)', borderBottom: '1px solid var(--border)' }} />
+                  </tr>
                 )}
                 {/* Recorded rows act through the bulk bar once selected — no ⋯. */}
-                {postedShown && postedRows.map(t => (
+                {postedRows.map(t => (
                   <Row
                     key={t.id} t={t} selId={t.id} dense={dense}
                     checked={selected.has(t.id)} onToggleRow={toggleRow}
