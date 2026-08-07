@@ -61,7 +61,7 @@ function Shell() {
         position: 'relative',
         display: 'grid', gridTemplateColumns: `${sbW}px minmax(0,1fr)`, height: '100vh',
         background: 'var(--bg)', color: 'var(--text)',
-        fontFamily: "'IBM Plex Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.45,
+        fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 14, lineHeight: 1.45,
       }}
     >
       <Sidebar />
