@@ -91,7 +91,7 @@ export default function AccountList() {
           onMouseLeave={() => setAddHover(false)}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            height: 34, width: '100%', border: 'none', borderRadius: 8,
+            height: 34, width: '80%', margin: '0 auto', border: 'none', borderRadius: 8,
             background: addHover ? 'color-mix(in srgb, var(--soft) 82%, var(--accent))' : 'var(--soft)',
             color: 'var(--accent)', fontWeight: 600, fontSize: 13.5, cursor: 'pointer',
             transition: 'background .15s ease',
