@@ -1,5 +1,5 @@
 // Transactions list screen — template 268-336, txScreenVals script 1018-1054.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
@@ -232,7 +232,15 @@ const PlusCircle = () => (
 );
 const UndoIcon = () => strokeIcon(<><path d="M9 14 4 9l5-5" /><path d="M4 9h9a6 6 0 0 1 0 12H7" /></>);
 const RedoIcon = () => strokeIcon(<><path d="m15 14 5-5-5-5" /><path d="M20 9h-9a6 6 0 0 0 0 12h6" /></>);
-const CheckIcon = () => strokeIcon(<path d="m5 12 5 5L20 7" />);
+// Full-width toggle glyph: arrows pushing outward to the edges.
+function WideIcon() {
+  return (
+    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 8L3 12l5 4" /><path d="M16 8l5 4-5 4" /><path d="M3 12h18" />
+    </svg>
+  );
+}
 
 // A toolbar action: icon + label, accent when enabled, muted when disabled, a
 // soft hover fill. The row that runs across the top of the ledger.
@@ -250,54 +258,6 @@ function ToolbarAction({ icon, label, disabled, onClick, title }) {
     >
       {icon}<span>{label}</span>
     </button>
-  );
-}
-
-// The "View" dropdown on the right of the toolbar: table width, and the one
-// sort (signed) that has no column header of its own.
-function ViewMenu({ wide, onToggleWide, sort, setSort }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onKey = e => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-  const isSigned = sort.key === 'signed';
-  const cap = { fontSize: 10.5, fontWeight: 600, letterSpacing: '.08em', color: 'var(--muted)', padding: '6px 10px 4px' };
-  const opt = (active, text, onClick) => (
-    <button onClick={onClick} className="hv-elev" style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%',
-      padding: '8px 10px', border: 'none', borderRadius: 8, background: active ? 'var(--soft)' : 'transparent',
-      color: active ? 'var(--accent)' : 'var(--text)', fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer', textAlign: 'left',
-    }}>
-      <span>{text}</span>{active && <CheckIcon />}
-    </button>
-  );
-  return (
-    <div ref={ref} style={{ position: 'relative', flex: 'none' }}>
-      <button
-        onClick={() => setOpen(o => !o)} aria-haspopup="menu" aria-expanded={String(open)}
-        className="hv-soft"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 32, padding: '0 10px', border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-      >
-        View <span aria-hidden="true" style={{ fontSize: 10, marginTop: 1 }}>▾</span>
-      </button>
-      {open && (
-        <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 210, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 6, zIndex: 25 }}>
-          <div style={cap}>TABLE WIDTH</div>
-          {opt(!wide, 'Fit to page', () => { if (wide) onToggleWide(); })}
-          {opt(wide, 'Full width', () => { if (!wide) onToggleWide(); })}
-          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 8px' }} />
-          <div style={cap}>SORT</div>
-          {opt(!isSigned, 'Newest first', () => setSort(DEFAULT_SORT))}
-          {opt(isSigned, 'Biggest effect on balance', () => setSort({ key: 'signed', dir: 'asc' }))}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -590,7 +550,24 @@ export default function Transactions() {
             {sortLabel(sort) + ', ' + list.length + ' row' + (list.length === 1 ? '' : 's')}
           </span>
           <span style={{ flex: 1 }} />
-          <ViewMenu wide={wide} onToggleWide={() => setPrefs({ wide: !wide })} sort={sort} setSort={setSort} />
+          <button
+            onClick={() => setPrefs({ wide: !wide })}
+            aria-pressed={wide}
+            aria-label={wide ? 'Fit table to page width' : 'Expand table to full width'}
+            title={wide ? 'Fit width' : 'Full width'}
+            className="hv-soft"
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 7, background: wide ? 'var(--elev)' : 'transparent', color: wide ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', flex: 'none' }}
+          >
+            <WideIcon />
+          </button>
+          <button
+            onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
+            aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}
+            className="hv-accent-fg"
+            style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '0 4px', whiteSpace: 'nowrap', flex: 'none' }}
+          >
+            {sortLabel(sort) + ' ' + (sort.dir === 'asc' ? '↑' : '↓')}
+          </button>
           <SearchField value={F.q} onChange={v => setF('q', v)} placeholder="Search All Accounts" label="Search transactions" />
         </div>
 
