@@ -155,7 +155,18 @@ function Row({ t, selId, checked, onToggleRow, actions, dense }) {
   // stays fully opaque. '1' is a no-op, so this is unconditional.
   const dim = { opacity: t.rowOpacity };
   return (
-    <tr className="hv-elev" title={dense && t.hasNotes ? t.notes : undefined} style={{ background: checked ? 'var(--soft)' : undefined }}>
+    <tr
+      // The whole row (except the ⋯ menu and the checkbox, which both
+      // stopPropagation) is a click target that toggles selection — hence the
+      // pointer cursor on any selectable row.
+      onClick={selId ? () => onToggleRow(selId, !checked) : undefined}
+      // hv-elev's hover background is !important, so it beat the inline
+      // --soft when checked — the selection highlight only appeared once the
+      // cursor left. Dropping hv-elev while checked lets --soft show at once.
+      className={checked ? undefined : 'hv-elev'}
+      title={dense && t.hasNotes ? t.notes : undefined}
+      style={{ background: checked ? 'var(--soft)' : undefined, cursor: selId ? 'pointer' : undefined }}
+    >
       {/* Padding moves onto the checkbox's own label so the whole cell, not
           just the 13px box, is the target. */}
       <td style={{ ...td, ...dim, padding: 0, position: 'relative', verticalAlign: 'middle' }}>
