@@ -93,9 +93,10 @@ export default function RecentMoves() {
         title="Recent Moves"
         className="hv-soft"
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 12px',
-          border: '1px solid ' + (open ? 'var(--accent)' : 'var(--border)'), borderRadius: 8,
-          background: 'transparent', color: 'var(--accent)', fontSize: 13, fontWeight: 600,
+          display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 10px',
+          border: 'none', borderRadius: 8,
+          background: open ? 'var(--soft)' : 'transparent',
+          color: 'var(--accent)', fontSize: 13, fontWeight: 600,
           cursor: 'pointer', whiteSpace: 'nowrap',
         }}
       >
