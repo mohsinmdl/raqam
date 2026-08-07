@@ -154,14 +154,14 @@ describe('category and account', () => {
 
 describe('status', () => {
   it('ranks by meaning, not alphabet', () => {
-    expect(STATUS_RANK.overdue).toBeLessThan(STATUS_RANK.pending);
-    expect(STATUS_RANK.pending).toBeLessThan(STATUS_RANK.cleared);
+    expect(STATUS_RANK.overdue).toBeLessThan(STATUS_RANK.uncleared);
+    expect(STATUS_RANK.uncleared).toBeLessThan(STATUS_RANK.cleared);
     expect(STATUS_RANK.cleared).toBeLessThan(STATUS_RANK.cancelled);
   });
   it('puts what needs action first ascending, settled first descending', () => {
-    const rows = ['Cleared', 'Overdue', 'Pending', 'Scheduled'].map((s, i) => row({ sortId: s, stLabel: s, sortAt: '2026-08-0' + (i + 1) + 'T12:00' }));
-    expect(ids(sortRows(rows, asc('status')))).toEqual(['Overdue', 'Scheduled', 'Pending', 'Cleared']);
-    expect(ids(sortRows(rows, desc('status')))).toEqual(['Cleared', 'Pending', 'Scheduled', 'Overdue']);
+    const rows = ['Cleared', 'Overdue', 'Uncleared', 'Scheduled'].map((s, i) => row({ sortId: s, stLabel: s, sortAt: '2026-08-0' + (i + 1) + 'T12:00' }));
+    expect(ids(sortRows(rows, asc('status')))).toEqual(['Overdue', 'Scheduled', 'Uncleared', 'Cleared']);
+    expect(ids(sortRows(rows, desc('status')))).toEqual(['Cleared', 'Uncleared', 'Scheduled', 'Overdue']);
   });
   it('is unaffected by case, and never by a colour', () => {
     const rows = [row({ sortId: 'lower', stLabel: 'overdue' }), row({ sortId: 'title', stLabel: 'Cleared' })];

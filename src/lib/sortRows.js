@@ -22,7 +22,7 @@ const isBlank = v => v == null || String(v).trim() === '' || String(v).trim() ==
 // Cancelled, Cleared, Failed, Overdue, which tells the reader nothing. Lower
 // rank = needs your attention sooner. Ascending puts work first.
 export const STATUS_RANK = {
-  overdue: 0, failed: 1, scheduled: 2, pending: 3, cleared: 4, cancelled: 5,
+  overdue: 0, failed: 1, scheduled: 2, uncleared: 3, cleared: 4, cancelled: 5,
 };
 const statusRank = row => {
   const r = STATUS_RANK[String(row.stLabel || '').trim().toLowerCase()];

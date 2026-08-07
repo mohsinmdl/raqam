@@ -61,13 +61,16 @@ export function txRowOf(t, S, fmt, forAccountId) {
     isRepeating: !!ruleFromTx(S, t.id),
     catName: cat ? cat.name : (t.type === 'transfer' ? 'Transfer' : '—'), catColor: cat ? cat.color : 'var(--border)',
     acctLabel, amtLabel, amtColor, amtValue,
-    // Status shows as a one-letter badge (see the Transactions Row). stColor is
-    // the solid fill, stOn the letter on top of it; stLabel stays the full word
-    // for the tooltip, the aria-label, and the status sort (STATUS_RANK reads it).
-    stLabel: t.status === 'pending' ? 'Pending' : 'Cleared',
-    stGlyph: t.status === 'pending' ? 'P' : 'C',
-    stColor: t.status === 'pending' ? 'var(--warn)' : 'var(--pos)',
-    stOn: t.status === 'pending' ? 'var(--on-warn)' : 'var(--on-pos)',
+    // Status shows as a one-letter badge (see the Transactions Row): a filled
+    // green C when cleared, an outlined C when not — the same pair the balance
+    // strip uses. The stored value stays 'pending'; only the wording is
+    // "Uncleared". stLabel is the tooltip, the aria-label, and the status-sort
+    // key (STATUS_RANK reads it lowercased).
+    stLabel: t.status === 'pending' ? 'Uncleared' : 'Cleared',
+    stGlyph: 'C',
+    stColor: t.status === 'pending' ? 'var(--muted)' : 'var(--pos)',
+    stOn: 'var(--on-pos)',
+    stOutline: t.status === 'pending',
     rowOpacity: t.status === 'pending' ? '.62' : '1', isPending: t.status === 'pending',
     canEdit: t.type !== 'cardAdjustment',
     // Only money in/out can become a series — transfers and adjustments cannot.
@@ -111,16 +114,18 @@ export function untilLabel(iso, now) {
 // knows cleared|pending) and the pill reverts to it by itself the day the
 // date arrives, when txGroups stops routing the row through here. The real
 // distinction the label was hiding moves to the tooltip: cleared counts
-// automatically on its date, pending waits for you. Pending rows also keep
-// their dim, so the two kinds stay tellable apart at a glance.
+// automatically on its date, an uncleared one waits for you. Uncleared rows
+// also keep their dim, so the two kinds stay tellable apart at a glance.
 export function futureTxRowOf(t, S, fmt, now) {
   return {
     ...txRowOf(t, S, fmt), isFuture: true,
     dateLabel: withYear(t.date, now),
     timeLabel: untilLabel(t.date, now),
-    stLabel: 'Scheduled', stGlyph: 'S', stColor: 'var(--info)', stOn: 'var(--on-info)',
+    // stOutline reset to false: the underlying uncleared row set it, but the
+    // Scheduled badge is a solid pill, not an outline.
+    stLabel: 'Scheduled', stGlyph: 'S', stColor: 'var(--info)', stOn: 'var(--on-info)', stOutline: false,
     stTitle: t.status === 'pending'
-      ? 'Dated ahead and pending — stays out of totals until you mark it cleared.'
+      ? 'Dated ahead and uncleared — stays out of totals until you mark it cleared.'
       : 'Dated ahead — counts automatically when its date arrives.',
   };
 }
@@ -175,7 +180,7 @@ export function ruleRowOf(r, S, fmt, now) {
 // (selId → checkbox, ⋯ menu, all filters apply); reminders are projections of
 // rule.nextDate (no selId, Record/Skip). anyFilter suppresses only the
 // reminders — a rule has no status, type or merchant, so it cannot honour
-// "Pending" or a search term, and showing rows that contradict an active
+// "Uncleared" or a search term, and showing rows that contradict an active
 // filter is worse than briefly hiding them.
 export function txGroups(list, S, fmt, now, range, anyFilter, sort) {
   // One predicate shared with the money math, so a row can never be counted in

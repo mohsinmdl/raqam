@@ -266,8 +266,8 @@ function Body() {
       <div role="group" aria-label="Status" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 500 }}>Status:</span>
         <Pill on={!f.pending} onClick={() => setField('pending', false)}>Cleared</Pill>
-        <Pill on={!!f.pending} warn onClick={() => setField('pending', true)}>Pending</Pill>
-        <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Pending amounts are excluded from totals until cleared.</span>
+        <Pill on={!!f.pending} warn onClick={() => setField('pending', true)}>Uncleared</Pill>
+        <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Uncleared amounts are excluded from totals until cleared.</span>
       </div>
 
       {drawer.dupMsg && (

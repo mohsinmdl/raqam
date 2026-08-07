@@ -71,7 +71,7 @@ export default function PositionStrip({ trailing, compact }) {
   const posAsOf = 'across ' + activeAccts.length + (activeAccts.length === 1 ? ' account' : ' accounts');
   const changeColor = M.change > 0 ? 'var(--pos)' : M.change < 0 ? 'var(--neg)' : 'var(--muted)';
   const pendingNote = M.pendingCount > 0
-    ? M.pendingCount + ' pending transaction' + (M.pendingCount === 1 ? '' : 's') + ' (' + money(M.pendingTotal) + ') excluded until cleared'
+    ? M.pendingCount + ' uncleared transaction' + (M.pendingCount === 1 ? '' : 's') + ' (' + money(M.pendingTotal) + ') excluded until cleared'
     : null;
 
   return (

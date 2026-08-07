@@ -579,7 +579,8 @@ export function setTransactionsStatus(data, { ids, status }) {
     ...data,
     transactions: data.transactions.map(t => (hitIds.has(t.id) ? stampUpdate({ ...t, status }) : t)),
     audit: [
-      ...bulkAudit(hit, 'update', 'Marked ' + hit.length + ' as ' + status, batchId, {
+      // Stored value is 'pending'; the audit reads "uncleared" to match the UI.
+      ...bulkAudit(hit, 'update', 'Marked ' + hit.length + ' as ' + (status === 'pending' ? 'uncleared' : status), batchId, {
         before: t => ({ status: t.status }),
         after: () => ({ status }),
       }),

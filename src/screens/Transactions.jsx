@@ -211,7 +211,11 @@ function Row({ t, selId, checked, onToggleRow, actions, dense }) {
       <td style={{ ...td, ...dim, padding: pad, textAlign: 'center', verticalAlign: dense ? 'middle' : 'top' }}>
         <span
           role="img" aria-label={t.stLabel} title={t.stTitle || t.stLabel}
-          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 999, background: t.stColor, color: t.stOn, fontSize: 11, fontWeight: 700, lineHeight: 1, flex: 'none' }}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 999, boxSizing: 'border-box',
+            background: t.stOutline ? 'transparent' : t.stColor,
+            color: t.stOutline ? t.stColor : t.stOn,
+            border: t.stOutline ? ('1.5px solid ' + t.stColor) : 'none',
+            fontSize: 11, fontWeight: 700, lineHeight: 1, flex: 'none' }}
         >{t.stGlyph}</span>
       </td>
       <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: dense ? 'middle' : 'top' }}>
@@ -388,8 +392,10 @@ export default function Transactions() {
   };
 
   const afterBulk = (msg, next) => { applyData(next); clearSel(); notify(msg); };
+  // The stored value is 'pending'; the word shown to the user is "uncleared".
+  const statusWord = status => (status === 'pending' ? 'uncleared' : status);
   const bulkStatus = status => afterBulk(
-    'Marked ' + sel.length + ' as ' + status + '.',
+    'Marked ' + sel.length + ' as ' + statusWord(status) + '.',
     data => setTransactionsStatus(data, { ids: sel, status }),
   );
   const bulkDelete = async () => {
@@ -440,7 +446,7 @@ export default function Transactions() {
           onClear={clearSel}
           actions={[
             { label: 'Mark cleared', onClick: () => bulkStatus('cleared') },
-            { label: 'Mark pending', onClick: () => bulkStatus('pending') },
+            { label: 'Mark uncleared', onClick: () => bulkStatus('pending') },
           ]}
           more={[
             { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate },
