@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { StoreProvider } from './store/StoreProvider.jsx';
 import ImportLegacy from './components/ImportLegacy.jsx';
@@ -23,16 +24,58 @@ import Recurring from './screens/Recurring.jsx';
 import RecurringDetail from './screens/RecurringDetail.jsx';
 import BudgetHub from './screens/BudgetHub.jsx';
 
+// Sidebar width is user-draggable and remembered on the device (like theme).
+const SB_MIN = 208, SB_MAX = 460, SB_DEFAULT = 236, SB_KEY = 'raqam.sidebarW';
+const clampSb = w => Math.min(SB_MAX, Math.max(SB_MIN, w));
+
 function Shell() {
+  const [sbW, setSbW] = useState(() => {
+    const v = Number(localStorage.getItem(SB_KEY));
+    return v >= SB_MIN && v <= SB_MAX ? v : SB_DEFAULT;
+  });
+  const [dragging, setDragging] = useState(false);
+  const [hover, setHover] = useState(false);
+
+  const startDrag = e => {
+    e.preventDefault();
+    setDragging(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    const onMove = ev => setSbW(clampSb(ev.clientX));
+    const onUp = ev => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setDragging(false);
+      try { localStorage.setItem(SB_KEY, String(clampSb(ev.clientX))); } catch {}
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+  const resetWidth = () => { setSbW(SB_DEFAULT); try { localStorage.setItem(SB_KEY, String(SB_DEFAULT)); } catch {} };
+
   return (
     <div
       style={{
-        display: 'grid', gridTemplateColumns: '236px minmax(0,1fr)', height: '100vh',
+        position: 'relative',
+        display: 'grid', gridTemplateColumns: `${sbW}px minmax(0,1fr)`, height: '100vh',
         background: 'var(--bg)', color: 'var(--text)',
         fontFamily: "'IBM Plex Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.45,
       }}
     >
       <Sidebar />
+      {/* Drag handle sitting on the sidebar's right seam. A hairline stays
+          invisible until hover/drag, then lights up in the accent colour. */}
+      <div
+        role="separator" aria-orientation="vertical" aria-label="Resize sidebar"
+        title="Drag to resize · double-click to reset"
+        onMouseDown={startDrag} onDoubleClick={resetWidth}
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+        style={{ position: 'absolute', top: 0, bottom: 0, left: sbW, width: 10, transform: 'translateX(-5px)', cursor: 'col-resize', zIndex: 50, display: 'flex', justifyContent: 'center' }}
+      >
+        <span aria-hidden="true" style={{ width: (dragging || hover) ? 3 : 2, height: '100%', background: (dragging || hover) ? 'var(--accent)' : 'transparent', transition: 'background .15s ease, width .15s ease' }} />
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <Header />
         <main style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
