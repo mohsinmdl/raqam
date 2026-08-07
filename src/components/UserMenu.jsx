@@ -42,16 +42,6 @@ export default function UserMenu({ name, email, onClose }) {
         <div style={{ fontSize: 13, fontWeight: 600 }}>{name}</div>
         <div title={email} style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{email}</div>
       </div>
-      <label style={{ display: 'block', padding: '0 10px 8px' }}>
-        <span style={{ display: 'block', fontSize: 10.5, fontWeight: 600, letterSpacing: '.06em', color: 'var(--muted)', marginBottom: 4 }}>DISPLAY NAME</span>
-        <input
-          defaultValue={prefs.displayName || ''}
-          placeholder="Your name"
-          onBlur={e => setPrefs({ displayName: e.target.value.trim() })}
-          onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-          className="field" style={{ height: 32 }}
-        />
-      </label>
       {sep}
       <button role="menuitem" className="hv-elev" style={row} onClick={() => setPrefs({ theme: prefs.theme === 'light' ? 'dark' : 'light' })}>
         <span aria-hidden="true">◐</span> Appearance <span style={rightNote}>{prefs.theme === 'light' ? 'Light' : 'Dark'}</span>
