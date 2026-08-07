@@ -174,10 +174,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled }) {
         </div>
       </td>
       <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: 'middle' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-          <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
-          <span style={{ fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
-        </div>
+        <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
       </td>
       {/* Notes: free text, truncated with an ellipsis and the full value on hover. */}
       <td style={{ ...td, ...dim, maxWidth: 200, padding: pad, verticalAlign: 'middle' }}>
@@ -225,8 +222,73 @@ function GroupHead({ open, onToggle, label, count, note, bg }) {
   );
 }
 
+// Lives in the list toolbar where the "Showing N of M" caption used to be.
+// Reads as plain accent text at rest; on hover the inner pill fills into a
+// solid accent button. Two layers: the OUTER button is a roomy, invisible hit
+// area — its padding gives the extra clickable margin and an equal negative
+// margin cancels it, so the toolbar layout never moves. The INNER pill is the
+// only visible part; its hover padding grows by 8px each side, compensated by
+// its own negative margin, so the label stays put (no jerk).
+function AddTxButton({ onClick, disabled }) {
+  const [hover, setHover] = useState(false);
+  const raised = hover && !disabled;
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={disabled ? 'Add a bank account first' : 'Record an expense, income, transfer, refund, or adjustment'}
+      style={{
+        display: 'inline-flex', border: 'none', background: 'transparent',
+        cursor: disabled ? 'default' : 'pointer',
+        // Roomy hit area, cancelled by an equal negative margin. Right side is
+        // kept tighter (10 vs 16) so the zone doesn't reach the divider beside it.
+        padding: '12px 10px 12px 16px', margin: '-12px -10px -12px -16px',
+      }}
+    >
+      <span
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: raised ? '7px 14px' : '7px 6px',
+          margin: raised ? '0 -8px' : '0',
+          borderRadius: 8,
+          // Subtle tint on hover — the same --soft the sidebar's selected tab
+          // uses — with the accent label kept.
+          background: raised ? 'var(--soft)' : 'transparent',
+          color: disabled ? 'var(--muted)' : 'var(--accent)',
+          fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', opacity: disabled ? 0.6 : 1,
+          transition: 'background .15s ease',
+        }}
+      >
+        <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>＋</span> Add Transaction
+      </span>
+    </button>
+  );
+}
+
+// Undo/redo in the list toolbar, beside Add Transaction. Borderless so they sit
+// quietly next to the text-style add control; hv-elev supplies the hover fill.
+function HistoryBtn({ glyph, label, hint, disabled, onClick }) {
+  return (
+    <button
+      onClick={onClick} disabled={disabled} aria-label={label}
+      title={disabled ? label : label + ': ' + hint}
+      className="hv-elev"
+      style={{
+        width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        border: 'none', borderRadius: 8, background: 'transparent', flex: 'none',
+        color: disabled ? 'var(--muted)' : 'var(--text)', fontSize: 15,
+        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1,
+      }}
+    >
+      {glyph}
+    </button>
+  );
+}
+
 export default function Transactions() {
-  const { data: S, applyData, prefs, setPrefs } = useStore();
+  const { data: S, applyData, prefs, setPrefs, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
   // Full-width view: lifts the page's max-width and drops the table's card frame
   // so the rows use all the space available. On by default; the toggle only
   // stores an explicit `false` to opt back into the narrow, boxed layout.
@@ -506,7 +568,12 @@ export default function Transactions() {
         {/* No overflow:hidden — it would clip the per-row ⋯ menu on the last rows. */}
         <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: wide ? 'none' : '1px solid var(--border)', borderRadius: wide ? 0 : 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Showing {list.length} of {monthTx.length} {range.from || range.to ? 'in ' + rangeLabel(range.from, range.to) : 'across all dates'} · manually entered</span>
+            <AddTxButton onClick={() => openers.addTx(openDrawer)} disabled={addDisabled} />
+            <span aria-hidden="true" style={{ width: 1, height: 22, background: 'var(--border)', flex: 'none' }} />
+            <span style={{ display: 'inline-flex', gap: 2 }}>
+              <HistoryBtn glyph="↶" label="Undo" hint={undoLabel || ''} disabled={!canUndo} onClick={undo} />
+              <HistoryBtn glyph="↷" label="Redo" hint={redoLabel || ''} disabled={!canRedo} onClick={redo} />
+            </span>
             <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
               {sortLabel(sort) + ', ' + list.length + ' row' + (list.length === 1 ? '' : 's')}
             </span>

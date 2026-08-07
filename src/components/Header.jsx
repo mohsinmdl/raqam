@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
-import { openers } from '../drawers/openers.js';
 import { monthLabel, shortDate, timeLabel } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 import RecentMoves from './RecentMoves.jsx';
@@ -11,40 +10,16 @@ import TxMonthNav from './TxMonthNav.jsx';
 
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
-  budgets: 'Budgets', recurring: 'Recurring', reports: 'Reports', categories: 'Categories', settings: 'Settings',
+  budget: 'Budget', budgets: 'Budgets', recurring: 'Recurring', reports: 'Reports', categories: 'Categories', settings: 'Settings',
 };
-
-const btnStyle = {
-  height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8,
-  background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
-};
-
-const iconBtnStyle = {
-  width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)',
-  color: 'var(--text)', fontSize: 14, cursor: 'pointer', flex: 'none',
-};
-
-function HistoryButton({ glyph, label, hint, disabled, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      title={disabled ? label : label + ': ' + hint}
-      className="hv-elev"
-      style={{ ...iconBtnStyle, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1 }}
-    >
-      {glyph}
-    </button>
-  );
-}
 
 export default function Header() {
   const { pathname } = useLocation();
-  const { data: S, prefs, setPrefs, syncStatus, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
+  // undo/redo stay wired here only for the global Cmd+Z / Cmd+Y shortcut below;
+  // the visible buttons moved to the Transactions list toolbar.
+  const { data: S, syncStatus, undo, redo } = useStore();
   const { month, isPast, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
-  const { drawer, openDrawer } = useDrawer();
+  const { drawer } = useDrawer();
 
   useEffect(() => {
     const onKey = e => {
@@ -76,12 +51,9 @@ export default function Header() {
   }
   // Transactions gets its own control in this slot: it filters by a date range,
   // not a single month, so it cannot share the stepper below.
-  const showMonthSel = seg === 'dashboard' || seg === 'budgets';
+  const showMonthSel = seg === 'dashboard' || pathname === '/budget';
   const showTxNav = seg === 'transactions';
-  const activeAccts = S ? S.accounts.filter(a => a.status === 'active') : [];
-  const addDisabled = activeAccts.length === 0;
   const now = nowIso();
-  const theme = prefs.theme;
 
   return (
     <header style={{ height: 60, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
@@ -106,26 +78,7 @@ export default function Header() {
       <span style={{ fontSize: 12, color: 'var(--muted)' }}>
         {isPast && showMonthSel ? 'Closed month' : 'As of ' + shortDate(now) + ' · ' + timeLabel(now)}
       </span>
-      <span style={{ display: 'flex', gap: 6 }}>
-        <HistoryButton glyph="↶" label="Undo" hint={undoLabel || ''} disabled={!canUndo} onClick={undo} />
-        <HistoryButton glyph="↷" label="Redo" hint={redoLabel || ''} disabled={!canRedo} onClick={redo} />
-      </span>
       <RecentMoves />
-      <button onClick={() => setPrefs({ masked: !prefs.masked })} aria-pressed={String(prefs.masked)} className="hv-elev" style={btnStyle}>
-        {prefs.masked ? 'Show amounts' : 'Hide amounts'}
-      </button>
-      <button onClick={() => setPrefs({ theme: theme === 'light' ? 'dark' : 'light' })} aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} className="hv-elev" style={btnStyle}>
-        {theme === 'light' ? '◐ Dark' : '◐ Light'}
-      </button>
-      <button
-        onClick={() => openers.addTx(openDrawer)}
-        disabled={addDisabled}
-        title={addDisabled ? 'Add a bank account first' : 'Record an expense, income, transfer, refund, or adjustment'}
-        className="hv-accent"
-        style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: addDisabled ? 'default' : 'pointer', opacity: addDisabled ? .45 : 1 }}
-      >
-        ＋ Add transaction
-      </button>
     </header>
   );
 }
