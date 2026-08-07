@@ -48,8 +48,8 @@ export default function PositionStrip({ trailing, compact, wide }) {
     );
     const cell = (amount, label, badge) => (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-        <span className="tnum" style={{ fontSize: 21, fontWeight: 700, letterSpacing: '-0.01em', color: amtColor(amount), whiteSpace: 'nowrap' }}>{money(amount)}</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>{badge}{label}</span>
+        <span className="tnum" style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.005em', color: amtColor(amount), whiteSpace: 'nowrap' }}>{money(amount)}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>{badge}{label}</span>
       </div>
     );
     const op = s => <span aria-hidden="true" style={{ fontSize: 17, color: 'var(--muted)', padding: '0 8px' }}>{s}</span>;

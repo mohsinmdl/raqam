@@ -25,7 +25,7 @@ import { matchesQuery } from '../lib/txSearch.js';
 // Sticky against <main>'s scroll. No overflow is introduced here — the section
 // deliberately has none, because it would clip the per-row ⋯ menu. z-index sits
 // below RowMenu's 30 so an open menu still passes over the header.
-const th = { textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)' };
+const th = { textAlign: 'left', fontSize: 12, fontWeight: 500, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)' };
 const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' };
 
 // Row and GroupHead live at MODULE scope on purpose. Defined inside
@@ -95,9 +95,9 @@ function SortableHeader({ col, sort, onSort }) {
           minHeight: 44, padding: '9px 8px', whiteSpace: 'nowrap',
           justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start',
           border: 'none', background: 'none', font: 'inherit', cursor: 'pointer',
-          letterSpacing: '.05em',
+          letterSpacing: '0.6px',
           color: active ? 'var(--text)' : 'var(--muted)',
-          fontWeight: active ? 700 : 600,
+          fontWeight: active ? 600 : 500,
         }}
       >
         {col.align === 'right' && <SortIcon dir={dir} />}
@@ -155,7 +155,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled }) {
       <td style={{ ...td, ...dim, padding: pad, verticalAlign: 'middle' }}>
         {/* Date only — no clock time, no "in N days". Overdue rows carry the
             cue on the date itself, since the second line that held it is gone. */}
-        <span className="tnum" style={{ fontSize: 14, fontWeight: 400, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : undefined }}>{t.dateLabel}</span>
+        <span className="tnum" style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : undefined }}>{t.dateLabel}</span>
       </td>
       <td style={{ ...td, ...dim, maxWidth: 280, padding: pad, verticalAlign: 'middle' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

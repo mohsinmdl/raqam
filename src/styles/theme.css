@@ -1,7 +1,7 @@
 /* Raqam theme — ported from the Hisaab design prototype (template <helmet> styles). */
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
-body { font-family: 'IBM Plex Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+body { font-family: 'Figtree', system-ui, sans-serif; font-weight: 500; background: var(--bg); color: var(--text); }
 a { color: var(--accent); }
 a:hover { color: var(--accent-h); }
 button { font-family: inherit; }
