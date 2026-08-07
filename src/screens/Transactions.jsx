@@ -237,13 +237,19 @@ function AddTxButton({ onClick, disabled }) {
       title={disabled ? 'Add a bank account first' : 'Record an expense, income, transfer, refund, or adjustment'}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
-        padding: raised ? '0 12px' : '0 4px', borderRadius: 8,
+        // The hover padding grows by 6px each side; a matching negative margin
+        // cancels it so the label — and the button's outer footprint — never
+        // move. Padding/margin are not transitioned (they'd shift mid-tween);
+        // only the border and fill fade in.
+        padding: raised ? '0 12px' : '0 6px',
+        margin: raised ? '0 -6px' : '0',
+        borderRadius: 8,
         border: '1px solid ' + (raised ? 'var(--border)' : 'transparent'),
         background: raised ? 'var(--surface)' : 'transparent',
         color: disabled ? 'var(--muted)' : 'var(--accent)',
         fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap',
         cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
-        transition: 'background .15s ease, border-color .15s ease, padding .15s ease',
+        transition: 'background .15s ease, border-color .15s ease',
       }}
     >
       <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>＋</span> Add transaction
