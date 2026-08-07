@@ -47,7 +47,8 @@ const COLUMNS = [
   { key: 'details', label: 'DETAILS', width: null },
   { key: 'category', label: 'CATEGORY', width: 150 },
   { key: 'account', label: 'ACCOUNT', width: 150 },
-  { key: 'status', label: 'STATUS', width: 96 },
+  // Just a one-letter badge now, so the column is narrow and centred.
+  { key: 'status', label: 'STATUS', width: 68, align: 'center' },
   // altKeys: the signed sort has no header of its own, so AMOUNT stays lit
   // while it drives the order — the reader can always see which column owns
   // the ordering, even when the mode came from the dropdown.
@@ -84,8 +85,8 @@ function SortableHeader({ col, sort, onSort }) {
         className="hv-soft"
         style={{
           display: 'flex', alignItems: 'center', gap: 5, width: '100%',
-          minHeight: 44, padding: '9px 8px',
-          justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start',
+          minHeight: 44, padding: '9px 8px', whiteSpace: 'nowrap',
+          justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start',
           border: 'none', background: 'none', font: 'inherit', cursor: 'pointer',
           letterSpacing: '.05em',
           color: active ? 'var(--text)' : 'var(--muted)',
@@ -187,7 +188,12 @@ function Row({ t, selId, checked, onToggleRow, actions, dense }) {
         </div>
       </td>
       <td style={{ ...td, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
-      <td style={{ ...td, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}><span title={t.stTitle || undefined} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: t.stBg, color: t.stFg }}>{t.stLabel}</span></td>
+      <td style={{ ...td, padding: pad, textAlign: 'center', verticalAlign: dense ? 'middle' : 'top' }}>
+        <span
+          role="img" aria-label={t.stLabel} title={t.stTitle || t.stLabel}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 999, background: t.stColor, color: t.stOn, fontSize: 11, fontWeight: 700, lineHeight: 1, flex: 'none' }}
+        >{t.stGlyph}</span>
+      </td>
       <td style={{ ...td, padding: pad, textAlign: 'right', verticalAlign: dense ? 'middle' : 'top' }}>
         <span className="tnum" style={{ fontSize: dense ? 13 : 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
       </td>

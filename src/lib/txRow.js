@@ -61,7 +61,13 @@ export function txRowOf(t, S, fmt, forAccountId) {
     isRepeating: !!ruleFromTx(S, t.id),
     catName: cat ? cat.name : (t.type === 'transfer' ? 'Transfer' : '—'), catColor: cat ? cat.color : 'var(--border)',
     acctLabel, amtLabel, amtColor, amtValue,
-    stLabel: t.status === 'pending' ? 'Pending' : 'Cleared', stBg: t.status === 'pending' ? 'var(--warn-soft)' : 'var(--elev)', stFg: t.status === 'pending' ? 'var(--warn)' : 'var(--muted)',
+    // Status shows as a one-letter badge (see the Transactions Row). stColor is
+    // the solid fill, stOn the letter on top of it; stLabel stays the full word
+    // for the tooltip, the aria-label, and the status sort (STATUS_RANK reads it).
+    stLabel: t.status === 'pending' ? 'Pending' : 'Cleared',
+    stGlyph: t.status === 'pending' ? 'P' : 'C',
+    stColor: t.status === 'pending' ? 'var(--warn)' : 'var(--pos)',
+    stOn: t.status === 'pending' ? 'var(--on-warn)' : 'var(--on-pos)',
     rowOpacity: t.status === 'pending' ? '.62' : '1', isPending: t.status === 'pending',
     canEdit: t.type !== 'cardAdjustment',
     // Only money in/out can become a series — transfers and adjustments cannot.
@@ -112,7 +118,7 @@ export function futureTxRowOf(t, S, fmt, now) {
     ...txRowOf(t, S, fmt), isFuture: true,
     dateLabel: withYear(t.date, now),
     timeLabel: untilLabel(t.date, now),
-    stLabel: 'Scheduled', stBg: 'var(--info-soft)', stFg: 'var(--info)',
+    stLabel: 'Scheduled', stGlyph: 'S', stColor: 'var(--info)', stOn: 'var(--on-info)',
     stTitle: t.status === 'pending'
       ? 'Dated ahead and pending — stays out of totals until you mark it cleared.'
       : 'Dated ahead — counts automatically when its date arrives.',
@@ -146,8 +152,9 @@ export function ruleRowOf(r, S, fmt, now) {
     amtValue: r.type === 'income' ? r.amount : -r.amount,
     amtColor: r.type === 'income' ? 'var(--pos)' : 'var(--text)',
     stLabel: overdue ? 'Overdue' : 'Scheduled',
-    stBg: overdue ? 'var(--neg-soft)' : 'var(--info-soft)',
-    stFg: overdue ? 'var(--neg)' : 'var(--info)',
+    stGlyph: overdue ? '!' : 'S',
+    stColor: overdue ? 'var(--neg)' : 'var(--info)',
+    stOn: overdue ? 'var(--on-neg)' : 'var(--on-info)',
     stTitle: overdue ? 'This was due and has not been recorded yet.' : 'A reminder — nothing is recorded until you record it.',
     rowOpacity: '1', isPending: false, canEdit: false, canRepeat: false,
     edited: false, editedLabel: '', excluded: false, excludedLabel: '',

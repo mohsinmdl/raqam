@@ -13,7 +13,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
   --accent: #0F766E; --accent-h: #115E59; --on-accent: #FFFFFF; --soft: #DDF3EC; --border: #DCE4DF;
   --pos: #15803D; --warn: #B7791F; --neg: #C2413B; --info: #2563EB;
   --pos-soft: #E3F2E7; --warn-soft: #F6ECD9; --neg-soft: #F8E4E2; --info-soft: #E3EBFC;
-  --on-neg: #FFFFFF; --on-warn: #FFFFFF;
+  --on-neg: #FFFFFF; --on-warn: #FFFFFF; --on-pos: #FFFFFF; --on-info: #FFFFFF;
   --shadow: 0 12px 32px rgba(10, 20, 16, .18); --track: #ECEFEA;
   --scrim: rgba(8, 16, 13, .44);
 }
@@ -22,8 +22,8 @@ input, select, textarea { font-family: inherit; color: inherit; }
   --accent: #3CBFAB; --accent-h: #5ED3C0; --on-accent: #06211D; --soft: #15302B; --border: #28332E;
   --pos: #5BBE7E; --warn: #D9A852; --neg: #E37A72; --info: #7FA7F2;
   --pos-soft: #12291A; --warn-soft: #2E2412; --neg-soft: #331715; --info-soft: #16233D;
-  /* dark --neg/--warn are light tints, so text on them must be dark */
-  --on-neg: #2A100E; --on-warn: #2E2412;
+  /* dark --neg/--warn/--pos/--info are light tints, so text on them must be dark */
+  --on-neg: #2A100E; --on-warn: #2E2412; --on-pos: #06211D; --on-info: #0B1836;
   --shadow: 0 12px 32px rgba(0, 0, 0, .5); --track: #232B27;
   --scrim: rgba(0, 0, 0, .62);
 }
