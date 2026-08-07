@@ -50,7 +50,7 @@ export default function AccountList() {
         aria-expanded={open}
         aria-controls="sidebar-accounts-list"
         className="hv-elev"
-        style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', border: 'none', background: 'transparent', cursor: 'pointer', padding: '14px 16px 6px', textAlign: 'left' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', background: 'transparent', cursor: 'pointer', padding: '14px 24px 6px', textAlign: 'left' }}
       >
         <span aria-hidden="true" style={{ display: 'inline-flex', color: 'var(--muted)', transition: 'transform .18s ease', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
@@ -97,7 +97,7 @@ export default function AccountList() {
             transition: 'background .15s ease',
           }}
         >
-          <span aria-hidden="true" style={{ fontSize: 16, lineHeight: 1 }}>＋</span> Add account
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}><circle cx="12" cy="12" r="9" /><path d="M12 8.5v7M8.5 12h7" /></svg> Add account
         </button>
       </div>
     </div>
