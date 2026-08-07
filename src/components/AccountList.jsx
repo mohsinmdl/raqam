@@ -82,7 +82,9 @@ export default function AccountList() {
 
       {/* Add account stays outside the collapse — reachable even when the list
           is folded. When the list is expanded it pins just beneath it. */}
-      <div style={{ padding: '4px 12px 10px' }}>
+      {/* Extra top space when collapsed so the button isn't cramped against the
+          header; snug against the list when expanded. */}
+      <div style={{ padding: open ? '4px 12px 10px' : '14px 12px 10px' }}>
         <button
           onClick={() => openers.addAccount(openDrawer)}
           onMouseEnter={() => setAddHover(true)}
