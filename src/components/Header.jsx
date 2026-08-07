@@ -13,30 +13,11 @@ const TITLES = {
   budget: 'Budget', budgets: 'Budgets', recurring: 'Recurring', reports: 'Reports', categories: 'Categories', settings: 'Settings',
 };
 
-const iconBtnStyle = {
-  width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)',
-  color: 'var(--text)', fontSize: 14, cursor: 'pointer', flex: 'none',
-};
-
-function HistoryButton({ glyph, label, hint, disabled, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      title={disabled ? label : label + ': ' + hint}
-      className="hv-elev"
-      style={{ ...iconBtnStyle, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1 }}
-    >
-      {glyph}
-    </button>
-  );
-}
-
 export default function Header() {
   const { pathname } = useLocation();
-  const { data: S, syncStatus, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
+  // undo/redo stay wired here only for the global Cmd+Z / Cmd+Y shortcut below;
+  // the visible buttons moved to the Transactions list toolbar.
+  const { data: S, syncStatus, undo, redo } = useStore();
   const { month, isPast, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
   const { drawer } = useDrawer();
 
@@ -96,10 +77,6 @@ export default function Header() {
       )}
       <span style={{ fontSize: 12, color: 'var(--muted)' }}>
         {isPast && showMonthSel ? 'Closed month' : 'As of ' + shortDate(now) + ' · ' + timeLabel(now)}
-      </span>
-      <span style={{ display: 'flex', gap: 6 }}>
-        <HistoryButton glyph="↶" label="Undo" hint={undoLabel || ''} disabled={!canUndo} onClick={undo} />
-        <HistoryButton glyph="↷" label="Redo" hint={redoLabel || ''} disabled={!canRedo} onClick={redo} />
       </span>
       <RecentMoves />
     </header>
