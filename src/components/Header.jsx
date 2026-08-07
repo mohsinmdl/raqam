@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
-import { openers } from '../drawers/openers.js';
 import { monthLabel, shortDate, timeLabel } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 import RecentMoves from './RecentMoves.jsx';
@@ -39,7 +38,7 @@ export default function Header() {
   const { pathname } = useLocation();
   const { data: S, syncStatus, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
   const { month, isPast, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
-  const { drawer, openDrawer } = useDrawer();
+  const { drawer } = useDrawer();
 
   useEffect(() => {
     const onKey = e => {
@@ -73,8 +72,6 @@ export default function Header() {
   // not a single month, so it cannot share the stepper below.
   const showMonthSel = seg === 'dashboard' || pathname === '/budget';
   const showTxNav = seg === 'transactions';
-  const activeAccts = S ? S.accounts.filter(a => a.status === 'active') : [];
-  const addDisabled = activeAccts.length === 0;
   const now = nowIso();
 
   return (
@@ -105,15 +102,6 @@ export default function Header() {
         <HistoryButton glyph="↷" label="Redo" hint={redoLabel || ''} disabled={!canRedo} onClick={redo} />
       </span>
       <RecentMoves />
-      <button
-        onClick={() => openers.addTx(openDrawer)}
-        disabled={addDisabled}
-        title={addDisabled ? 'Add a bank account first' : 'Record an expense, income, transfer, refund, or adjustment'}
-        className="hv-accent"
-        style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: addDisabled ? 'default' : 'pointer', opacity: addDisabled ? .45 : 1 }}
-      >
-        ＋ Add transaction
-      </button>
     </header>
   );
 }

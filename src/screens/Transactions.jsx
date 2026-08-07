@@ -222,6 +222,35 @@ function GroupHead({ open, onToggle, label, count, note, bg }) {
   );
 }
 
+// Lives in the list toolbar where the "Showing N of M" caption used to be.
+// Reads as plain accent text at rest; on hover it grows a border + surface
+// fill so it reads as a button only when you reach for it.
+function AddTxButton({ onClick, disabled }) {
+  const [hover, setHover] = useState(false);
+  const raised = hover && !disabled;
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={disabled ? 'Add a bank account first' : 'Record an expense, income, transfer, refund, or adjustment'}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
+        padding: raised ? '0 12px' : '0 4px', borderRadius: 8,
+        border: '1px solid ' + (raised ? 'var(--border)' : 'transparent'),
+        background: raised ? 'var(--surface)' : 'transparent',
+        color: disabled ? 'var(--muted)' : 'var(--accent)',
+        fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap',
+        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
+        transition: 'background .15s ease, border-color .15s ease, padding .15s ease',
+      }}
+    >
+      <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>＋</span> Add transaction
+    </button>
+  );
+}
+
 export default function Transactions() {
   const { data: S, applyData, prefs, setPrefs } = useStore();
   // Full-width view: lifts the page's max-width and drops the table's card frame
@@ -503,7 +532,7 @@ export default function Transactions() {
         {/* No overflow:hidden — it would clip the per-row ⋯ menu on the last rows. */}
         <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: wide ? 'none' : '1px solid var(--border)', borderRadius: wide ? 0 : 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>Showing {list.length} of {monthTx.length} {range.from || range.to ? 'in ' + rangeLabel(range.from, range.to) : 'across all dates'} · manually entered</span>
+            <AddTxButton onClick={() => openers.addTx(openDrawer)} disabled={addDisabled} />
             <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
               {sortLabel(sort) + ', ' + list.length + ' row' + (list.length === 1 ? '' : 's')}
             </span>
