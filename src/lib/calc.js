@@ -100,10 +100,29 @@ export function monthMetrics(store, month, now) {
   const totalBank = active.reduce((s, a) => s + accountBalance(a, store, month, now), 0);
   const cardLiability = store.cards.filter(c => c.type === 'credit' && c.status !== 'closed').reduce((s, c) => s + cardOutstanding(c, store, month, now), 0);
   const pend = store.transactions.filter(t => inMonth(t, month) && t.status === 'pending' && hasOccurred(t, now));
+  // Signed effect the pending rows would have on the active-account total once
+  // cleared — the "uncleared" balance. accountDelta zeroes pending on purpose
+  // (they must never touch cleared balances), so this mirrors its money rules
+  // for active accounts without that guard. totalBank + uncleared = working.
+  const activeIds = new Set(active.map(a => a.id));
+  const uncleared = pend.reduce((s, t) => {
+    if (t.type === 'transfer') {
+      let d = 0;
+      if (activeIds.has(t.accountId)) d -= t.amount + (t.fee || 0);
+      if (t.toAccountId && activeIds.has(t.toAccountId)) d += t.amount;
+      return s + d;
+    }
+    if (!activeIds.has(t.accountId)) return s;
+    if (t.type === 'expense') return s - t.amount;
+    if (t.type === 'income' || t.type === 'refund') return s + t.amount;
+    if (t.type === 'adjustment') return s + t.amount; // already signed
+    return s;
+  }, 0);
   return {
     income, expenses, net, savings: Math.max(net, 0), rate: income > 0 ? net / income : null,
     opening, totalBank, change: totalBank - opening, cardLiability, netWorth: totalBank - cardLiability,
     pendingCount: pend.length, pendingTotal: pend.reduce((s, t) => s + t.amount, 0),
+    uncleared, working: totalBank + uncleared,
   };
 }
 // Spending charts hide excluded (recoverable) categories unless the caller

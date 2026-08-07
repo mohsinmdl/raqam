@@ -426,7 +426,7 @@ export default function Transactions() {
         {/* Search is the screen's only filter, so it rides in the position
             strip's footer rather than owning a bar of its own. The field
             collapses to an icon until focused — see SearchField. */}
-        <PositionStrip trailing={
+        <PositionStrip compact trailing={
           <SearchField
             value={F.q}
             onChange={v => setF('q', v)}
