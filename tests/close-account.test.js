@@ -20,6 +20,13 @@ describe('closeAccount', () => {
     expect(adj[0].amount).toBe(-10660);
   });
 
+  it('labels the close adjustment as a Manual Balance Adjustment for a Closed Account', () => {
+    const adj = closeAccount(store(), { accountId: 'a1', currentBalance: 10660 })
+      .transactions.find(t => t.type === 'adjustment' && t.accountId === 'a1');
+    expect(adj.merchant).toBe('Manual Balance Adjustment');
+    expect(adj.notes).toBe('Closed Account');
+  });
+
   it('closes a zero-balance account without creating an adjustment', () => {
     const next = closeAccount(store(), { accountId: 'a1', currentBalance: 0 });
     expect(next.accounts.find(a => a.id === 'a1').status).toBe('closed');
