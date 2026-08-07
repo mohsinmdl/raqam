@@ -14,11 +14,6 @@ const TITLES = {
   budget: 'Budget', budgets: 'Budgets', recurring: 'Recurring', reports: 'Reports', categories: 'Categories', settings: 'Settings',
 };
 
-const btnStyle = {
-  height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8,
-  background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
-};
-
 const iconBtnStyle = {
   width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
   border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)',

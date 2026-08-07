@@ -260,7 +260,7 @@ export default function Dashboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <h2 style={h2}>Budgets</h2><span style={{ flex: 1 }} />
                 <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{monthName}</span>
-                <button onClick={() => nav('/budgets')} className="hv-accent-fg" style={linkBtn}>Manage ›</button>
+                <button onClick={() => nav('/budget')} className="hv-accent-fg" style={linkBtn}>Manage ›</button>
               </div>
               {budgetRows.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
@@ -287,7 +287,7 @@ export default function Dashboard() {
                 <h2 style={{ ...h2, flex: 1 }}>Upcoming this month</h2>
                 {overdue.length > 0 && (
                   <Link
-                    to="/recurring"
+                    to="/budget/recurring"
                     title={overdue.map(r => r.name).join(', ') + ' — past due and waiting on you'}
                     style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'var(--neg-soft)', color: 'var(--neg)', textDecoration: 'none', flex: 'none' }}
                   >{overdue.length === 1 ? '1 overdue' : overdue.length + ' overdue'}</Link>
