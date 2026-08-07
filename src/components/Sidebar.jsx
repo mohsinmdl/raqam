@@ -43,14 +43,9 @@ export default function Sidebar() {
 
   return (
     <aside style={{ borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 20px 14px' }}>
-        <div aria-hidden="true" style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--accent)', color: 'var(--on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15 }}>₨</div>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em' }}>Raqam</div>
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Personal finance · PKR</div>
-        </div>
-      </div>
-      <nav aria-label="Main" style={{ padding: '6px 12px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* No brand block — kept minimal. The top padding holds the nav at its
+          former height so Budget doesn't ride up against the top edge. */}
+      <nav aria-label="Main" style={{ padding: '64px 12px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {NAV.map(n => <NavButton key={n.to} {...n} active={isActive(n.to)} />)}
       </nav>
       <AccountList />
