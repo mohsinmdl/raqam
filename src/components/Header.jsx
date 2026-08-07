@@ -3,8 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
-import { monthLabel, shortDate, timeLabel } from '../lib/calc.js';
-import { nowIso } from '../lib/dates.js';
+import { monthLabel } from '../lib/calc.js';
 import RecentMoves from './RecentMoves.jsx';
 import TxMonthNav from './TxMonthNav.jsx';
 
@@ -53,7 +52,6 @@ export default function Header() {
   // not a single month, so it cannot share the stepper below.
   const showMonthSel = seg === 'dashboard' || pathname === '/budget';
   const showTxNav = seg === 'transactions';
-  const now = nowIso();
 
   return (
     <header style={{ height: 60, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
@@ -75,9 +73,6 @@ export default function Header() {
           Not saved — retrying
         </span>
       )}
-      <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-        {isPast && showMonthSel ? 'Closed month' : 'As of ' + shortDate(now) + ' · ' + timeLabel(now)}
-      </span>
       <RecentMoves />
     </header>
   );
