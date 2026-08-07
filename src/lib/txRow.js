@@ -182,12 +182,16 @@ export function ruleRowOf(r, S, fmt, now) {
 // reminders — a rule has no status, type or merchant, so it cannot honour
 // "Uncleared" or a search term, and showing rows that contradict an active
 // filter is worse than briefly hiding them.
-export function txGroups(list, S, fmt, now, range, anyFilter, sort) {
+export function txGroups(list, S, fmt, now, range, anyFilter, sort, accountId) {
   // One predicate shared with the money math, so a row can never be counted in
   // a balance while being displayed as still to come, or the reverse.
   const futureTx = list.filter(t => !hasOccurred(t, now));
   const postedTx = list.filter(t => hasOccurred(t, now));
-  const ruleRows = anyFilter ? [] : scheduledRules(S, range.from, range.to, now).map(r => ruleRowOf(r, S, fmt, now));
+  // Future-dated transactions come from `list` (already account-scoped); the
+  // recurring rules, though, span all accounts, so scope them here too.
+  const ruleRows = anyFilter ? [] : scheduledRules(S, range.from, range.to, now)
+    .filter(r => !accountId || r.accountId === accountId)
+    .map(r => ruleRowOf(r, S, fmt, now));
   // A rule with money already pencilled in doesn't also nag you. Recording an
   // occurrence that isn't due yet leaves a future-dated transaction AND
   // advances the rule, so the same commitment would appear twice — once as

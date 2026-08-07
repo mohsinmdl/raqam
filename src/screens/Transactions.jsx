@@ -1,6 +1,6 @@
 // Transactions list screen — template 268-336, txScreenVals script 1018-1054.
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
 import { DEFAULT_SORT, nextSortState, sortLabel } from '../lib/sortRows.js';
@@ -8,8 +8,7 @@ import SortIcon from '../ui/SortIcon.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
-import { nowIso, currentMonth } from '../lib/dates.js';
-import { relTime } from '../lib/calc.js';
+import { nowIso } from '../lib/dates.js';
 import { inRange, rangeLabel } from '../lib/dateRange.js';
 import { txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
@@ -110,7 +109,7 @@ function SortableHeader({ col, sort, onSort }) {
 }
 
 
-function Row({ t, selId, checked, onToggleRow, scheduled }) {
+function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount }) {
   // Fixed 2.25rem (36px) row height, YNAB-style — so the vertical padding is
   // zero and content is centred by the cells' middle alignment; horizontal
   // padding is all that remains.
@@ -152,7 +151,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled }) {
           />
         )}
       </td>
-      <td style={{ ...td, ...dim, maxWidth: 160, padding: pad, verticalAlign: 'middle' }}><span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span></td>
+      {!hideAccount && <td style={{ ...td, ...dim, maxWidth: 160, padding: pad, verticalAlign: 'middle' }}><span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span></td>}
       <td style={{ ...td, ...dim, padding: pad, verticalAlign: 'middle' }}>
         {/* Date only — no clock time, no "in N days". Overdue rows carry the
             cue on the date itself, since the second line that held it is gone. */}
@@ -194,11 +193,11 @@ function Row({ t, selId, checked, onToggleRow, scheduled }) {
 
 // Group heading inside the table. A single full-width cell keeps the column
 // grid intact — a separate table per group would let the two drift apart.
-function GroupHead({ open, onToggle, label, count, note, bg }) {
+function GroupHead({ open, onToggle, label, count, note, bg, colSpan }) {
   return (
     <tr>
       {/* checkbox + data columns. Derived so adding a column can't leave it stale. */}
-      <td colSpan={COLUMNS.length + 1} style={{ padding: 0, borderBottom: '1px solid var(--border)', background: bg || 'var(--elev)' }}>
+      <td colSpan={colSpan ?? (COLUMNS.length + 1)} style={{ padding: 0, borderBottom: '1px solid var(--border)', background: bg || 'var(--elev)' }}>
         <button
           onClick={onToggle} aria-expanded={open}
           style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 18px', border: 'none', background: 'none', color: 'var(--text)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }}
@@ -311,7 +310,13 @@ export default function Transactions() {
   // the rules for which row lands where, and is tested there.
   const now = nowIso();
   const anyFilter = Object.keys(DEFAULT_FILTERS).some(k => F[k] !== DEFAULT_FILTERS[k]);
-  const { scheduled, postedRows, postedTx, overdueCount, hiddenRuleCount } = txGroups(list, S, fmt, now, range, anyFilter, sort);
+  const { scheduled, postedRows, postedTx, overdueCount, hiddenRuleCount } = txGroups(list, S, fmt, now, range, anyFilter, sort, accountId);
+
+  // Hide the ACCOUNT column on a single-account ledger — every row is that
+  // account. Header, colgroup, Row cells and the group-heading colSpan all read
+  // from `columns` / `gridColSpan` so they can never drift.
+  const columns = accountId ? COLUMNS.filter(c => c.key !== 'account') : COLUMNS;
+  const gridColSpan = columns.length + 1;
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter
   // has hidden would let the toolbar claim "12 selected" while showing three,
@@ -513,38 +518,8 @@ export default function Transactions() {
       {/* Wide mode is flush and seamless: no column gap, so the sections meet at
           a single divider line rather than sitting apart as separate cards. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: wide ? 0 : 14, animation: 'hsFade .25s ease' }}>
-        {/* Per-account header: breadcrumb + reconcile status on the left, edit
-            (pencil) + Reconcile on the right. Only on /transactions/:accountId. */}
-        {acct && (() => {
-          const snap = S.snapshots.find(s => s.accountId === acct.id && s.month === currentMonth());
-          const reconLabel = snap && snap.status === 'confirmed' ? 'Reconciled ' + relTime(snap.confirmedAt, now) : 'Not reconciled';
-          return (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: wide ? '14px 18px' : '16px 18px', background: 'var(--surface)',
-              ...(wide ? { borderBottom: '1px solid var(--border)' } : { border: '1px solid var(--border)', borderRadius: 12 }),
-            }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}>
-                  <Link to="/transactions" className="hv-accent-fg" style={{ color: 'var(--muted)', fontWeight: 600, textDecoration: 'none' }}>All Accounts</Link>
-                  <span aria-hidden="true" style={{ color: 'var(--muted)', fontWeight: 400 }}>›</span>
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.nickname}</span>
-                </div>
-                <div style={{ marginTop: 2, fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>{acct.type} · {reconLabel}</div>
-              </div>
-              <span style={{ flex: 1 }} />
-              <button onClick={() => openers.editAccount(S, acct.id, openDrawer)} aria-label="Edit account" title="Edit account" className="hv-soft"
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
-              </button>
-              <button onClick={() => openers.reconcile(S, acct.id, openDrawer)} className="hv-accent"
-                style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>
-                Reconcile
-              </button>
-            </div>
-          );
-        })()}
         {/* Balance strip: Cleared + Uncleared = Working (scoped to the account
-            when one is selected). */}
+            when one is selected). The account header now lives in the top bar. */}
         <PositionStrip compact wide={wide} accountId={accountId} />
 
         {/* One bar at a time: recorded selection wins, else the scheduled one.
@@ -620,7 +595,7 @@ export default function Transactions() {
               {/* Widths declared once, so a header and its cells cannot drift. */}
               <colgroup>
                 <col style={{ width: 34 }} />
-                {COLUMNS.map(c => <col key={c.key} style={c.width ? { width: c.width } : undefined} />)}
+                {columns.map(c => <col key={c.key} style={c.width ? { width: c.width } : undefined} />)}
               </colgroup>
               <thead>
                 <tr>
@@ -638,13 +613,13 @@ export default function Transactions() {
                       label={allVisibleSelected ? 'Clear selection' : 'Select all ' + visibleIds.length + ' visible transactions'}
                     />
                   </th>
-                  {COLUMNS.map(c => <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} />)}
+                  {columns.map(c => <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} />)}
                 </tr>
               </thead>
               {scheduled.length > 0 && (
                 <tbody>
                   <GroupHead
-                    open={schedOpen} onToggle={() => setSchedOpen(o => !o)} label="SCHEDULED" bg="var(--warn-soft)"
+                    open={schedOpen} onToggle={() => setSchedOpen(o => !o)} label="SCHEDULED" bg="var(--warn-soft)" colSpan={gridColSpan}
                     count={scheduled.length + (scheduled.length === 1 ? ' item' : ' items')}
                     note={[
                       overdueCount > 0 ? overdueCount + ' overdue' : 'not yet spent',
@@ -660,7 +635,7 @@ export default function Transactions() {
                     const key = schedKey(x);
                     return (
                       <Row
-                        key={key} t={x.row} selId={key} scheduled
+                        key={key} t={x.row} selId={key} scheduled hideAccount={!!accountId}
                         checked={schedSel.has(key)} onToggleRow={toggleSched}
                       />
                     );
@@ -672,13 +647,13 @@ export default function Transactions() {
                     YNAB — instead of a "RECORDED" heading. Only between the two. */}
                 {grouped && postedRows.length > 0 && (
                   <tr aria-hidden="true">
-                    <td colSpan={COLUMNS.length + 1} style={{ height: '.3125rem', background: 'var(--warn-soft)', borderBottom: '1px solid var(--border)' }} />
+                    <td colSpan={gridColSpan} style={{ height: '.3125rem', background: 'var(--warn-soft)', borderBottom: '1px solid var(--border)' }} />
                   </tr>
                 )}
                 {/* Recorded rows act through the bulk bar once selected — no ⋯. */}
                 {postedRows.map(t => (
                   <Row
-                    key={t.id} t={t} selId={t.id}
+                    key={t.id} t={t} selId={t.id} hideAccount={!!accountId}
                     checked={selected.has(t.id)} onToggleRow={toggleRow}
                   />
                 ))}
