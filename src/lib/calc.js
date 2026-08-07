@@ -87,7 +87,13 @@ export function lastActivity(acc, store) {
 }
 
 // Income = income tx. Expenses = expense tx (bank + card) + transfer fees − refunds. Transfers & card payments excluded.
-export function monthMetrics(store, month, now) {
+// Portfolio metrics for a month. Pass `accountId` to scope the balance figures
+// (opening / totalBank / uncleared / working) to a single account — used by the
+// per-account ledger's balance strip. Omit it for the whole-portfolio numbers
+// the Dashboard and All-Accounts view use. Flow metrics (income/expenses/net)
+// stay portfolio-wide; the scoped consumer (compact PositionStrip) reads only
+// the balance figures.
+export function monthMetrics(store, month, now, accountId) {
   const mtx = store.transactions.filter(t => inMonth(t, month) && t.status !== 'pending' && hasOccurred(t, now));
   const income = mtx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const refunds = mtx.filter(t => t.type === 'refund').reduce((s, t) => s + t.amount, 0);
@@ -95,7 +101,9 @@ export function monthMetrics(store, month, now) {
     + mtx.filter(t => t.type === 'transfer').reduce((s, t) => s + (t.fee || 0), 0);
   const expenses = gross - refunds;
   const net = income - expenses;
-  const active = store.accounts.filter(a => a.status === 'active');
+  const active = accountId
+    ? store.accounts.filter(a => a.id === accountId)
+    : store.accounts.filter(a => a.status === 'active');
   const opening = active.reduce((s, a) => s + openingOf(a, store.snapshots, month), 0);
   const totalBank = active.reduce((s, a) => s + accountBalance(a, store, month, now), 0);
   const cardLiability = store.cards.filter(c => c.type === 'credit' && c.status !== 'closed').reduce((s, c) => s + cardOutstanding(c, store, month, now), 0);

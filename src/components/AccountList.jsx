@@ -32,7 +32,7 @@ export default function AccountList() {
   const [addHover, setAddHover] = useState(false);
 
   const { rows, total } = accountRows(data, currentMonth(), nowIso());
-  const activeId = pathname.startsWith('/accounts/') ? decodeURIComponent(pathname.split('/')[2]) : null;
+  const activeId = pathname.startsWith('/transactions/') ? decodeURIComponent(pathname.split('/')[2]) : null;
   const typeById = new Map(data.accounts.map(a => [a.id, a.type]));
 
   const rowBtn = active => ({
@@ -68,7 +68,7 @@ export default function AccountList() {
             const active = r.id === activeId;
             const neg = !masked && r.balance < 0;
             return (
-              <button key={r.id} onClick={() => navigate('/accounts/' + r.id)} className="hv-elev" style={rowBtn(active)}>
+              <button key={r.id} onClick={() => navigate('/transactions/' + r.id)} className="hv-elev" style={rowBtn(active)}>
                 <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: 6, flex: 'none', display: 'grid', placeItems: 'center', background: 'var(--accent-soft)', color: 'var(--accent-h)' }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{GLYPH[glyphFor(typeById.get(r.id))]}</svg>
                 </span>

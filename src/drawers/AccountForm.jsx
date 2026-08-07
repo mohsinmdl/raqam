@@ -3,11 +3,11 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { parseAmt } from '../lib/format.js';
-import { accountRefs, INST_KINDS } from '../lib/calc.js';
+import { accountBalance, accountRefs, INST_KINDS } from '../lib/calc.js';
 import BankKindField, { KindOptions } from './BankKindField.jsx';
-import { currentMonth } from '../lib/dates.js';
+import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { ACCOUNT_TYPES } from '../store/seed.js';
-import { addAccount, updateAccount } from '../store/actions.js';
+import { addAccount, adjustBalance, updateAccount } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, grid2 } from './fields.jsx';
 
@@ -103,9 +103,10 @@ function Body() {
               </div>
             )}
           </div>
-          <div style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--soft)', fontSize: 12.5, lineHeight: 1.5 }}>
-            <span style={{ fontWeight: 700, color: 'var(--accent-h)' }}>Balance is not edited here. </span>
-            Corrections go through “Adjust balance” on the account page, so every change stays labelled in history.
+          <div>
+            <Label htmlFor="a-wbal">Working Balance</Label>
+            <AmountField id="a-wbal" field="workingBalance" />
+            <Hint>An adjustment transaction is created automatically if you change this amount.</Hint>
           </div>
         </>
       )}
@@ -135,9 +136,20 @@ function useSubmit() {
     const errs = validate.account(S, f, { skipBalance: editing });
     if (Object.keys(errs).length) { fail(errs, Object.values(errs)); return; }
     if (editing) {
-      applyData(data => updateAccount(data, { form: f }));
+      // Metadata via updateAccount; if the Working Balance field changed, chain
+      // an adjustment in the same reducer so both land as one undo step.
+      const acct = S.accounts.find(a => a.id === f.editId);
+      const cur = acct ? accountBalance(acct, S, currentMonth(), nowIso()) : 0;
+      const target = parseAmt(f.workingBalance);
+      const delta = Number.isFinite(target) ? target - cur : 0;
+      applyData(data => {
+        const updated = updateAccount(data, { form: f });
+        return delta !== 0
+          ? adjustBalance(updated, { accountId: f.editId, delta, reason: 'Balance reconciled from Edit account', date: todayStr(), currentBalance: cur })
+          : updated;
+      });
       closeDrawer();
-      notify('Account updated.');
+      notify(delta !== 0 ? 'Account updated — balance adjusted.' : 'Account updated.');
       return;
     }
     const bal = parseAmt(f.balance);

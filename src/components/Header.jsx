@@ -39,9 +39,11 @@ export default function Header() {
 
   const seg = pathname.split('/')[1] || 'dashboard';
   let title = TITLES[seg] || 'Dashboard';
-  if (pathname.startsWith('/accounts/')) {
+  // A scoped ledger (/transactions/:accountId) titles the bar with the account
+  // nickname; the in-page breadcrumb carries the "All Accounts ›" context.
+  if (pathname.startsWith('/transactions/')) {
     const acc = S?.accounts.find(a => a.id === decodeURIComponent(pathname.split('/')[2]));
-    title = acc?.nickname || 'Account';
+    title = acc?.nickname || 'All Accounts';
   }
   if (pathname.startsWith('/recurring/')) {
     const rule = S?.recurring.find(r => r.id === decodeURIComponent(pathname.split('/')[2]));

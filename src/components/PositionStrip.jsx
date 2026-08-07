@@ -24,14 +24,14 @@ const linkBtn = { border: 'none', background: 'none', color: 'var(--accent)', fo
 // Working row (Transactions only). It is deliberately much shorter: the month
 // figures (opening, change) live on the Dashboard, and this screen just wants
 // the balances that a ledger cares about.
-export default function PositionStrip({ trailing, compact, wide }) {
+export default function PositionStrip({ trailing, compact, wide, accountId }) {
   const { data: S } = useStore();
   const { month } = useMonth();
   const { money, moneyS } = useMoney();
   const [explain, setExplain] = useState(false);
 
   const now = nowIso();
-  const M = monthMetrics(S, month, now);
+  const M = monthMetrics(S, month, now, accountId);
 
   if (compact) {
     const amtColor = n => (n > 0 ? 'var(--pos)' : n < 0 ? 'var(--neg)' : 'var(--muted)');
