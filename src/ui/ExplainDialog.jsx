@@ -10,7 +10,7 @@ const ROWS = [
   { term: 'Income / Expenses', def: 'Cleared income transactions; cleared expenses include transfer fees, minus refunds. Transfers themselves are never counted as spending.' },
   { term: 'Net cash flow', def: 'Income − expenses for the month. Negative means you spent more than you earned.' },
   { term: 'Savings & savings rate', def: 'Savings = net cash flow when positive. Savings rate = net cash flow ÷ income (shown as — when there is no income).' },
-  { term: 'Pending', def: 'Pending transactions are shown in lists but excluded from every total until cleared.' },
+  { term: 'Uncleared', def: 'Uncleared transactions are shown in lists but excluded from every total until cleared.' },
 ];
 
 export default function ExplainDialog({ open, onClose }) {

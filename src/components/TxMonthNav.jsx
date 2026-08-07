@@ -66,13 +66,13 @@ export default function TxMonthNav() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 2, border: '1px solid var(--border)', borderRadius: 8, padding: 2, background: 'var(--bg)' }}>
         <button
           onClick={() => prev && setRange(prev)} disabled={!prev}
-          aria-label="Previous month" className="hv-soft" style={arrowStyle(!prev)}
+          aria-label="Previous month" style={arrowStyle(!prev)}
         >‹</button>
         <button
           onClick={openPopover}
           aria-haspopup="dialog" aria-expanded={String(open)}
           title="Choose dates"
-          className="tnum hv-soft"
+          className="tnum"
           style={{
             minWidth: 96, height: 26, padding: '0 8px', border: 'none', borderRadius: 6,
             background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 600,
@@ -81,7 +81,7 @@ export default function TxMonthNav() {
         >{label}</button>
         <button
           onClick={() => next && setRange(next)} disabled={!next}
-          aria-label="Next month" className="hv-soft" style={arrowStyle(!next)}
+          aria-label="Next month" style={arrowStyle(!next)}
         >›</button>
       </div>
 

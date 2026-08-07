@@ -4,9 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 // mounted ABOVE auth so the login screen is themed too. Per-user prefs
 // (skippedSetup) live with StoreProvider, which knows the signed-in user.
 const KEY = 'raqam.prefs.v1';
-// density is a device pref like theme: how tight the rows should be is a
-// property of the screen you are reading on, not of your account.
-const DEFAULTS = { theme: 'light', masked: true, density: 'comfortable' };
+const DEFAULTS = { theme: 'light', masked: true };
 
 const Ctx = createContext(null);
 

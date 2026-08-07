@@ -131,7 +131,7 @@ export default function Budgets() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, flex: 1 }}>
-            A budget is one monthly amount that applies to every month. Spending counts cleared transactions only — pending ones are included once they clear.
+            A budget is one monthly amount that applies to every month. Spending counts cleared transactions only — uncleared ones are included once they clear.
           </p>
           <button
             onClick={() => setPrefs({ includeRecoverable: !inc })}

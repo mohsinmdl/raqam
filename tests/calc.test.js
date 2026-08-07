@@ -249,3 +249,29 @@ describe('upsertCategory exclusion edits', () => {
     expect(next.budgets).toHaveLength(3);
   });
 });
+
+describe('monthMetrics — cleared / uncleared / working', () => {
+  it('cleared excludes pending; working = cleared + signed uncleared', () => {
+    const S = makeStore([
+      tx({ id: 'c1', type: 'expense', amount: 5000, category: 'rent' }),                       // cleared
+      tx({ id: 'p1', type: 'expense', amount: 3000, category: 'rent', status: 'pending' }),     // −3000
+      tx({ id: 'p2', type: 'income', amount: 1000, category: 'salary', status: 'pending' }),    // +1000
+    ]);
+    const M = monthMetrics(S, AUG);
+    expect(M.totalBank).toBe(95000);   // 100000 opening − 5000 cleared
+    expect(M.uncleared).toBe(-2000);   // −3000 + 1000
+    expect(M.working).toBe(93000);     // 95000 + (−2000)
+  });
+
+  it('uncleared is 0 with nothing pending, so working equals cleared', () => {
+    const S = makeStore([tx({ id: 'c1', type: 'expense', amount: 5000, category: 'rent' })]);
+    const M = monthMetrics(S, AUG);
+    expect(M.uncleared).toBe(0);
+    expect(M.working).toBe(M.totalBank);
+  });
+
+  it('a pending adjustment carries its own sign into uncleared', () => {
+    const S = makeStore([tx({ id: 'p', type: 'adjustment', amount: -2500, status: 'pending' })]);
+    expect(monthMetrics(S, AUG).uncleared).toBe(-2500);
+  });
+});

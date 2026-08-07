@@ -579,10 +579,37 @@ export function setTransactionsStatus(data, { ids, status }) {
     ...data,
     transactions: data.transactions.map(t => (hitIds.has(t.id) ? stampUpdate({ ...t, status }) : t)),
     audit: [
-      ...bulkAudit(hit, 'update', 'Marked ' + hit.length + ' as ' + status, batchId, {
+      // Stored value is 'pending'; the audit reads "uncleared" to match the UI.
+      ...bulkAudit(hit, 'update', 'Marked ' + hit.length + ' as ' + (status === 'pending' ? 'uncleared' : status), batchId, {
         before: t => ({ status: t.status }),
         after: () => ({ status }),
       }),
+      ...(data.audit || []),
+    ],
+  };
+}
+
+// Exact copies of the selected rows with fresh ids — every other field is kept,
+// so a duplicated cleared expense counts in balances immediately, exactly like
+// its original. Edit history is dropped: a copy is a new row, not an edited one.
+export function duplicateTransactions(data, { ids }) {
+  const set = bulkIds(ids);
+  const hit = data.transactions.filter(t => set.has(t.id));
+  if (hit.length === 0) return data;
+  const batchId = uid();
+  const copies = hit.map(t => {
+    const { editedAt, editCount, ...rest } = t;
+    return { ...rest, id: uid() };
+  });
+  return {
+    ...data,
+    transactions: [...copies, ...data.transactions],
+    audit: [
+      ...copies.map(c => makeAudit({
+        entityType: 'transaction', entityId: c.id, action: 'create',
+        summary: 'Duplicated ' + copies.length + ' transaction' + (copies.length === 1 ? '' : 's'),
+        after: { type: c.type, amount: c.amount, date: c.date, batchId },
+      })),
       ...(data.audit || []),
     ],
   };

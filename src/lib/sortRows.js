@@ -22,7 +22,7 @@ const isBlank = v => v == null || String(v).trim() === '' || String(v).trim() ==
 // Cancelled, Cleared, Failed, Overdue, which tells the reader nothing. Lower
 // rank = needs your attention sooner. Ascending puts work first.
 export const STATUS_RANK = {
-  overdue: 0, failed: 1, scheduled: 2, pending: 3, cleared: 4, cancelled: 5,
+  overdue: 0, failed: 1, scheduled: 2, uncleared: 3, cleared: 4, cancelled: 5,
 };
 const statusRank = row => {
   const r = STATUS_RANK[String(row.stLabel || '').trim().toLowerCase()];
@@ -37,6 +37,7 @@ export const SORT_COLUMNS = {
   details: { defaultDir: 'asc', type: 'collate', get: r => r.merchant },
   category: { defaultDir: 'asc', type: 'collate', get: r => r.catName },
   account: { defaultDir: 'asc', type: 'collate', get: r => r.acctLabel },
+  notes: { defaultDir: 'asc', type: 'collate', get: r => r.notes },
   status: { defaultDir: 'asc', type: 'number', get: statusRank },
   // Amount has two modes, because they answer different questions.
   //
@@ -140,6 +141,7 @@ export function sortLabel(sort) {
     details: { asc: 'Details A–Z', desc: 'Details Z–A' },
     category: { asc: 'Category A–Z', desc: 'Category Z–A' },
     account: { asc: 'Account A–Z', desc: 'Account Z–A' },
+    notes: { asc: 'Notes A–Z', desc: 'Notes Z–A' },
     status: { asc: 'Needs action first', desc: 'Settled first' },
     size: { asc: 'Smallest first', desc: 'Largest first' },
     // Named for what you are looking for, not the arithmetic: ascending puts

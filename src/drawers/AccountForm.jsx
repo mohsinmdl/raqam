@@ -29,7 +29,7 @@ function Body() {
   const statusWarn = editing && f.status && f.status !== 'active'
     ? [refs.cards ? refs.cards + ' linked card' + (refs.cards === 1 ? '' : 's') : null,
        refs.recurring ? refs.recurring + ' active recurring rule' + (refs.recurring === 1 ? '' : 's') : null,
-       refs.pending ? refs.pending + ' pending transaction' + (refs.pending === 1 ? '' : 's') : null,
+       refs.pending ? refs.pending + ' uncleared transaction' + (refs.pending === 1 ? '' : 's') : null,
       ].filter(Boolean).join(', ')
     : '';
 
