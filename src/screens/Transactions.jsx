@@ -147,8 +147,11 @@ function Row({ t, selId, checked, onToggleRow, scheduled }) {
       style={{ height: '2.25rem', background: checked ? 'var(--soft)' : scheduled ? 'color-mix(in srgb, var(--warn-soft) 40%, var(--surface))' : undefined, cursor: selId ? 'pointer' : undefined }}
     >
       {/* Padding moves onto the checkbox's own label so the whole cell, not
-          just the 13px box, is the target. */}
-      <td style={{ ...td, ...dim, padding: 0, position: 'relative', verticalAlign: 'middle' }}>
+          just the 13px box, is the target. minWidth floors the column: the box
+          has fixed geometry (18px inset + 13px), and without a floor the auto
+          table-layout compresses this column on a narrow window until the box
+          overflows into ACCOUNT. */}
+      <td style={{ ...td, ...dim, padding: 0, position: 'relative', verticalAlign: 'middle', minWidth: 34 }}>
         {selId && (
           <Checkbox
             fill
@@ -547,7 +550,7 @@ export default function Transactions() {
                       away while the rest stuck, letting rows bleed through.
                       Sticky already provides the containing block the fill
                       checkbox needs. */}
-                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px' }}>
+                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px', minWidth: 34 }}>
                     <Checkbox
                       fill
                       checked={allVisibleSelected}
