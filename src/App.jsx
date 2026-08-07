@@ -12,7 +12,6 @@ import { DrawerProvider } from './ui/DrawerProvider.jsx';
 import { drawerRegistry } from './drawers/index.js';
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
-import DataControls from './components/DataControls.jsx';
 import Dashboard from './screens/Dashboard.jsx';
 import Transactions from './screens/Transactions.jsx';
 import Accounts from './screens/Accounts.jsx';
@@ -33,7 +32,7 @@ function Shell() {
         fontFamily: "'IBM Plex Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.45,
       }}
     >
-      <Sidebar footer={<DataControls />} />
+      <Sidebar />
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <Header />
         <main style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>

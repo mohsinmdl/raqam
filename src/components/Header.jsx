@@ -42,7 +42,7 @@ function HistoryButton({ glyph, label, hint, disabled, onClick }) {
 
 export default function Header() {
   const { pathname } = useLocation();
-  const { data: S, prefs, setPrefs, syncStatus, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
+  const { data: S, syncStatus, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
   const { month, isPast, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
   const { drawer, openDrawer } = useDrawer();
 
@@ -81,7 +81,6 @@ export default function Header() {
   const activeAccts = S ? S.accounts.filter(a => a.status === 'active') : [];
   const addDisabled = activeAccts.length === 0;
   const now = nowIso();
-  const theme = prefs.theme;
 
   return (
     <header style={{ height: 60, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
@@ -111,12 +110,6 @@ export default function Header() {
         <HistoryButton glyph="↷" label="Redo" hint={redoLabel || ''} disabled={!canRedo} onClick={redo} />
       </span>
       <RecentMoves />
-      <button onClick={() => setPrefs({ masked: !prefs.masked })} aria-pressed={String(prefs.masked)} className="hv-elev" style={btnStyle}>
-        {prefs.masked ? 'Show amounts' : 'Hide amounts'}
-      </button>
-      <button onClick={() => setPrefs({ theme: theme === 'light' ? 'dark' : 'light' })} aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} className="hv-elev" style={btnStyle}>
-        {theme === 'light' ? '◐ Dark' : '◐ Light'}
-      </button>
       <button
         onClick={() => openers.addTx(openDrawer)}
         disabled={addDisabled}
