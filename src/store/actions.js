@@ -588,6 +588,32 @@ export function setTransactionsStatus(data, { ids, status }) {
   };
 }
 
+// Exact copies of the selected rows with fresh ids — every other field is kept,
+// so a duplicated cleared expense counts in balances immediately, exactly like
+// its original. Edit history is dropped: a copy is a new row, not an edited one.
+export function duplicateTransactions(data, { ids }) {
+  const set = bulkIds(ids);
+  const hit = data.transactions.filter(t => set.has(t.id));
+  if (hit.length === 0) return data;
+  const batchId = uid();
+  const copies = hit.map(t => {
+    const { editedAt, editCount, ...rest } = t;
+    return { ...rest, id: uid() };
+  });
+  return {
+    ...data,
+    transactions: [...copies, ...data.transactions],
+    audit: [
+      ...copies.map(c => makeAudit({
+        entityType: 'transaction', entityId: c.id, action: 'create',
+        summary: 'Duplicated ' + copies.length + ' transaction' + (copies.length === 1 ? '' : 's'),
+        after: { type: c.type, amount: c.amount, date: c.date, batchId },
+      })),
+      ...(data.audit || []),
+    ],
+  };
+}
+
 // ---- Recurring rules (design iteration 003) --------------------------------
 
 const RULE_AUDIT_FIELDS = ['name', 'type', 'amount', 'estimated', 'schedule', 'nextDate', 'accountId', 'cardId', 'category', 'autoPost', 'status'];

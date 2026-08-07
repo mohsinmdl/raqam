@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deleteTransactions, setTransactionsCategory, setTransactionsStatus } from '../src/store/actions.js';
+import { deleteTransactions, duplicateTransactions, setTransactionsCategory, setTransactionsStatus } from '../src/store/actions.js';
 
 const tx = over => ({
   id: 't1', date: '2026-08-05T12:00', type: 'expense', amount: 100, status: 'cleared',
@@ -56,6 +56,55 @@ describe('deleteTransactions', () => {
     expect(deleteTransactions(base, { ids: [] })).toBe(base);
     expect(deleteTransactions(base, { ids: ['nope'] })).toBe(base);
     expect(deleteTransactions(base, {})).toBe(base);
+  });
+});
+
+describe('duplicateTransactions', () => {
+  it('appends an exact copy of each selected row with a fresh id', () => {
+    const s = duplicateTransactions(store(), { ids: ['t1', 't3'] });
+    expect(s.transactions).toHaveLength(5);
+    const copies = s.transactions.filter(t => !['t1', 't2', 't3'].includes(t.id));
+    expect(copies).toHaveLength(2);
+    // every field but the id matches an original
+    for (const c of copies) {
+      const orig = [tx({ id: 't1' }), tx({ id: 't3', amount: 300, status: 'pending' })]
+        .find(o => o.amount === c.amount && o.status === c.status);
+      const { id: _c, ...cRest } = c;
+      const { id: _o, ...oRest } = orig;
+      expect(cRest).toEqual(oRest);
+      expect(c.id).not.toBe(orig.id);
+    }
+  });
+
+  it('gives the copies unique ids', () => {
+    const s = duplicateTransactions(store(), { ids: ['t1', 't2', 't3'] });
+    const ids = s.transactions.map(t => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('writes one create-audit per copy, sharing a batchId, keyed to the NEW id', () => {
+    const s = duplicateTransactions(store(), { ids: ['t1', 't3'] });
+    const rows = s.audit.filter(a => a.action === 'create');
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map(a => a.after.batchId)).size).toBe(1);
+    // audit points at the copies, never the originals
+    const copyIds = new Set(s.transactions.filter(t => !['t1', 't2', 't3'].includes(t.id)).map(t => t.id));
+    expect(rows.every(a => copyIds.has(a.entityId))).toBe(true);
+  });
+
+  it('does not carry edit history onto a copy', () => {
+    const base = store({ transactions: [tx({ id: 't1', editedAt: '2026-08-06T10:00', editCount: 3 })] });
+    const s = duplicateTransactions(base, { ids: ['t1'] });
+    const copy = s.transactions.find(t => t.id !== 't1');
+    expect(copy.editedAt).toBeUndefined();
+    expect(copy.editCount).toBeUndefined();
+  });
+
+  it('is a no-op for an empty or missing selection', () => {
+    const base = store();
+    expect(duplicateTransactions(base, { ids: [] })).toBe(base);
+    expect(duplicateTransactions(base, { ids: ['nope'] })).toBe(base);
+    expect(duplicateTransactions(base, {})).toBe(base);
   });
 });
 
@@ -144,6 +193,7 @@ describe('immutability', () => {
     Object.freeze(base.transactions);
     base.transactions.forEach(Object.freeze);
     expect(() => deleteTransactions(base, { ids: ['t1'] })).not.toThrow();
+    expect(() => duplicateTransactions(base, { ids: ['t1'] })).not.toThrow();
     expect(() => setTransactionsCategory(base, { ids: ['t1'], categoryId: 'groc' })).not.toThrow();
     expect(() => setTransactionsStatus(base, { ids: ['t3'], status: 'cleared' })).not.toThrow();
     expect(base.transactions).toHaveLength(3);

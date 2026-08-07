@@ -14,7 +14,7 @@ import { txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
 import { advanceDue, longDate, ruleFromTx } from '../lib/schedule.js';
-import { deleteRule, deleteTransaction, deleteTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
+import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import RowMenu from '../ui/RowMenu.jsx';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
@@ -82,7 +82,9 @@ function SortableHeader({ col, sort, onSort }) {
         // before activation, when what matters is what pressing it will do.
         // The resulting state is announced separately through the live region.
         aria-label={'Sort ' + col.label.toLowerCase() + ' ' + nextWord}
-        className="hv-soft"
+        // No hover fill on the column header — the pointer cursor and the sort
+        // icon are the affordance; the tinted fill read as the column being
+        // highlighted.
         style={{
           display: 'flex', alignItems: 'center', gap: 5, width: '100%',
           minHeight: 44, padding: '9px 8px', whiteSpace: 'nowrap',
@@ -399,6 +401,22 @@ export default function Transactions() {
     if (!ok) return;
     afterBulk('Deleted ' + sel.length + '.', data => deleteTransactions(data, { ids: sel }));
   };
+  const bulkDuplicate = () => afterBulk(
+    'Duplicated ' + sel.length + ' transaction' + (sel.length === 1 ? '' : 's') + '.',
+    data => duplicateTransactions(data, { ids: sel }),
+  );
+  // "Make repeating" only makes sense one row at a time — the drawer configures
+  // a single schedule. Shown for a lone selection, and it reuses seriesItem so
+  // an already-repeating row offers "View rule" instead. Clearing the selection
+  // first lets the drawer own the screen.
+  const singleRepeatItem = () => {
+    if (sel.length !== 1) return null;
+    const t = S.transactions.find(x => x.id === sel[0]);
+    if (!t) return null;
+    const item = seriesItem(t.id, t.type === 'expense' || t.type === 'income');
+    if (!item) return null;
+    return { label: item.label, icon: 'repeat', onClick: () => { clearSel(); item.onClick(); } };
+  };
 
   const addDisabled = S.accounts.filter(a => a.status === 'active').length === 0;
 
@@ -423,7 +441,12 @@ export default function Transactions() {
           actions={[
             { label: 'Mark cleared', onClick: () => bulkStatus('cleared') },
             { label: 'Mark pending', onClick: () => bulkStatus('pending') },
-            { label: 'Delete', onClick: bulkDelete, tone: 'neg' },
+          ]}
+          more={[
+            { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate },
+            singleRepeatItem(),
+            { divider: true },
+            { label: 'Delete', icon: 'delete', onClick: bulkDelete, tone: 'neg' },
           ]}
         />
 
