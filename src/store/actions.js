@@ -344,6 +344,17 @@ export function setAccountStatus(data, { accountId, status }) {
   };
 }
 
+// Close an account: zero its balance (when non-zero) with an adjustment, then
+// mark it closed. One reducer → one undo step. `currentBalance` is supplied by
+// the caller (already computed for the modal copy) so this stays pure.
+export function closeAccount(data, { accountId, currentBalance }) {
+  const hasBal = Math.abs(currentBalance) > 0.005;
+  const zeroed = hasBal
+    ? adjustBalance(data, { accountId, delta: -currentBalance, reason: 'Balance zeroed on account close', date: todayStr(), currentBalance })
+    : data;
+  return setAccountStatus(zeroed, { accountId, status: 'closed' });
+}
+
 const ACC_AUDIT_FIELDS = ['instId', 'nickname', 'type', 'currency', 'last4', 'notes', 'status'];
 
 // Edit account metadata (balance is NEVER edited here — Adjust balance owns that).
