@@ -147,11 +147,18 @@ function Row({ t, selId, checked, onToggleRow, actions, dense }) {
   // is a hover away rather than gone. The ⋯ button (30px) sets the floor, so
   // compact rows land at ~36px against ~56px comfortable.
   const pad = dense ? '3px 8px' : '10px 8px';
+  // A pending row dims to rowOpacity. That dim lives on the data cells, NOT the
+  // <tr> — CSS opacity on the row would flatten its whole subtree into one
+  // translucent group, and the RowMenu popover (absolutely positioned inside
+  // the actions cell) would inherit it, rendering see-through over the rows it
+  // drops onto. The actions cell is deliberately left un-dimmed so the menu
+  // stays fully opaque. '1' is a no-op, so this is unconditional.
+  const dim = { opacity: t.rowOpacity };
   return (
-    <tr className="hv-elev" title={dense && t.hasNotes ? t.notes : undefined} style={{ opacity: t.rowOpacity, background: checked ? 'var(--soft)' : undefined }}>
+    <tr className="hv-elev" title={dense && t.hasNotes ? t.notes : undefined} style={{ background: checked ? 'var(--soft)' : undefined }}>
       {/* Padding moves onto the checkbox's own label so the whole cell, not
           just the 13px box, is the target. */}
-      <td style={{ ...td, padding: 0, position: 'relative', verticalAlign: 'middle' }}>
+      <td style={{ ...td, ...dim, padding: 0, position: 'relative', verticalAlign: 'middle' }}>
         {selId && (
           <Checkbox
             fill
@@ -161,7 +168,7 @@ function Row({ t, selId, checked, onToggleRow, actions, dense }) {
           />
         )}
       </td>
-      <td style={{ ...td, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
         {dense ? (
           <div style={{ whiteSpace: 'nowrap' }}>
             <span className="tnum" style={{ fontSize: 12.5, fontWeight: 500 }}>{t.dateLabel}</span>
@@ -174,27 +181,27 @@ function Row({ t, selId, checked, onToggleRow, actions, dense }) {
           </>
         )}
       </td>
-      <td style={{ ...td, maxWidth: 280, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, maxWidth: 280, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: dense ? 13 : 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
           <TxChips row={t} meta />
         </div>
         {!dense && t.hasNotes && <div style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</div>}
       </td>
-      <td style={{ ...td, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
           <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.catName}</span>
         </div>
       </td>
-      <td style={{ ...td, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
-      <td style={{ ...td, padding: pad, textAlign: 'center', verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, padding: pad, verticalAlign: dense ? 'middle' : 'top' }}><span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.acctLabel}</span></td>
+      <td style={{ ...td, ...dim, padding: pad, textAlign: 'center', verticalAlign: dense ? 'middle' : 'top' }}>
         <span
           role="img" aria-label={t.stLabel} title={t.stTitle || t.stLabel}
           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 999, background: t.stColor, color: t.stOn, fontSize: 11, fontWeight: 700, lineHeight: 1, flex: 'none' }}
         >{t.stGlyph}</span>
       </td>
-      <td style={{ ...td, padding: pad, textAlign: 'right', verticalAlign: dense ? 'middle' : 'top' }}>
+      <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: dense ? 'middle' : 'top' }}>
         <span className="tnum" style={{ fontSize: dense ? 13 : 13.5, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
       </td>
       <td style={{ ...td, padding: dense ? '3px 18px 3px 8px' : '10px 18px 10px 8px', textAlign: 'right', verticalAlign: 'middle' }}>
