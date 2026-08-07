@@ -29,6 +29,7 @@ export default function AccountList() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(true);
+  const [addHover, setAddHover] = useState(false);
 
   const { rows, total } = accountRows(data, currentMonth(), nowIso());
   const activeId = pathname.startsWith('/accounts/') ? decodeURIComponent(pathname.split('/')[2]) : null;
@@ -82,8 +83,19 @@ export default function AccountList() {
       {/* Add account stays outside the collapse — reachable even when the list
           is folded. When the list is expanded it pins just beneath it. */}
       <div style={{ padding: '4px 12px 10px' }}>
-        <button onClick={() => openers.addAccount(openDrawer)} className="hv-elev" style={{ ...rowBtn(false), color: 'var(--accent)', fontWeight: 600, fontSize: 13.5 }}>
-          <span aria-hidden="true" style={{ width: 20, height: 20, display: 'grid', placeItems: 'center', flex: 'none', fontSize: 16, lineHeight: 1 }}>＋</span> Add account
+        <button
+          onClick={() => openers.addAccount(openDrawer)}
+          onMouseEnter={() => setAddHover(true)}
+          onMouseLeave={() => setAddHover(false)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            height: 34, width: '100%', border: 'none', borderRadius: 8,
+            background: addHover ? 'color-mix(in srgb, var(--soft) 82%, var(--accent))' : 'var(--soft)',
+            color: 'var(--accent)', fontWeight: 600, fontSize: 13.5, cursor: 'pointer',
+            transition: 'background .15s ease',
+          }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 16, lineHeight: 1 }}>＋</span> Add account
         </button>
       </div>
     </div>
