@@ -560,6 +560,9 @@ export default function Transactions() {
           >
             <WideIcon />
           </button>
+          {/* Divider: Fit-width is a display control; Sort + Search are the
+              content pair to its right. */}
+          <span aria-hidden="true" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 6px' }} />
           <button
             onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
             aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}
