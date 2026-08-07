@@ -174,10 +174,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled }) {
         </div>
       </td>
       <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: 'middle' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-          <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
-          <span style={{ fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
-        </div>
+        <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
       </td>
       {/* Notes: free text, truncated with an ellipsis and the full value on hover. */}
       <td style={{ ...td, ...dim, maxWidth: 200, padding: pad, verticalAlign: 'middle' }}>
