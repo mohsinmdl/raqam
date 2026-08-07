@@ -7,6 +7,7 @@
 // Inverted like Toast (background --text on --bg) so it reads as an overlay
 // rather than another card, and so it stays legible against both themes.
 import { useEffect, useRef, useState } from 'react';
+import { useBottomBar } from './UIProvider.jsx';
 
 const btn = {
   height: 30, padding: '0 12px', borderRadius: 8, cursor: 'pointer',
@@ -126,6 +127,9 @@ function MoreMenu({ items }) {
 
 export default function BulkBar({ count, actions, more, onClear }) {
   const [clearHover, setClearHover] = useState(false);
+  // Tell the toast to sit above this bar while it's showing (called before the
+  // early return so the hook order is stable).
+  useBottomBar(count > 0);
   if (!count) return null;
   const moreItems = (more || []).filter(Boolean);
   return (
