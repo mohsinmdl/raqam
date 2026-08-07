@@ -89,13 +89,25 @@ export const openers = {
     openDrawer('adjust', { accountId, newBalance: String(cur), reason: '', date: todayStr(), currentBalance: cur });
   },
 
+  // Reconcile one account: confirm its opening balance (and correct via an
+  // adjustment if the real balance differs). Prefill the current computed balance.
+  reconcile: (S, accountId, openDrawer) => {
+    const acc = S.accounts.find(a => a.id === accountId);
+    if (!acc) return;
+    const cur = accountBalance(acc, S, currentMonth(), nowIso());
+    openDrawer('reconcile', { accountId, balance: String(cur), currentBalance: cur });
+  },
+
   editAccount: (S, accountId, openDrawer) => {
     const a = S.accounts.find(x => x.id === accountId);
     if (!a) return;
+    // workingBalance seeds the inline balance field; changing it on save records
+    // an adjustment (see AccountForm useSubmit).
     openDrawer('addAccount', {
       editId: a.id, inst: a.instId, customInst: '', customInstKind: 'Custom', type: a.type, nickname: a.nickname,
       last4: a.last4 || '', notes: a.notes || '',
       status: a.status, balance: '', asof: '',
+      workingBalance: String(accountBalance(a, S, currentMonth(), nowIso())),
     });
   },
 

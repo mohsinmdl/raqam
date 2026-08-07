@@ -274,4 +274,35 @@ describe('monthMetrics — cleared / uncleared / working', () => {
     const S = makeStore([tx({ id: 'p', type: 'adjustment', amount: -2500, status: 'pending' })]);
     expect(monthMetrics(S, AUG).uncleared).toBe(-2500);
   });
+
+  it('scopes balance figures to one account when accountId is passed', () => {
+    const S = makeStore(
+      [
+        tx({ id: 'x1', type: 'expense', amount: 5000, accountId: 'a1', category: 'rent' }),                    // a1 cleared −5000
+        tx({ id: 'x2', type: 'expense', amount: 2000, accountId: 'a2', category: 'rent' }),                    // a2 cleared −2000
+        tx({ id: 'x3', type: 'income', amount: 1000, accountId: 'a2', status: 'pending', category: 'salary' }), // a2 pending +1000
+      ],
+      {
+        accounts: [
+          { id: 'a1', nickname: 'Main', status: 'active' },
+          { id: 'a2', nickname: 'Side', status: 'active' },
+        ],
+        snapshots: [
+          { accountId: 'a1', month: AUG, amount: 100000, status: 'confirmed' },
+          { accountId: 'a2', month: AUG, amount: 50000, status: 'confirmed' },
+        ],
+      },
+    );
+    // Whole portfolio: 95000 (a1) + 48000 (a2).
+    expect(monthMetrics(S, AUG).totalBank).toBe(143000);
+    // Scoped to a2 only.
+    const M2 = monthMetrics(S, AUG, undefined, 'a2');
+    expect(M2.totalBank).toBe(48000);
+    expect(M2.uncleared).toBe(1000);
+    expect(M2.working).toBe(49000);
+    // Scoped to a1 only — a2's pending income must not leak in.
+    const M1 = monthMetrics(S, AUG, undefined, 'a1');
+    expect(M1.totalBank).toBe(95000);
+    expect(M1.uncleared).toBe(0);
+  });
 });

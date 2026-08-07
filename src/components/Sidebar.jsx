@@ -39,7 +39,7 @@ export default function Sidebar() {
   const isActive = to =>
     pathname === to
     || (to === '/budget' && pathname.startsWith('/budget'))
-    || (to === '/transactions' && pathname.startsWith('/accounts'));
+    || (to === '/transactions' && pathname.startsWith('/transactions'));
 
   return (
     <aside style={{ borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>

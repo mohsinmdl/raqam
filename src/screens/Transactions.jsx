@@ -1,6 +1,6 @@
 // Transactions list screen — template 268-336, txScreenVals script 1018-1054.
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
 import { DEFAULT_SORT, nextSortState, sortLabel } from '../lib/sortRows.js';
@@ -8,7 +8,8 @@ import SortIcon from '../ui/SortIcon.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
-import { nowIso } from '../lib/dates.js';
+import { nowIso, currentMonth } from '../lib/dates.js';
+import { relTime } from '../lib/calc.js';
 import { inRange, rangeLabel } from '../lib/dateRange.js';
 import { txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
@@ -272,6 +273,11 @@ export default function Transactions() {
   const fmt = useMoney();
   const { openDrawer } = useDrawer();
   const navigate = useNavigate();
+  // Optional per-account scope: /transactions/:accountId shows one account's
+  // ledger. An unknown id falls back to the whole All-Accounts view.
+  const { accountId } = useParams();
+  const acct = accountId ? S.accounts.find(a => a.id === accountId) : null;
+  useEffect(() => { if (accountId && !acct) navigate('/transactions', { replace: true }); }, [accountId, acct, navigate]);
   // The view itself lives above the router (TxViewContext) so leaving this
   // screen and coming back does not reset it. Everything below is genuinely
   // per-visit: a selection, an open popover, an open row menu.
@@ -294,7 +300,8 @@ export default function Transactions() {
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const reset = () => resetView();
 
-  const monthTx = S.transactions.filter(t => inRange(t, range.from, range.to));
+  const monthTx = S.transactions.filter(t => inRange(t, range.from, range.to)
+    && (!accountId || t.accountId === accountId || t.toAccountId === accountId));
   // Search is the only filter here now — it matches merchant, notes, category
   // and every account or card the row touches (matchesQuery). The other filters
   // are each moving to the screen that owns the question.
@@ -506,9 +513,39 @@ export default function Transactions() {
       {/* Wide mode is flush and seamless: no column gap, so the sections meet at
           a single divider line rather than sitting apart as separate cards. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: wide ? 0 : 14, animation: 'hsFade .25s ease' }}>
-        {/* Balance strip: Cleared + Uncleared = Working. Search + actions live
-            in the toolbar band below now, matching the All-Accounts reference. */}
-        <PositionStrip compact wide={wide} />
+        {/* Per-account header: breadcrumb + reconcile status on the left, edit
+            (pencil) + Reconcile on the right. Only on /transactions/:accountId. */}
+        {acct && (() => {
+          const snap = S.snapshots.find(s => s.accountId === acct.id && s.month === currentMonth());
+          const reconLabel = snap && snap.status === 'confirmed' ? 'Reconciled ' + relTime(snap.confirmedAt, now) : 'Not reconciled';
+          return (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: wide ? '14px 18px' : '16px 18px', background: 'var(--surface)',
+              ...(wide ? { borderBottom: '1px solid var(--border)' } : { border: '1px solid var(--border)', borderRadius: 12 }),
+            }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}>
+                  <Link to="/transactions" className="hv-accent-fg" style={{ color: 'var(--muted)', fontWeight: 600, textDecoration: 'none' }}>All Accounts</Link>
+                  <span aria-hidden="true" style={{ color: 'var(--muted)', fontWeight: 400 }}>›</span>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.nickname}</span>
+                </div>
+                <div style={{ marginTop: 2, fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>{acct.type} · {reconLabel}</div>
+              </div>
+              <span style={{ flex: 1 }} />
+              <button onClick={() => openers.editAccount(S, acct.id, openDrawer)} aria-label="Edit account" title="Edit account" className="hv-soft"
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
+              </button>
+              <button onClick={() => openers.reconcile(S, acct.id, openDrawer)} className="hv-accent"
+                style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>
+                Reconcile
+              </button>
+            </div>
+          );
+        })()}
+        {/* Balance strip: Cleared + Uncleared = Working (scoped to the account
+            when one is selected). */}
+        <PositionStrip compact wide={wide} accountId={accountId} />
 
         {/* One bar at a time: recorded selection wins, else the scheduled one.
             The two selections are mutually exclusive, so only one has a count. */}
@@ -565,7 +602,7 @@ export default function Transactions() {
           {/* Divider: Fit-width is a display control; Sort + Search are the
               content pair to its right. */}
           <span aria-hidden="true" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 6px' }} />
-          <SearchField value={F.q} onChange={v => setF('q', v)} placeholder="Search All Accounts" label="Search transactions" />
+          <SearchField value={F.q} onChange={v => setF('q', v)} placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
           <button
             onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
             aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}

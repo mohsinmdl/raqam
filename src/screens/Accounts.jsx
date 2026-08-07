@@ -67,7 +67,7 @@ export default function Accounts() {
               <span style={colHeader}>FRESHNESS</span><span style={colHeader}>NUMBER</span><span />
             </div>
             {rows.map(a => (
-              <div key={a.id} onClick={() => nav(`/accounts/${a.id}`)} className="hv-elev" style={{ ...gridCols, alignItems: 'center', padding: '13px 18px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+              <div key={a.id} onClick={() => nav(`/transactions/${a.id}`)} className="hv-elev" style={{ ...gridCols, alignItems: 'center', padding: '13px 18px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nick}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
@@ -87,7 +87,7 @@ export default function Accounts() {
                 <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{a.last4}</div>
                 <div style={{ textAlign: 'right', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                   <button onClick={e => { e.stopPropagation(); openers.editAccount(S, a.id, openDrawer); }} className="hv-elev" style={{ height: 28, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Edit</button>
-                  <button onClick={e => { e.stopPropagation(); nav(`/accounts/${a.id}`); }} className="hv-soft" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>View</button>
+                  <button onClick={e => { e.stopPropagation(); nav(`/transactions/${a.id}`); }} className="hv-soft" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>View</button>
                 </div>
               </div>
             ))}
