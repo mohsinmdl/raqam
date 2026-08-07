@@ -20,6 +20,7 @@ import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
 import PositionStrip from '../components/PositionStrip.jsx';
 import SearchField from '../ui/SearchField.jsx';
+import { matchesQuery } from '../lib/txSearch.js';
 
 // Sticky against <main>'s scroll. No overflow is introduced here — the section
 // deliberately has none, because it would clip the per-row ⋯ menu. z-index sits
@@ -244,15 +245,10 @@ export default function Transactions() {
   const reset = () => resetView();
 
   const monthTx = S.transactions.filter(t => inRange(t, range.from, range.to));
-  const q = F.q.trim().toLowerCase();
-  const catName = id => ((S.categories.find(c => c.id === id) || {}).name || '');
-  // Search is the only filter here now. Account, category, type, status and
-  // budget impact are each moving to the screen they belong to — see the
-  // Reset button's comment for where.
-  let list = monthTx.filter(t => {
-    if (q && !((t.merchant || '').toLowerCase().includes(q) || (t.notes || '').toLowerCase().includes(q) || catName(t.category).toLowerCase().includes(q))) return false;
-    return true;
-  });
+  // Search is the only filter here now — it matches merchant, notes, category
+  // and every account or card the row touches (matchesQuery). The other filters
+  // are each moving to the screen that owns the question.
+  const list = monthTx.filter(t => matchesQuery(t, F.q, S));
 
   // Scheduled and recorded are two populations, not one list — txGroups holds
   // the rules for which row lands where, and is tested there.
