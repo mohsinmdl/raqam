@@ -28,7 +28,7 @@ export default function AccountList() {
   const { openDrawer } = useDrawer();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [addHover, setAddHover] = useState(false);
 
   const { rows, total } = accountRows(data, currentMonth(), nowIso());
