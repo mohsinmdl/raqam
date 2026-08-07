@@ -18,6 +18,7 @@ import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransaction
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
 import PositionStrip from '../components/PositionStrip.jsx';
+import RecentMoves from '../components/RecentMoves.jsx';
 import SearchField from '../ui/SearchField.jsx';
 import { matchesQuery } from '../lib/txSearch.js';
 
@@ -546,6 +547,7 @@ export default function Transactions() {
           <span aria-hidden="true" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 4px' }} />
           <ToolbarAction icon={<UndoIcon />} label="Undo" disabled={!canUndo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} onClick={undo} />
           <ToolbarAction icon={<RedoIcon />} label="Redo" disabled={!canRedo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} onClick={redo} />
+          <RecentMoves />
           <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
             {sortLabel(sort) + ', ' + list.length + ' row' + (list.length === 1 ? '' : 's')}
           </span>

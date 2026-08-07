@@ -14,7 +14,7 @@ import { AUDIT_FETCH_LIMIT } from '../store/sync.js';
 // and footer are ordinary siblings the list cannot slide under. A sticky
 // footer would have had to fight this panel's own padding for the same edge.
 const panelStyle = {
-  position: 'absolute', top: 38, right: 0, zIndex: 30, width: 400, maxWidth: '92vw',
+  position: 'absolute', top: 38, left: 0, zIndex: 30, width: 400, maxWidth: '92vw',
   maxHeight: 460, display: 'flex', flexDirection: 'column', overflow: 'hidden',
   background: 'var(--surface)', border: '1px solid var(--border)',
   borderRadius: 12, boxShadow: 'var(--shadow)',
@@ -90,15 +90,20 @@ export default function RecentMoves() {
         ref={triggerRef}
         onClick={() => setOpen(o => !o)}
         aria-haspopup="dialog" aria-expanded={String(open)}
-        title="Recent moves"
-        className="hv-elev"
+        title="Recent Moves"
+        className="hv-soft"
         style={{
-          height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8,
-          background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500,
+          display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 12px',
+          border: '1px solid ' + (open ? 'var(--accent)' : 'var(--border)'), borderRadius: 8,
+          background: 'transparent', color: 'var(--accent)', fontSize: 13, fontWeight: 600,
           cursor: 'pointer', whiteSpace: 'nowrap',
         }}
       >
-        Recent moves
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
+          <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7.5V12l3 2" />
+        </svg>
+        Recent Moves
       </button>
 
       {open && (

@@ -4,7 +4,6 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { monthLabel } from '../lib/calc.js';
-import RecentMoves from './RecentMoves.jsx';
 import TxMonthNav from './TxMonthNav.jsx';
 
 const TITLES = {
@@ -73,7 +72,6 @@ export default function Header() {
           Not saved — retrying
         </span>
       )}
-      <RecentMoves />
     </header>
   );
 }
