@@ -97,7 +97,8 @@ describe('ruleRowOf', () => {
     const past = ruleRowOf(rule({ nextDate: '2026-08-01' }), store(), fmt, NOW);
     expect(past.stLabel).toBe('Overdue');
     expect(past.isOverdue).toBe(true);
-    expect(past.stFg).toBe('var(--neg)');
+    expect(past.stGlyph).toBe('!');
+    expect(past.stColor).toBe('var(--neg)');
   });
 
   it('counts today as due, not overdue', () => {
@@ -230,7 +231,8 @@ describe('future-dated transaction presentation', () => {
 
   it('says Scheduled, not Cleared — the stored status answers a question the date makes unanswerable', () => {
     expect(futureTxRowOf(water, store(), fmt, NOW).stLabel).toBe('Scheduled');
-    expect(futureTxRowOf(water, store(), fmt, NOW).stFg).toBe('var(--info)');
+    expect(futureTxRowOf(water, store(), fmt, NOW).stGlyph).toBe('S');
+    expect(futureTxRowOf(water, store(), fmt, NOW).stColor).toBe('var(--info)');
     expect(futureTxRowOf(tx({ date: '2027-03-06T07:26', status: 'pending' }), store(), fmt, NOW).stLabel).toBe('Scheduled');
   });
 
