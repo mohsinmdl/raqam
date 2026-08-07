@@ -247,8 +247,8 @@ function AddTxButton({ onClick, disabled }) {
     >
       <span
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
-          padding: raised ? '0 14px' : '0 6px',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: raised ? '7px 14px' : '7px 6px',
           margin: raised ? '0 -8px' : '0',
           borderRadius: 8,
           // Subtle tint on hover — the same --soft the sidebar's selected tab
@@ -259,7 +259,7 @@ function AddTxButton({ onClick, disabled }) {
           transition: 'background .15s ease',
         }}
       >
-        <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>＋</span> Add transaction
+        <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>＋</span> Add Transaction
       </span>
     </button>
   );
