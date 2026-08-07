@@ -52,7 +52,7 @@ export default function RecurringDetail() {
   if (!r) {
     return (
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
-        <Link to="/recurring" style={{ fontSize: 12.5, color: 'var(--accent)' }}>‹ All recurring rules</Link>
+        <Link to="/budget/recurring" style={{ fontSize: 12.5, color: 'var(--accent)' }}>‹ All recurring rules</Link>
         <div style={{ ...card, padding: '48px 20px', textAlign: 'center', marginTop: 14 }}>
           <div style={{ fontSize: 15, fontWeight: 600 }}>That rule no longer exists</div>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '6px 0 0' }}>It may have been deleted. Any transactions it created are unaffected.</p>
@@ -95,13 +95,13 @@ export default function RecurringDetail() {
     if (!ok) return;
     applyData(data => deleteRule(data, { id: r.id }));
     notify('Rule deleted.');
-    navigate('/recurring');
+    navigate('/budget/recurring');
   };
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
-        <Link to="/recurring" style={{ fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none' }}>‹ All recurring rules</Link>
+        <Link to="/budget/recurring" style={{ fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none' }}>‹ All recurring rules</Link>
 
         <section style={{ ...card, padding: '16px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>

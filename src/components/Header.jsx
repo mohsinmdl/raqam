@@ -11,7 +11,7 @@ import TxMonthNav from './TxMonthNav.jsx';
 
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
-  budgets: 'Budgets', recurring: 'Recurring', reports: 'Reports', categories: 'Categories', settings: 'Settings',
+  budget: 'Budget', budgets: 'Budgets', recurring: 'Recurring', reports: 'Reports', categories: 'Categories', settings: 'Settings',
 };
 
 const btnStyle = {
@@ -76,7 +76,7 @@ export default function Header() {
   }
   // Transactions gets its own control in this slot: it filters by a date range,
   // not a single month, so it cannot share the stepper below.
-  const showMonthSel = seg === 'dashboard' || seg === 'budgets';
+  const showMonthSel = seg === 'dashboard' || pathname === '/budget';
   const showTxNav = seg === 'transactions';
   const activeAccts = S ? S.accounts.filter(a => a.status === 'active') : [];
   const addDisabled = activeAccts.length === 0;
