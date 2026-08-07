@@ -56,9 +56,15 @@ export default function UserMenu({ name, email, onClose }) {
       <button role="menuitem" className="hv-elev" style={row} onClick={() => { onClose(); signOut(); }}>
         <span aria-hidden="true">⇥</span> Sign out
       </button>
+      {/* Disabled for now: this is a hard, irreversible, server-side wipe, so
+          it stays inert until a type-to-confirm safeguard is added. onReset is
+          still wired (never fires while disabled) so re-enabling is a one-liner. */}
       {hasUserData && (
-        <button role="menuitem" className="hv-neg-soft" style={{ ...row, color: 'var(--neg)' }} onClick={onReset}>
+        <button role="menuitem" disabled onClick={onReset}
+          title="Temporarily disabled — a type-to-confirm safeguard is coming before this can wipe your data"
+          style={{ ...row, color: 'var(--muted)', cursor: 'default', opacity: 0.5 }}>
           <span aria-hidden="true">⌫</span> Reset all data
+          <span style={{ ...rightNote, color: 'var(--muted)' }}>Disabled</span>
         </button>
       )}
     </div>
