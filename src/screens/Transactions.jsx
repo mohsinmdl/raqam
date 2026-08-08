@@ -270,7 +270,7 @@ export default function Transactions() {
   // so the rows use all the space available. On by default; the toggle only
   // stores an explicit `false` to opt back into the narrow, boxed layout.
   const wide = prefs.wide !== false;
-  const { ask, notify, confirmOpen } = useUI();
+  const { ask, notify, confirmOpen, shortcutsOpen } = useUI();
   const fmt = useMoney();
   const { openDrawer, drawer } = useDrawer();
   const navigate = useNavigate();
@@ -532,7 +532,7 @@ export default function Transactions() {
     { spec: SPEC.enterNow, when: () => selSched.length === 1 && !selSched[0].row.isRule, run: () => { const x = selSched[0]; clearSched(); askPostNow(x.row); } },
     { spec: SPEC.reconcile, when: () => !!acct, run: () => openers.reconcile(S, accountId, openDrawer) },
   ];
-  useShortcuts(txShortcuts, !drawer && !confirmOpen);
+  useShortcuts(txShortcuts, !drawer && !confirmOpen && !shortcutsOpen);
 
   return (
     <div style={{ maxWidth: wide ? 'none' : 1180, margin: '0 auto', padding: wide ? '0 0 56px' : '24px 28px 56px' }}>

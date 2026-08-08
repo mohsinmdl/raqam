@@ -12,7 +12,7 @@ export default function GlobalShortcuts() {
   const { drawer, openDrawer } = useDrawer();
   const bindings = [
     { spec: SPEC.help,  run: () => (shortcutsOpen ? closeShortcuts() : openShortcuts()) },
-    { spec: SPEC.addTx, run: () => openers.addTx(openDrawer) },
+    { spec: SPEC.addTx, when: () => !shortcutsOpen, run: () => openers.addTx(openDrawer) },
   ];
   useShortcuts(bindings, !drawer && !confirmOpen);
   return null;
