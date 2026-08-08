@@ -14,7 +14,7 @@ export default function ConfirmDialog({ confirm, onCancel }) {
   }, [confirm, onCancel]);
   if (!confirm) return null;
   return (
-    <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'hsFade .15s ease', zIndex: 50 }}>
+    <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'hsFade .15s ease', zIndex: 70 }}>
       <FocusTrap>
         <div role="dialog" aria-modal="true" aria-label={confirm.title} onClick={e => e.stopPropagation()} style={{ width: 400, maxWidth: '92vw', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow)', padding: '22px 24px', animation: 'hsUp .18s ease', color: 'var(--text)' }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{confirm.title}</div>

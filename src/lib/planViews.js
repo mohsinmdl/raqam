@@ -49,7 +49,7 @@ export function normalizeViews(raw, cats) {
   const live = new Set((cats || []).map(c => c.id));
   const seen = new Set();
   return raw
-    .filter(v => v && typeof v.id === 'string' && !seen.has(v.id) && seen.add(v.id) !== false)
+    .filter(v => v && typeof v.id === 'string' && !isBuiltin(v.id) && !seen.has(v.id) && seen.add(v.id) !== false)
     .map(v => ({
       id: v.id,
       name: String(v.name || 'Untitled').slice(0, MAX_NAME),

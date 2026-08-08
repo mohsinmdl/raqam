@@ -103,6 +103,14 @@ describe('normalizeViews', () => {
     expect(out[1].name).toHaveLength(40);                   // truncated
     expect(out.map(v => v.sortOrder)).toEqual([0, 1]);      // resequenced
   });
+  it('drops a hand-edited pref whose id collides with a builtin', () => {
+    const raw = [
+      { id: 'overspent', name: 'X', categoryIds: ['a'] },
+      { id: 'v1', name: 'Valid', categoryIds: ['b'] },
+    ];
+    const out = normalizeViews(raw, CATS);
+    expect(out.map(v => v.id)).toEqual(['v1']);
+  });
 });
 
 describe('reorderViews', () => {
