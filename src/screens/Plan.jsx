@@ -15,10 +15,12 @@ import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
-import { BUILTIN_VIEWS, normalizeViews, visibleSections } from '../lib/planViews.js';
+import { BUILTIN_VIEWS, normalizeViews, newView, reorderViews, visibleSections } from '../lib/planViews.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
+import ViewEditorModal from '../ui/plan/ViewEditorModal.jsx';
+import ManageViewsModal from '../ui/plan/ManageViewsModal.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
@@ -899,10 +901,30 @@ export default function Plan() {
     });
   }, [visibleCatIds]);
 
-  // Task 4 wires these to ManageViewsModal / ViewEditorModal; here they only
-  // hold state so FilterPills has somewhere to send onManage/onNewView.
+  // editing: null (both modals closed) | 'new' (create) | a view object
+  // (edit that view). ViewEditorModal's `view` prop needs an actual null for
+  // create mode, so the 'new' sentinel is unwrapped just before render.
   const [manageOpen, setManageOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const writeViews = next => setPrefs({ planViews: next });
+
+  const saveView = ({ name, categoryIds }) => {
+    if (editing === 'new') {
+      const v = newView(name, categoryIds, views);
+      writeViews([...views, v]);
+      setPrefs({ planViewId: v.id });
+    } else if (editing) {
+      // Replace by id, preserving sortOrder — only name/categoryIds change.
+      writeViews(views.map(v => (v.id === editing.id ? { ...v, name, categoryIds } : v)));
+    }
+    setEditing(null);
+  };
+  const deleteView = id => {
+    writeViews(views.filter(v => v.id !== id));
+    if (activeViewId === id) setPrefs({ planViewId: 'all' });
+  };
+  const renameView = (id, name) => writeViews(views.map(v => (v.id === id ? { ...v, name } : v)));
+  const reorder = (fromId, toId) => writeViews(reorderViews(views, fromId, toId));
 
   const noGroups = !(S.categoryGroups && S.categoryGroups.length);
   const catBudgets = useMemo(() => (S.budgets || []).filter(b => b.category), [S.budgets]);
@@ -942,7 +964,7 @@ export default function Plan() {
             activeId={activeViewId}
             onSelect={id => setPrefs({ planViewId: id })}
             onManage={() => setManageOpen(true)}
-            onNewView={() => setEditing({})}
+            onNewView={() => setEditing('new')}
             env={env}
             catIds={activeCatIds}
           />
@@ -989,6 +1011,23 @@ export default function Plan() {
         </div>
         <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} />
       </div>
+
+      <ViewEditorModal
+        open={editing !== null}
+        view={editing === 'new' ? null : editing}
+        groups={sections}
+        onSave={saveView}
+        onCancel={() => setEditing(null)}
+      />
+      <ManageViewsModal
+        open={manageOpen}
+        views={views}
+        onReorder={reorder}
+        onRename={renameView}
+        onDelete={deleteView}
+        onNew={() => { setManageOpen(false); setEditing('new'); }}
+        onClose={() => setManageOpen(false)}
+      />
     </div>
   );
 }
