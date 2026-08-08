@@ -19,7 +19,7 @@ const sep = <div aria-hidden="true" style={{ borderTop: '1px solid var(--border)
 export default function UserMenu({ name, email, onClose }) {
   const { signOut } = useAuth();
   const { data, prefs, setPrefs, replaceData } = useStore();
-  const { ask, notify } = useUI();
+  const { ask, notify, openShortcuts } = useUI();
   const navigate = useNavigate();
   const hasUserData = data && (data.accounts.length > 0 || data.transactions.length > 0 || data.cards.length > 0);
 
@@ -53,6 +53,9 @@ export default function UserMenu({ name, email, onClose }) {
         <span aria-hidden="true">⚙</span> Settings
       </button>
       {sep}
+      <button role="menuitem" className="hv-elev" style={row} onClick={() => { onClose(); openShortcuts(); }}>
+        <span aria-hidden="true">⌘</span> Keyboard shortcuts <span style={rightNote}>?</span>
+      </button>
       <button role="menuitem" className="hv-elev" style={row} onClick={() => { onClose(); signOut(); }}>
         <span aria-hidden="true">⇥</span> Sign out
       </button>
