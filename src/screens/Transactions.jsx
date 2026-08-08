@@ -360,11 +360,20 @@ export default function Transactions() {
       return;
     }
     setAnchorId(id);
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (on) next.add(id); else next.delete(id);
-      return next;
-    });
+    // The checkbox (no event), Ctrl/Cmd+click, and Space add to / remove from
+    // the selection. A plain row-body click selects only that row (clearing the
+    // rest), or clears it when it is already the sole selection.
+    const additive = !e || e.metaKey || e.ctrlKey;
+    if (additive) {
+      setSelected(prev => {
+        const next = new Set(prev);
+        const shouldSelect = e ? !next.has(id) : on;
+        if (shouldSelect) next.add(id); else next.delete(id);
+        return next;
+      });
+      return;
+    }
+    setSelected(prev => (prev.size === 1 && prev.has(id)) ? new Set() : new Set([id]));
   };
   const toggleAll = on => { setSchedSel(new Set()); setSelected(on ? new Set(visibleIds) : new Set()); };
   const toggleSched = (key, on) => {

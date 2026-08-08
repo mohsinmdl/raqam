@@ -22,7 +22,8 @@ Keys act on the **visible recorded rows** (`visibleIds = postedTx.map(t => t.id)
 - **Space** — toggle the cursor row's selection (via `toggleRow`). Only when a cursor exists **and** `document.activeElement` is not an interactive control (BUTTON/A/INPUT/TEXTAREA/SELECT/contentEditable), so it never hijacks a focused button. `preventDefault`.
 - **Shift + ↑ / ↓** — move the cursor, then set `selected` to `rangeBetween(anchor, cursor)`.
 - **Shift + click** a row — set `selected` to `rangeBetween(anchor, clickedId)`; cursor → clicked. `preventDefault` (avoids the browser's shift text-selection).
-- **Plain click** — unchanged toggle, and also sets cursor = anchor = that id.
+- **Plain click** on a row body — selects **only** that row (clears the rest), or clears it when it is already the sole selection; sets cursor = anchor = that id.
+- **Ctrl/⌘ + click** — additive toggle (add/remove that row, keeping the rest). The **checkbox** and **Space** are also additive toggles. (So multi-select requires the checkbox, Ctrl/⌘+click, Space, or Shift.)
 - **Escape** — clears the selection (unchanged); the cursor persists.
 
 Any Space/Shift selection goes through the existing `toggleRow`/`setSelected`, which already clears `schedSel` (mutual exclusion). Range ops **replace** `selected` with the range (standard).
