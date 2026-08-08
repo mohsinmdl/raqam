@@ -556,7 +556,12 @@ export default function Transactions() {
     { spec: SPEC.delete, when: () => sel.length > 0, run: bulkDelete },
     { spec: SPEC.makeRepeating, when: () => singleRepeatItem() != null, run: () => singleRepeatItem().onClick() },
     { spec: SPEC.enterNow, when: () => selSched.length === 1 && !selSched[0].row.isRule, run: () => { const x = selSched[0]; clearSched(); askPostNow(x.row); } },
-    { spec: SPEC.reconcile, when: () => !!acct, run: () => openers.reconcile(S, accountId, openDrawer) },
+    // Shift+E edits the selected row when exactly one editable row is selected;
+    // otherwise it reconciles the account (only meaningful on an account ledger).
+    { spec: SPEC.reconcile, when: () => singleEditItem() != null || !!acct, run: () => {
+        const edit = singleEditItem();
+        if (edit) edit.onClick(); else openers.reconcile(S, accountId, openDrawer);
+      } },
   ];
   useShortcuts(txShortcuts, !drawer && !confirmOpen && !shortcutsOpen);
   // V-then-key sets the date-range view (the presets from the View Options popover).

@@ -16,8 +16,9 @@ export const SHORTCUT_GROUPS = [
     { id: 'duplicate',     keys: ['shift', 'D'],      label: 'Duplicate',                  spec: { key: 'd', shift: true } },
     { id: 'delete',        keys: ['delete'],          label: 'Delete',                     spec: { key: 'Delete', alt: 'Backspace' } },
     { id: 'makeRepeating', keys: ['shift', 'T'],      label: 'Make repeating',             spec: { key: 't', shift: true } },
+    { id: 'editSelected',  keys: ['shift', 'E'],      label: 'Edit selected transaction',  spec: { key: 'e', shift: true } },
     { id: 'enterNow',      keys: ['E'],               label: 'Enter now (post scheduled)', spec: { key: 'e' } },
-    { id: 'reconcile',     keys: ['shift', 'E'],      label: 'Reconcile account',          spec: { key: 'e', shift: true } },
+    { id: 'reconcile',     keys: ['shift', 'E'],      label: 'Reconcile account (no selection)', spec: { key: 'e', shift: true } },
     { id: 'focusSearch',   keys: ['⌘', 'shift', 'F'], label: 'Focus the search bar',       spec: { key: 'f', meta: true, shift: true } },
   ] },
   // Two-key "leader" sequences: press G, then the second key (within ~1.2s).
