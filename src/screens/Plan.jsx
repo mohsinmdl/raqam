@@ -16,6 +16,7 @@ import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
+import Inspector from '../ui/plan/Inspector.jsx';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
   adoptYnabTree, importBudgetsAsAssignments, moveAssigned,
@@ -799,6 +800,10 @@ export default function Plan() {
 
   const env = useMemo(() => envelopeFor(S, month, nowIso()), [S, month]);
   const prevRta = useMemo(() => envelopeFor(S, prevMonth(month), nowIso()).rta, [S, month]);
+  const envAt = useMemo(() => {
+    const cache = new Map();
+    return m => { if (!cache.has(m)) cache.set(m, envelopeFor(S, m, nowIso())); return cache.get(m); };
+  }, [S]);
 
   const [collapsed, setCollapsed] = useState(() => new Set());
   const toggleGroup = key => setCollapsed(prev => {
@@ -885,53 +890,56 @@ export default function Plan() {
   const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, setMany };
 
   return (
-    <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
-        {showBanner && (
-          <AdoptionBanner
-            noGroups={noGroups}
-            needsImport={hasUnimportedStanding}
-            onAdopt={() => applyData(data => adoptYnabTree(data))}
-            onImport={() => applyData(data => importBudgetsAsAssignments(data, { month }))}
-            onDismiss={() => setPrefs({ planBannerDismissed: true })}
-          />
-        )}
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
-          <div style={{ flex: 1 }} />
-          <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
-          <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
-        </div>
-
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
-            <PlanCheckbox label="Select all categories"
-              checked={selected.size > 0 && selected.size === activeCatIds.length}
-              indeterminate={selected.size > 0 && selected.size < activeCatIds.length}
-              onChange={() => setMany(activeCatIds, selected.size !== activeCatIds.length)} />
-            <span style={HEAD}>CATEGORY</span>
-            <span style={{ ...HEAD, textAlign: 'right' }}>ASSIGNED</span>
-            <span style={{ ...HEAD, textAlign: 'right' }}>ACTIVITY</span>
-            <span style={{ ...HEAD, textAlign: 'right' }}>AVAILABLE</span>
-          </div>
-          {sections.map(({ group, key, cats, totals }) => {
-            const isCollapsed = collapsed.has(key);
-            return (
-              <div key={key ?? 'other'}>
-                <GroupRow group={group} totals={totals} cats={cats} collapsed={isCollapsed} onToggle={() => toggleGroup(key)} ctx={ctx} />
-                {!isCollapsed && cats.map(cat => (
-                  <CategoryRow key={cat.id} cat={cat} row={env.rows.get(cat.id)} ctx={ctx} />
-                ))}
-              </div>
-            );
-          })}
-          {sections.length === 0 && (
-            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
-              No categories yet. Organize your categories into groups to start planning your budget.
-            </div>
+    <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 28px 56px' }}>
+      <div className="plan-grid" style={{ animation: 'hsFade .25s ease' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {showBanner && (
+            <AdoptionBanner
+              noGroups={noGroups}
+              needsImport={hasUnimportedStanding}
+              onAdopt={() => applyData(data => adoptYnabTree(data))}
+              onImport={() => applyData(data => importBudgetsAsAssignments(data, { month }))}
+              onDismiss={() => setPrefs({ planBannerDismissed: true })}
+            />
           )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
+            <div style={{ flex: 1 }} />
+            <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
+            <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
+          </div>
+
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
+              <PlanCheckbox label="Select all categories"
+                checked={selected.size > 0 && selected.size === activeCatIds.length}
+                indeterminate={selected.size > 0 && selected.size < activeCatIds.length}
+                onChange={() => setMany(activeCatIds, selected.size !== activeCatIds.length)} />
+              <span style={HEAD}>CATEGORY</span>
+              <span style={{ ...HEAD, textAlign: 'right' }}>ASSIGNED</span>
+              <span style={{ ...HEAD, textAlign: 'right' }}>ACTIVITY</span>
+              <span style={{ ...HEAD, textAlign: 'right' }}>AVAILABLE</span>
+            </div>
+            {sections.map(({ group, key, cats, totals }) => {
+              const isCollapsed = collapsed.has(key);
+              return (
+                <div key={key ?? 'other'}>
+                  <GroupRow group={group} totals={totals} cats={cats} collapsed={isCollapsed} onToggle={() => toggleGroup(key)} ctx={ctx} />
+                  {!isCollapsed && cats.map(cat => (
+                    <CategoryRow key={cat.id} cat={cat} row={env.rows.get(cat.id)} ctx={ctx} />
+                  ))}
+                </div>
+              );
+            })}
+            {sections.length === 0 && (
+              <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                No categories yet. Organize your categories into groups to start planning your budget.
+              </div>
+            )}
+          </div>
         </div>
+        <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} />
       </div>
     </div>
   );
