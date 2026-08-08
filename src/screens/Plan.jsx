@@ -10,9 +10,12 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { nowIso } from '../lib/dates.js';
+import { prevMonth, monthLabel } from '../lib/calc.js';
+import { useUI } from '../ui/UIProvider.jsx';
+import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
-  adoptYnabTree, importBudgetsAsAssignments,
+  adoptYnabTree, importBudgetsAsAssignments, moveAssigned,
 } from '../store/actions.js';
 
 // Synthetic group used only for rendering: categories with no groupId, or a
@@ -84,17 +87,164 @@ function AdoptionBanner({ noGroups, needsImport, onAdopt, onImport, onDismiss })
   );
 }
 
+// RTA breakdown popover — opened by clicking the banner's label/amount.
+// Itemizes how `rta` was reached: last month's leftover, this month's opening
+// balances/income/assignments/uncategorized spend, and a derived overspending
+// line so the rows sum to `rta` exactly (see the identity comment below).
+// Zero rows are hidden; the total never is.
+function RtaBreakdown({ env, prevRta, month, money, moneyS, fg, labelColor }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const close = () => setOpen(false);
+  usePopoverDismiss(open, rootRef, close);
+
+  const monthName = monthLabel(month).split(' ')[0];
+  // Exact by construction: rearranging rta = prevRta + opening + income -
+  // assigned - uncategorized - prevOverspend (envelope.js's own fold) for
+  // prevOverspend is what makes the breakdown's rows sum to `rta`.
+  const overspend = prevRta + env.openingTotal + env.income - env.assignedTotal - env.uncategorized - env.rta;
+  const rows = [
+    { label: 'Left over from last month', value: prevRta },
+    { label: '+ Opening balances', value: env.openingTotal },
+    { label: '+ Inflow: income in ' + monthName, value: env.income },
+    { label: '− Assigned in ' + monthName, value: -env.assignedTotal },
+    { label: '− Uncategorized outflows', value: -env.uncategorized },
+    { label: '− Last month’s overspending', value: -overspend },
+  ].filter(r => r.value !== 0);
+
+  return (
+    <div ref={rootRef} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)} aria-haspopup="dialog" aria-expanded={String(open)}
+        style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 6px 12px 16px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}
+      >
+        <span style={{ fontSize: 14, fontWeight: 400, color: labelColor }}>Ready to Assign</span>
+        <span className="tnum" style={{ fontSize: 21, fontWeight: 700, color: fg }}>{money(env.rta)}</span>
+      </button>
+      {open && (
+        <div role="dialog" aria-label="Ready to Assign breakdown" style={{ ...popCard, top: 58, left: 0, width: 320 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Ready to Assign Breakdown</div>
+          <div style={{ background: 'var(--elev)', borderRadius: 8, padding: '8px 10px' }}>
+            {rows.map(r => (
+              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '4px 0', fontSize: 12.5 }}>
+                <span style={{ color: 'var(--muted)' }}>{r.label}</span>
+                <span className="tnum">{moneyS(r.value)}</span>
+              </div>
+            ))}
+            <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '4px 0', fontSize: 13, fontWeight: 700 }}>
+              <span>Total Ready to Assign</span>
+              <span className="tnum" style={{ color: env.rta > 0 ? 'var(--pos)' : 'inherit' }}>{money(env.rta)}</span>
+            </div>
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 10 }}>
+            Ready to Assign is money that hasn’t been given a job yet. Assign it to one or more categories.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Assign popover on the RTA banner. "⚡ Auto" is a disabled placeholder tab
+// (targets land in a later phase); "Manually" moves a chosen amount out of
+// Ready to Assign into one category via moveAssigned — one CRUD call, same
+// contract the Available-pill "Move" popover will reuse later. The category
+// picker is nested inside this same popover: PlanCategoryPicker is the panel,
+// this component owns its own open/dismiss (and the nested picker's).
+function AssignPopover({ rta, env, S, month, money, applyData }) {
+  const { notify } = useUI();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(() => String(rta));
+  const [to, setTo] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  const close = () => setOpen(false);
+  usePopoverDismiss(open, rootRef, close);
+
+  const openPopover = () => {
+    setAmount(String(rta));
+    setTo(null);
+    setPickerOpen(false);
+    setOpen(true);
+  };
+
+  const toCat = to && S.categories.find(c => c.id === to);
+  const amt = parseAmt(amount);
+  const canAssign = !!to && amt > 0;
+
+  const confirm = () => {
+    if (!canAssign) return;
+    const name = toCat ? toCat.name : to;
+    applyData(data => moveAssigned(data, { from: 'rta', to, month, amount: parseAmt(amount) }));
+    setOpen(false);
+    notify('Assigned ' + money(amt) + ' to ' + name + '.');
+  };
+
+  return (
+    <div ref={rootRef} style={{ position: 'relative', flex: 'none' }}>
+      <button
+        onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
+        style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: '#1F5D1A', color: '#EAF7DC', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+      >Assign ▾</button>
+      {open && (
+        <div role="dialog" aria-label="Assign Ready to Assign money" style={{ ...popCard, top: 40, right: 0, width: 320 }}>
+          <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+            <span title="Targets coming later" style={{ padding: '0 2px 8px', fontSize: 13, fontWeight: 600, color: 'var(--muted)', cursor: 'not-allowed' }}>⚡ Auto</span>
+            <span style={{ padding: '0 2px 8px', fontSize: 13, fontWeight: 600, color: 'var(--accent)', borderBottom: '2px solid var(--accent)' }}>Manually</span>
+          </div>
+
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Assign:</label>
+          <input
+            className="tnum" value={amount} inputMode="numeric"
+            onFocus={e => e.target.select()}
+            onChange={e => setAmount(e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, marginBottom: 10 }}
+          />
+
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>To:</label>
+          <button
+            onClick={() => setPickerOpen(o => !o)} aria-haspopup="listbox" aria-expanded={String(pickerOpen)}
+            className="hv-elev"
+            style={{ width: '100%', height: 34, padding: '0 10px', textAlign: 'left', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: toCat ? 'var(--text)' : 'var(--muted)', fontSize: 13, cursor: 'pointer' }}
+          >{toCat ? toCat.name : 'Choose a category'}</button>
+          {pickerOpen && (
+            <div style={{ marginTop: 8 }}>
+              <PlanCategoryPicker
+                env={env} S={S} month={month} money={money} excludeRta
+                onPick={id => { setTo(id); setPickerOpen(false); }}
+              />
+            </div>
+          )}
+
+          <div style={popBtnRow}>
+            <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
+            <button
+              onClick={confirm} disabled={!canAssign} className="hv-accent"
+              style={{ ...popOk, opacity: canAssign ? 1 : .5, cursor: canAssign ? 'pointer' : 'not-allowed' }}
+            >Assign</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Ready-to-Assign banner. State colours per the reference doc: positive is a
 // literal green tint (not var(--pos-soft) — YNAB's own screenshot colour),
-// zero and negative reuse the theme's neutral / negative tokens.
-function RtaBanner({ rta, money }) {
+// zero and negative reuse the theme's neutral / negative tokens. Splits into
+// the clickable label/amount (opens RtaBreakdown) and, only when there's
+// something to move, a dark-green Assign ▾ button (opens AssignPopover).
+function RtaBanner({ env, prevRta, month, money, moneyS, S, applyData }) {
+  const rta = env.rta;
   const bg = rta > 0 ? '#C9EE8F' : rta === 0 ? 'var(--elev)' : 'var(--neg-soft)';
   const fg = rta > 0 ? '#132B12' : rta === 0 ? 'var(--muted)' : 'var(--neg)';
   const labelColor = rta > 0 ? '#3B4A32' : 'var(--muted)';
   return (
-    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 2, padding: '8px 16px 12px', borderRadius: 8, background: bg, minWidth: 200 }}>
-      <span style={{ fontSize: 14, fontWeight: 400, color: labelColor }}>Ready to Assign</span>
-      <span className="tnum" style={{ fontSize: 21, fontWeight: 700, color: fg }}>{money(rta)}</span>
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, paddingRight: rta !== 0 ? 10 : 0, borderRadius: 8, background: bg, minWidth: 200 }}>
+      <RtaBreakdown env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} fg={fg} labelColor={labelColor} />
+      {rta !== 0 && <AssignPopover rta={rta} env={env} S={S} month={month} money={money} applyData={applyData} />}
     </div>
   );
 }
@@ -304,6 +454,7 @@ export default function Plan() {
   const { money, moneyS } = useMoney();
 
   const env = useMemo(() => envelopeFor(S, month, nowIso()), [S, month]);
+  const prevRta = useMemo(() => envelopeFor(S, prevMonth(month), nowIso()).rta, [S, month]);
 
   const [collapsed, setCollapsed] = useState(() => new Set());
   const toggleGroup = key => setCollapsed(prev => {
@@ -372,7 +523,7 @@ export default function Plan() {
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <RtaBanner rta={env.rta} money={money} />
+          <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
           <div style={{ flex: 1 }} />
           <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
           <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
