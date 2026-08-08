@@ -94,7 +94,7 @@ export default function Header() {
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
           </button>
-          <Tooltip shortcut={SHORTCUT_BY_ID.reconcile} placement="bottom">
+          <Tooltip shortcut={SHORTCUT_BY_ID.reconcile} placement="bottom" align="end">
             <button onClick={() => openers.reconcile(S, acct.id, openDrawer)} className="hv-accent"
               style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
               Reconcile
