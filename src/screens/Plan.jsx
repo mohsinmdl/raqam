@@ -174,7 +174,6 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
   // a negative amount", which moveAssigned rejects anyway (amt <= 0 no-ops).
   const [amount, setAmount] = useState(() => String(Math.max(0, rta)));
   const [to, setTo] = useState(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const rootRef = useRef(null);
 
   const close = () => setOpen(false);
@@ -183,7 +182,6 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
   const openPopover = () => {
     setAmount(String(Math.max(0, rta)));
     setTo(null);
-    setPickerOpen(false);
     setOpen(true);
   };
 
@@ -224,19 +222,10 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
           />
 
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>To:</label>
-          <button
-            onClick={() => setPickerOpen(o => !o)} aria-haspopup="listbox" aria-expanded={String(pickerOpen)}
-            className="hv-elev"
-            style={{ width: '100%', height: 34, padding: '0 10px', textAlign: 'left', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: toCat ? 'var(--text)' : 'var(--muted)', fontSize: 13, cursor: 'pointer' }}
-          >{toCat ? toCat.name : 'Choose a category'}</button>
-          {pickerOpen && (
-            <div style={{ marginTop: 8 }}>
-              <PlanCategoryPicker
-                env={env} S={S} month={month} money={money} excludeRta
-                onPick={id => { setTo(id); setPickerOpen(false); }}
-              />
-            </div>
-          )}
+          <PlanCategoryPicker
+            env={env} S={S} month={month} money={money} excludeRta
+            value={to} onChange={setTo}
+          />
 
           <div style={popBtnRow}>
             <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
@@ -526,12 +515,11 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
   const [open, setOpen] = useState(false);
   const [up, setUp] = useState(false);
   const [from, setFrom] = useState(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const rootRef = useRef(null);
   const close = () => setOpen(false);
   usePopoverDismiss(open, rootRef, close);
 
-  const openPopover = () => { setFrom(null); setPickerOpen(false); setUp(flipIfLow(rootRef.current, 440)); setOpen(true); };
+  const openPopover = () => { setFrom(null); setUp(flipIfLow(rootRef.current, 440)); setOpen(true); };
 
   const fromCat = from && from !== 'rta' ? S.categories.find(c => c.id === from) : null;
   const fromLabel = from === 'rta' ? 'Ready to Assign' : (fromCat ? fromCat.name : null);
@@ -558,19 +546,10 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
         <div role="dialog" aria-label="Cover overspending" style={{ ...popCard, ...(up ? { bottom: 30 } : { top: 30 }), right: 0, width: 300, textAlign: 'left' }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Cover overspending from</div>
           <div className="tnum" style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>{money(amount)}</div>
-          <button
-            onClick={() => setPickerOpen(o => !o)} aria-haspopup="listbox" aria-expanded={String(pickerOpen)}
-            className="hv-elev"
-            style={{ width: '100%', height: 34, padding: '0 10px', textAlign: 'left', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: fromLabel ? 'var(--text)' : 'var(--muted)', fontSize: 13, cursor: 'pointer' }}
-          >{fromLabel || 'Choose a category'}</button>
-          {pickerOpen && (
-            <div style={{ marginTop: 8 }}>
-              <PlanCategoryPicker
-                env={env} S={S} month={month} money={money} excludeId={cat.id}
-                onPick={id => { setFrom(id); setPickerOpen(false); }}
-              />
-            </div>
-          )}
+          <PlanCategoryPicker
+            env={env} S={S} month={month} money={money} excludeId={cat.id}
+            value={from} onChange={setFrom}
+          />
           <div style={popBtnRow}>
             <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
             <button
@@ -593,12 +572,11 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
   const [up, setUp] = useState(false);
   const [amount, setAmount] = useState(() => String(available));
   const [to, setTo] = useState(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const rootRef = useRef(null);
   const close = () => setOpen(false);
   usePopoverDismiss(open, rootRef, close);
 
-  const openPopover = () => { setAmount(String(available)); setTo(null); setPickerOpen(false); setUp(flipIfLow(rootRef.current, 440)); setOpen(true); };
+  const openPopover = () => { setAmount(String(available)); setTo(null); setUp(flipIfLow(rootRef.current, 440)); setOpen(true); };
 
   const toCat = to && to !== 'rta' ? S.categories.find(c => c.id === to) : null;
   const toLabel = to === 'rta' ? 'Ready to Assign' : (toCat ? toCat.name : null);
@@ -631,19 +609,10 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
             style={{ width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, marginBottom: 10 }}
           />
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>To:</label>
-          <button
-            onClick={() => setPickerOpen(o => !o)} aria-haspopup="listbox" aria-expanded={String(pickerOpen)}
-            className="hv-elev"
-            style={{ width: '100%', height: 34, padding: '0 10px', textAlign: 'left', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: toLabel ? 'var(--text)' : 'var(--muted)', fontSize: 13, cursor: 'pointer' }}
-          >{toLabel || 'Choose a category'}</button>
-          {pickerOpen && (
-            <div style={{ marginTop: 8 }}>
-              <PlanCategoryPicker
-                env={env} S={S} month={month} money={money} excludeId={cat.id}
-                onPick={id => { setTo(id); setPickerOpen(false); }}
-              />
-            </div>
-          )}
+          <PlanCategoryPicker
+            env={env} S={S} month={month} money={money} excludeId={cat.id}
+            value={to} onChange={setTo}
+          />
           <div style={popBtnRow}>
             <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
             <button
