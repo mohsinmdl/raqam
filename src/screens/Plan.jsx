@@ -12,6 +12,9 @@ import { envelopeFor } from '../lib/envelope.js';
 import { nowIso } from '../lib/dates.js';
 import { prevMonth, monthLabel } from '../lib/calc.js';
 import { useUI } from '../ui/UIProvider.jsx';
+import { useAuth } from '../auth/AuthProvider.jsx';
+import { resolveDisplayName } from '../lib/identity.js';
+import { applyCalcExpr } from '../lib/calcExpr.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
@@ -373,13 +376,262 @@ function GroupRow({ group, totals, collapsed, onToggle, ctx }) {
   );
 }
 
-// Category (sub) row. ASSIGNED is click-to-edit; ACTIVITY is a signed muted
-// number; AVAILABLE is a coloured pill. In "progress" view a thin bar + note
-// show spend against (carryIn + assigned); "compact" view drops both.
+// DD/MM/YYYY for MovesPopover's DATE column — no other screen needed a
+// human date format in this shape yet, so it lives here rather than dates.js.
+function fmtDMY(iso) {
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return dd + '/' + mm + '/' + d.getFullYear();
+}
+
+const OP_GLYPHS = ['+', '−', '×', '÷'];
+
+// The 2x2 calculator-operator grid under the ASSIGNED editor. Every button
+// mousedown-prevents its default so the ASSIGNED input never blurs (and thus
+// never commits) while the user is just picking an operator — onPick handles
+// the actual draft mutation and refocuses the input itself.
+function OpPopover({ onPick }) {
+  return (
+    <div
+      role="dialog" aria-label="Calculator operators"
+      onMouseDown={e => e.preventDefault()}
+      style={{ ...popCard, top: 36, left: 0, width: 92, padding: 6 }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+        {OP_GLYPHS.map(op => (
+          <button
+            key={op} type="button" onClick={() => onPick(op)}
+            className="hv-elev"
+            style={{ height: 28, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--elev)', color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+          >{op}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Read-only Moves history for one category+month, opened by the ASSIGNED
+// editor's clock button. Replays S.audit into human rows rather than owning
+// any state of its own — the same "dumb panel, host owns open/dismiss" split
+// PlanCategoryPicker uses, except here the dismiss wiring lives inside this
+// component since nothing else needs its ref. Move rows are found via
+// after.month/from/to; direct set/create/update/delete rows via the entityId
+// convention setAssigned uses (categoryId + '|' + month).
+function MovesPopover({ open, cat, month, S, money, onClose }) {
+  const { user } = useAuth();
+  const { prefs } = useStore();
+  const rootRef = useRef(null);
+  usePopoverDismiss(open, rootRef, onClose);
+  if (!open) return null;
+
+  const email = user?.email || '';
+  const displayName = resolveDisplayName(prefs.displayName, email);
+  const initial = (displayName.charAt(0) || '?').toUpperCase();
+
+  const nameOf = id => (id === 'rta' ? 'Ready to Assign' : (S.categories.find(c => c.id === id) || {}).name || id);
+  const key = cat.id + '|' + month;
+  const rows = (S.audit || [])
+    .filter(a => a.entityType === 'assignment' && (
+      a.action === 'move'
+        ? a.after?.month === month && (a.after.from === cat.id || a.after.to === cat.id)
+        : a.entityId === key
+    ))
+    .map(a => ({
+      id: a.id,
+      at: a.at,
+      amount: a.after?.amount ?? 0,
+      label: a.action === 'move'
+        ? (a.after.to === cat.id ? 'Moved from ' + nameOf(a.after.from) : 'Moved to ' + nameOf(a.after.to))
+        : a.action === 'delete' ? 'Removed' : 'Assigned',
+    }));
+
+  return (
+    <div
+      ref={rootRef} role="dialog" aria-label="Assignment history"
+      onMouseDown={e => e.preventDefault()}
+      style={{ ...popCard, top: 36, right: 0, width: 340, textAlign: 'left' }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 700 }}>Moves</div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>{cat.name}</div>
+      {rows.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: 'var(--muted)', padding: '10px 0' }}>No assignment activity for this month yet.</div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--muted)', padding: '0 0 6px' }}>DATE</th>
+              <th style={{ textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--muted)', padding: '0 0 6px' }}>MOVE</th>
+              <th style={{ textAlign: 'right', fontSize: 11, fontWeight: 600, color: 'var(--muted)', padding: '0 0 6px' }}>AMOUNT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
+                <td style={{ padding: '6px 0', fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: 999, flex: 'none', display: 'grid', placeItems: 'center', background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 9.5, fontWeight: 700 }}>{initial}</span>
+                    <span className="tnum">{fmtDMY(r.at)}</span>
+                  </div>
+                </td>
+                <td style={{ padding: '6px 0', fontSize: 12.5 }}>{r.label}</td>
+                <td className="tnum" style={{ padding: '6px 0', fontSize: 12.5, textAlign: 'right' }}>{money(r.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div style={popBtnRow}>
+        <button onClick={onClose} className="hv-soft" style={popCancel}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+// AVAILABLE pill for an overspent (red) category: covers the shortfall by
+// pulling a FIXED amount (money(-available)) in from another envelope (or
+// RTA) — only the source is picked. Self-contained trigger+popover, same
+// shape as AssignPopover.
+function CoverPopover({ cat, month, available, env, S, money, applyData }) {
+  const { notify } = useUI();
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const rootRef = useRef(null);
+  const close = () => setOpen(false);
+  usePopoverDismiss(open, rootRef, close);
+
+  const openPopover = () => { setFrom(null); setPickerOpen(false); setOpen(true); };
+
+  const fromCat = from && from !== 'rta' ? S.categories.find(c => c.id === from) : null;
+  const fromLabel = from === 'rta' ? 'Ready to Assign' : (fromCat ? fromCat.name : null);
+  const canCover = !!from;
+  const amount = -available;
+
+  const confirm = () => {
+    if (!canCover) return;
+    applyData(data => moveAssigned(data, { from, to: cat.id, month, amount }));
+    setOpen(false);
+    notify('Covered ' + money(amount) + ' from ' + fromLabel + '.');
+  };
+
+  return (
+    <span ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
+        className="tnum hv-elev"
+        style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, border: 'none', background: 'var(--neg-soft)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+      >{money(available)}</button>
+      {open && (
+        <div role="dialog" aria-label="Cover overspending" style={{ ...popCard, top: 30, right: 0, width: 300, textAlign: 'left' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Cover overspending from</div>
+          <div className="tnum" style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>{money(amount)}</div>
+          <button
+            onClick={() => setPickerOpen(o => !o)} aria-haspopup="listbox" aria-expanded={String(pickerOpen)}
+            className="hv-elev"
+            style={{ width: '100%', height: 34, padding: '0 10px', textAlign: 'left', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: fromLabel ? 'var(--text)' : 'var(--muted)', fontSize: 13, cursor: 'pointer' }}
+          >{fromLabel || 'Choose a category'}</button>
+          {pickerOpen && (
+            <div style={{ marginTop: 8 }}>
+              <PlanCategoryPicker
+                env={env} S={S} month={month} money={money} excludeId={cat.id}
+                onPick={id => { setFrom(id); setPickerOpen(false); }}
+              />
+            </div>
+          )}
+          <div style={popBtnRow}>
+            <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
+            <button
+              onClick={confirm} disabled={!canCover} className="hv-accent"
+              style={{ ...popOk, opacity: canCover ? 1 : .5, cursor: canCover ? 'pointer' : 'not-allowed' }}
+            >OK</button>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+// AVAILABLE pill for a positive (green) category: moves leftover money OUT to
+// another envelope (or RTA); amount defaults to the full balance but is
+// editable, mirroring AssignPopover's amount field.
+function MovePopover({ cat, month, available, env, S, money, applyData }) {
+  const { notify } = useUI();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(() => String(available));
+  const [to, setTo] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const rootRef = useRef(null);
+  const close = () => setOpen(false);
+  usePopoverDismiss(open, rootRef, close);
+
+  const openPopover = () => { setAmount(String(available)); setTo(null); setPickerOpen(false); setOpen(true); };
+
+  const toCat = to && to !== 'rta' ? S.categories.find(c => c.id === to) : null;
+  const toLabel = to === 'rta' ? 'Ready to Assign' : (toCat ? toCat.name : null);
+  const amt = parseAmt(amount);
+  const canMove = !!to && amt > 0;
+
+  const confirm = () => {
+    if (!canMove) return;
+    applyData(data => moveAssigned(data, { from: cat.id, to, month, amount: amt }));
+    setOpen(false);
+    notify('Moved ' + money(amt) + ' to ' + toLabel + '.');
+  };
+
+  return (
+    <span ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
+        className="tnum hv-elev"
+        style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, border: 'none', background: 'var(--pos-soft)', color: 'var(--pos)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+      >{money(available)}</button>
+      {open && (
+        <div role="dialog" aria-label="Move available money" style={{ ...popCard, top: 30, right: 0, width: 300, textAlign: 'left' }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Move:</label>
+          <input
+            className="tnum" value={amount} inputMode="numeric"
+            onFocus={e => e.target.select()}
+            onChange={e => setAmount(e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, marginBottom: 10 }}
+          />
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>To:</label>
+          <button
+            onClick={() => setPickerOpen(o => !o)} aria-haspopup="listbox" aria-expanded={String(pickerOpen)}
+            className="hv-elev"
+            style={{ width: '100%', height: 34, padding: '0 10px', textAlign: 'left', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: toLabel ? 'var(--text)' : 'var(--muted)', fontSize: 13, cursor: 'pointer' }}
+          >{toLabel || 'Choose a category'}</button>
+          {pickerOpen && (
+            <div style={{ marginTop: 8 }}>
+              <PlanCategoryPicker
+                env={env} S={S} month={month} money={money} excludeId={cat.id}
+                onPick={id => { setTo(id); setPickerOpen(false); }}
+              />
+            </div>
+          )}
+          <div style={popBtnRow}>
+            <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
+            <button
+              onClick={confirm} disabled={!canMove} className="hv-accent"
+              style={{ ...popOk, opacity: canMove ? 1 : .5, cursor: canMove ? 'pointer' : 'not-allowed' }}
+            >OK</button>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+// Category (sub) row. ASSIGNED is click-to-edit (with a calculator-expression
+// commit path — see applyCalcExpr — an operator popover, and a Moves-history
+// popover); ACTIVITY is a signed muted number; AVAILABLE is a coloured pill
+// that opens Cover/Move popovers when non-zero. In "progress" view a thin bar
+// + note show spend against (carryIn + assigned); "compact" view drops both.
 function CategoryRow({ cat, row, ctx }) {
-  const { month, applyData, money, moneyS, view } = ctx;
+  const { month, applyData, money, moneyS, view, env, S } = ctx;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
   const cancelledRef = useRef(false);
   const inputRef = useRef(null);
 
@@ -392,15 +644,44 @@ function CategoryRow({ cat, row, ctx }) {
   const startEdit = () => {
     cancelledRef.current = false;
     setDraft(r.assigned ? String(r.assigned) : '');
+    setHistoryOpen(false);
     setEditing(true);
   };
+  // Calculator commit: applyCalcExpr(current, draft) → null means the text
+  // doesn't parse (or divides by zero) — stay in edit mode with the text
+  // selected so the user can retype, exactly like a bad formula in a
+  // spreadsheet cell. A number commits via ONE setAssigned call. Guarded by
+  // cancelledRef the same way the pre-calculator version was: Escape sets
+  // that ref before tearing down the input, so if blur still fires on
+  // teardown this bails out instead of re-committing. Any further duplicate
+  // commit (e.g. Enter immediately followed by a teardown blur) is a no-op
+  // in practice too — setAssigned itself skips the write when the amount is
+  // unchanged.
   const commit = () => {
-    setEditing(false);
     if (cancelledRef.current) { cancelledRef.current = false; return; }
-    const amount = parseAmt(draft) || 0;
-    applyData(data => setAssigned(data, { categoryId: cat.id, month, amount }));
+    const v = applyCalcExpr(r.assigned, draft);
+    if (v === null) {
+      if (inputRef.current) { inputRef.current.focus(); inputRef.current.select(); }
+      return;
+    }
+    setEditing(false);
+    applyData(data => setAssigned(data, { categoryId: cat.id, month, amount: v }));
   };
   const cancel = () => { cancelledRef.current = true; setEditing(false); };
+
+  // Inserts an operator glyph into the draft, replacing any existing leading
+  // operator (calcExpr only ever looks at the first character). The op
+  // buttons mousedown-prevent their default so the input never loses focus in
+  // the first place; this focus() is a harmless belt-and-suspenders per the
+  // spec's "refocuses the input".
+  const insertOp = op => {
+    setDraft(d => {
+      const s = String(d ?? '');
+      const isLeadingOp = OP_GLYPHS.includes(s[0]) || s[0] === '-' || s[0] === '*' || s[0] === '/';
+      return op + (isLeadingOp ? s.slice(1) : s);
+    });
+    if (inputRef.current) inputRef.current.focus();
+  };
 
   const target = r.carryIn + r.assigned;
   const spend = Math.max(0, -r.activity);
@@ -424,15 +705,28 @@ function CategoryRow({ cat, row, ctx }) {
           </div>
         )}
       </div>
-      <div style={{ textAlign: 'right' }}>
+      <div style={{ textAlign: 'right', position: 'relative' }}>
         {editing ? (
-          <input
-            ref={inputRef} inputMode="numeric" className="tnum"
-            value={draft} onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') cancel(); }}
-            onBlur={commit}
-            style={{ width: '100%', height: 30, padding: '0 8px', textAlign: 'right', border: '1px solid var(--accent)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500 }}
-          />
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: 30, padding: '0 6px', border: '1px solid var(--accent)', borderRadius: 6, background: 'var(--surface)' }}>
+              <span aria-hidden="true" style={{ flex: 'none', fontSize: 11, letterSpacing: '-.5px', color: 'var(--muted)', userSelect: 'none' }}>+−×÷</span>
+              <input
+                ref={inputRef} inputMode="numeric" className="tnum"
+                value={draft} onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') cancel(); }}
+                onBlur={commit}
+                style={{ flex: 1, minWidth: 0, height: '100%', padding: 0, textAlign: 'right', border: 'none', outline: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 500 }}
+              />
+              <button
+                type="button" onMouseDown={e => e.preventDefault()}
+                onClick={() => setHistoryOpen(o => !o)}
+                aria-label="Assignment history" aria-haspopup="dialog" aria-expanded={String(historyOpen)}
+                style={{ width: 20, height: 20, flex: 'none', border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+              >🕐</button>
+            </div>
+            <OpPopover onPick={insertOp} />
+            <MovesPopover open={historyOpen} cat={cat} month={month} S={S} money={money} onClose={() => setHistoryOpen(false)} />
+          </>
         ) : (
           <button
             onClick={startEdit} className="tnum hv-elev"
@@ -442,7 +736,13 @@ function CategoryRow({ cat, row, ctx }) {
       </div>
       <div className="tnum" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>{moneyS(r.activity)}</div>
       <div style={{ textAlign: 'right' }}>
-        <span className="tnum" style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, background: pillBg, color: pillFg, fontSize: 13, fontWeight: 600 }}>{money(r.available)}</span>
+        {r.available === 0 ? (
+          <span className="tnum" style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, background: pillBg, color: pillFg, fontSize: 13, fontWeight: 600 }}>{money(r.available)}</span>
+        ) : r.available < 0 ? (
+          <CoverPopover cat={cat} month={month} available={r.available} env={env} S={S} money={money} applyData={applyData} />
+        ) : (
+          <MovePopover cat={cat} month={month} available={r.available} env={env} S={S} money={money} applyData={applyData} />
+        )}
       </div>
     </div>
   );
@@ -507,7 +807,7 @@ export default function Plan() {
   const hasUnimportedStanding = catBudgets.length > 0 && !catBudgets.some(b => assignedCatsThisMonth.has(b.category));
   const showBanner = !prefs.planBannerDismissed && (noGroups || hasUnimportedStanding);
 
-  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView };
+  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env };
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
