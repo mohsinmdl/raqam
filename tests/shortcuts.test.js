@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchKey, isTypingTarget, SPEC, SHORTCUT_GROUPS } from '../src/lib/shortcuts.js';
+import { matchKey, isTypingTarget, SPEC, SHORTCUT_GROUPS, SHORTCUT_BY_ID } from '../src/lib/shortcuts.js';
 
 const ev = (key, mods = {}) => ({ key, metaKey: false, ctrlKey: false, shiftKey: false, ...mods });
 
@@ -68,5 +68,20 @@ describe('registry', () => {
       }
     }
     expect(Object.keys(SPEC).length).toBe(ids.length);
+  });
+
+  it('SHORTCUT_BY_ID exposes one full item per id, each with a label and keys (for tooltips)', () => {
+    const ids = SHORTCUT_GROUPS.flatMap(g => g.items.map(i => i.id));
+    expect(Object.keys(SHORTCUT_BY_ID).length).toBe(ids.length);
+    for (const id of ids) {
+      const item = SHORTCUT_BY_ID[id];
+      expect(item.id).toBe(id);
+      expect(typeof item.label).toBe('string');
+      expect(Array.isArray(item.keys) && item.keys.length > 0).toBe(true);
+    }
+    // Tooltip-referenced ids resolve.
+    for (const id of ['addTx', 'undo', 'redo', 'focusSearch', 'reconcile', 'toggleCleared', 'duplicate', 'delete', 'makeRepeating', 'enterNow']) {
+      expect(SHORTCUT_BY_ID[id]).toBeTruthy();
+    }
   });
 });

@@ -1,12 +1,7 @@
 import { useEffect } from 'react';
 import FocusTrap from './FocusTrap.jsx';
+import Kbd from './Kbd.jsx';
 import { SHORTCUT_GROUPS } from '../lib/shortcuts.js';
-
-function Kbd({ children }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 22, height: 22, padding: '0 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--elev)', color: 'var(--text)', fontSize: 11.5, fontWeight: 600, lineHeight: 1 }}>{children}</span>
-  );
-}
 
 export default function ShortcutHelpModal({ open, onClose }) {
   useEffect(() => {
