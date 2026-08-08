@@ -552,6 +552,11 @@ export default function Transactions() {
 
   const addDisabled = S.accounts.filter(a => a.status === 'active').length === 0;
 
+  // Signed sum of the current selection, shown in the bulk bar (like YNAB's
+  // "Selected Total"). amtValue is the same signed figure the AMOUNT column shows.
+  const selectedTotal = postedRows.reduce((s, r) => (selected.has(r.id) ? s + (r.amtValue || 0) : s), 0);
+  const schedSelectedTotal = selSched.reduce((s, x) => s + (x.row.amtValue || 0), 0);
+
   // Keyboard shortcuts for the register. Each reuses the function that already
   // backs the bulk bar; preconditions (`when`) make an unmet key a silent no-op.
   const txShortcuts = [
@@ -635,6 +640,7 @@ export default function Transactions() {
         {sel.length > 0 ? (
           <BulkBar
             count={sel.length}
+            total={fmt.moneyS(selectedTotal)}
             onClear={clearSel}
             actions={[
               { label: 'Mark cleared', onClick: () => bulkStatus('cleared'), keys: SHORTCUT_BY_ID.toggleCleared.keys },
@@ -649,7 +655,7 @@ export default function Transactions() {
             ]}
           />
         ) : (
-          <BulkBar count={schedSel.size} onClear={clearSched} actions={[]} more={schedMore()} />
+          <BulkBar count={schedSel.size} total={fmt.moneyS(schedSelectedTotal)} onClear={clearSched} actions={[]} more={schedMore()} />
         )}
 
         {/* Action toolbar — the All-Accounts reference row: Add Transaction on
