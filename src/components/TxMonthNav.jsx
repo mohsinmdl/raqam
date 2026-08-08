@@ -89,14 +89,14 @@ export default function TxMonthNav() {
       </div>
 
       {open && (
-        <div role="dialog" aria-label="Date range" style={{ position: 'absolute', top: 38, left: 0, zIndex: 30, width: 580, maxWidth: '92vw', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 14 }}>
+        <div role="dialog" aria-label="Date range" style={{ position: 'absolute', top: 38, left: 0, zIndex: 30, width: 800, maxWidth: '92vw', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 14 }}>
           <div style={{ fontSize: 14, fontWeight: 700, paddingBottom: 10 }}>View Options</div>
           {/* nowrap keeps the presets on one line; it scrolls
               rather than wrapping if the window is too narrow. */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 12, borderTop: '1px solid var(--border)', paddingTop: 12, borderBottom: '1px solid var(--border)' }}>
             {RANGE_PRESETS.map(p => (
               <button key={p.id} onClick={() => setDraft(rangeFor(p.id))} className={activePreset === p.id ? 'hv-accent' : 'hv-soft'}
-                style={{ height: 30, padding: '0 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
+                style={{ flex: 'none', whiteSpace: 'nowrap', height: 30, padding: '0 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
                   border: '1px solid ' + (activePreset === p.id ? 'var(--accent)' : 'var(--border)'),
                   background: activePreset === p.id ? 'var(--accent)' : 'var(--surface)',
                   color: activePreset === p.id ? 'var(--on-accent)' : 'var(--text)' }}>{p.label}</button>
