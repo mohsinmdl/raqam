@@ -172,6 +172,28 @@ export function recordedOccurrences(rule) {
   return occurrenceList(rule).filter(o => o.outcome === 'recorded' && isFinite(o.amount));
 }
 
+// The next due date that has NOT already been recorded or skipped. `nextDate` is
+// the stored cursor, but a rule edit (which rebuilds nextDate from the schedule
+// anchor) or a stale occurrence can leave it pointing at an already-settled
+// date — which would surface a reminder that doubles a transaction already on
+// that day. Skipping settled dates keeps the reminder honest without a
+// write-back. Returns null when the schedule has ended past its end date.
+export function effectiveNextDate(rule) {
+  if (!rule || !rule.nextDate) return null;
+  const settled = new Set(occurrenceList(rule)
+    .filter(o => o.outcome === 'recorded' || o.outcome === 'skipped')
+    .map(o => o.due));
+  if (!settled.size) return rule.nextDate;
+  const s = normalizeSchedule(rule.schedule);
+  let d = rule.nextDate;
+  let guard = 0;
+  while (d && settled.has(d) && guard++ < 400) {
+    if (s.ends.kind === 'date' && d > s.ends.date) return null;
+    d = advanceDue(s, d);
+  }
+  return d;
+}
+
 // The rule a transaction belongs to, found through the occurrence that records
 // it. occurrences[].txId is the only link between the two — transactions carry
 // no rule column — and it is what stops one transaction spawning two rules.
@@ -194,7 +216,7 @@ export function nextOccurrences(rule, n, fromDate) {
   const s = normalizeSchedule(rule && rule.schedule);
   const limit = n || 3;
   const used = occurrencesUsed(rule);
-  let cursor = fromDate || (rule && rule.nextDate);
+  let cursor = fromDate || effectiveNextDate(rule);
   const out = [];
   let guard = 0;
   while (cursor && out.length < limit && guard++ < 200) {
@@ -216,16 +238,18 @@ export function ruleStatus(rule, now) {
   if (!rule) return 'later';
   if (isEnded(rule)) return 'ended';
   if (rule.status === 'paused') return 'paused';
-  if (!rule.nextDate) return 'later';
-  const d = daysUntil(rule.nextDate, now);
+  const nd = effectiveNextDate(rule);
+  if (!nd) return 'later';
+  const d = daysUntil(nd, now);
   if (d < 0) return 'overdue';
   if (d <= 7) return 'due';
   return 'later';
 }
 
 export function ruleDueLabel(rule, now) {
-  if (!rule || !rule.nextDate) return '—';
-  const d = daysUntil(rule.nextDate, now);
+  const nd = rule && effectiveNextDate(rule);
+  if (!nd) return '—';
+  const d = daysUntil(nd, now);
   if (d < 0) return Math.abs(d) === 1 ? '1 day overdue' : Math.abs(d) + ' days overdue';
   if (d === 0) return 'Due today';
   if (d === 1) return 'Due tomorrow';
@@ -254,10 +278,12 @@ export function overdueRules(store, now) {
 // what it says rather than smuggling past items into every view.
 export function scheduledRules(store, from, to, now) {
   return (store.recurring || [])
-    .filter(r => r.status === 'active' && !isEnded(r) && r.nextDate
-      && (!from || r.nextDate.slice(0, 7) >= from)
-      && (!to || r.nextDate.slice(0, 7) <= to))
-    .sort(byNext);
+    .map(r => ({ r, nd: effectiveNextDate(r) }))
+    .filter(({ r, nd }) => r.status === 'active' && !isEnded(r) && nd
+      && (!from || nd.slice(0, 7) >= from)
+      && (!to || nd.slice(0, 7) <= to))
+    .sort((a, b) => (a.nd < b.nd ? -1 : a.nd > b.nd ? 1 : 0))
+    .map(({ r }) => r);
 }
 
 // Which account or card a rule draws on. Lives here rather than in the
