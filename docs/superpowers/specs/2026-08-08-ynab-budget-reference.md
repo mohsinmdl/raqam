@@ -19,13 +19,16 @@
 
 Full-page reference screenshot: `2026-08-08-ynab-budget-reference.png` (also the 18 annotated screenshots in the task thread).
 
-## Category tree (live Test budget — the DEFAULT starter set)
+## Category tree (AUTHORITATIVE — captured live from "Mohsin's Plan")
 
-- **Needs:** 🛒 Groceries · 🚘 Transportation · 🩺 Medical expenses · 😌 Emergency fund
-- **Bills:** 🏠 Rent/Mortgage · 📱 Phone & Internet · ⚡️ Utilities
-- **Wants:** 🍽️ Dining out · 🍿 Entertainment · 🏝️ Vacation · ❗️ Stuff I forgot to plan for · 🌳 YNAB subscription
+In YNAB display order:
 
-**Discrepancy:** the user's screenshots (Plan-Categories dropdowns) show a richer, customized set — groups **Recoverable (advances)** (Household advance, Roommate advance), **Bills**, **Needs** (with 🛢 Fuel, plus Charity & Zakat, Family support, Education, Cleaning & maintenance, Pet care seen in the table) — which does NOT exist in the live budget at capture time. The category-sync feature must reconcile against whichever set the user designates.
+1. **Recoverable (advances):** Household advance · Roommate advance
+2. **Bills:** 🏠 Rent/Mortgage · 📱 Phone & Internet · ⚡️ Utilities
+3. **Needs:** Cleaning & maintenance · 🤲 Charity & Zakat · 👪 Family support · 🎓 Education · ⛽️ Fuel · 🛒 Groceries · 🚘 Transportation · 🩺 Medical expenses · 😌 Emergency fund
+4. **Wants:** Pet care · Food Delivery · 🛍️ Shopping · 🍽️ Dining out · 🍿 Entertainment · 🏝️ Vacation · ❗️ Stuff I forgot to plan for · 🌳 YNAB subscription
+
+(4 groups, 22 categories. Emoji are part of the display name where shown. The category-sync feature reconciles Raqam's existing categories against this set — matching by name ignoring emoji/case; on a duplicate/near-match, Raqam's category is renamed to the YNAB name; missing ones are created; Raqam-only categories are kept.)
 
 ## Behavioral inventory (from live app + the 18 screenshots)
 
