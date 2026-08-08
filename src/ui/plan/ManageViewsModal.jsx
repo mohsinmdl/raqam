@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import FocusTrap from '../FocusTrap.jsx';
 import { useUI } from '../UIProvider.jsx';
+import { MAX_NAME } from '../../lib/planViews.js';
 
 const iconBtn = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 14, lineHeight: 1, cursor: 'pointer', flex: 'none' };
 const iconBtnOff = { ...iconBtn, opacity: .4, cursor: 'not-allowed' };
@@ -33,7 +34,7 @@ function ViewRow({ view, atTop, atBottom, renaming, draft, onDraftChange, onStar
             onChange={e => onDraftChange(e.target.value)}
             onBlur={onCommitRename}
             onKeyDown={e => { if (e.key === 'Enter') onCommitRename(); }}
-            maxLength={40} // keep in sync with planViews MAX_NAME
+            maxLength={MAX_NAME}
             style={{ width: '100%', boxSizing: 'border-box', height: 30, padding: '0 8px', border: '1px solid var(--accent)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}
           />
         ) : (
