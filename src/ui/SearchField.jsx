@@ -8,7 +8,7 @@
 // that clicks it would blur the input and unmount the button before the click
 // landed. preventDefault on that mousedown keeps focus through the clear, so
 // the field stays open and ready to type.
-import { useState } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 
 function SearchIcon({ size = 15 }) {
   return (
@@ -19,8 +19,10 @@ function SearchIcon({ size = 15 }) {
   );
 }
 
-export default function SearchField({ value, onChange, placeholder = 'Search', label, collapsed = 190, expanded = 280 }) {
+const SearchField = forwardRef(function SearchField({ value, onChange, placeholder = 'Search', label, collapsed = 190, expanded = 280 }, ref) {
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef(null);
+  useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }), []);
   const open = focused || !!value;
   return (
     <div style={{
@@ -32,6 +34,7 @@ export default function SearchField({ value, onChange, placeholder = 'Search', l
     }}>
       <span style={{ color: 'var(--muted)', flex: 'none', display: 'inline-flex' }}><SearchIcon /></span>
       <input
+        ref={inputRef}
         aria-label={label || placeholder}
         placeholder={placeholder}
         value={value}
@@ -66,4 +69,6 @@ export default function SearchField({ value, onChange, placeholder = 'Search', l
       )}
     </div>
   );
-}
+});
+
+export default SearchField;
