@@ -55,7 +55,11 @@ function usePopoverDismiss(open, ref, onClose) {
 // trigger's live rect and an honest height estimate.
 function flipIfLow(el, estHeight) {
   if (!el) return false;
-  return window.innerHeight - el.getBoundingClientRect().bottom < estHeight;
+  const r = el.getBoundingClientRect();
+  const below = window.innerHeight - r.bottom;
+  // Flip only when the room above is actually better — on a short window
+  // everything is "low", and flipping then just cuts the card off at the top.
+  return below < estHeight && r.top > below;
 }
 
 // Adds a category inside `groupId` (null → left ungrouped, which the section
@@ -519,7 +523,8 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
   const close = () => setOpen(false);
   usePopoverDismiss(open, rootRef, close);
 
-  const openPopover = () => { setFrom(null); setUp(flipIfLow(rootRef.current, 440)); setOpen(true); };
+  // 230 ≈ the card alone — the picker's list overlays and flips on its own.
+  const openPopover = () => { setFrom(null); setUp(flipIfLow(rootRef.current, 230)); setOpen(true); };
 
   const fromCat = from && from !== 'rta' ? S.categories.find(c => c.id === from) : null;
   const fromLabel = from === 'rta' ? 'Ready to Assign' : (fromCat ? fromCat.name : null);
@@ -576,7 +581,8 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
   const close = () => setOpen(false);
   usePopoverDismiss(open, rootRef, close);
 
-  const openPopover = () => { setAmount(String(available)); setTo(null); setUp(flipIfLow(rootRef.current, 440)); setOpen(true); };
+  // 230 ≈ the card alone — the picker's list overlays and flips on its own.
+  const openPopover = () => { setAmount(String(available)); setTo(null); setUp(flipIfLow(rootRef.current, 230)); setOpen(true); };
 
   const toCat = to && to !== 'rta' ? S.categories.find(c => c.id === to) : null;
   const toLabel = to === 'rta' ? 'Ready to Assign' : (toCat ? toCat.name : null);
