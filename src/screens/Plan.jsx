@@ -25,7 +25,7 @@ import {
 // groupId whose group no longer exists, land here — never written to the store.
 const OTHER = { id: null, name: 'Other' };
 
-const ROW_COLS = { display: 'grid', gridTemplateColumns: 'minmax(0,2.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr)', gap: 10, alignItems: 'center' };
+const ROW_COLS = { display: 'grid', gridTemplateColumns: '24px minmax(0,2.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr)', gap: 10, alignItems: 'center' };
 const HEAD = { fontSize: 14, fontWeight: 500, letterSpacing: '.6px', color: 'var(--text)' };
 const popCard = { position: 'absolute', zIndex: 30, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 12 };
 const popBtnRow = { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 };
@@ -47,6 +47,18 @@ function usePopoverDismiss(open, ref, onClose) {
       document.removeEventListener('keydown', onKey, true);
     };
   }, [open, ref, onClose]);
+}
+
+// Native checkbox, accent-tinted; indeterminate is only reachable via the
+// property, so a ref effect mirrors the prop onto the DOM node.
+function PlanCheckbox({ checked, indeterminate, onChange, label }) {
+  const ref = useRef(null);
+  useEffect(() => { if (ref.current) ref.current.indeterminate = !!indeterminate && !checked; }, [indeterminate, checked]);
+  return (
+    <input ref={ref} type="checkbox" checked={checked} aria-label={label}
+      onChange={onChange} onClick={e => e.stopPropagation()}
+      style={{ width: 15, height: 15, margin: 0, accentColor: 'var(--accent)', cursor: 'pointer' }} />
+  );
 }
 
 // A row popover near the viewport's bottom must open UPWARD — anchored below
@@ -326,8 +338,8 @@ function AddGroupButton({ onAdd }) {
 
 // Group (master) row: collapse chevron, name, a hover "+" that opens an inline
 // add-category popover, and the group's totals per column.
-function GroupRow({ group, totals, collapsed, onToggle, ctx }) {
-  const { applyData, money } = ctx;
+function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
+  const { applyData, money, selected, setMany } = ctx;
   const [hover, setHover] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState('');
@@ -349,6 +361,10 @@ function GroupRow({ group, totals, collapsed, onToggle, ctx }) {
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', background: 'var(--elev)', borderBottom: '1px solid var(--border)' }}
     >
+      <PlanCheckbox label={'Select ' + group.name + ' categories'}
+        checked={cats.length > 0 && cats.every(c => selected.has(c.id))}
+        indeterminate={cats.some(c => selected.has(c.id))}
+        onChange={() => setMany(cats.map(c => c.id), !cats.every(c => selected.has(c.id)))} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <button
           onClick={onToggle} aria-label={(collapsed ? 'Expand ' : 'Collapse ') + group.name} aria-expanded={String(!collapsed)}
@@ -638,7 +654,7 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
 // that opens Cover/Move popovers when non-zero. In "progress" view a thin bar
 // + note show spend against (carryIn + assigned); "compact" view drops both.
 function CategoryRow({ cat, row, ctx }) {
-  const { month, applyData, money, moneyS, view, env, S } = ctx;
+  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect } = ctx;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -712,7 +728,14 @@ function CategoryRow({ cat, row, ctx }) {
   const pillFg = r.available > 0 ? 'var(--pos)' : r.available < 0 ? 'var(--neg)' : 'var(--muted)';
 
   return (
-    <div style={{ ...ROW_COLS, minHeight: 44, padding: '7px 16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+    <div
+      onClick={e => {
+        if (e.target.closest('button, input, textarea, [role="dialog"]')) return;
+        toggleSelect(cat.id, e.metaKey || e.ctrlKey);
+      }}
+      style={{ ...ROW_COLS, minHeight: 44, padding: '7px 16px', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
+    >
+      <PlanCheckbox label={'Select ' + cat.name} checked={selected.has(cat.id)} onChange={() => toggleSelect(cat.id, true)} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 16, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat.name}</div>
         {view !== 'compact' && (
@@ -784,6 +807,37 @@ export default function Plan() {
     return next;
   });
 
+  const [selected, setSelected] = useState(() => new Set());
+  const activeCatIds = useMemo(
+    () => (S.categories || []).filter(c => c.type === 'expense' && c.status === 'active').map(c => c.id),
+    [S.categories],
+  );
+  const toggleSelect = (id, additive) => setSelected(prev => {
+    const next = additive ? new Set(prev) : new Set();
+    if (prev.has(id) && (additive || prev.size === 1)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const setMany = (ids, on) => setSelected(prev => {
+    const next = new Set(prev);
+    ids.forEach(id => { if (on) next.add(id); else next.delete(id); });
+    return next;
+  });
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') setSelected(prev => (prev.size ? new Set() : prev)); };
+    document.addEventListener('keydown', onKey); // NOT capture — popover Escape (capture + stopPropagation) wins
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+  // Prune selection of ids that stop existing (archive/delete) — the sections
+  // memo below is the wrong place for this since it only tracks display
+  // grouping, not the selection Set's own lifecycle.
+  useEffect(() => {
+    setSelected(prev => {
+      const live = new Set(activeCatIds);
+      const next = new Set([...prev].filter(id => live.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [activeCatIds]);
+
   const groupsSorted = useMemo(
     () => [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name)),
     [S.categoryGroups],
@@ -828,7 +882,7 @@ export default function Plan() {
   const hasUnimportedStanding = catBudgets.length > 0 && !catBudgets.some(b => assignedCatsThisMonth.has(b.category));
   const showBanner = !prefs.planBannerDismissed && (noGroups || hasUnimportedStanding);
 
-  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env };
+  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, setMany };
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
@@ -852,6 +906,10 @@ export default function Plan() {
 
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
+            <PlanCheckbox label="Select all categories"
+              checked={selected.size > 0 && selected.size === activeCatIds.length}
+              indeterminate={selected.size > 0 && selected.size < activeCatIds.length}
+              onChange={() => setMany(activeCatIds, selected.size !== activeCatIds.length)} />
             <span style={HEAD}>CATEGORY</span>
             <span style={{ ...HEAD, textAlign: 'right' }}>ASSIGNED</span>
             <span style={{ ...HEAD, textAlign: 'right' }}>ACTIVITY</span>
@@ -861,7 +919,7 @@ export default function Plan() {
             const isCollapsed = collapsed.has(key);
             return (
               <div key={key ?? 'other'}>
-                <GroupRow group={group} totals={totals} collapsed={isCollapsed} onToggle={() => toggleGroup(key)} ctx={ctx} />
+                <GroupRow group={group} totals={totals} cats={cats} collapsed={isCollapsed} onToggle={() => toggleGroup(key)} ctx={ctx} />
                 {!isCollapsed && cats.map(cat => (
                   <CategoryRow key={cat.id} cat={cat} row={env.rows.get(cat.id)} ctx={ctx} />
                 ))}
