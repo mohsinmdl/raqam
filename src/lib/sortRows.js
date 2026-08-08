@@ -141,7 +141,7 @@ export function sortLabel(sort) {
     details: { asc: 'Details A–Z', desc: 'Details Z–A' },
     category: { asc: 'Category A–Z', desc: 'Category Z–A' },
     account: { asc: 'Account A–Z', desc: 'Account Z–A' },
-    notes: { asc: 'Notes A–Z', desc: 'Notes Z–A' },
+    notes: { asc: 'Memo A–Z', desc: 'Memo Z–A' },
     status: { asc: 'Needs action first', desc: 'Settled first' },
     size: { asc: 'Smallest first', desc: 'Largest first' },
     // Named for what you are looking for, not the arithmetic: ascending puts

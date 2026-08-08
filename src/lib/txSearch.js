@@ -19,7 +19,7 @@ export function txHaystack(t, S) {
     return c ? c.nickname + ' ' + (c.last4 || '') : '';
   };
   return [
-    t.merchant, t.notes, catName(t.category),
+    t.merchant, t.notes, t.adjustmentReason, catName(t.category),
     acctName(t.accountId), acctName(t.toAccountId),
     cardName(t.cardId), cardName(t.toCardId),
   ].filter(Boolean).join(' ').toLowerCase();
