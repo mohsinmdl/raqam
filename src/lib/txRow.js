@@ -2,7 +2,7 @@
 // prototype's txRowOf (script 894-927) and freshInfo (928-933).
 import { accountDelta, dayLabel, daysAgo, daysUntil, hasOccurred, lastActivity, relTime, timeLabel } from './calc.js';
 import { nowIso } from './dates.js';
-import { ruleDueLabel, ruleFromTx, scheduledRules, sourceLabel } from './schedule.js';
+import { effectiveNextDate, ruleDueLabel, ruleFromTx, scheduledRules, sourceLabel } from './schedule.js';
 import { scheduledSort, sortRows } from './sortRows.js';
 
 // fmt = { money, moneyS } from useMoney(). forAccountId flips amounts to the
@@ -145,11 +145,14 @@ export function futureTxRowOf(t, S, fmt, now) {
 // guard against a later change quietly making it possible.
 export function ruleRowOf(r, S, fmt, now) {
   const cat = r.category ? S.categories.find(c => c.id === r.category) : null;
-  const overdue = daysUntil(r.nextDate, now) < 0;
+  // The effective next due skips dates already recorded/skipped, so a reminder
+  // never lands on a day that already carries the transaction.
+  const nd = effectiveNextDate(r);
+  const overdue = daysUntil(nd, now) < 0;
   return {
     key: 'rule:' + r.id, ruleId: r.id, isRule: true, isOverdue: overdue,
-    sortAt: r.nextDate, sortId: 'rule:' + r.id,
-    dateLabel: withYear(r.nextDate, now), timeLabel: ruleDueLabel(r, now),
+    sortAt: nd, sortId: 'rule:' + r.id,
+    dateLabel: withYear(nd, now), timeLabel: ruleDueLabel(r, now),
     merchant: r.name, notes: '', hasNotes: false,
     hasChip: false, chip: null, chipBg: '', chipFg: '', chipIcon: null, transferOther: null,
     isRepeating: true,

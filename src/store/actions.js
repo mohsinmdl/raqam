@@ -152,12 +152,30 @@ export function updateTransaction(data, { form: f, type, amt, fee }) {
   return next;
 }
 
+// Deleting a transaction that recorded a rule occurrence un-records it: drop the
+// occurrence and pull the rule's cursor back to that due date so the reminder
+// returns — instead of leaving a "recorded" occurrence pointing at a gone
+// transaction (the "Recorded · Transaction deleted" phantom). Rules with no
+// affected occurrence are returned unchanged (same ref → no spurious sync write).
+function revertRuleOccurrences(recurring, deletedIds) {
+  return (recurring || []).map(r => {
+    const occ = Array.isArray(r.occurrences) ? r.occurrences : [];
+    const removed = occ.filter(o => o.txId && deletedIds.has(o.txId));
+    if (removed.length === 0) return r;
+    const kept = occ.filter(o => !(o.txId && deletedIds.has(o.txId)));
+    const earliest = removed.map(o => o.due).sort()[0];
+    const nextDate = r.nextDate && earliest && earliest < r.nextDate ? earliest : r.nextDate;
+    return stampUpdate({ ...r, occurrences: kept, nextDate });
+  });
+}
+
 export function deleteTransaction(data, { id }) {
   const t = data.transactions.find(x => x.id === id);
   if (!t) return data;
   return {
     ...data,
     transactions: data.transactions.filter(x => x.id !== id),
+    recurring: revertRuleOccurrences(data.recurring, new Set([id])),
     audit: [makeAudit({ entityType: 'transaction', entityId: id, action: 'delete', summary: 'Deleted ' + t.type + ' of ' + t.amount, before: { type: t.type, amount: t.amount, date: t.date, merchant: t.merchant } }), ...(data.audit || [])],
   };
 }
@@ -545,6 +563,7 @@ export function deleteTransactions(data, { ids }) {
   return {
     ...data,
     transactions: data.transactions.filter(t => !set.has(t.id)),
+    recurring: revertRuleOccurrences(data.recurring, set),
     audit: [
       ...bulkAudit(hit, 'delete', 'Deleted ' + hit.length + ' transaction' + (hit.length === 1 ? '' : 's'), batchId, {
         before: t => ({ type: t.type, amount: t.amount, date: t.date, merchant: t.merchant }),

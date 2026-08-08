@@ -9,7 +9,7 @@ import { catById, shortDate } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 import { iconStyle } from '../lib/catIcon.js';
 import {
-  advanceDue, estimatedSuggestion, freqLabel, longDate, nextOccurrences, ruleDueLabel, ruleStatus, sourceLabel,
+  advanceDue, effectiveNextDate, estimatedSuggestion, freqLabel, longDate, nextOccurrences, ruleDueLabel, ruleStatus, sourceLabel,
 } from '../lib/schedule.js';
 import { skipOccurrence, toggleRulePause, deleteRule } from '../store/actions.js';
 import { openers } from '../drawers/openers.js';
@@ -62,6 +62,9 @@ export default function RecurringDetail() {
   }
 
   const now = nowIso();
+  // The effective next due skips dates already recorded/skipped, so this page
+  // agrees with the Transactions reminder even if r.nextDate is stale.
+  const nd = effectiveNextDate(r) || r.nextDate;
   const status = ruleStatus(r, now);
   const [tintBg, tintFg] = TINT[status];
   const cat = catById(S, r.category);
@@ -73,14 +76,14 @@ export default function RecurringDetail() {
   const actionable = status !== 'paused' && status !== 'ended';
 
   const askSkip = async () => {
-    const after = advanceDue(r.schedule, r.nextDate);
+    const after = advanceDue(r.schedule, nd);
     const ok = await ask({
       title: 'Skip this one?',
-      body: 'Nothing is recorded for ' + longDate(r.nextDate, now) + '. “' + r.name + '” moves on to ' + longDate(after, now) + '.',
+      body: 'Nothing is recorded for ' + longDate(nd, now) + '. “' + r.name + '” moves on to ' + longDate(after, now) + '.',
       action: 'Skip this one', tone: 'accent',
     });
     if (!ok) return;
-    applyData(data => skipOccurrence(data, { id: r.id, due: r.nextDate }));
+    applyData(data => skipOccurrence(data, { id: r.id, due: nd }));
     notify('Skipped — nothing recorded. Next due ' + longDate(after, now) + '.');
   };
 
@@ -133,7 +136,7 @@ export default function RecurringDetail() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
           <Stat label="AMOUNT" value={(r.estimated ? '~' : '') + money(r.amount)} note={r.estimated ? 'Estimated — varies each time' : 'Fixed amount'} />
-          <Stat label="NEXT DUE" value={longDate(r.nextDate, now)} color={tintFg}
+          <Stat label="NEXT DUE" value={longDate(nd, now)} color={tintFg}
             note={status === 'paused' ? 'Paused' : status === 'ended' ? 'This rule has ended' : ruleDueLabel(r, now)} />
           <Stat label="RECORDED" value={String(recorded)} note={skipped > 0 ? skipped + ' skipped' : 'None skipped'} />
           <Stat label="WHEN RECORDING" value={money(sug.amount)}

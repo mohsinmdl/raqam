@@ -2,7 +2,7 @@
 // (script 812-833). Each returns via openDrawer(name, form).
 import { accountBalance, cardOutstanding } from '../lib/calc.js';
 import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
-import { advanceDue, estimatedSuggestion, formFromSchedule, presetSchedule } from '../lib/schedule.js';
+import { advanceDue, effectiveNextDate, estimatedSuggestion, formFromSchedule, presetSchedule } from '../lib/schedule.js';
 
 export function txDefaults(type) {
   return {
@@ -171,9 +171,10 @@ export const openers = {
     const r = S.recurring.find(x => x.id === recurringId);
     if (!r) return;
     const sug = estimatedSuggestion(r);
+    const due = effectiveNextDate(r) || r.nextDate; // skip an already-recorded/skipped date
     const f = txDefaults(r.type === 'income' ? 'income' : 'expense');
-    f.amount = String(sug.amount); f.date = r.nextDate; f.merchant = r.name;
-    f.category = r.category; f.fromRecurring = r.id; f.recurringDue = r.nextDate;
+    f.amount = String(sug.amount); f.date = due; f.merchant = r.name;
+    f.category = r.category; f.fromRecurring = r.id; f.recurringDue = due;
     if (r.type === 'income') f.account = r.accountId ? 'acc:' + r.accountId : '';
     else f.payWith = r.cardId ? 'card:' + r.cardId : (r.accountId ? 'acc:' + r.accountId : '');
     openDrawer('addTx', f);
