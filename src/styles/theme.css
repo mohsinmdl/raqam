@@ -50,3 +50,9 @@ input, select, textarea { font-family: inherit; color: inherit; }
   background: var(--surface); color: var(--text); font-size: 13.5px;
 }
 textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: vertical; }
+
+/* Sidebar ACCOUNTS total: hide it (rather than wrap and collide with the label)
+   once the resizable sidebar is squeezed narrow. Container query on the accounts
+   section, so it reacts to the sidebar width directly. */
+.sidebar-accounts { container-type: inline-size; }
+@container (max-width: 236px) { .sidebar-accounts-total { display: none; } }
