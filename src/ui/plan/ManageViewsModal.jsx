@@ -33,6 +33,7 @@ function ViewRow({ view, atTop, atBottom, renaming, draft, onDraftChange, onStar
             onChange={e => onDraftChange(e.target.value)}
             onBlur={onCommitRename}
             onKeyDown={e => { if (e.key === 'Enter') onCommitRename(); }}
+            maxLength={40} // keep in sync with planViews MAX_NAME
             style={{ width: '100%', boxSizing: 'border-box', height: 30, padding: '0 8px', border: '1px solid var(--accent)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}
           />
         ) : (

@@ -6,8 +6,7 @@
 // a newView()/replace-by-id write via planViews.js.
 import { useEffect, useRef, useState } from 'react';
 import FocusTrap from '../FocusTrap.jsx';
-
-const MAX_NAME = 40;
+import { MAX_NAME } from '../../lib/planViews.js';
 
 // Indeterminate-capable checkbox with NO inline label text — same shape as
 // Plan.jsx's PlanCheckbox. Checkbox.jsx's own <label> only wraps the input

@@ -15,7 +15,7 @@ import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
-import { BUILTIN_VIEWS, normalizeViews, newView, reorderViews, visibleSections } from '../lib/planViews.js';
+import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visibleSections } from '../lib/planViews.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
@@ -910,9 +910,10 @@ export default function Plan() {
     });
   }, [visibleCatIds]);
 
-  // editing: null (both modals closed) | 'new' (create) | a view object
-  // (edit that view). ViewEditorModal's `view` prop needs an actual null for
-  // create mode, so the 'new' sentinel is unwrapped just before render.
+  // editing drives ViewEditorModal only (null = closed | 'new' = create | a
+  // view = edit); independent of manageOpen, so Manage Views can be open
+  // while editing is null. ViewEditorModal's `view` prop needs an actual null
+  // for create mode, so the 'new' sentinel is unwrapped just before render.
   const [manageOpen, setManageOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const writeViews = next => setPrefs({ planViews: next });
@@ -936,7 +937,7 @@ export default function Plan() {
     writeViews(views.filter(v => v.id !== id));
     if (activeViewId === id) setPrefs({ planViewId: 'all' });
   };
-  const renameView = (id, name) => writeViews(views.map(v => (v.id === id ? { ...v, name } : v)));
+  const renameView = (id, name) => writeViews(views.map(v => (v.id === id ? { ...v, name: String(name).slice(0, MAX_NAME) } : v)));
   const reorder = (fromId, toId) => writeViews(reorderViews(views, fromId, toId));
 
   const noGroups = !(S.categoryGroups && S.categoryGroups.length);
