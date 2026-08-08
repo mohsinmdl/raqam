@@ -8,7 +8,8 @@ import SortIcon from '../ui/SortIcon.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useShortcuts, useSequence } from '../ui/useShortcuts.js';
-import { SPEC, SHORTCUT_BY_ID } from '../lib/shortcuts.js';
+import { SPEC, SHORTCUT_BY_ID, isTypingTarget } from '../lib/shortcuts.js';
+import { stepCursor, rangeBetween } from '../lib/rowCursor.js';
 import Tooltip from '../ui/Tooltip.jsx';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
@@ -112,11 +113,14 @@ function SortableHeader({ col, sort, onSort }) {
 }
 
 
-function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount }) {
+function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused }) {
   // Fixed 2.25rem (36px) row height, YNAB-style — so the vertical padding is
   // zero and content is centred by the cells' middle alignment; horizontal
   // padding is all that remains.
   const pad = '0 12px';
+  // The keyboard cursor scrolls itself into view when it lands on this row.
+  const rowRef = useRef(null);
+  useEffect(() => { if (focused) rowRef.current?.scrollIntoView({ block: 'nearest' }); }, [focused]);
   // A pending row dims to rowOpacity. That dim lives on the data cells, NOT the
   // <tr> — CSS opacity on the row would flatten its whole subtree into one
   // translucent group, and the RowMenu popover (absolutely positioned inside
@@ -126,10 +130,12 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount }) {
   const dim = { opacity: t.rowOpacity };
   return (
     <tr
+      ref={rowRef}
       // The whole row (except the ⋯ menu and the checkbox, which both
       // stopPropagation) is a click target that toggles selection — hence the
-      // pointer cursor on any selectable row.
-      onClick={selId ? () => onToggleRow(selId, !checked) : undefined}
+      // pointer cursor on any selectable row. The event flows through so a
+      // shift+click can select a range instead of toggling one row.
+      onClick={selId ? e => onToggleRow(selId, !checked, e) : undefined}
       // hv-elev's hover background is !important, so it beat the inline
       // --soft when checked — the selection highlight only appeared once the
       // cursor left. Dropping hv-elev while checked lets --soft show at once.
@@ -144,7 +150,10 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount }) {
           has fixed geometry (18px inset + 13px), and without a floor the auto
           table-layout compresses this column on a narrow window until the box
           overflows into ACCOUNT. */}
-      <td style={{ ...td, ...dim, padding: 0, position: 'relative', verticalAlign: 'middle', minWidth: 34 }}>
+      {/* The keyboard cursor shows as a left accent bar on this first cell — an
+          inset box-shadow renders here (unlike on a <tr> under border-collapse)
+          and reads on top of any row background, distinct from the checked fill. */}
+      <td style={{ ...td, ...dim, padding: 0, position: 'relative', verticalAlign: 'middle', minWidth: 34, boxShadow: focused ? 'inset 3px 0 0 var(--accent)' : undefined }}>
         {selId && (
           <Checkbox
             fill
@@ -297,6 +306,10 @@ export default function Transactions() {
   const onSort = key => setSort(s => nextSortState(s, key));
   // Ids, not rows: a row object goes stale the moment anything re-renders.
   const [selected, setSelected] = useState(() => new Set());
+  // Keyboard cursor over the recorded rows: a highlight (cursorId) that moves
+  // independently of selection, and the anchor a range extends from.
+  const [cursorId, setCursorId] = useState(null);
+  const [anchorId, setAnchorId] = useState(null);
   // Scheduled rows have their own selection (keyed by row key — a tx id for a
   // future-dated row, 'rule:…' for a reminder), because their actions differ
   // from a recorded row's. The two selections are mutually exclusive so only one
@@ -336,8 +349,17 @@ export default function Transactions() {
   const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
   const clearSel = () => setSelected(new Set());
   const clearSched = () => setSchedSel(new Set());
-  const toggleRow = (id, on) => {
+  const toggleRow = (id, on, e) => {
+    setCursorId(id);
     setSchedSel(new Set()); // mutual exclusion with the scheduled selection
+    // Shift+click selects the contiguous range from the anchor to here (rather
+    // than toggling one row); the anchor stays put so the range can grow.
+    if (e && e.shiftKey) {
+      e.preventDefault();
+      setSelected(new Set(rangeBetween(visibleIds, anchorId ?? id, id)));
+      return;
+    }
+    setAnchorId(id);
     setSelected(prev => {
       const next = new Set(prev);
       if (on) next.add(id); else next.delete(id);
@@ -546,6 +568,44 @@ export default function Transactions() {
   ];
   useSequence(viewSeq, !drawer && !confirmOpen && !shortcutsOpen);
 
+  // Keyboard row cursor over the recorded rows. Arrow moves the highlight,
+  // Space toggles it, Shift+Arrow extends the selection from the anchor. A ref
+  // holds the latest state so the listener reads current values without being
+  // re-subscribed every render (same pattern as useShortcuts).
+  const navEnabled = !drawer && !confirmOpen && !shortcutsOpen;
+  const navRef = useRef();
+  navRef.current = { visibleIds, cursorId, anchorId, selected };
+  useEffect(() => {
+    if (!navEnabled) return undefined;
+    const onKey = e => {
+      if (isTypingTarget(document.activeElement)) return;
+      const st = navRef.current;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (st.visibleIds.length === 0) return;
+        e.preventDefault();
+        const next = stepCursor(st.visibleIds, st.cursorId, e.key === 'ArrowDown' ? 1 : -1);
+        setCursorId(next);
+        if (e.shiftKey) {
+          setSchedSel(new Set());
+          setSelected(new Set(rangeBetween(st.visibleIds, st.anchorId ?? next, next)));
+        } else {
+          setAnchorId(next);
+        }
+        return;
+      }
+      if (e.key === ' ' || e.key === 'Spacebar') {
+        // Only when a cursor exists and focus isn't on a control that Space
+        // should activate (a button/link), so it never hijacks those.
+        const tag = document.activeElement ? document.activeElement.tagName : '';
+        if (!st.cursorId || tag === 'BUTTON' || tag === 'A') return;
+        e.preventDefault();
+        toggleRow(st.cursorId, !st.selected.has(st.cursorId));
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [navEnabled]);
+
   return (
     <div style={{ maxWidth: wide ? 'none' : 1180, margin: '0 auto', padding: wide ? '0 0 56px' : '24px 28px 56px' }}>
       {/* Wide mode is flush and seamless: no column gap, so the sections meet at
@@ -688,7 +748,7 @@ export default function Transactions() {
                 {postedRows.map(t => (
                   <Row
                     key={t.id} t={t} selId={t.id} hideAccount={!!accountId}
-                    checked={selected.has(t.id)} onToggleRow={toggleRow}
+                    checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
                   />
                 ))}
               </tbody>
