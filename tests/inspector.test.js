@@ -132,3 +132,87 @@ describe('autoAssignPlan', () => {
     expect(autoAssignPlan('assignedLastMonth', ['groc'], ctxFor(S))).toEqual([]);
   });
 });
+
+describe('mean3 rounding (Math.round, not Math.trunc/floor)', () => {
+  it('rounds a non-exact 3-month average', () => {
+    const S = store({ assignments: [
+      { id: 'a1', category: 'groc', month: '2026-07', amount: 3000 },
+      { id: 'a2', category: 'groc', month: '2026-06', amount: 2500 },
+      { id: 'a3', category: 'groc', month: '2026-05', amount: 1500 },
+    ] });
+    // (3000 + 2500 + 1500) / 3 = 2333.333... -> 2333
+    expect(autoAssignAmount('avgAssigned', ['groc'], ctxFor(S))).toBe(2333);
+  });
+  it('rounds a .5 average up — locks round-half-up specifically', () => {
+    const S = store({ transactions: [
+      { id: 't1', type: 'expense', category: 'groc', amount: 1.5, date: '2026-07-05', status: 'confirmed', accountId: 'acc' },
+    ] });
+    // spent: Jul 1.5, Jun 0, May 0 -> (1.5 + 0 + 0) / 3 = 0.5 -> rounds to 1.
+    // A regression to Math.trunc/Math.floor would wrongly give 0.
+    expect(autoAssignAmount('avgSpent', ['groc'], ctxFor(S))).toBe(1);
+  });
+});
+
+describe('AUTO_ASSIGN_KINDS validation', () => {
+  it('an unknown kind throws even with an empty selection', () => {
+    const ctx = ctxFor(store());
+    expect(() => autoAssignAmount('bogus', ['groc'], ctx)).toThrow(/unknown auto-assign kind/);
+    expect(() => autoAssignAmount('bogus', [], ctx)).toThrow(/unknown auto-assign kind/);
+    expect(() => autoAssignPlan('bogus', ['groc'], ctx)).toThrow(/unknown auto-assign kind/);
+    expect(() => autoAssignPlan('bogus', [], ctx)).toThrow(/unknown auto-assign kind/);
+  });
+});
+
+describe('ctx guard', () => {
+  it('throws when ctx is missing a required field (envAt)', () => {
+    const ctx = ctxFor(store());
+    expect(() => autoAssignPlan('resetAssigned', ['groc'], { S: ctx.S, month: ctx.month, env: ctx.env }))
+      .toThrow(/ctx/);
+  });
+});
+
+describe('empty catIds', () => {
+  it('summary and underfunded are zero; plan is empty', () => {
+    const ctx = ctxFor(store());
+    expect(selectionSummary(ctx.env, [])).toEqual({ carryIn: 0, assigned: 0, activity: 0, available: 0 });
+    expect(underfundedFor(ctx.env, [])).toBe(0);
+    expect(autoAssignPlan('underfunded', [], ctx)).toEqual([]);
+  });
+});
+
+describe('category absent from env.rows', () => {
+  it('falls back to a zero row instead of throwing', () => {
+    const ctx = ctxFor(store());
+    expect(ctx.env.rows.has('ghost')).toBe(false);
+    expect(() => underfundedFor(ctx.env, ['ghost'])).not.toThrow();
+    expect(underfundedFor(ctx.env, ['ghost'])).toBe(0);
+    expect(selectionSummary(ctx.env, ['ghost'])).toEqual({ carryIn: 0, assigned: 0, activity: 0, available: 0 });
+    expect(autoAssignAmount('resetAvailable', ['ghost'], ctx)).toBe(0);
+    expect(autoAssignPlan('resetAvailable', ['ghost'], ctx)).toEqual([]);
+  });
+});
+
+describe('resetAvailable at exactly zero', () => {
+  it('emits no move when available is already 0', () => {
+    const S = store({ categories: [
+      { id: 'groc', name: 'Groceries', type: 'expense', status: 'active', groupId: 'g1' },
+      { id: 'fuel', name: 'Fuel', type: 'expense', status: 'active', groupId: 'g1' },
+      { id: 'idle', name: 'Idle', type: 'expense', status: 'active', groupId: 'g1' },
+    ] });
+    const ctx = ctxFor(S);
+    expect(ctx.env.rows.get('idle').available).toBe(0);
+    expect(autoAssignPlan('resetAvailable', ['idle'], ctx)).toEqual([]);
+  });
+});
+
+describe('avgAssigned with a negative prior-month assigned amount', () => {
+  it('includes the negative row in the average (sources may go negative — see tests/move-assigned.test.js)', () => {
+    const S = store({ assignments: [
+      { id: 'a1', category: 'groc', month: '2026-07', amount: -1000 },
+      { id: 'a2', category: 'groc', month: '2026-06', amount: 4000 },
+      { id: 'a3', category: 'groc', month: '2026-05', amount: 2000 },
+    ] });
+    // (-1000 + 4000 + 2000) / 3 = 1666.666... -> 1667
+    expect(autoAssignAmount('avgAssigned', ['groc'], ctxFor(S))).toBe(1667);
+  });
+});

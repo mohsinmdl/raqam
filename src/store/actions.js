@@ -765,6 +765,9 @@ const CAT_AUDIT_FIELDS = ['name', 'type', 'icon', 'color', 'description', 'sortO
 // (design iteration 002) — no budget plumbing here, EXCEPT: turning
 // excludeFromBudget on removes the category's budget (an excluded category
 // must never keep an unusable budget attached; the form confirms first).
+// `description` doubles as the inspector's Notes field (see setCategoryNote):
+// the trim here is intentional for this form's plain-text entry and must not
+// be extended to stripping inner formatting, which Notes deliberately preserves.
 export function upsertCategory(data, { form: f }) {
   const editing = !!f.editId;
   const next = { ...data, categories: [...data.categories], budgets: [...data.budgets] };
@@ -810,7 +813,7 @@ export function setCategoryNote(data, { id, note }) {
   const i = data.categories.findIndex(c => c.id === id);
   if (i < 0) return data;
   const raw = note || '';
-  const val = raw.trim() === '' ? '' : raw; // whitespace-only clears; inner formatting preserved
+  const val = raw.trim() === '' ? '' : raw;
   const existing = data.categories[i].description || '';
   if (val === existing) return data;
   const cat = stampUpdate({ ...data.categories[i], description: val });

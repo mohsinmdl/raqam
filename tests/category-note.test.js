@@ -41,4 +41,8 @@ describe('setCategoryNote', () => {
     expect(s2.audit).toHaveLength(2);
     expect(s2.audit[0]).toMatchObject({ entityType: 'category', entityId: 'groc', action: 'update' });
   });
+  it('preserves inner and edge whitespace verbatim (not stripped by an accidental .trim())', () => {
+    const s = setCategoryNote(store(), { id: 'groc', note: ' padded ' });
+    expect(s.categories.find(c => c.id === 'groc').description).toBe(' padded ');
+  });
 });
