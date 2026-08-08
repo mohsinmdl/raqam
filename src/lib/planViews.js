@@ -40,7 +40,7 @@ export function visibleSections(sections, view, env) {
   return out;
 }
 
-const MAX_NAME = 40;
+export const MAX_NAME = 40;
 
 // prefs live in localStorage: user-editable, and they outlive the categories
 // they reference. Every read is repaired rather than trusted.
@@ -49,6 +49,9 @@ export function normalizeViews(raw, cats) {
   const live = new Set((cats || []).map(c => c.id));
   const seen = new Set();
   return raw
+    // Drop a pref whose id collides with a built-in (localStorage is
+    // hand-editable): it would give two pills the same React key and let a
+    // custom view render the built-in's badge count.
     .filter(v => v && typeof v.id === 'string' && !isBuiltin(v.id) && !seen.has(v.id) && seen.add(v.id) !== false)
     .map(v => ({
       id: v.id,

@@ -74,6 +74,13 @@ function earliestMonth(store, viewed, openingSnapshots) {
 // pending, occurred, expense/refund, category match, and NOT dated before the
 // account's opening-snapshot seed month. Amount is txBudgetImpact, not t.amount.
 export function categoryActivityRows(store, catId, month, now) {
+  // Match the fold's category set exactly (envelopeFor's `cats`, above): every
+  // expense category, no status filter. A non-expense or dangling catId never
+  // gets a fold row (its transactions are routed to uncategorized instead), so
+  // this must return empty rather than real rows/total that the fold disagrees
+  // with.
+  const isExpenseCat = (store.categories || []).some(c => c.id === catId && c.type === 'expense');
+  if (!isExpenseCat) return { rows: [], total: 0 };
   const seed = earliestOpeningSnapshots(store); // accountId -> earliest confirmed snapshot
   const seededAfter = (accountId, m) => { const s = seed.get(accountId); return !!s && s.month > m; };
   const out = [];

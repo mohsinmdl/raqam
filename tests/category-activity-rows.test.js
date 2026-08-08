@@ -3,7 +3,10 @@ import { envelopeFor, categoryActivityRows } from '../src/lib/envelope.js';
 
 const NOW = '2026-08-20T12:00:00.000Z';
 const store = () => ({
-  categories: [{ id: 'groc', name: 'Groceries', type: 'expense', status: 'active' }],
+  categories: [
+    { id: 'groc', name: 'Groceries', type: 'expense', status: 'active' },
+    { id: 'salary', name: 'Salary', type: 'income', status: 'active' },
+  ],
   categoryGroups: [], assignments: [{ id: 'a', category: 'groc', month: '2026-08', amount: 10000 }],
   accounts: [{ id: 'acc', nickname: 'Cash', type: 'Current', status: 'active', instId: 'i1' }],
   snapshots: [{ id: 's', accountId: 'acc', month: '2026-07', balance: 0, amount: 0, status: 'confirmed' }],
@@ -49,5 +52,13 @@ describe('categoryActivityRows', () => {
     expect(total).toBe(foldActivity);
     // Hand-derived: -2440 (t1+t2+t5 expenses, as above) + 300 (t6 refund) = -2140.
     expect(total).toBe(-2140);
+  });
+
+  it('returns empty for a non-expense or dangling catId, matching the fold (which never gives such an id a row)', () => {
+    const S = store();
+    expect(categoryActivityRows(S, 'no-such-cat', '2026-08', NOW)).toEqual({ rows: [], total: 0 });
+    expect(categoryActivityRows(S, 'salary', '2026-08', NOW)).toEqual({ rows: [], total: 0 });
+    expect(envelopeFor(S, '2026-08', NOW).rows.has('no-such-cat')).toBe(false);
+    expect(envelopeFor(S, '2026-08', NOW).rows.has('salary')).toBe(false);
   });
 });
