@@ -803,6 +803,29 @@ export function upsertCategory(data, { form: f }) {
   return next;
 }
 
+// Inspector Notes (Phase 3): the note IS categories.description — the field
+// already syncs, so no schema work. Trimmed only of trailing whitespace-only
+// input; intentional inner formatting is preserved.
+export function setCategoryNote(data, { id, note }) {
+  const i = data.categories.findIndex(c => c.id === id);
+  if (i < 0) return data;
+  const next = (note || '').trim() === '' && !(data.categories[i].description || '') ? null
+    : (data.categories[i].description || '') === (note || '') ? null : true;
+  if (!next) return data;
+  const cat = { ...data.categories[i], description: note || '' };
+  const categories = [...data.categories];
+  categories[i] = cat;
+  return {
+    ...data, categories,
+    audit: [makeAudit({
+      entityType: 'category', entityId: id, action: 'update',
+      summary: 'Updated note for ' + cat.name,
+      before: { description: data.categories[i].description || '' },
+      after: { description: cat.description },
+    }), ...(data.audit || [])],
+  };
+}
+
 export function archiveCategory(data, { id }) {
   const cat = data.categories.find(c => c.id === id);
   if (!cat) return data;
