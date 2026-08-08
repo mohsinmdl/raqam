@@ -13,6 +13,8 @@ export default function PlanCategoryPicker({ env, S, month, money, value, onChan
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [hi, setHi] = useState(0);
+  const [dropUp, setDropUp] = useState(false);
+  const [listMax, setListMax] = useState(240);
   const inputRef = useRef(null);
 
   const nameOf = v => (v === 'rta' ? 'Ready to Assign' : v ? ((S.categories.find(c => c.id === v) || {}).name || '') : '');
@@ -36,7 +38,35 @@ export default function PlanCategoryPicker({ env, S, month, money, value, onChan
 
   const pickable = flat.filter(x => x.kind !== 'head');
   const clampHi = i => (pickable.length ? Math.max(0, Math.min(pickable.length - 1, i)) : -1);
-  const openList = () => { setQ(''); setHi(0); setOpen(true); };
+  const openList = () => {
+    setQ(''); setHi(0);
+    // Place the panel inside the field's actually-VISIBLE band, not the
+    // window: overflow ancestors clip it and the app header paints over it,
+    // so both act as ceilings/floors. Prefer below at full height, then
+    // above at full height, else the roomier side with a shrunk list.
+    const CHROME = 60; // heading + panel padding + borders around the scroll area
+    const el = inputRef.current;
+    if (el) {
+      const r = el.getBoundingClientRect();
+      let topLimit = 0, botLimit = window.innerHeight;
+      for (let a = el.parentElement; a; a = a.parentElement) {
+        const s = getComputedStyle(a);
+        if (s.overflowY !== 'visible' || s.overflowX !== 'visible') {
+          const b = a.getBoundingClientRect();
+          topLimit = Math.max(topLimit, b.top);
+          botLimit = Math.min(botLimit, b.bottom);
+        }
+      }
+      const hdr = document.querySelector('header');
+      if (hdr) topLimit = Math.max(topLimit, hdr.getBoundingClientRect().bottom);
+      const above = r.top - 6 - topLimit, below = botLimit - r.bottom - 6;
+      const up = below < 240 + CHROME && above >= 240 + CHROME ? true
+        : below >= 240 + CHROME ? false : above > below;
+      setDropUp(up);
+      setListMax(Math.min(240, Math.max(90, (up ? above : below) - CHROME)));
+    }
+    setOpen(true);
+  };
   const pick = item => {
     if (!item) return;
     onChange(item.kind === 'rta' ? 'rta' : item.cat.id);
@@ -79,9 +109,9 @@ export default function PlanCategoryPicker({ env, S, month, money, value, onChan
         // (= the visible bottom room and the scrollbar's inset), 4px radius,
         // 16/600 heading with a 4px gap to the top divider line.
         <div onMouseDown={e => e.preventDefault()}
-          style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 40, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface)', boxShadow: 'var(--shadow)', padding: '14px 16px 16px' }}>
+          style={{ position: 'absolute', ...(dropUp ? { bottom: 'calc(100% + 6px)' } : { top: 'calc(100% + 6px)' }), left: 0, right: 0, zIndex: 40, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface)', boxShadow: 'var(--shadow)', padding: '14px 16px 16px' }}>
           <div style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Plan Categories</div>
-          <div className="picker-scroll" style={{ maxHeight: 240, padding: '6px 0' }}>
+          <div className="picker-scroll" style={{ maxHeight: listMax, padding: '6px 0' }}>
           {flat.map((item, i) => {
             if (item.kind === 'head') return <div key={'h' + i} style={{ fontSize: 12, fontWeight: 600, padding: '4px 0 2px' }}>{item.name}:</div>;
             pi += 1;
