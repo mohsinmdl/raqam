@@ -6,7 +6,7 @@ import Kbd from './Kbd.jsx';
 // registry item passed as `shortcut`, or explicitly. Purely presentational —
 // pointer-events are off so it never intercepts a click. No tooltip fires on
 // touch (no hover/focus), which is intended: keycaps are a desktop affordance.
-export default function Tooltip({ shortcut, label, keys, placement = 'top', delay = 350, children }) {
+export default function Tooltip({ shortcut, label, keys, placement = 'top', align = 'center', delay = 350, children }) {
   const [show, setShow] = useState(false);
   const timer = useRef();
   const lbl = label ?? shortcut?.label;
@@ -16,6 +16,12 @@ export default function Tooltip({ shortcut, label, keys, placement = 'top', dela
   const open = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setShow(true), delay); };
   const close = () => { clearTimeout(timer.current); setShow(false); };
   const above = placement === 'top';
+  // Horizontal anchor: centered by default, but a control near the right edge
+  // uses 'end' so the tooltip grows leftward and never runs off-screen (behind
+  // the scrollbar); 'start' anchors the left edge.
+  const horiz = align === 'end' ? { right: 0 }
+    : align === 'start' ? { left: 0 }
+    : { left: '50%', transform: 'translateX(-50%)' };
 
   return (
     <span
@@ -27,7 +33,7 @@ export default function Tooltip({ shortcut, label, keys, placement = 'top', dela
         <span
           role="tooltip"
           style={{
-            position: 'absolute', left: '50%', transform: 'translateX(-50%)',
+            position: 'absolute', ...horiz,
             [above ? 'bottom' : 'top']: '100%', [above ? 'marginBottom' : 'marginTop']: 8,
             zIndex: 70, display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
             padding: '7px 10px', borderRadius: 8, background: '#1f2430', color: '#fff',

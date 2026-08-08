@@ -32,9 +32,9 @@ Add `export const SHORTCUT_BY_ID = Object.fromEntries(SHORTCUT_GROUPS.flatMap(g 
 |---|---|---|---|
 | Add Transaction (ToolbarAction) | Transactions.jsx | shift · N | top |
 | Undo / Redo (ToolbarAction) | Transactions.jsx | ⌘·Z / ⌘·shift·Z | top |
-| Search box (SearchField) | Transactions.jsx | ⌘·shift·F | top |
+| ~~Search box~~ | — | ⌘·shift·F | **omitted** (removed per feedback — the tooltip over the search field was unwanted). ⌘·shift·F stays in the `?` help modal. |
 | ~~Select-all checkbox~~ | — | ⌘·A | **omitted** — the `fill` checkbox is `position:absolute; inset:0` over its sticky `<th>`; any wrapper reparents that and breaks the full-cell hit area. ⌘·A stays in the `?` help modal. |
-| Reconcile button | Header.jsx | shift · E | bottom (top bar) |
+| Reconcile button | Header.jsx | shift · E | bottom, `align="end"` (right-edge control — the tooltip anchors its right edge so it never runs off-screen behind the scrollbar) |
 | Bulk: Mark cleared/uncleared (inline) | BulkBar.jsx | inline `onDark` chip after label | — |
 | Bulk: Duplicate / Delete / Make repeating (menu) | BulkBar.jsx | inline right-aligned chip | — |
 | Scheduled: Post now (menu) | BulkBar.jsx | inline right-aligned chip (E) | — |
