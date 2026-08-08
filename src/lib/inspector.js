@@ -69,8 +69,9 @@ export function autoAssignAmount(kind, catIds, ctx) {
   return catIds.reduce((n, id) => n + per(id), 0);
 }
 
-// The moves that get the categories TO the shown figure. Target kinds emit the
-// signed delta vs the current assigned; reset kinds emit the zeroing move.
+// The moves that get the categories TO the shown figure: 'underfunded' covers
+// each overspent category from rta; target kinds emit the signed delta vs the
+// current assigned; reset kinds emit the zeroing move.
 export function autoAssignPlan(kind, catIds, ctx) {
   if (!AUTO_ASSIGN_KINDS.includes(kind)) throw new Error('unknown auto-assign kind: ' + kind);
   assertCtx(ctx);
