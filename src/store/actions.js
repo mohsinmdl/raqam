@@ -959,7 +959,7 @@ export function adoptYnabTree(data) {
   const matchKey = c => ALIASES[normName(c.name)] || normName(c.name);
   YNAB_TREE.forEach(g => g.categories.forEach((display, i) => {
     const want = normName(display);
-    const hit = categories.find(c => c.type === 'expense' && matchKey(c) === want);
+    const hit = categories.find(c => c.type === 'expense' && c.status === 'active' && matchKey(c) === want);
     if (hit) {
       if (hit.name !== display || hit.groupId !== groupIdByName[g.group]) {
         categories = categories.map(c => (c === hit ? stampUpdate({ ...c, name: display, groupId: groupIdByName[g.group] }) : c));

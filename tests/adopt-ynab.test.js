@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { adoptYnabTree, importBudgetsAsAssignments } from '../src/store/actions.js';
+import { adoptYnabTree, importBudgetsAsAssignments, archiveCategory } from '../src/store/actions.js';
 import { YNAB_TREE, normName } from '../src/lib/ynabTree.js';
 import { freshStore } from '../src/store/seed.js';
 
@@ -37,6 +37,30 @@ describe('adoptYnabTree', () => {
     YNAB_TREE.forEach(g => g.categories.forEach(n => {
       expect(s.categories.find(c => c.name === n).groupId).toBe(byName[g.group]);
     }));
+  });
+
+  it('leaves an archived near-match untouched and creates the active YNAB category fresh', () => {
+    const archived = archiveCategory(freshStore(), { id: 'rent' });
+    const s = adoptYnabTree(archived);
+    // the archived 'rent' category keeps its original name/status and is never grouped:
+    const archivedRent = s.categories.find(c => c.id === 'rent');
+    expect(archivedRent.name).toBe('Rent');
+    expect(archivedRent.status).toBe('archived');
+    expect(archivedRent.groupId).toBeUndefined();
+    // a fresh active '🏠 Rent/Mortgage' category is created instead, wired into Bills:
+    const created = s.categories.filter(c => c.name === '🏠 Rent/Mortgage');
+    expect(created).toHaveLength(1);
+    expect(created[0].id).not.toBe('rent');
+    expect(created[0].status).toBe('active');
+    const bills = s.categoryGroups.find(g => g.name === 'Bills');
+    expect(created[0].groupId).toBe(bills.id);
+  });
+
+  it('is idempotent even with an archived near-match present', () => {
+    const archived = archiveCategory(freshStore(), { id: 'rent' });
+    const once = adoptYnabTree(archived);
+    const twice = adoptYnabTree(once);
+    expect(twice).toBe(once);
   });
 });
 
