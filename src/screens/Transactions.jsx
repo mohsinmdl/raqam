@@ -1,5 +1,5 @@
 // Transactions list screen — template 268-336, txScreenVals script 1018-1054.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
@@ -7,6 +7,8 @@ import { DEFAULT_SORT, nextSortState, sortLabel } from '../lib/sortRows.js';
 import SortIcon from '../ui/SortIcon.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
+import { useShortcuts } from '../ui/useShortcuts.js';
+import { SPEC } from '../lib/shortcuts.js';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { inRange, rangeLabel } from '../lib/dateRange.js';
@@ -268,10 +270,11 @@ export default function Transactions() {
   // so the rows use all the space available. On by default; the toggle only
   // stores an explicit `false` to opt back into the narrow, boxed layout.
   const wide = prefs.wide !== false;
-  const { ask, notify } = useUI();
+  const { ask, notify, confirmOpen } = useUI();
   const fmt = useMoney();
-  const { openDrawer } = useDrawer();
+  const { openDrawer, drawer } = useDrawer();
   const navigate = useNavigate();
+  const searchRef = useRef(null);
   // Optional per-account scope: /transactions/:accountId shows one account's
   // ledger. An unknown id falls back to the whole All-Accounts view.
   const { accountId } = useParams();
@@ -513,6 +516,24 @@ export default function Transactions() {
 
   const addDisabled = S.accounts.filter(a => a.status === 'active').length === 0;
 
+  // Keyboard shortcuts for the register. Each reuses the function that already
+  // backs the bulk bar; preconditions (`when`) make an unmet key a silent no-op.
+  const txShortcuts = [
+    { spec: SPEC.selectAll, run: () => toggleAll(true) },
+    { spec: SPEC.focusSearch, run: () => searchRef.current?.focus() },
+    { spec: SPEC.toggleCleared, when: () => sel.length > 0, run: () => {
+        const rows = sel.map(id => S.transactions.find(t => t.id === id)).filter(Boolean);
+        const allCleared = rows.length > 0 && rows.every(t => t.status === 'cleared');
+        bulkStatus(allCleared ? 'pending' : 'cleared');
+      } },
+    { spec: SPEC.duplicate, when: () => sel.length > 0, run: bulkDuplicate },
+    { spec: SPEC.delete, when: () => sel.length > 0, run: bulkDelete },
+    { spec: SPEC.makeRepeating, when: () => singleRepeatItem() != null, run: () => singleRepeatItem().onClick() },
+    { spec: SPEC.enterNow, when: () => selSched.length === 1 && !selSched[0].row.isRule, run: () => { const x = selSched[0]; clearSched(); askPostNow(x.row); } },
+    { spec: SPEC.reconcile, when: () => !!acct, run: () => openers.reconcile(S, accountId, openDrawer) },
+  ];
+  useShortcuts(txShortcuts, !drawer && !confirmOpen);
+
   return (
     <div style={{ maxWidth: wide ? 'none' : 1180, margin: '0 auto', padding: wide ? '0 0 56px' : '24px 28px 56px' }}>
       {/* Wide mode is flush and seamless: no column gap, so the sections meet at
@@ -577,7 +598,7 @@ export default function Transactions() {
           {/* Divider: Fit-width is a display control; Sort + Search are the
               content pair to its right. */}
           <span aria-hidden="true" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 6px' }} />
-          <SearchField value={F.q} onChange={v => setF('q', v)} placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
+          <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
           <button
             onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
             aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}
