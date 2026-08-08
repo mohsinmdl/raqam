@@ -41,6 +41,19 @@ describe('matchKey', () => {
     expect(matchKey(ev('f', { metaKey: true, shiftKey: true }), SPEC.focusSearch)).toBe(true);
     expect(matchKey(ev('f', { metaKey: true }), SPEC.focusSearch)).toBe(false);
   });
+
+  it('toggle-theme fires on ctrl+shift+L or cmd+shift+L, but needs both modifiers', () => {
+    expect(matchKey(ev('l', { ctrlKey: true, shiftKey: true }), SPEC.toggleTheme)).toBe(true);
+    expect(matchKey(ev('l', { metaKey: true, shiftKey: true }), SPEC.toggleTheme)).toBe(true);
+    expect(matchKey(ev('l', { ctrlKey: true }), SPEC.toggleTheme)).toBe(false);
+    expect(matchKey(ev('l', { shiftKey: true }), SPEC.toggleTheme)).toBe(false);
+  });
+
+  it('hide-amounts fires on a bare H only', () => {
+    expect(matchKey(ev('h'), SPEC.hideAmounts)).toBe(true);
+    expect(matchKey(ev('h', { shiftKey: true }), SPEC.hideAmounts)).toBe(false);
+    expect(matchKey(ev('h', { metaKey: true }), SPEC.hideAmounts)).toBe(false);
+  });
 });
 
 describe('isTypingTarget', () => {
