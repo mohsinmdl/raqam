@@ -7,12 +7,12 @@ import { DEFAULT_SORT, nextSortState, sortLabel } from '../lib/sortRows.js';
 import SortIcon from '../ui/SortIcon.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
-import { useShortcuts } from '../ui/useShortcuts.js';
+import { useShortcuts, useSequence } from '../ui/useShortcuts.js';
 import { SPEC, SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import Tooltip from '../ui/Tooltip.jsx';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
-import { inRange, rangeLabel } from '../lib/dateRange.js';
+import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
 import { txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
@@ -288,7 +288,7 @@ export default function Transactions() {
   // screen and coming back does not reset it. Everything below is genuinely
   // per-visit: a selection, an open popover, an open row menu.
   const {
-    filters: F, setFilters, sort, setSort, range,
+    filters: F, setFilters, sort, setSort, range, setRange,
     schedOpen, setSchedOpen, resetView,
   } = useTxView();
   // Focus stays on the header after sorting (React keeps the node, since
@@ -537,6 +537,14 @@ export default function Transactions() {
     { spec: SPEC.reconcile, when: () => !!acct, run: () => openers.reconcile(S, accountId, openDrawer) },
   ];
   useShortcuts(txShortcuts, !drawer && !confirmOpen && !shortcutsOpen);
+  // V-then-key sets the date-range view (the presets from the View Options popover).
+  const viewSeq = [
+    { seq: SPEC.viewToday.seq, run: () => setRange(rangeFor('today')) },
+    { seq: SPEC.viewYesterday.seq, run: () => setRange(rangeFor('yesterday')) },
+    { seq: SPEC.viewMonth.seq, run: () => setRange(rangeFor('month')) },
+    { seq: SPEC.viewAll.seq, run: () => setRange(rangeFor('all')) },
+  ];
+  useSequence(viewSeq, !drawer && !confirmOpen && !shortcutsOpen);
 
   return (
     <div style={{ maxWidth: wide ? 'none' : 1180, margin: '0 auto', padding: wide ? '0 0 56px' : '24px 28px 56px' }}>

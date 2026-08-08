@@ -27,6 +27,13 @@ export const SHORTCUT_GROUPS = [
     { id: 'goAccounts',     keys: ['G', 'A'], label: 'Go to All Accounts',    spec: { seq: ['g', 'a'] } },
     { id: 'goBudget',       keys: ['G', 'B'], label: 'Go to Budget',          spec: { seq: ['g', 'b'] } },
   ] },
+  // Transactions-screen date-range presets: press V, then the second key.
+  { title: 'View (Transactions)', items: [
+    { id: 'viewToday',     keys: ['V', 'T'], label: 'View: Today',      spec: { seq: ['v', 't'] } },
+    { id: 'viewYesterday', keys: ['V', 'Y'], label: 'View: Yesterday',  spec: { seq: ['v', 'y'] } },
+    { id: 'viewMonth',     keys: ['V', 'M'], label: 'View: This Month', spec: { seq: ['v', 'm'] } },
+    { id: 'viewAll',       keys: ['V', 'A'], label: 'View: All Dates',  spec: { seq: ['v', 'a'] } },
+  ] },
 ];
 
 export const SPEC = Object.fromEntries(
