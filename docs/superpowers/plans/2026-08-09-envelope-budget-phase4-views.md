@@ -273,156 +273,36 @@ git commit -m "feat(plan): view filtering module — built-ins, custom views, pr
 
 ---
 
-### Task 2: Recent-moves parsing — `src/lib/moves.js`
+### Task 2: Recent Moves on the Plan screen (reuse the existing panel)
 
 **Files:**
-- Create: `src/lib/moves.js`
-- Test: `tests/moves.test.js`
+- Modify: `src/screens/Plan.jsx`
+
+**Context — read before writing anything:** a complete Recent Moves panel ALREADY EXISTS and is live on the Transactions screen. `src/components/RecentMoves.jsx` is fully self-contained: it renders its own trigger button (clock icon + "Recent Moves"), owns its open state and dismissal contract, and renders a day-grouped panel with All/Money/Plans/Setup filter chips and per-filter counts. It is backed by the pure, already-tested `src/lib/moves.js` (`MOVE_FILTERS`, `filterMoves`, `groupMovesByDay`, `moveCount`).
+
+**Do NOT create a new moves module, a new parser, or a new modal.** Duplicating either file is the failure mode this task exists to avoid.
 
 **Interfaces:**
-- Consumes: `S.audit` rows. Exact shapes produced by `src/store/actions.js`:
-  - set: `{ entityType: 'assignment', entityId: '<catId>|<month>', action: 'create'|'update'|'delete', after: { amount }, at }`
-  - move: `{ entityType: 'assignment', entityId: '<from>><to>|<month>', action: 'move', after: { from, to, amount, month }, at }`
-  - import: `{ entityType: 'assignment', entityId: 'import|<month>', action: 'create', at }` (no `after`)
-- Produces: `recentMoves(S, { now, days = 34, kind = 'all' }) -> [{ dateKey, dateLabel, relLabel, rows }]` where each row is `{ id, at, verb: 'assigned'|'moved'|'removed'|'imported', amount, from, to, month }` and `from`/`to` are display strings (or null).
+- Consumes: `RecentMoves` (default export, takes NO props) from `src/components/RecentMoves.jsx`.
+- Produces: nothing new — the Plan screen simply gains the existing control.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Read the existing component and its call site**
 
-```js
-// tests/moves.test.js
-import { describe, it, expect } from 'vitest';
-import { recentMoves } from '../src/lib/moves.js';
+Read `src/components/RecentMoves.jsx` in full and look at how `src/screens/Transactions.jsx` mounts it (`<RecentMoves />`, around line 677) — note the toolbar row it sits in and the surrounding controls, so the Plan screen placement matches the app's existing idiom.
 
-const NOW = '2026-08-09T12:00:00.000Z';
-const S = {
-  categories: [
-    { id: 'groc', name: 'Groceries', type: 'expense', status: 'active' },
-    { id: 'fuel', name: 'Fuel', type: 'expense', status: 'active' },
-  ],
-  audit: [
-    { id: '1', entityType: 'assignment', action: 'move', entityId: 'groc>fuel|2026-08', after: { from: 'groc', to: 'fuel', amount: 2700, month: '2026-08' }, at: '2026-08-09T09:00:00.000Z' },
-    { id: '2', entityType: 'assignment', action: 'update', entityId: 'groc|2026-08', after: { amount: 5000 }, at: '2026-08-08T09:00:00.000Z' },
-    { id: '3', entityType: 'assignment', action: 'move', entityId: 'rta>groc|2026-08', after: { from: 'rta', to: 'groc', amount: 100, month: '2026-08' }, at: '2026-08-06T09:00:00.000Z' },
-    { id: '4', entityType: 'assignment', action: 'delete', entityId: 'fuel|2026-08', after: { amount: 0 }, at: '2026-08-06T08:00:00.000Z' },
-    { id: '5', entityType: 'assignment', action: 'move', entityId: 'gone>groc|2026-08', after: { from: 'gone', to: 'groc', amount: 42, month: '2026-08' }, at: '2026-08-06T07:00:00.000Z' },
-    { id: '6', entityType: 'transaction', action: 'create', entityId: 't1', at: '2026-08-09T10:00:00.000Z' },
-    { id: '7', entityType: 'assignment', action: 'update', entityId: 'groc|2026-07', after: { amount: 10 }, at: '2026-06-01T09:00:00.000Z' },
-  ],
-};
+- [ ] **Step 2: Mount it on the Plan toolbar**
 
-describe('recentMoves', () => {
-  it('groups by day, newest first, with relative labels', () => {
-    const g = recentMoves(S, { now: NOW });
-    expect(g.map(x => x.relLabel)).toEqual(['Today', 'Yesterday', '3 days ago']);
-    expect(g[0].dateLabel).toBe('09 Aug 2026');
-    expect(g[0].rows.map(r => r.id)).toEqual(['1']);
-  });
-  it('ignores non-assignment audit rows', () => {
-    const ids = recentMoves(S, { now: NOW }).flatMap(g => g.rows.map(r => r.id));
-    expect(ids).not.toContain('6');
-  });
-  it('drops rows older than the window', () => {
-    const ids = recentMoves(S, { now: NOW, days: 34 }).flatMap(g => g.rows.map(r => r.id));
-    expect(ids).not.toContain('7');
-  });
-  it('resolves rta and deleted categories to display names', () => {
-    const rows = recentMoves(S, { now: NOW }).flatMap(g => g.rows);
-    const rta = rows.find(r => r.id === '3');
-    expect(rta).toMatchObject({ verb: 'moved', from: 'Ready to Assign', to: 'Groceries', amount: 100 });
-    expect(rows.find(r => r.id === '5').from).toBe('(deleted category)');
-  });
-  it('reads set rows: month and category come from entityId, verb from action', () => {
-    const rows = recentMoves(S, { now: NOW }).flatMap(g => g.rows);
-    expect(rows.find(r => r.id === '2')).toMatchObject({ verb: 'assigned', to: 'Groceries', amount: 5000, month: '2026-08' });
-    expect(rows.find(r => r.id === '4')).toMatchObject({ verb: 'removed', to: 'Fuel' });
-  });
-  it('filters by kind', () => {
-    const moved = recentMoves(S, { now: NOW, kind: 'moved' }).flatMap(g => g.rows.map(r => r.id));
-    expect(moved).toEqual(['1', '3', '5']);
-    const assigned = recentMoves(S, { now: NOW, kind: 'assigned' }).flatMap(g => g.rows.map(r => r.id));
-    expect(assigned).toEqual(['2', '4']);
-  });
-  it('handles an empty/absent audit log', () => {
-    expect(recentMoves({ categories: [], audit: [] }, { now: NOW })).toEqual([]);
-    expect(recentMoves({ categories: [] }, { now: NOW })).toEqual([]);
-  });
-});
-```
+In `src/screens/Plan.jsx`, import it (`import RecentMoves from '../components/RecentMoves.jsx';`) and render `<RecentMoves />` in the existing toolbar row that holds `ViewToggle` and `AddGroupButton` — placed BEFORE `ViewToggle` so the row reads: Recent Moves · view toggle · add group. Change nothing else about that row, and pass no props (the component takes none).
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 3: Verify**
 
-Run: `npx vitest run tests/moves.test.js` → FAIL, module not found.
+Run `npx vitest run` (expect the suite unchanged at 654 — this task adds no tests because it adds no logic) and `npx vite build` (clean). On the dev server: the Plan screen shows a "Recent Moves" button; clicking it opens the panel with real audit rows; the filter chips and counts work; Escape and outside-click dismiss it; the Transactions screen's copy still works exactly as before.
 
-- [ ] **Step 3: Implement `src/lib/moves.js`**
-
-```js
-// Global Recent Moves feed (Phase 4), read from the audit log — the same rows
-// that power Phase 2's per-category clock popover, but across all categories
-// and grouped by day. Read-only: undo stays on Cmd+Z.
-const MS_DAY = 86400000;
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const dayKey = iso => String(iso).slice(0, 10);
-const fmtDate = key => {
-  const [y, m, d] = key.split('-');
-  return d + ' ' + MONTHS[Number(m) - 1] + ' ' + y;
-};
-const relLabelFor = (key, nowKey) => {
-  const diff = Math.round((Date.parse(nowKey + 'T00:00:00Z') - Date.parse(key + 'T00:00:00Z')) / MS_DAY);
-  if (diff <= 0) return 'Today';
-  if (diff === 1) return 'Yesterday';
-  return diff + ' days ago';
-};
-
-export function recentMoves(S, { now, days = 34, kind = 'all' } = {}) {
-  const nowKey = dayKey(now);
-  const cutoff = Date.parse(nowKey + 'T00:00:00Z') - (days - 1) * MS_DAY;
-  const nameOf = id => {
-    if (id === 'rta') return 'Ready to Assign';
-    const c = (S.categories || []).find(x => x.id === id);
-    return c ? c.name : '(deleted category)';
-  };
-
-  const rows = (S.audit || [])
-    .filter(a => a.entityType === 'assignment' && Date.parse(a.at) >= cutoff)
-    .map(a => {
-      if (a.action === 'move') {
-        return { id: a.id, at: a.at, verb: 'moved', amount: a.after?.amount ?? 0,
-          from: nameOf(a.after?.from), to: nameOf(a.after?.to), month: a.after?.month || '' };
-      }
-      const [head, month] = String(a.entityId || '').split('|');
-      if (head === 'import') return { id: a.id, at: a.at, verb: 'imported', amount: null, from: null, to: null, month: month || '' };
-      return { id: a.id, at: a.at, verb: a.action === 'delete' ? 'removed' : 'assigned',
-        amount: a.after?.amount ?? 0, from: null, to: nameOf(head), month: month || '' };
-    })
-    .filter(r => kind === 'all'
-      || (kind === 'moved' && r.verb === 'moved')
-      || (kind === 'assigned' && r.verb !== 'moved'))
-    .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
-
-  const groups = [];
-  for (const r of rows) {
-    const key = dayKey(r.at);
-    let g = groups[groups.length - 1];
-    if (!g || g.dateKey !== key) {
-      g = { dateKey: key, dateLabel: fmtDate(key), relLabel: relLabelFor(key, nowKey), rows: [] };
-      groups.push(g);
-    }
-    g.rows.push(r);
-  }
-  return groups;
-}
-```
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `npx vitest run tests/moves.test.js` → all pass.
-
-- [ ] **Step 5: Full suite + build, then commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/lib/moves.js tests/moves.test.js
-git commit -m "feat(plan): recent-moves audit parsing — day grouping, kinds, name resolution"
+git add src/screens/Plan.jsx
+git commit -m "feat(plan): surface the existing Recent Moves panel on the Plan screen"
 ```
 
 ---
@@ -605,43 +485,8 @@ git commit -m "feat(plan): activity drill-down modal"
 
 ---
 
-### Task 6: Recent Moves panel
 
-**Files:**
-- Create: `src/ui/plan/RecentMovesModal.jsx`
-- Modify: `src/screens/Plan.jsx` (toolbar button)
-
-**Interfaces:**
-- Consumes: `recentMoves` (Task 2), `resolveDisplayName` (`src/lib/identity.js`), `useAuth()` for the user's email, `prefs.displayName`.
-- Produces: `<RecentMovesModal open S money onClose />`.
-
-- [ ] **Step 1: Build the modal**
-
-Same modal shell; title "Recent Moves". A segmented control **All / Moved / Assigned** (mirror the existing `ViewToggle` styling in `Plan.jsx` so the two look like siblings) driving `kind`. Body: `recentMoves(S, { now: nowIso(), kind })` rendered as date groups — each group header shows `dateLabel` on the left and the muted `relLabel` on the right — then rows reading:
-- moved: `〈who〉 moved 〈amount〉 from 〈chip from〉 to 〈chip to〉`
-- assigned/removed: `〈who〉 assigned|removed 〈amount〉 to 〈chip to〉`
-- imported: `〈who〉 imported budget amounts`
-
-`〈who〉` is `resolveDisplayName(prefs.displayName, user.email)` with the avatar initial chip already used by Phase 2's `MovesPopover` (copy that chip's styling). A chip shows the category name over a muted month label (e.g. "Aug 2026"). Amounts bold, `.tnum`. Empty state: "No moves in the last 34 days." Footer: **Close**.
-
-- [ ] **Step 2: Add the toolbar button**
-
-Next to the existing `ViewToggle` / `AddGroupButton` row, add a "Recent Moves" button (same button styling as `AddGroupButton`) opening the modal.
-
-- [ ] **Step 3: Verify**
-
-`npx vitest run` + `npx vite build` green. Dev server: open Recent Moves → groups match the audit log with correct relative labels; All/Moved/Assigned partition the rows (Moved count + Assigned count === All count); an `'rta'` side renders "Ready to Assign"; Escape/Close dismiss.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add src/ui/plan/RecentMovesModal.jsx src/screens/Plan.jsx
-git commit -m "feat(plan): global Recent Moves panel"
-```
-
----
-
-### Task 7: Live verification pass (main session, Playwright — not a subagent)
+### Task 6: Live verification pass (main session, Playwright — not a subagent)
 
 **Files:** none (verification only; fixes land as scoped commits).
 
@@ -661,6 +506,7 @@ git commit -m "feat(plan): global Recent Moves panel"
 
 ## Self-Review
 
-- **Spec coverage:** filter pills + semantics → T1/T3; custom views (create/edit/reorder/rename/delete, prefs repair) → T1/T4; group-totals invariant and selection pruning → T1/T3; activity modal → T5; recent moves → T2/T6; live checklist → T7. Deliberately dropped by the spec (Underfunded/Overfunded/Snoozed, synced views, editing from the Activity modal) have no tasks.
+- **Scope correction (2026-08-09, mid-execution):** the original plan had a Task 2 building a new `src/lib/moves.js` parser and a Task 6 building a new Recent Moves modal. Both were **wrong — a complete, tested Recent Moves panel already existed** (`src/components/RecentMoves.jsx` + `src/lib/moves.js`, live on the Transactions screen). The first implementer overwrote the existing test file; that commit was reverted (suite restored to 654). Task 2 is now "reuse the existing panel on the Plan screen" and the duplicate Task 6 is deleted. Restyling that shared panel to YNAB's assigned/moved wording is deferred — it is used by Transactions too, so it is its own decision, not a silent side effect of this phase.
+- **Spec coverage:** filter pills + semantics → T1/T3; custom views (create/edit/reorder/rename/delete, prefs repair) → T1/T4; group-totals invariant and selection pruning → T1/T3; activity modal → T5; recent moves → T2 (reuse); live checklist → T6. Deliberately dropped by the spec (Underfunded/Overfunded/Snoozed, synced views, editing from the Activity modal) have no tasks.
 - **Placeholder scan:** none — every code step carries real code, and the two prose-heavy UI tasks (T4–T6) name exact copy, columns, states and the file to mirror.
 - **Type consistency:** `normalizeViews(raw, cats)`, `reorderViews(views, fromId, toId)`, `newView(name, categoryIds, existing)`, `countFor(id, env, catIds)`, `visibleSections(sections, view, env)`, `matchesView(view, cat, env)` and `recentMoves(S, { now, days, kind })` are used with those exact signatures in T3–T6; the view shape `{ id, name, categoryIds, sortOrder }` is identical across T1, T3 and T4.
