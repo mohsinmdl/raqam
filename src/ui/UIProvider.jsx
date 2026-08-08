@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import ConfirmDialog from './ConfirmDialog.jsx';
+import ShortcutHelpModal from './ShortcutHelpModal.jsx';
 import Toast from './Toast.jsx';
 
 // Ephemeral UI chrome shared by every screen: toast notifications and the confirm dialog.
@@ -9,6 +10,7 @@ const Ctx = createContext(null);
 export function UIProvider({ children }) {
   const [toast, setToast] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // True while a bottom-pinned bar (the bulk-actions bar) is showing. The toast
   // lifts above it rather than landing on top of it — see useBottomBar / Toast.
   const [bottomBar, setBottomBar] = useState(false);
@@ -35,12 +37,19 @@ export function UIProvider({ children }) {
     return false;
   }, [confirm]);
 
-  const value = useMemo(() => ({ notify, ask, closeTopOverlay, confirmOpen: !!confirm, setBottomBar }), [notify, ask, closeTopOverlay, confirm]);
+  const openShortcuts = useCallback(() => setShortcutsOpen(true), []);
+  const closeShortcuts = useCallback(() => setShortcutsOpen(false), []);
+
+  const value = useMemo(() => ({
+    notify, ask, closeTopOverlay, confirmOpen: !!confirm, setBottomBar,
+    shortcutsOpen, openShortcuts, closeShortcuts,
+  }), [notify, ask, closeTopOverlay, confirm, shortcutsOpen, openShortcuts, closeShortcuts]);
 
   return (
     <Ctx.Provider value={value}>
       {children}
       <ConfirmDialog confirm={confirm} onCancel={confirm?.onCancel} />
+      <ShortcutHelpModal open={shortcutsOpen} onClose={closeShortcuts} />
       <Toast msg={toast} raised={bottomBar} />
     </Ctx.Provider>
   );
