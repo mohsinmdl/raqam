@@ -22,9 +22,10 @@ export const SHORTCUT_GROUPS = [
   ] },
   // Two-key "leader" sequences: press G, then the second key (within ~1.2s).
   { title: 'Navigation', items: [
-    { id: 'goDashboard', keys: ['G', 'D'], label: 'Go to Dashboard', spec: { seq: ['g', 'd'] } },
-    { id: 'goAccounts',  keys: ['G', 'A'], label: 'Go to All Accounts', spec: { seq: ['g', 'a'] } },
-    { id: 'goBudget',    keys: ['G', 'B'], label: 'Go to Budget',    spec: { seq: ['g', 'b'] } },
+    { id: 'goDashboard',    keys: ['G', 'D'], label: 'Go to Dashboard',       spec: { seq: ['g', 'd'] } },
+    { id: 'goTransactions', keys: ['G', 'T'], label: 'Go to Transactions',    spec: { seq: ['g', 't'] } },
+    { id: 'goAccounts',     keys: ['G', 'A'], label: 'Go to All Accounts',    spec: { seq: ['g', 'a'] } },
+    { id: 'goBudget',       keys: ['G', 'B'], label: 'Go to Budget',          spec: { seq: ['g', 'b'] } },
   ] },
 ];
 
