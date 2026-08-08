@@ -42,7 +42,7 @@ export default function AccountList() {
   });
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div className="sidebar-accounts" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {/* The whole header toggles the section. The total stays put so the
           reader keeps the number even when the list is folded away. */}
       <button
@@ -56,7 +56,7 @@ export default function AccountList() {
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
         </span>
         <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '.09em', color: 'var(--muted)' }}>ACCOUNTS</span>
-        {rows.length > 0 && <span className="tnum" style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 600, color: 'var(--muted)' }}>{money(total)}</span>}
+        {rows.length > 0 && <span className="tnum sidebar-accounts-total" style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{money(total)}</span>}
       </button>
 
       {open && (
