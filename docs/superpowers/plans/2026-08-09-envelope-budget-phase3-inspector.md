@@ -148,9 +148,10 @@ describe('autoAssignPlan', () => {
   });
   it('resetAvailable: positive available moves to rta, negative covers from rta', () => {
     const ctx = ctxFor(store());
-    // groc available = 5000 − 1500 = 3500 → cat→rta 3500
+    // groc carries over: Jun avail 2000 → Jul 2000+4000−900=5100 → Aug
+    // carryIn 5100 + assigned 5000 − spent 1500 = available 8600 → cat→rta 8600
     expect(autoAssignPlan('resetAvailable', ['groc'], ctx))
-      .toEqual([{ from: 'groc', to: 'rta', month: '2026-08', amount: 3500 }]);
+      .toEqual([{ from: 'groc', to: 'rta', month: '2026-08', amount: 8600 }]);
     // fuel available −1500 → rta→cat 1500
     expect(autoAssignPlan('resetAvailable', ['fuel'], ctx))
       .toEqual([{ from: 'rta', to: 'fuel', month: '2026-08', amount: 1500 }]);
