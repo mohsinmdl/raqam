@@ -54,6 +54,10 @@ export default function ManageViewsModal({ open, views, onReorder, onRename, onD
   const [renamingId, setRenamingId] = useState(null);
   const [draft, setDraft] = useState('');
   const dragIdRef = useRef(null);
+  // Escape unmounts the rename input; if the browser fires a blur as part of
+  // that removal, onBlur must not re-commit the just-cancelled draft. Same
+  // guard as CategoryRow's ASSIGNED editor in Plan.jsx.
+  const cancelledRef = useRef(false);
 
   useEffect(() => { if (!open) setRenamingId(null); }, [open]);
 
@@ -69,7 +73,7 @@ export default function ManageViewsModal({ open, views, onReorder, onRename, onD
     const onKey = e => {
       if (e.key !== 'Escape') return;
       e.stopPropagation();
-      if (renamingId) setRenamingId(null); else onClose();
+      if (renamingId) { cancelledRef.current = true; setRenamingId(null); } else onClose();
     };
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
@@ -77,8 +81,9 @@ export default function ManageViewsModal({ open, views, onReorder, onRename, onD
 
   if (!open) return null;
 
-  const startRename = v => { setRenamingId(v.id); setDraft(v.name); };
+  const startRename = v => { cancelledRef.current = false; setRenamingId(v.id); setDraft(v.name); };
   const commitRename = () => {
+    if (cancelledRef.current) { cancelledRef.current = false; return; }
     const trimmed = draft.trim();
     if (trimmed) onRename(renamingId, trimmed);
     setRenamingId(null);
