@@ -1,7 +1,7 @@
 // Plan inspector (Phase 3): right-column sidebar reacting to row selection.
 // Structure live-captured from YNAB 2026-08-09 (see the phase-3 spec);
 // chrome follows Raqam tokens, not YNAB's.
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { monthLabel } from '../../lib/calc.js';
 import {
   selectionSummary, underfundedFor, autoAssignPlan, autoAssignAmount,
@@ -87,14 +87,15 @@ function AvailableCard({ row, money }) {
 function NotesCard({ cat, applyData }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
-  const start = () => { setDraft(cat.description || ''); setEditing(true); };
-  const commit = () => { applyData(data => setCategoryNote(data, { id: cat.id, note: draft })); setEditing(false); };
+  const cancelledRef = useRef(false);
+  const start = () => { cancelledRef.current = false; setDraft(cat.description || ''); setEditing(true); };
+  const commit = () => { if (cancelledRef.current) { cancelledRef.current = false; return; } applyData(data => setCategoryNote(data, { id: cat.id, note: draft })); setEditing(false); };
   return (
     <Card title="Notes">
       {editing ? (
         <textarea autoFocus value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit}
           onKeyDown={e => {
-            if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
+            if (e.key === 'Escape') { e.stopPropagation(); cancelledRef.current = true; setEditing(false); }
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit();
           }}
           style={{ width: '100%', minHeight: 64, boxSizing: 'border-box', padding: 8, border: '1px solid var(--accent)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical' }} />
