@@ -11,6 +11,7 @@ import { TxViewProvider } from './store/TxViewContext.jsx';
 import { UIProvider } from './ui/UIProvider.jsx';
 import { DrawerProvider } from './ui/DrawerProvider.jsx';
 import { drawerRegistry } from './drawers/index.js';
+import GlobalShortcuts from './components/GlobalShortcuts.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Header from './components/Header.jsx';
 import Dashboard from './screens/Dashboard.jsx';
@@ -63,6 +64,7 @@ function Shell() {
         fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 14, lineHeight: 1.45,
       }}
     >
+      <GlobalShortcuts />
       <Sidebar />
       {/* Drag handle sitting on the sidebar's right seam. A hairline stays
           invisible until hover/drag, then lights up in the accent colour. */}
