@@ -506,7 +506,7 @@ export default function Transactions() {
     if (sel.length !== 1) return null;
     const t = S.transactions.find(x => x.id === sel[0]);
     if (!t || t.type === 'cardAdjustment') return null;
-    return { label: 'Edit', icon: 'edit', onClick: () => { const id = t.id; clearSel(); openers.editTx(S, id, openDrawer); } };
+    return { label: 'Edit', icon: 'edit', onClick: () => { const id = t.id; clearSel(); openers.editTx(S, id, openDrawer); }, keys: SHORTCUT_BY_ID.editSelected.keys };
   };
 
   // Scheduled bulk actions. A reminder and a future-dated transaction have
