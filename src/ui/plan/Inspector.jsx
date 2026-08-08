@@ -4,7 +4,7 @@
 import { useMemo, useState, useRef } from 'react';
 import { monthLabel } from '../../lib/calc.js';
 import {
-  selectionSummary, autoAssignPlan, autoAssignAmount,
+  selectionSummary, autoAssignPlan, autoAssignAmount, AUTO_ASSIGN_KINDS,
 } from '../../lib/inspector.js';
 import { moveAssigned, setCategoryNote } from '../../store/actions.js';
 import { useUI } from '../UIProvider.jsx';
@@ -72,7 +72,7 @@ function AutoAssignRows({ kinds, catIds, ctx, money, applyData, plural }) {
   );
 }
 
-const SIX_KINDS = ['assignedLastMonth', 'spentLastMonth', 'avgAssigned', 'avgSpent', 'resetAvailable', 'resetAssigned'];
+const SIX_KINDS = AUTO_ASSIGN_KINDS.filter(k => k !== 'underfunded');
 
 function AvailableCard({ row, money }) {
   const pillBg = row.available > 0 ? 'var(--pos-soft)' : row.available < 0 ? 'var(--neg-soft)' : 'var(--elev)';
