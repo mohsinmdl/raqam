@@ -872,6 +872,75 @@ export function reassignDeleteCategory(data, { id, replacementId }) {
   };
 }
 
+// ---- Envelope: per-month assignments + category groups -----------------------
+export function setAssigned(data, { categoryId, month, amount }) {
+  const existing = (data.assignments || []).find(a => a.category === categoryId && a.month === month);
+  const amt = Math.round(amount) || 0;
+  if (!existing && amt === 0) return data;
+  if (existing && existing.amount === amt) return data;
+  const assignments = amt === 0
+    ? data.assignments.filter(a => a !== existing)
+    : existing
+      ? data.assignments.map(a => (a === existing ? { ...a, amount: amt } : a))
+      : [...(data.assignments || []), { id: uid(), category: categoryId, month, amount: amt }];
+  const cat = data.categories.find(c => c.id === categoryId);
+  return {
+    ...data, assignments,
+    audit: [makeAudit({
+      entityType: 'assignment', entityId: categoryId + '|' + month, action: existing ? (amt === 0 ? 'delete' : 'update') : 'create',
+      summary: 'Assigned ' + amt + ' to ' + (cat ? cat.name : categoryId) + ' for ' + month,
+      before: { amount: existing ? existing.amount : 0 }, after: { amount: amt },
+    }), ...(data.audit || [])],
+  };
+}
+
+export function addCategoryGroup(data, { name }) {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) return data;
+  const sortOrder = (data.categoryGroups || []).reduce((m, g) => Math.max(m, g.sortOrder || 0), 0) + 1;
+  const g = { id: uid(), name: trimmed, sortOrder };
+  return {
+    ...data, categoryGroups: [...(data.categoryGroups || []), g],
+    audit: [makeAudit({ entityType: 'categoryGroup', entityId: g.id, action: 'create', summary: 'Added group ' + trimmed }), ...(data.audit || [])],
+  };
+}
+
+export function renameCategoryGroup(data, { id, name }) {
+  const g = (data.categoryGroups || []).find(x => x.id === id);
+  const trimmed = String(name || '').trim();
+  if (!g || !trimmed || g.name === trimmed) return data;
+  return {
+    ...data,
+    categoryGroups: data.categoryGroups.map(x => (x.id === id ? { ...x, name: trimmed } : x)),
+    audit: [makeAudit({ entityType: 'categoryGroup', entityId: id, action: 'update', summary: 'Renamed group to ' + trimmed, before: { name: g.name }, after: { name: trimmed } }), ...(data.audit || [])],
+  };
+}
+
+export function deleteCategoryGroup(data, { id }) {
+  const g = (data.categoryGroups || []).find(x => x.id === id);
+  if (!g) return data;
+  return {
+    ...data,
+    categoryGroups: data.categoryGroups.filter(x => x.id !== id),
+    categories: data.categories.map(c => {
+      if (c.groupId !== id) return c;
+      const { groupId, ...rest } = c;
+      return rest;
+    }),
+    audit: [makeAudit({ entityType: 'categoryGroup', entityId: id, action: 'delete', summary: 'Deleted group ' + g.name }), ...(data.audit || [])],
+  };
+}
+
+export function setCategoryGroup(data, { categoryId, groupId }) {
+  const c = data.categories.find(x => x.id === categoryId);
+  if (!c || c.groupId === groupId) return data;
+  return {
+    ...data,
+    categories: data.categories.map(x => (x.id === categoryId ? stampUpdate({ ...x, groupId }) : x)),
+    audit: [makeAudit({ entityType: 'category', entityId: categoryId, action: 'update', summary: 'Moved ' + c.name + ' to a group', before: { groupId: c.groupId }, after: { groupId } }), ...(data.audit || [])],
+  };
+}
+
 // ---- Budgets (design iteration 002) ----------------------------------------
 
 // Create or edit a budget (category or overall). A budget is one standing
