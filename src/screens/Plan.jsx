@@ -1,0 +1,408 @@
+// Plan screen — YNAB-style envelope budget table (Phase 1, task 6).
+// Groups -> categories, ASSIGNED / ACTIVITY / AVAILABLE columns, click-to-edit
+// assigned cells, a Ready-to-Assign banner, and a one-click adoption path from
+// the legacy per-category Budgets screen. Visual tokens follow
+// docs/superpowers/specs/2026-08-08-ynab-budget-reference.md; math comes from
+// src/lib/envelope.js (T3) and the CRUD in src/store/actions.js (T4/T5).
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useStore } from '../store/StoreProvider.jsx';
+import { useMonth } from '../store/MonthContext.jsx';
+import { useMoney, parseAmt } from '../lib/format.js';
+import { envelopeFor } from '../lib/envelope.js';
+import { nowIso } from '../lib/dates.js';
+import {
+  setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
+  adoptYnabTree, importBudgetsAsAssignments,
+} from '../store/actions.js';
+
+// Synthetic group used only for rendering: categories with no groupId, or a
+// groupId whose group no longer exists, land here — never written to the store.
+const OTHER = { id: null, name: 'Other' };
+
+const ROW_COLS = { display: 'grid', gridTemplateColumns: 'minmax(0,2.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr)', gap: 10, alignItems: 'center' };
+const HEAD = { fontSize: 14, fontWeight: 500, letterSpacing: '.6px', color: 'var(--text)' };
+const popCard = { position: 'absolute', zIndex: 30, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 12 };
+const popBtnRow = { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 };
+const popCancel = { height: 30, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, cursor: 'pointer' };
+const popOk = { height: 30, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' };
+
+// Same dismissal contract as TxMonthNav / BulkBar's MoreMenu: outside mousedown
+// closes, Escape closes via the capture phase so it never bubbles into a
+// screen-level shortcut handler.
+function usePopoverDismiss(open, ref, onClose) {
+  useEffect(() => {
+    if (!open) return;
+    const onDown = e => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [open, ref, onClose]);
+}
+
+// Adds a category inside `groupId` (null → left ungrouped, which the section
+// builder below reads back into the implicit "Other" bucket). upsertCategory's
+// form contract creates the record but never writes groupId, so the group is
+// applied as a second pure step, chained inside the SAME applyData call: we
+// read the just-created id back off the returned store (upsertCategory mints
+// its own uid() internally and doesn't hand it back) by diffing category ids
+// before/after, then pass it to setCategoryGroup.
+function addCategoryToGroup(applyData, name, groupId) {
+  applyData(data => {
+    const before = new Set(data.categories.map(c => c.id));
+    const withCat = upsertCategory(data, {
+      form: {
+        name, type: 'expense', icon: 'square', color: '#0F766E',
+        description: '', sortOrder: 99, excludeFromBudget: false,
+      },
+    });
+    const added = withCat.categories.find(c => !before.has(c.id));
+    return added && groupId ? setCategoryGroup(withCat, { categoryId: added.id, groupId }) : withCat;
+  });
+}
+
+function AdoptionBanner({ noGroups, needsImport, onAdopt, onImport, onDismiss }) {
+  return (
+    <div role="region" aria-label="Set up your budget" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderRadius: 12, background: 'var(--soft)', border: '1px solid var(--border)' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>Set up your budget</div>
+        <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>
+          {noGroups
+            ? 'Organize your categories into groups, then import your standing budgets as this month’s assigned amounts.'
+            : 'You have standing budgets that haven’t been imported as assigned amounts for this month yet.'}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flex: 'none' }}>
+        {noGroups && <button onClick={onAdopt} className="hv-accent" style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Organize into groups</button>}
+        {needsImport && <button onClick={onImport} className="hv-soft" style={{ height: 34, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Import budgets</button>}
+        <button onClick={onDismiss} aria-label="Dismiss" className="hv-soft" style={{ width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 16, lineHeight: 1, cursor: 'pointer' }}>×</button>
+      </div>
+    </div>
+  );
+}
+
+// Ready-to-Assign banner. State colours per the reference doc: positive is a
+// literal green tint (not var(--pos-soft) — YNAB's own screenshot colour),
+// zero and negative reuse the theme's neutral / negative tokens.
+function RtaBanner({ rta, money }) {
+  const bg = rta > 0 ? '#C9EE8F' : rta === 0 ? 'var(--elev)' : 'var(--neg-soft)';
+  const fg = rta > 0 ? '#132B12' : rta === 0 ? 'var(--muted)' : 'var(--neg)';
+  const labelColor = rta > 0 ? '#3B4A32' : 'var(--muted)';
+  return (
+    <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 2, padding: '8px 16px 12px', borderRadius: 8, background: bg, minWidth: 200 }}>
+      <span style={{ fontSize: 14, fontWeight: 400, color: labelColor }}>Ready to Assign</span>
+      <span className="tnum" style={{ fontSize: 21, fontWeight: 700, color: fg }}>{money(rta)}</span>
+    </div>
+  );
+}
+
+// Two-state segmented control, same pill-toggle pattern used elsewhere in the
+// app; persisted via prefs.planView.
+function ViewToggle({ view, onChange }) {
+  const val = view === 'compact' ? 'compact' : 'progress';
+  const seg = (key, label) => (
+    <button
+      key={key} onClick={() => onChange(key)} aria-pressed={val === key}
+      style={{
+        height: 28, padding: '0 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
+        background: val === key ? 'var(--surface)' : 'transparent', color: val === key ? 'var(--text)' : 'var(--muted)',
+        boxShadow: val === key ? 'var(--shadow)' : 'none',
+      }}
+    >{label}</button>
+  );
+  return (
+    <div role="group" aria-label="Row view" style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 8, background: 'rgba(125,109,63,.16)' }}>
+      {seg('progress', 'Progress')}
+      {seg('compact', 'Compact')}
+    </div>
+  );
+}
+
+// Toolbar "+ Category Group": name input, Cancel/OK, caret-topped popover.
+function AddGroupButton({ onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const rootRef = useRef(null);
+  const close = () => setOpen(false);
+  usePopoverDismiss(open, rootRef, close);
+
+  const submit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    onAdd(trimmed);
+    setName(''); setOpen(false);
+  };
+
+  return (
+    <div ref={rootRef} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)} aria-haspopup="dialog" aria-expanded={String(open)}
+        className="hv-soft"
+        style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+      >＋ Category Group</button>
+      {open && (
+        <div role="dialog" aria-label="Add category group" style={{ ...popCard, top: 38, right: 0, width: 240 }}>
+          <input
+            autoFocus className="field" placeholder="Group name" value={name}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+            style={{ height: 34, fontSize: 13 }}
+          />
+          <div style={popBtnRow}>
+            <button onClick={() => { setOpen(false); setName(''); }} className="hv-soft" style={popCancel}>Cancel</button>
+            <button onClick={submit} className="hv-accent" style={popOk}>OK</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Group (master) row: collapse chevron, name, a hover "+" that opens an inline
+// add-category popover, and the group's totals per column.
+function GroupRow({ group, totals, collapsed, onToggle, ctx }) {
+  const { applyData, money } = ctx;
+  const [hover, setHover] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [name, setName] = useState('');
+  const popRef = useRef(null);
+  const close = () => setAddOpen(false);
+  usePopoverDismiss(addOpen, popRef, close);
+
+  const submit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    addCategoryToGroup(applyData, trimmed, group.id);
+    setName(''); setAddOpen(false);
+  };
+
+  const t = totals || { assigned: 0, activity: 0, available: 0 };
+
+  return (
+    <div
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', background: 'var(--elev)', borderBottom: '1px solid var(--border)' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <button
+          onClick={onToggle} aria-label={(collapsed ? 'Expand ' : 'Collapse ') + group.name} aria-expanded={String(!collapsed)}
+          style={{ width: 20, height: 20, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, flex: 'none', transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .12s ease' }}
+        >▾</button>
+        <span style={{ fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.name}</span>
+        {(hover || addOpen) && (
+          <span ref={popRef} style={{ position: 'relative', flex: 'none' }}>
+            <button
+              onClick={() => setAddOpen(o => !o)} aria-label={'Add category to ' + group.name}
+              aria-haspopup="dialog" aria-expanded={String(addOpen)}
+              style={{ width: 20, height: 20, borderRadius: 999, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--accent)', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            >＋</button>
+            {addOpen && (
+              <div role="dialog" aria-label={'Add category to ' + group.name} style={{ ...popCard, top: 26, left: 0, width: 220 }}>
+                <input
+                  autoFocus className="field" placeholder="Category name" value={name}
+                  onChange={e => setName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+                  style={{ height: 34, fontSize: 13 }}
+                />
+                <div style={popBtnRow}>
+                  <button onClick={() => { setAddOpen(false); setName(''); }} className="hv-soft" style={popCancel}>Cancel</button>
+                  <button onClick={submit} className="hv-accent" style={popOk}>OK</button>
+                </div>
+              </div>
+            )}
+          </span>
+        )}
+      </div>
+      <div className="tnum" style={{ textAlign: 'right', fontSize: 13, fontWeight: 600 }}>{money(t.assigned)}</div>
+      <div className="tnum" style={{ textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>{money(t.activity)}</div>
+      <div className="tnum" style={{ textAlign: 'right', fontSize: 13, fontWeight: 600 }}>{money(t.available)}</div>
+    </div>
+  );
+}
+
+// Category (sub) row. ASSIGNED is click-to-edit; ACTIVITY is a signed muted
+// number; AVAILABLE is a coloured pill. In "progress" view a thin bar + note
+// show spend against (carryIn + assigned); "compact" view drops both.
+function CategoryRow({ cat, row, ctx }) {
+  const { month, applyData, money, moneyS, view } = ctx;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const cancelledRef = useRef(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); }
+  }, [editing]);
+
+  const r = row || { assigned: 0, activity: 0, available: 0, carryIn: 0 };
+
+  const startEdit = () => {
+    cancelledRef.current = false;
+    setDraft(r.assigned ? String(r.assigned) : '');
+    setEditing(true);
+  };
+  const commit = () => {
+    setEditing(false);
+    if (cancelledRef.current) { cancelledRef.current = false; return; }
+    const amount = parseAmt(draft) || 0;
+    applyData(data => setAssigned(data, { categoryId: cat.id, month, amount }));
+  };
+  const cancel = () => { cancelledRef.current = true; setEditing(false); };
+
+  const target = r.carryIn + r.assigned;
+  const spend = Math.max(0, -r.activity);
+  const overspent = r.available < 0;
+  const pct = target > 0 ? Math.min(1, spend / target) : (spend > 0 ? 1 : 0);
+  const barColor = overspent ? 'var(--neg)' : 'var(--pos)';
+
+  const pillBg = r.available > 0 ? 'var(--pos-soft)' : r.available < 0 ? 'var(--neg-soft)' : 'var(--elev)';
+  const pillFg = r.available > 0 ? 'var(--pos)' : r.available < 0 ? 'var(--neg)' : 'var(--muted)';
+
+  return (
+    <div style={{ ...ROW_COLS, minHeight: 44, padding: '7px 16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 16, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat.name}</div>
+        {view !== 'compact' && (
+          <div style={{ marginTop: 4 }}>
+            <div style={{ height: 4, borderRadius: 2, background: 'rgba(125,109,63,.16)', overflow: 'hidden' }}>
+              <div style={{ width: (pct * 100) + '%', height: '100%', background: barColor }} />
+            </div>
+            <div className="tnum" style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>Spent {money(spend)} of {money(target)}</div>
+          </div>
+        )}
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        {editing ? (
+          <input
+            ref={inputRef} inputMode="numeric" className="tnum"
+            value={draft} onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') cancel(); }}
+            onBlur={commit}
+            style={{ width: '100%', height: 30, padding: '0 8px', textAlign: 'right', border: '1px solid var(--accent)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500 }}
+          />
+        ) : (
+          <button
+            onClick={startEdit} className="tnum hv-elev"
+            style={{ width: '100%', height: 30, padding: '0 8px', textAlign: 'right', border: '1px solid transparent', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+          >{money(r.assigned)}</button>
+        )}
+      </div>
+      <div className="tnum" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>{moneyS(r.activity)}</div>
+      <div style={{ textAlign: 'right' }}>
+        <span className="tnum" style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, background: pillBg, color: pillFg, fontSize: 13, fontWeight: 600 }}>{money(r.available)}</span>
+      </div>
+    </div>
+  );
+}
+
+export default function Plan() {
+  const { data: S, applyData, prefs, setPrefs } = useStore();
+  const { month } = useMonth();
+  const { money, moneyS } = useMoney();
+
+  const env = useMemo(() => envelopeFor(S, month, nowIso()), [S, month]);
+
+  const [collapsed, setCollapsed] = useState(() => new Set());
+  const toggleGroup = key => setCollapsed(prev => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
+  const groupsSorted = useMemo(
+    () => [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name)),
+    [S.categoryGroups],
+  );
+  const groupIds = useMemo(() => new Set(groupsSorted.map(g => g.id)), [groupsSorted]);
+
+  // Sections carry their own totals (summed from env.rows over ACTIVE
+  // categories only) rather than env.groupTotals: that map is folded over
+  // every expense category including archived ones — correct for the RTA
+  // fold, wrong for a header total the screen only ever shows next to active
+  // rows. A dangling groupId (group deleted, or never set) is also
+  // re-bucketed into "Other" here, independent of envelope.js's own keying.
+  const sections = useMemo(() => {
+    const activeCats = (S.categories || []).filter(c => c.type === 'expense' && c.status === 'active');
+    const byGroup = new Map();
+    activeCats.forEach(c => {
+      const key = c.groupId && groupIds.has(c.groupId) ? c.groupId : 'other';
+      if (!byGroup.has(key)) byGroup.set(key, []);
+      byGroup.get(key).push(c);
+    });
+    byGroup.forEach(list => list.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name)));
+    const totalsFor = cats => cats.reduce((acc, c) => {
+      const r = env.rows.get(c.id) || { assigned: 0, activity: 0, available: 0 };
+      acc.assigned += r.assigned; acc.activity += r.activity; acc.available += r.available;
+      return acc;
+    }, { assigned: 0, activity: 0, available: 0 });
+    const out = groupsSorted.map(g => {
+      const cats = byGroup.get(g.id) || [];
+      return { group: g, key: g.id, cats, totals: totalsFor(cats) };
+    });
+    const other = byGroup.get('other') || [];
+    if (other.length) out.push({ group: OTHER, key: 'other', cats: other, totals: totalsFor(other) });
+    return out;
+  }, [S.categories, groupsSorted, groupIds, env]);
+
+  const noGroups = !(S.categoryGroups && S.categoryGroups.length);
+  const catBudgets = useMemo(() => (S.budgets || []).filter(b => b.category), [S.budgets]);
+  const assignedCatsThisMonth = useMemo(
+    () => new Set((S.assignments || []).filter(a => a.month === month).map(a => a.category)),
+    [S.assignments, month],
+  );
+  const hasUnimportedStanding = catBudgets.length > 0 && !catBudgets.some(b => assignedCatsThisMonth.has(b.category));
+  const showBanner = !prefs.planBannerDismissed && (noGroups || hasUnimportedStanding);
+
+  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView };
+
+  return (
+    <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
+        {showBanner && (
+          <AdoptionBanner
+            noGroups={noGroups}
+            needsImport={hasUnimportedStanding}
+            onAdopt={() => applyData(data => adoptYnabTree(data))}
+            onImport={() => applyData(data => importBudgetsAsAssignments(data, { month }))}
+            onDismiss={() => setPrefs({ planBannerDismissed: true })}
+          />
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <RtaBanner rta={env.rta} money={money} />
+          <div style={{ flex: 1 }} />
+          <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
+          <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
+        </div>
+
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
+            <span style={HEAD}>CATEGORY</span>
+            <span style={{ ...HEAD, textAlign: 'right' }}>ASSIGNED</span>
+            <span style={{ ...HEAD, textAlign: 'right' }}>ACTIVITY</span>
+            <span style={{ ...HEAD, textAlign: 'right' }}>AVAILABLE</span>
+          </div>
+          {sections.map(({ group, key, cats, totals }) => {
+            const isCollapsed = collapsed.has(key);
+            return (
+              <div key={key ?? 'other'}>
+                <GroupRow group={group} totals={totals} collapsed={isCollapsed} onToggle={() => toggleGroup(key)} ctx={ctx} />
+                {!isCollapsed && cats.map(cat => (
+                  <CategoryRow key={cat.id} cat={cat} row={env.rows.get(cat.id)} ctx={ctx} />
+                ))}
+              </div>
+            );
+          })}
+          {sections.length === 0 && (
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+              No categories yet. Organize your categories into groups to start planning your budget.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
