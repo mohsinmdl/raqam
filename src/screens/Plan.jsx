@@ -17,6 +17,7 @@ import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import Inspector from '../ui/plan/Inspector.jsx';
+import RecentMoves from '../components/RecentMoves.jsx';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
   adoptYnabTree, importBudgetsAsAssignments, moveAssigned,
@@ -906,6 +907,7 @@ export default function Plan() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
             <div style={{ flex: 1 }} />
+            <RecentMoves />
             <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
             <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
           </div>
