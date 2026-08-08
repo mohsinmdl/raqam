@@ -75,19 +75,22 @@ export default function PlanCategoryPicker({ env, S, month, money, value, onChan
         // behind it — matching YNAB. preventDefault on mousedown keeps the
         // input focused while a row is clicked — otherwise the blur would
         // close the list before the click lands (SearchField's idiom).
+        // Panel geometry captured from YNAB's .dropdown-modal: 16px padding
+        // (= the visible bottom room and the scrollbar's inset), 4px radius,
+        // 16/600 heading with a 4px gap to the top divider line.
         <div onMouseDown={e => e.preventDefault()}
-          style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 40, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', boxShadow: 'var(--shadow)' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, padding: '14px 16px 8px' }}>Plan Categories</div>
-          <div style={{ maxHeight: 240, overflowY: 'auto', padding: '0 10px 16px 12px' }}>
+          style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 40, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface)', boxShadow: 'var(--shadow)', padding: '14px 16px 16px' }}>
+          <div style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Plan Categories</div>
+          <div className="picker-scroll" style={{ maxHeight: 240, padding: '6px 0' }}>
           {flat.map((item, i) => {
-            if (item.kind === 'head') return <div key={'h' + i} style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', padding: '6px 2px 2px' }}>{item.name}:</div>;
+            if (item.kind === 'head') return <div key={'h' + i} style={{ fontSize: 12, fontWeight: 600, padding: '4px 0 2px' }}>{item.name}:</div>;
             pi += 1;
             const active = pi === clampHi(hi);
             const isRta = item.kind === 'rta';
             const val = isRta ? env.rta : availOf(item.cat.id);
             return (
               <button key={isRta ? 'rta' : item.cat.id} onClick={() => pick(item)} className="hv-elev"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', border: 'none', textAlign: 'left', padding: '7px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 13, background: active ? 'var(--soft)' : (isRta ? 'var(--elev)' : 'transparent'), color: 'var(--text)' }}>
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', border: 'none', textAlign: 'left', padding: '5px 6px 5px 4px', borderRadius: 0, cursor: 'pointer', fontSize: 13, background: active ? 'var(--soft)' : (isRta ? 'var(--elev)' : 'transparent'), color: 'var(--text)' }}>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isRta ? 'Inflow: Ready to Assign' : item.cat.name}</span>
                 <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(val) }}>{money(val)}</span>
               </button>
