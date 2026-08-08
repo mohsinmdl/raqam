@@ -16,6 +16,14 @@ export function addMonths(ym, k) {
   const i = y * 12 + (m - 1) + k;
   return `${Math.floor(i / 12)}-${p2((i % 12) + 1)}`;
 }
+// Day arithmetic on a 'YYYY-MM-DD' string, via a local Date so month/year
+// rollover is handled for us. Used by the Today/Yesterday range presets and the
+// day-stepping arrows.
+export function addDays(ymd, k) {
+  const [y, m, d] = ymd.slice(0, 10).split('-').map(Number);
+  const dt = new Date(y, m - 1, d + k);
+  return `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())}`;
+}
 export function monthsBetween(fromYm, toYm) {
   const [fy, fm] = fromYm.split('-').map(Number);
   const [ty, tm] = toYm.split('-').map(Number);

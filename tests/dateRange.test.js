@@ -37,6 +37,17 @@ describe('rangeFor', () => {
   it('falls back to the current month for an unknown preset', () => {
     expect(rangeFor('nonsense', AUG)).toEqual({ from: '2026-08', to: '2026-08' });
   });
+
+  it('Today and Yesterday are single day-precise days', () => {
+    const DAY = '2026-08-08';
+    expect(rangeFor('today', DAY)).toEqual({ from: '2026-08-08', to: '2026-08-08' });
+    expect(rangeFor('yesterday', DAY)).toEqual({ from: '2026-08-07', to: '2026-08-07' });
+  });
+
+  it('Yesterday rolls back across a month and a year boundary', () => {
+    expect(rangeFor('yesterday', '2026-08-01')).toEqual({ from: '2026-07-31', to: '2026-07-31' });
+    expect(rangeFor('yesterday', '2026-01-01')).toEqual({ from: '2025-12-31', to: '2025-12-31' });
+  });
 });
 
 describe('inRange', () => {
@@ -69,6 +80,14 @@ describe('inRange', () => {
     expect(inRange({ date: '' }, '2026-01', '2026-12')).toBe(false);
     expect(inRange({}, null, null)).toBe(false);
   });
+
+  it('filters at day precision when the bounds carry a day', () => {
+    // A Today window (both bounds the same day) admits only that calendar day.
+    expect(inRange(tx('2026-08-08T04:45'), '2026-08-08', '2026-08-08')).toBe(true);
+    expect(inRange(tx('2026-08-08T23:59'), '2026-08-08', '2026-08-08')).toBe(true);
+    expect(inRange(tx('2026-08-07T23:59'), '2026-08-08', '2026-08-08')).toBe(false);
+    expect(inRange(tx('2026-08-09T00:00'), '2026-08-08', '2026-08-08')).toBe(false);
+  });
 });
 
 describe('presetOf', () => {
@@ -81,6 +100,14 @@ describe('presetOf', () => {
 
   it('reports an arbitrary window as custom', () => {
     expect(presetOf('2026-03', '2026-07', AUG)).toBe('custom');
+  });
+
+  it('recognises the day presets against a day-precise today', () => {
+    const DAY = '2026-08-08';
+    expect(presetOf('2026-08-08', '2026-08-08', DAY)).toBe('today');
+    expect(presetOf('2026-08-07', '2026-08-07', DAY)).toBe('yesterday');
+    // A single day that is neither today nor yesterday is custom, not a month.
+    expect(presetOf('2026-08-05', '2026-08-05', DAY)).toBe('custom');
   });
 });
 
@@ -101,6 +128,15 @@ describe('rangeLabel', () => {
     expect(rangeLabel(null, null)).toBe('All dates');
     expect(rangeLabel('2026-08', null)).toBe('From August 2026');
     expect(rangeLabel(null, '2026-08')).toBe('Up to August 2026');
+  });
+
+  it('names a single day, using Today/Yesterday when today is known', () => {
+    const DAY = '2026-08-08';
+    expect(rangeLabel('2026-08-08', '2026-08-08', DAY)).toBe('Today');
+    expect(rangeLabel('2026-08-07', '2026-08-07', DAY)).toBe('Yesterday');
+    expect(rangeLabel('2026-08-05', '2026-08-05', DAY)).toBe('5 Aug 2026');
+    // Without a today reference a day range still reads as its date.
+    expect(rangeLabel('2026-08-08', '2026-08-08')).toBe('8 Aug 2026');
   });
 });
 
@@ -199,5 +235,12 @@ describe('shiftRange', () => {
   it('round-trips: stepping back undoes stepping forward', () => {
     const r = shiftRange('2026-01', '2026-06', 1, YEARS);
     expect(shiftRange(r.from, r.to, -1, YEARS)).toEqual({ from: '2026-01', to: '2026-06' });
+  });
+
+  it('steps a day-precise range by a day, not a month', () => {
+    expect(shiftRange('2026-08-08', '2026-08-08', -1, YEARS)).toEqual({ from: '2026-08-07', to: '2026-08-07' });
+    expect(shiftRange('2026-08-08', '2026-08-08', 1, YEARS)).toEqual({ from: '2026-08-09', to: '2026-08-09' });
+    // Day stepping rolls across a month boundary.
+    expect(shiftRange('2026-08-01', '2026-08-01', -1, YEARS)).toEqual({ from: '2026-07-31', to: '2026-07-31' });
   });
 });
