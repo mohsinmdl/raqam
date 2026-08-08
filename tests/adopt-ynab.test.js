@@ -75,4 +75,10 @@ describe('importBudgetsAsAssignments', () => {
     expect(s1.assignments[0]).toMatchObject({ category: 'groceries', month: '2026-08', amount: 25000 });
     expect(importBudgetsAsAssignments(s1, { month: '2026-08' })).toBe(s1);
   });
+
+  it('skips a budget whose category is archived', () => {
+    const archived = archiveCategory(freshStore(), { id: 'groceries' });
+    const base = { ...archived, budgets: [{ id: 'b1', category: 'groceries', amount: 25000, rollover: false }] };
+    expect(importBudgetsAsAssignments(base, { month: '2026-08' })).toBe(base); // no-op: archived category is skipped
+  });
 });

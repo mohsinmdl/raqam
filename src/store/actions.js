@@ -828,7 +828,11 @@ export function restoreCategory(data, { id }) {
   };
 }
 
-// Hard delete — allowed only for unused custom categories (deletePolicy 'delete').
+// Hard delete — allowed only for unused custom categories (deletePolicy 'delete',
+// which now also counts envelope assignments — see catRefs). assignments is
+// dropped defensively even though the `used` guard should already keep this
+// action from ever being called while any exist, so a stray assignment row can
+// never survive as a dangling FK reference to a category that no longer exists.
 export function deleteCategory(data, { id }) {
   const cat = data.categories.find(c => c.id === id);
   if (!cat || cat.isSystem) return data;
@@ -837,6 +841,7 @@ export function deleteCategory(data, { id }) {
   return {
     ...data,
     categories: data.categories.filter(c => c.id !== id),
+    assignments: (data.assignments || []).filter(a => a.category !== id),
     audit: [makeAudit({ entityType: 'category', entityId: id, action: 'delete', summary: 'Deleted category ' + cat.name, before: { name: cat.name, type: cat.type } }), ...(data.audit || [])],
   };
 }
@@ -848,15 +853,32 @@ export function reassignDeleteCategory(data, { id, replacementId }) {
   const cat = data.categories.find(c => c.id === id);
   const repl = data.categories.find(c => c.id === replacementId);
   if (!cat || !repl || cat.isSystem || id === replacementId) return data;
+  const srcAssignments = (data.assignments || []).filter(a => a.category === id);
   const moved = {
     transactions: data.transactions.filter(t => t.category === id).length,
     budgets: data.budgets.filter(b => b.category === id).length,
     recurring: data.recurring.filter(r => r.category === id).length,
+    assignments: srcAssignments.length,
   };
   // Budgets are unique per category: if the replacement already has one, the
   // source's budget is dropped rather than repointed (the replacement's own
   // budget continues to apply).
   const replacementHasBudget = data.budgets.some(b => b.category === replacementId);
+  // Assignments are unique per (category, month), same as budgets are unique
+  // per category — but unlike a budget, a source assignment can't simply be
+  // dropped on collision without losing money: instead the source's amount is
+  // MERGED into the replacement's row for that month (summed), and only the
+  // now-redundant source row is dropped.
+  const srcByMonth = new Map(srcAssignments.map(a => [a.month, a]));
+  const assignments = (data.assignments || [])
+    .filter(a => a.category !== id)
+    .map(a => {
+      if (a.category !== replacementId || !srcByMonth.has(a.month)) return a;
+      const src = srcByMonth.get(a.month);
+      srcByMonth.delete(a.month); // consumed — don't also append it as a new row below
+      return { ...a, amount: a.amount + src.amount };
+    });
+  srcByMonth.forEach(src => assignments.push({ ...src, category: replacementId })); // months the replacement had no row for
   return {
     ...data,
     transactions: data.transactions.map(t => (t.category === id ? { ...t, category: replacementId } : t)),
@@ -864,10 +886,11 @@ export function reassignDeleteCategory(data, { id, replacementId }) {
       ? data.budgets.filter(b => b.category !== id)
       : data.budgets.map(b => (b.category === id ? { ...b, category: replacementId } : b)),
     recurring: data.recurring.map(r => (r.category === id ? { ...r, category: replacementId } : r)),
+    assignments,
     categories: data.categories.filter(c => c.id !== id),
     audit: [makeAudit({
       entityType: 'category', entityId: id, action: 'reassign-delete',
-      summary: 'Deleted ' + cat.name + ' — ' + (moved.transactions + moved.budgets + moved.recurring) + ' reference(s) moved to ' + repl.name,
+      summary: 'Deleted ' + cat.name + ' — ' + (moved.transactions + moved.budgets + moved.recurring + moved.assignments) + ' reference(s) moved to ' + repl.name,
       before: { name: cat.name, refs: moved }, after: { replacementId, replacementName: repl.name },
     }), ...(data.audit || [])],
   };
@@ -988,11 +1011,15 @@ export function adoptYnabTree(data) {
 }
 
 // Copy standing per-category budgets into `month` assignments. Skips the
-// overall budget and any category that already has an assignment that month.
+// overall budget, any category that already has an assignment that month, and
+// any budget whose category is archived (or otherwise not active) — an
+// archived category can no longer be chosen for new spending, so seeding it a
+// fresh assignment would just add dead weight to the plan.
 export function importBudgetsAsAssignments(data, { month }) {
   const existing = new Set((data.assignments || []).filter(a => a.month === month).map(a => a.category));
+  const activeCatIds = new Set((data.categories || []).filter(c => c.status === 'active').map(c => c.id));
   const add = (data.budgets || [])
-    .filter(b => b.category && b.amount > 0 && !existing.has(b.category))
+    .filter(b => b.category && b.amount > 0 && !existing.has(b.category) && activeCatIds.has(b.category))
     .map(b => ({ id: uid(), category: b.category, month, amount: b.amount }));
   if (add.length === 0) return data;
   return {

@@ -8,6 +8,17 @@
 // moment a category is archived would silently inflate RTA. `rows` may
 // therefore include archived categories — filtering the display down to
 // "active only" is the plan screen's job, not this module's.
+//
+// Opening snapshots vs. pre-seed activity: an account's earliest CONFIRMED
+// snapshot is dropped into RTA/openingTotal as a lump sum in its month — it
+// stands in for every transaction that moved that account's money before the
+// snapshot was taken. Bucketing those same pre-snapshot transactions as flows
+// too would double-count them (once as the flow, once embedded in the balance),
+// so any transaction dated before its account's seed month is skipped entirely
+// — not folded into a category's activity, not folded into RTA/uncategorized —
+// consistently, wherever an accountId is available. Card-funded rows (cardId,
+// no accountId) have no seed month to compare against and are never skipped.
+// Accounts with no confirmed snapshot are never skipped either.
 import { hasOccurred, txBudgetImpact } from './calc.js';
 import { addMonths } from './dates.js';
 
@@ -65,6 +76,16 @@ export function envelopeFor(store, month, now) {
   const openingByMonth = new Map(); // month -> total opening balance seeded that month
   openingSnapshots.forEach(s => { openingByMonth.set(s.month, (openingByMonth.get(s.month) || 0) + s.amount); });
 
+  // accountId -> earliest confirmed snapshot month. A transaction dated before
+  // its account's seed month is already embedded in that lump-sum balance —
+  // see the module comment above.
+  const seedMonthByAccount = new Map();
+  openingSnapshots.forEach((s, accountId) => seedMonthByAccount.set(accountId, s.month));
+  const seededAfter = (accountId, m) => {
+    const seed = seedMonthByAccount.get(accountId);
+    return !!seed && seed > m;
+  };
+
   // Bucket by month once: per-category activity, income total, and the two
   // kinds of outflow that never had an envelope to absorb them at all —
   // uncategorized/unknown-category expenses and transfer fees. Both come
@@ -81,15 +102,20 @@ export function envelopeFor(store, month, now) {
     if (!hasOccurred(t, now)) return;
 
     if (t.type === 'income') {
+      if (seededAfter(t.accountId, m)) return; // already inside the opening balance
       incomeByMonth.set(m, (incomeByMonth.get(m) || 0) + t.amount);
       return;
     }
     if (t.type === 'transfer') {
+      if (seededAfter(t.accountId, m)) return; // fee is scoped to the SOURCE account's seed
       const fee = txBudgetImpact(store, t, { includeExcluded: true }); // transfers have no category; this is just the fee
       if (fee) uncategorizedByMonth.set(m, (uncategorizedByMonth.get(m) || 0) + fee);
       return;
     }
     if (t.type !== 'expense' && t.type !== 'refund') return; // adjustment/cardAdjustment: not envelope money
+    // Card-funded rows carry cardId, not accountId — seededAfter(undefined, m)
+    // is always false, so they are never skipped here.
+    if (seededAfter(t.accountId, m)) return;
 
     const known = t.category && catIds.has(t.category);
     if (!known) {

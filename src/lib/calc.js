@@ -190,11 +190,16 @@ export function duplicateCat(store, { name, type, excludeId }) {
   return store.categories.find(c => c.id !== excludeId && normalizeName(c.name) === n && c.type === type) || null;
 }
 // Everything that points at a category, so deletion can be explained precisely.
+// Includes envelope assignments (I3): a category with money assigned to it in
+// some month is just as "in use" as one with a transaction or a budget — the
+// server has an FK from assignments to categories, and offering a hard delete
+// while assignment rows still point at the category silently orphans them.
 export function catRefs(store, id) {
   const transactions = store.transactions.filter(t => t.category === id).length;
   const budgets = store.budgets.filter(b => b.category === id).length;
   const recurring = store.recurring.filter(r => r.category === id).length;
-  return { transactions, budgets, recurring, total: transactions + budgets + recurring };
+  const assignments = (store.assignments || []).filter(a => a.category === id).length;
+  return { transactions, budgets, recurring, assignments, total: transactions + budgets + recurring + assignments };
 }
 export function catMonthTotal(store, id, month, now) {
   return store.transactions
