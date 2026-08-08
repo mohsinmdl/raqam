@@ -21,6 +21,7 @@ import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
 import ViewEditorModal from '../ui/plan/ViewEditorModal.jsx';
 import ManageViewsModal from '../ui/plan/ManageViewsModal.jsx';
+import ActivityModal from '../ui/plan/ActivityModal.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
@@ -660,7 +661,7 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
 // that opens Cover/Move popovers when non-zero. In "progress" view a thin bar
 // + note show spend against (carryIn + assigned); "compact" view drops both.
 function CategoryRow({ cat, row, ctx }) {
-  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect } = ctx;
+  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, onOpenActivity } = ctx;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -784,7 +785,15 @@ function CategoryRow({ cat, row, ctx }) {
           >{money(r.assigned)}</button>
         )}
       </div>
-      <div data-noselect className="tnum" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>{moneyS(r.activity)}</div>
+      <div data-noselect style={{ textAlign: 'right' }}>
+        <button
+          onClick={() => onOpenActivity(cat)} className="tnum hv-soft"
+          aria-label={'Activity for ' + cat.name}
+          style={{ padding: '2px 4px', border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}
+          onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline'; }}
+          onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none'; }}
+        >{moneyS(r.activity)}</button>
+      </div>
       <div style={{ textAlign: 'right' }}>
         {r.available === 0 ? (
           <span className="tnum" style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, background: pillBg, color: pillFg, fontSize: 13, fontWeight: 600 }}>{money(r.available)}</span>
@@ -908,6 +917,10 @@ export default function Plan() {
   const [editing, setEditing] = useState(null);
   const writeViews = next => setPrefs({ planViews: next });
 
+  // The category whose Activity drill-down modal is open, or null. One modal
+  // instance for the whole screen — not one per row.
+  const [activityCat, setActivityCat] = useState(null);
+
   const saveView = ({ name, categoryIds }) => {
     if (editing === 'new') {
       const v = newView(name, categoryIds, views);
@@ -935,7 +948,7 @@ export default function Plan() {
   const hasUnimportedStanding = catBudgets.length > 0 && !catBudgets.some(b => assignedCatsThisMonth.has(b.category));
   const showBanner = !prefs.planBannerDismissed && (noGroups || hasUnimportedStanding);
 
-  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, setMany };
+  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, setMany, onOpenActivity: setActivityCat };
 
   return (
     <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 28px 56px' }}>
@@ -1027,6 +1040,14 @@ export default function Plan() {
         onDelete={deleteView}
         onNew={() => { setManageOpen(false); setEditing('new'); }}
         onClose={() => setManageOpen(false)}
+      />
+      <ActivityModal
+        open={activityCat !== null}
+        cat={activityCat}
+        month={month}
+        S={S}
+        money={money}
+        onClose={() => setActivityCat(null)}
       />
     </div>
   );

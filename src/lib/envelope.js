@@ -68,6 +68,32 @@ function earliestMonth(store, viewed, openingSnapshots) {
   return m < floor ? floor : m;
 }
 
+// The transactions that make up ONE category's activity for a month, and their
+// signed total (negative = spending). Same predicate as the fold below, so the
+// Activity modal (Phase 4) can never disagree with the ACTIVITY cell: not
+// pending, occurred, expense/refund, category match, and NOT dated before the
+// account's opening-snapshot seed month. Amount is txBudgetImpact, not t.amount.
+export function categoryActivityRows(store, catId, month, now) {
+  const seed = earliestOpeningSnapshots(store); // accountId -> earliest confirmed snapshot
+  const seededAfter = (accountId, m) => { const s = seed.get(accountId); return !!s && s.month > m; };
+  const out = [];
+  let total = 0;
+  (store.transactions || []).forEach(t => {
+    if (t.status === 'pending') return;
+    if (monthOf(t) !== month) return;
+    if (!hasOccurred(t, now)) return;
+    if (t.type !== 'expense' && t.type !== 'refund') return;
+    if (t.category !== catId) return;
+    if (seededAfter(t.accountId, month)) return;
+    const impact = txBudgetImpact(store, t, { includeExcluded: true });
+    if (!impact) return;
+    out.push({ t, impact: -impact }); // spending is negative activity, matching the fold
+    total -= impact;
+  });
+  out.sort((a, b) => (a.t.date < b.t.date ? 1 : a.t.date > b.t.date ? -1 : 0));
+  return { rows: out, total };
+}
+
 export function envelopeFor(store, month, now) {
   const cats = (store.categories || []).filter(c => c.type === 'expense');
   const catIds = new Set(cats.map(c => c.id));
