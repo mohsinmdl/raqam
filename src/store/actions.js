@@ -804,15 +804,16 @@ export function upsertCategory(data, { form: f }) {
 }
 
 // Inspector Notes (Phase 3): the note IS categories.description — the field
-// already syncs, so no schema work. Trimmed only of trailing whitespace-only
-// input; intentional inner formatting is preserved.
+// already syncs, so no schema work. Whitespace-only input clears to '';
+// intentional inner formatting is preserved.
 export function setCategoryNote(data, { id, note }) {
   const i = data.categories.findIndex(c => c.id === id);
   if (i < 0) return data;
-  const next = (note || '').trim() === '' && !(data.categories[i].description || '') ? null
-    : (data.categories[i].description || '') === (note || '') ? null : true;
-  if (!next) return data;
-  const cat = { ...data.categories[i], description: note || '' };
+  const raw = note || '';
+  const val = raw.trim() === '' ? '' : raw; // whitespace-only clears; inner formatting preserved
+  const existing = data.categories[i].description || '';
+  if (val === existing) return data;
+  const cat = { ...data.categories[i], description: val };
   const categories = [...data.categories];
   categories[i] = cat;
   return {
@@ -820,8 +821,8 @@ export function setCategoryNote(data, { id, note }) {
     audit: [makeAudit({
       entityType: 'category', entityId: id, action: 'update',
       summary: 'Updated note for ' + cat.name,
-      before: { description: data.categories[i].description || '' },
-      after: { description: cat.description },
+      before: { description: existing },
+      after: { description: val },
     }), ...(data.audit || [])],
   };
 }
