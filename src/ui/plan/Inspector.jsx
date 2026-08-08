@@ -4,7 +4,7 @@
 import { useMemo, useState, useRef } from 'react';
 import { monthLabel } from '../../lib/calc.js';
 import {
-  selectionSummary, underfundedFor, autoAssignPlan, autoAssignAmount,
+  selectionSummary, autoAssignPlan, autoAssignAmount,
 } from '../../lib/inspector.js';
 import { moveAssigned, setCategoryNote } from '../../store/actions.js';
 
@@ -147,5 +147,19 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
     );
   }
 
-  return null; // multi arrives in Task 6
+  const names = ids.map(id => (activeCats.find(c => c.id === id) || {}).name).filter(Boolean);
+  return (
+    <div className="plan-inspector">
+      <div style={{ padding: '2px 2px 0' }}>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>{selected.size} Categories Selected</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{names.join(', ')}</div>
+      </div>
+      <Card title={monthName + "'s Summary"}>
+        <SummaryLines sum={selectionSummary(env, ids)} money={money} monthName={monthName} />
+      </Card>
+      <Card title="Auto-Assign">
+        <AutoAssignRows kinds={['underfunded', ...SIX_KINDS]} catIds={ids} ctx={ctx} money={money} applyData={applyData} plural />
+      </Card>
+    </div>
+  );
 }
