@@ -9,9 +9,16 @@
 // cases (a three-month window in February reaching back into last year) are
 // worth testing, and a component is not.
 import { MN, monthLabel } from './calc.js';
-import { addMonths, currentMonth } from './dates.js';
+import { addDays, addMonths, currentMonth, todayStr } from './dates.js';
 
+// A bound is either a month ('YYYY-MM'), a day ('YYYY-MM-DD'), or null
+// (unbounded). Today/Yesterday are day-precise; the other presets are months.
+// Because both formats are zero-padded, lexicographic order stays chronological,
+// so inRange compares a same-length prefix of the transaction date against each
+// bound and needs no Date objects.
 export const RANGE_PRESETS = [
+  { id: 'today', label: 'Today' },
+  { id: 'yesterday', label: 'Yesterday' },
   { id: 'month', label: 'This Month' },
   { id: 'last3', label: 'Latest 3 Months' },
   { id: 'year', label: 'This Year' },
@@ -21,31 +28,39 @@ export const RANGE_PRESETS = [
 
 export const MONTH_OPTS = MN.map((name, i) => ({ id: String(i + 1).padStart(2, '0'), label: name }));
 
-// `today` is injectable so the tests don't depend on the wall clock.
+// `today` is injectable so the tests don't depend on the wall clock. It may be
+// a day ('YYYY-MM-DD') or a bare month ('YYYY-MM'); when only a month is given
+// the day presets fall back to the 1st, which is all the month-level tests need.
 export function rangeFor(presetId, today) {
-  const now = today || currentMonth();
+  const now = today || todayStr();
+  const month = now.slice(0, 7);
   const year = now.slice(0, 4);
+  const day = now.length >= 10 ? now : month + '-01';
   switch (presetId) {
-    case 'month': return { from: now, to: now };
+    case 'today': return { from: day, to: day };
+    case 'yesterday': { const y = addDays(day, -1); return { from: y, to: y }; }
+    case 'month': return { from: month, to: month };
     // Three months INCLUDING this one, so -2. In February this reaches back
     // into December of the previous year, which addMonths handles.
-    case 'last3': return { from: addMonths(now, -2), to: now };
+    case 'last3': return { from: addMonths(month, -2), to: month };
     case 'year': return { from: year + '-01', to: year + '-12' };
     case 'lastYear': {
       const y = String(Number(year) - 1);
       return { from: y + '-01', to: y + '-12' };
     }
     case 'all': return { from: null, to: null };
-    default: return { from: now, to: now };
+    default: return { from: month, to: month };
   }
 }
 
-// Inclusive at both ends; a null bound is unbounded on that side.
+// Inclusive at both ends; a null bound is unbounded on that side. Each bound is
+// compared against the same-length prefix of the transaction date, so a month
+// bound filters by month and a day bound filters by day.
 export function inRange(t, from, to) {
-  const m = String(t.date || '').slice(0, 7);
-  if (!m) return false;
-  if (from && m < from) return false;
-  if (to && m > to) return false;
+  const d = String(t.date || '');
+  if (!d) return false;
+  if (from && d.slice(0, from.length) < from) return false;
+  if (to && d.slice(0, to.length) > to) return false;
   return true;
 }
 
@@ -59,12 +74,22 @@ export function presetOf(from, to, today) {
   return hit ? hit.id : 'custom';
 }
 
-export function rangeLabel(from, to) {
+// `today` (optional, day-precise) lets a single-day range name itself
+// 'Today' / 'Yesterday'; without it a day range reads as its date ('8 Aug 2026').
+export function rangeLabel(from, to, today) {
   if (!from && !to) return 'All dates';
+  // A day-precise single day (both bounds the same 10-char date).
+  if (from && from === to && from.length === 10) {
+    if (today && from === today) return 'Today';
+    if (today && from === addDays(today, -1)) return 'Yesterday';
+    const [y, m, d] = from.split('-').map(Number);
+    return d + ' ' + MN[m - 1].slice(0, 3) + ' ' + y;
+  }
   if (from && !to) return 'From ' + monthLabel(from);
   if (!from && to) return 'Up to ' + monthLabel(to);
   if (from === to) return monthLabel(from);
-  const shortM = ym => MN[Number(ym.slice(5)) - 1].slice(0, 3);
+  // slice(5,7) so a stray day bound still resolves to its month here.
+  const shortM = ym => MN[Number(ym.slice(5, 7)) - 1].slice(0, 3);
   // Same year reads as one span rather than repeating it: 'Jun – Aug 2026'.
   if (from.slice(0, 4) === to.slice(0, 4)) return shortM(from) + ' – ' + shortM(to) + ' ' + from.slice(0, 4);
   return shortM(from) + ' ' + from.slice(0, 4) + ' – ' + shortM(to) + ' ' + to.slice(0, 4);
@@ -87,9 +112,13 @@ export function clampRange(from, to) {
 // exact failure yearOpts below exists to prevent.
 export function shiftRange(from, to, delta, years) {
   if (!from && !to) return null;
+  // A day-precise range steps by day (Today → Yesterday → …); a month range
+  // steps by whole months, keeping its width.
+  const isDay = (from && from.length === 10) || (to && to.length === 10);
+  const step = ym => (isDay ? addDays(ym, delta) : addMonths(ym, delta));
   const next = {
-    from: from ? addMonths(from, delta) : null,
-    to: to ? addMonths(to, delta) : null,
+    from: from ? step(from) : null,
+    to: to ? step(to) : null,
   };
   if (years && years.length) {
     const lo = years[0], hi = years[years.length - 1];

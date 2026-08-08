@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useTxView } from '../store/TxViewContext.jsx';
+import { todayStr } from '../lib/dates.js';
 import {
   MONTH_OPTS, RANGE_PRESETS, clampRange, presetOf, rangeFor, rangeLabel, shiftRange, yearOpts,
 } from '../lib/dateRange.js';
@@ -53,13 +54,15 @@ export default function TxMonthNav() {
 
   const openPopover = () => { setDraft(range); setOpen(true); };
   const applyRange = () => { setRange(clampRange(draft.from, draft.to)); setOpen(false); };
+  // The From/To selects are month-grained, so editing either one normalises the
+  // bound to a month ('YYYY-MM') — converting a day preset back to a month range.
   const setBound = (key, part, v) => setDraft(d => {
-    const cur = d[key] || rangeFor('month').from;
-    const nextVal = part === 'm' ? cur.slice(0, 4) + '-' + v : v + '-' + cur.slice(5);
+    const cur = (d[key] || rangeFor('month').from).slice(0, 7);
+    const nextVal = part === 'm' ? cur.slice(0, 4) + '-' + v : v + '-' + cur.slice(5, 7);
     return { ...d, [key]: nextVal };
   });
 
-  const label = rangeLabel(range.from, range.to);
+  const label = rangeLabel(range.from, range.to, todayStr());
 
   return (
     <div ref={rootRef} style={{ position: 'relative' }}>
@@ -88,7 +91,7 @@ export default function TxMonthNav() {
       {open && (
         <div role="dialog" aria-label="Date range" style={{ position: 'absolute', top: 38, left: 0, zIndex: 30, width: 580, maxWidth: '92vw', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 14 }}>
           <div style={{ fontSize: 14, fontWeight: 700, paddingBottom: 10 }}>View Options</div>
-          {/* nowrap keeps the five presets on one line; it scrolls
+          {/* nowrap keeps the presets on one line; it scrolls
               rather than wrapping if the window is too narrow. */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 12, borderTop: '1px solid var(--border)', paddingTop: 12, borderBottom: '1px solid var(--border)' }}>
             {RANGE_PRESETS.map(p => (
@@ -103,7 +106,7 @@ export default function TxMonthNav() {
             {[['from', 'From'], ['to', 'To']].map(([key, lbl]) => (
               <span key={key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 12.5, fontWeight: 600 }}>{lbl}:</span>
-                <select aria-label={lbl + ' month'} value={(draft[key] || rangeFor('month').from).slice(5)}
+                <select aria-label={lbl + ' month'} value={(draft[key] || rangeFor('month').from).slice(5, 7)}
                   onChange={e => setBound(key, 'm', e.target.value)} style={{ ...selStyle, height: 32, maxWidth: 120 }}>
                   {MONTH_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                 </select>
