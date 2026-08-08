@@ -69,6 +69,44 @@ function AutoAssignRows({ kinds, catIds, ctx, money, applyData, plural }) {
 
 const SIX_KINDS = ['assignedLastMonth', 'spentLastMonth', 'avgAssigned', 'avgSpent', 'resetAvailable', 'resetAssigned'];
 
+function AvailableCard({ row, money }) {
+  const pillBg = row.available > 0 ? 'var(--pos-soft)' : row.available < 0 ? 'var(--neg-soft)' : 'var(--elev)';
+  const pillFg = row.available > 0 ? 'var(--pos)' : row.available < 0 ? 'var(--neg)' : 'var(--muted)';
+  return (
+    <Card title="Available Balance">
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+        <span className="tnum" style={{ padding: '4px 14px', borderRadius: 999, background: pillBg, color: pillFg, fontSize: 15, fontWeight: 700 }}>{money(row.available)}</span>
+      </div>
+      <div style={lineRow}><span>Left Over from Last Month</span><span className="tnum">{money(row.carryIn)}</span></div>
+      <div style={lineRow}><span>Assigned This Month</span><span className="tnum">{(row.assigned > 0 ? '+' : '') + money(row.assigned)}</span></div>
+      <div style={lineRow}><span>Spending This Month</span><span className="tnum">{money(row.activity)}</span></div>
+    </Card>
+  );
+}
+
+function NotesCard({ cat, applyData }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const start = () => { setDraft(cat.description || ''); setEditing(true); };
+  const commit = () => { applyData(data => setCategoryNote(data, { id: cat.id, note: draft })); setEditing(false); };
+  return (
+    <Card title="Notes">
+      {editing ? (
+        <textarea autoFocus value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === 'Escape') { e.stopPropagation(); setEditing(false); }
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit();
+          }}
+          style={{ width: '100%', minHeight: 64, boxSizing: 'border-box', padding: 8, border: '1px solid var(--accent)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical' }} />
+      ) : (
+        <p onClick={start} style={{ margin: 0, fontSize: 13, color: cat.description ? 'var(--text)' : 'var(--muted)', cursor: 'text', whiteSpace: 'pre-wrap' }}>
+          {cat.description || 'Enter a note...'}
+        </p>
+      )}
+    </Card>
+  );
+}
+
 export default function Inspector({ S, env, envAt, month, money, applyData, selected }) {
   const ctx = { S, month, env, envAt };
   const monthName = monthLabel(month).split(' ')[0]; // "August" from "August 2026"
@@ -91,5 +129,22 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
       </div>
     );
   }
-  return null; // single/multi arrive in Tasks 5–6
+
+  if (selected.size === 1) {
+    const cat = activeCats.find(c => c.id === ids[0]);
+    if (!cat) return null;
+    const row = env.rows.get(cat.id) || { assigned: 0, activity: 0, available: 0, carryIn: 0 };
+    return (
+      <div className="plan-inspector">
+        <div style={{ fontSize: 15, fontWeight: 700, padding: '2px 2px 0' }}>{cat.name}</div>
+        <AvailableCard row={row} money={money} />
+        <Card title="Auto-Assign">
+          <AutoAssignRows kinds={SIX_KINDS} catIds={[cat.id]} ctx={ctx} money={money} applyData={applyData} />
+        </Card>
+        <NotesCard key={cat.id} cat={cat} applyData={applyData} />
+      </div>
+    );
+  }
+
+  return null; // multi arrives in Task 6
 }
