@@ -7,6 +7,7 @@ import {
   selectionSummary, autoAssignPlan, autoAssignAmount,
 } from '../../lib/inspector.js';
 import { moveAssigned, setCategoryNote } from '../../store/actions.js';
+import { useUI } from '../UIProvider.jsx';
 
 const cardStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 };
 const lineRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, padding: '3px 0' };
@@ -16,7 +17,7 @@ function Card({ title, children }) {
   const [open, setOpen] = useState(true);
   return (
     <section style={cardStyle}>
-      <button onClick={() => setOpen(o => !o)}
+      <button onClick={() => setOpen(o => !o)} aria-expanded={open}
         style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', border: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', padding: 0, textAlign: 'left' }}>
         <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--muted)' }}>{open ? '▾' : '▸'}</span>
         {title}
@@ -48,6 +49,7 @@ const KIND_LABELS = {
 };
 
 function AutoAssignRows({ kinds, catIds, ctx, money, applyData, plural }) {
+  const { notify } = useUI();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {kinds.map(kind => {
@@ -56,7 +58,10 @@ function AutoAssignRows({ kinds, catIds, ctx, money, applyData, plural }) {
         const label = KIND_LABELS[kind] + (plural && kind.startsWith('reset') ? 's' : '');
         return (
           <button key={kind} className="hv-soft" disabled={!plan.length}
-            onClick={() => applyData(data => plan.reduce((d, mv) => moveAssigned(d, mv), data))}
+            onClick={() => {
+              applyData(data => plan.reduce((d, mv) => moveAssigned(d, mv), data));
+              notify(label + ' applied to ' + plan.length + (plan.length === 1 ? ' category.' : ' categories.'));
+            }}
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 32, padding: '0 10px', border: 'none', borderRadius: 8, background: 'var(--elev)', color: 'var(--text)', fontSize: 13, cursor: plan.length ? 'pointer' : 'default', opacity: plan.length ? 1 : .55 }}>
             <span>{label}</span>
             <span className="tnum" style={{ fontWeight: 600 }}>{money(amount)}</span>
@@ -85,24 +90,34 @@ function AvailableCard({ row, money }) {
 }
 
 function NotesCard({ cat, applyData }) {
+  const { notify } = useUI();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  // Same cancelledRef guard as CategoryRow's assigned input (Plan.jsx): Escape sets
+  // it before teardown so a still-pending blur doesn't re-commit the discarded draft.
   const cancelledRef = useRef(false);
   const start = () => { cancelledRef.current = false; setDraft(cat.description || ''); setEditing(true); };
-  const commit = () => { if (cancelledRef.current) { cancelledRef.current = false; return; } applyData(data => setCategoryNote(data, { id: cat.id, note: draft })); setEditing(false); };
+  const commit = () => {
+    if (cancelledRef.current) { cancelledRef.current = false; return; }
+    const changed = draft !== (cat.description || '');
+    applyData(data => setCategoryNote(data, { id: cat.id, note: draft }));
+    setEditing(false);
+    if (changed) notify('Note saved.');
+  };
   return (
     <Card title="Notes">
       {editing ? (
         <textarea autoFocus value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit}
+          aria-label={'Note for ' + cat.name}
           onKeyDown={e => {
             if (e.key === 'Escape') { e.stopPropagation(); cancelledRef.current = true; setEditing(false); }
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit();
           }}
           style={{ width: '100%', minHeight: 64, boxSizing: 'border-box', padding: 8, border: '1px solid var(--accent)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical' }} />
       ) : (
-        <p onClick={start} style={{ margin: 0, fontSize: 13, color: cat.description ? 'var(--text)' : 'var(--muted)', cursor: 'text', whiteSpace: 'pre-wrap' }}>
+        <button type="button" onClick={start} style={{ display: 'block', margin: 0, width: '100%', border: 'none', background: 'transparent', padding: 0, fontSize: 13, color: cat.description ? 'var(--text)' : 'var(--muted)', cursor: 'text', whiteSpace: 'pre-wrap', textAlign: 'left' }}>
           {cat.description || 'Enter a note...'}
-        </p>
+        </button>
       )}
     </Card>
   );
