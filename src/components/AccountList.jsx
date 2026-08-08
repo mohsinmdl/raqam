@@ -99,15 +99,6 @@ export default function AccountList() {
         >
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}><circle cx="12" cy="12" r="9" /><path d="M12 8.5v7M8.5 12h7" /></svg> Add account
         </button>
-        {/* Entry to the account-management screen (edit, archive, restore,
-            permanently delete) — otherwise reachable only by URL. */}
-        <button
-          onClick={() => navigate('/accounts')}
-          className="hv-accent-fg"
-          style={{ display: 'block', margin: '8px auto 0', border: 'none', background: 'transparent', color: 'var(--muted)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
-        >
-          Manage accounts
-        </button>
       </div>
     </div>
   );
