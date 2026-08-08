@@ -22,4 +22,23 @@ describe('setCategoryNote', () => {
     const s1 = setCategoryNote(s0, { id: 'groc', note: 'a' });
     expect(setCategoryNote(s1, { id: 'groc', note: 'a' })).toBe(s1);
   });
+  it('clears an existing non-empty note to empty string', () => {
+    const s0 = store();
+    const s1 = setCategoryNote(s0, { id: 'groc', note: 'buy in bulk' });
+    expect(s1.categories.find(c => c.id === 'groc').description).toBe('buy in bulk');
+    const s2 = setCategoryNote(s1, { id: 'groc', note: '' });
+    expect(s2.categories.find(c => c.id === 'groc').description).toBe('');
+    expect(s2.audit).toHaveLength(2);
+    expect(s2.audit[0]).toMatchObject({ entityType: 'category', entityId: 'groc', action: 'update' });
+    expect(s2.audit[0].summary).toContain('Groceries');
+  });
+  it('normalizes whitespace-only input to empty string', () => {
+    const s0 = store();
+    const s1 = setCategoryNote(s0, { id: 'groc', note: 'buy in bulk' });
+    expect(s1.categories.find(c => c.id === 'groc').description).toBe('buy in bulk');
+    const s2 = setCategoryNote(s1, { id: 'groc', note: '   ' });
+    expect(s2.categories.find(c => c.id === 'groc').description).toBe('');
+    expect(s2.audit).toHaveLength(2);
+    expect(s2.audit[0]).toMatchObject({ entityType: 'category', entityId: 'groc', action: 'update' });
+  });
 });
