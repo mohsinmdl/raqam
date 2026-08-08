@@ -44,6 +44,11 @@ export const COLLECTIONS = [
     fromRow: r => ({ id: r.id, instId: r.inst_id, name: r.name, type: r.type, network: r.network, tier: r.tier }),
   },
   {
+    name: 'categoryGroups', table: 'category_groups', keyOf: r => r.id,
+    toRow: r => ({ id: r.id, name: r.name, sort_order: r.sortOrder ?? 99 }),
+    fromRow: r => ({ id: r.id, name: r.name, sortOrder: r.sort_order ?? 99 }),
+  },
+  {
     name: 'categories', table: 'categories', keyOf: r => r.id,
     // Explicit nulls (see transactions): archived_at clears on restore.
     toRow: r => ({
@@ -53,6 +58,7 @@ export const COLLECTIONS = [
       exclude_from_budget: !!r.excludeFromBudget, // always the boolean — phantom-diff guard
       archived_at: r.archivedAt ?? null,
       edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
+      group_id: r.groupId ?? null,
     }),
     fromRow: r => stripNulls({
       id: r.id, name: r.name, type: r.type, color: r.color,
@@ -61,7 +67,13 @@ export const COLLECTIONS = [
       excludeFromBudget: !!r.exclude_from_budget,
       archivedAt: r.archived_at || undefined,
       editedAt: r.edited_at || undefined, editCount: r.edit_count > 0 ? r.edit_count : undefined,
+      groupId: r.group_id || undefined,
     }),
+  },
+  {
+    name: 'assignments', table: 'assignments', keyOf: r => r.id,
+    toRow: r => ({ id: r.id, category_id: r.category, month: r.month, amount: r.amount }),
+    fromRow: r => ({ id: r.id, category: r.category_id, month: r.month, amount: Number(r.amount) || 0 }),
   },
   {
     name: 'accounts', table: 'accounts', keyOf: r => r.id,

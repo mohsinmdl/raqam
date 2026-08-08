@@ -57,5 +57,6 @@ export function freshStore() {
     cardProducts: CARD_PRODUCTS.map(x => ({ ...x })),
     categories: CATEGORIES.map(c => ({ ...c })),
     accounts: [], snapshots: [], cards: [], transactions: [], budgets: [], recurring: [], audit: [],
+    categoryGroups: [], assignments: [],
   };
 }
