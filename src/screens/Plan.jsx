@@ -49,6 +49,15 @@ function usePopoverDismiss(open, ref, onClose) {
   }, [open, ref, onClose]);
 }
 
+// A row popover near the viewport's bottom must open UPWARD — anchored below
+// its trigger it slides off-screen (absolute inside <main>'s scroll just
+// extends the scroll instead of staying visible). Decide at open time from the
+// trigger's live rect and an honest height estimate.
+function flipIfLow(el, estHeight) {
+  if (!el) return false;
+  return window.innerHeight - el.getBoundingClientRect().bottom < estHeight;
+}
+
 // Adds a category inside `groupId` (null → left ungrouped, which the section
 // builder below reads back into the implicit "Other" bucket). upsertCategory's
 // form contract creates the record but never writes groupId, so the group is
@@ -197,7 +206,10 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
         style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: '#1F5D1A', color: '#EAF7DC', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
       >Assign ▾</button>
       {open && (
-        <div role="dialog" aria-label="Assign Ready to Assign money" style={{ ...popCard, top: 40, right: 0, width: 320 }}>
+        // Left-anchored: the banner sits at the content's left edge, and a
+        // right-anchored card would extend past the main box where its
+        // overflow clips it at the sidebar boundary.
+        <div role="dialog" aria-label="Assign Ready to Assign money" style={{ ...popCard, top: 40, left: 0, width: 320 }}>
           <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
             <span title="Targets coming later" style={{ padding: '0 2px 8px', fontSize: 13, fontWeight: 600, color: 'var(--muted)', cursor: 'not-allowed' }}>⚡ Auto</span>
             <span style={{ padding: '0 2px 8px', fontSize: 13, fontWeight: 600, color: 'var(--accent)', borderBottom: '2px solid var(--accent)' }}>Manually</span>
@@ -432,7 +444,7 @@ function OpPopover({ onPick }) {
 // row per import, keyed 'import|'+month rather than this category — surfaced
 // here too (amount omitted, rendered '—') since they DID affect this
 // category's assigned amount that month.
-function MovesPopover({ open, cat, month, S, money, onClose }) {
+function MovesPopover({ open, up, cat, month, S, money, onClose }) {
   const { user } = useAuth();
   const { prefs } = useStore();
   if (!open) return null;
@@ -464,9 +476,10 @@ function MovesPopover({ open, cat, month, S, money, onClose }) {
     <div
       role="dialog" aria-label="Assignment history"
       onMouseDown={e => e.preventDefault()}
-      // top sits below OpPopover's footprint (top:36 + ~74px card + 8px gap)
-      // so the two never overlap when both are open at once.
-      style={{ ...popCard, top: 118, right: 0, width: 340, textAlign: 'left' }}
+      // Below the editor it sits under OpPopover's footprint (top:36 + ~74px
+      // card + 8px gap) so the two never overlap; flipped up (bottom rows) it
+      // opens above the cell, clear of OpPopover entirely.
+      style={{ ...popCard, ...(up ? { bottom: 40 } : { top: 118 }), right: 0, width: 340, textAlign: 'left' }}
     >
       <div style={{ fontSize: 14, fontWeight: 700 }}>Moves</div>
       <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>{cat.name}</div>
@@ -511,13 +524,14 @@ function MovesPopover({ open, cat, month, S, money, onClose }) {
 function CoverPopover({ cat, month, available, env, S, money, applyData }) {
   const { notify } = useUI();
   const [open, setOpen] = useState(false);
+  const [up, setUp] = useState(false);
   const [from, setFrom] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const rootRef = useRef(null);
   const close = () => setOpen(false);
   usePopoverDismiss(open, rootRef, close);
 
-  const openPopover = () => { setFrom(null); setPickerOpen(false); setOpen(true); };
+  const openPopover = () => { setFrom(null); setPickerOpen(false); setUp(flipIfLow(rootRef.current, 440)); setOpen(true); };
 
   const fromCat = from && from !== 'rta' ? S.categories.find(c => c.id === from) : null;
   const fromLabel = from === 'rta' ? 'Ready to Assign' : (fromCat ? fromCat.name : null);
@@ -541,7 +555,7 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
         style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, border: 'none', background: 'var(--neg-soft)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
       >{money(available)}</button>
       {open && (
-        <div role="dialog" aria-label="Cover overspending" style={{ ...popCard, top: 30, right: 0, width: 300, textAlign: 'left' }}>
+        <div role="dialog" aria-label="Cover overspending" style={{ ...popCard, ...(up ? { bottom: 30 } : { top: 30 }), right: 0, width: 300, textAlign: 'left' }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Cover overspending from</div>
           <div className="tnum" style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>{money(amount)}</div>
           <button
@@ -576,6 +590,7 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
 function MovePopover({ cat, month, available, env, S, money, applyData }) {
   const { notify } = useUI();
   const [open, setOpen] = useState(false);
+  const [up, setUp] = useState(false);
   const [amount, setAmount] = useState(() => String(available));
   const [to, setTo] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -583,7 +598,7 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
   const close = () => setOpen(false);
   usePopoverDismiss(open, rootRef, close);
 
-  const openPopover = () => { setAmount(String(available)); setTo(null); setPickerOpen(false); setOpen(true); };
+  const openPopover = () => { setAmount(String(available)); setTo(null); setPickerOpen(false); setUp(flipIfLow(rootRef.current, 440)); setOpen(true); };
 
   const toCat = to && to !== 'rta' ? S.categories.find(c => c.id === to) : null;
   const toLabel = to === 'rta' ? 'Ready to Assign' : (toCat ? toCat.name : null);
@@ -607,7 +622,7 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
         style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, border: 'none', background: 'var(--pos-soft)', color: 'var(--pos)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
       >{money(available)}</button>
       {open && (
-        <div role="dialog" aria-label="Move available money" style={{ ...popCard, top: 30, right: 0, width: 300, textAlign: 'left' }}>
+        <div role="dialog" aria-label="Move available money" style={{ ...popCard, ...(up ? { bottom: 30 } : { top: 30 }), right: 0, width: 300, textAlign: 'left' }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Move:</label>
           <input
             className="tnum" value={amount} inputMode="numeric"
@@ -652,6 +667,7 @@ function CategoryRow({ cat, row, ctx }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyUp, setHistoryUp] = useState(false);
   const cancelledRef = useRef(false);
   const inputRef = useRef(null);
   const historyRef = useRef(null);
@@ -748,11 +764,11 @@ function CategoryRow({ cat, row, ctx }) {
               <span ref={historyRef} style={{ flex: 'none' }}>
                 <button
                   type="button" onMouseDown={e => e.preventDefault()}
-                  onClick={() => setHistoryOpen(o => !o)}
+                  onClick={() => { setHistoryUp(flipIfLow(historyRef.current, 380)); setHistoryOpen(o => !o); }}
                   aria-label="Assignment history" aria-haspopup="dialog" aria-expanded={String(historyOpen)}
                   style={{ width: 20, height: 20, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 >🕐</button>
-                <MovesPopover open={historyOpen} cat={cat} month={month} S={S} money={money} onClose={closeHistory} />
+                <MovesPopover open={historyOpen} up={historyUp} cat={cat} month={month} S={S} money={money} onClose={closeHistory} />
               </span>
             </div>
             <OpPopover onPick={insertOp} />
