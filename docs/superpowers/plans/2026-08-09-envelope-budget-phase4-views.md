@@ -136,9 +136,11 @@ describe('normalizeViews', () => {
       { id: 'v2', name: 'Duplicate id', categoryIds: ['b'], sortOrder: 9 },
       { name: 'No id', categoryIds: ['a'] },
     ], CATS);
-    expect(out.map(v => v.id)).toEqual(['v1', 'v2']);      // dupe dropped, id-less dropped
-    expect(out[0].name.length).toBeLessThanOrEqual(40);
-    expect(out[1].categoryIds).toEqual(['a']);              // de-duped
+    // v1 carries no sortOrder (-> 999), so it sorts AFTER v2 (5); the
+    // duplicate id and the id-less entry are both dropped.
+    expect(out.map(v => v.id)).toEqual(['v2', 'v1']);
+    expect(out[0].categoryIds).toEqual(['a']);              // de-duped
+    expect(out[1].name).toHaveLength(40);                   // truncated
     expect(out.map(v => v.sortOrder)).toEqual([0, 1]);      // resequenced
   });
 });
