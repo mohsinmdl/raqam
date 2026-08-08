@@ -212,6 +212,16 @@ describe('envelopeFor — robustness and RTA semantics', () => {
     expect(e.rows.get('groc')).toMatchObject({ assigned: 10000, activity: -4000, available: 6000, carryIn: 0 });
   });
 
+  it('a category with an assignment but no transactions is unaffected by any snapshot seed (sanity)', () => {
+    const S = store({
+      accounts: [{ id: 'a1', status: 'active' }],
+      snapshots: [{ id: 's1', accountId: 'a1', month: '2026-08', amount: 20000, status: 'confirmed' }],
+      assignments: [{ id: 'x1', category: 'groc', month: '2026-07', amount: 1000 }],
+    });
+    const e = envelopeFor(S, '2026-08');
+    expect(e.rows.get('groc')).toMatchObject({ carryIn: 1000 }); // assignments are never seed-skipped, only transactions
+  });
+
   it('an archived category keeps its historical assigned amount in assignedTotal', () => {
     const S = store({
       categories: [
@@ -224,5 +234,65 @@ describe('envelopeFor — robustness and RTA semantics', () => {
     const e = envelopeFor(S, '2026-08');
     expect(e.rows.has('groc')).toBe(true);
     expect(e.assignedTotal).toBe(4000);
+  });
+});
+
+// I2: an account's earliest confirmed snapshot stands in for every transaction
+// that moved its money before the snapshot's month. Folding those same
+// transactions in as flows too would double-count them — once in the flow,
+// once already embedded in the balance.
+describe('envelopeFor — opening-seed does not double-count pre-snapshot activity (I2)', () => {
+  it('(a) skips a pre-seed month\'s income and category activity for the seeded account; post-seed flows still count', () => {
+    const S = store({
+      accounts: [{ id: 'a1', status: 'active' }],
+      snapshots: [{ id: 's1', accountId: 'a1', month: '2026-08', amount: 20000, status: 'confirmed' }],
+      transactions: [
+        tx('i0', '2026-07', 5000, 'salary', 'income'), // pre-seed: must not double-count into RTA
+        tx('t0', '2026-07', 2000, 'groc'),             // pre-seed: must not double-count into the envelope
+        tx('i1', '2026-08', 3000, 'salary', 'income'), // post-seed: counts normally
+      ],
+    });
+    const e = envelopeFor(S, '2026-08');
+    expect(e.openingTotal).toBe(20000);
+    expect(e.income).toBe(3000);                 // July's 5000 never entered income
+    expect(e.rta).toBe(20000 + 3000);             // opening balance + August's own income only
+    expect(e.rows.get('groc')).toMatchObject({ carryIn: 0, activity: 0, available: 0 }); // July's spend never touched the envelope
+  });
+
+  it('(b) an account with no confirmed snapshot behaves exactly as before — nothing is skipped', () => {
+    const S = store({
+      accounts: [{ id: 'a1', status: 'active' }],
+      transactions: [
+        tx('i0', '2026-07', 5000, 'salary', 'income'),
+        tx('t0', '2026-07', 2000, 'groc'),
+      ],
+    });
+    const eJul = envelopeFor(S, '2026-07');
+    expect(eJul.income).toBe(5000);                                       // no seed month -> never skipped
+    expect(eJul.rows.get('groc')).toMatchObject({ activity: -2000, available: -2000 });
+    expect(eJul.rta).toBe(5000);                                          // first month: no prior overspend yet
+    const eAug = envelopeFor(S, '2026-08');
+    expect(eAug.rta).toBe(5000 - 2000);                                   // July's overspend is charged to August, as before I2
+  });
+
+  it('(c) skip is consistent, not RTA-only: viewing the pre-seed month directly also shows no activity', () => {
+    const S = store({
+      accounts: [{ id: 'a1', status: 'active' }],
+      snapshots: [{ id: 's1', accountId: 'a1', month: '2026-08', amount: 20000, status: 'confirmed' }],
+      transactions: [tx('t0', '2026-07', 2000, 'groc')],
+    });
+    const eJul = envelopeFor(S, '2026-07');
+    expect(eJul.rows.get('groc')).toMatchObject({ activity: 0, available: 0 });
+    expect(eJul.uncategorized).toBe(0);
+  });
+
+  it('a card-funded expense (cardId, no accountId) is never skipped by a seed', () => {
+    const S = store({
+      accounts: [{ id: 'a1', status: 'active' }],
+      snapshots: [{ id: 's1', accountId: 'a1', month: '2026-08', amount: 20000, status: 'confirmed' }],
+      transactions: [{ id: 'cc1', type: 'expense', amount: 1500, category: 'groc', cardId: 'c1', status: 'cleared', date: '2026-07-05T12:00' }],
+    });
+    const e = envelopeFor(S, '2026-08');
+    expect(e.rows.get('groc')).toMatchObject({ carryIn: 0, activity: 0 }); // spent in July, carried as 0 (overspend reset, not skipped)
   });
 });

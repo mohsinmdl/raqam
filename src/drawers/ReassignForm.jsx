@@ -19,6 +19,7 @@ function Body() {
     refs.transactions ? refs.transactions + ' transaction' + (refs.transactions === 1 ? '' : 's') : null,
     refs.budgets ? refs.budgets + ' budget' + (refs.budgets === 1 ? '' : 's') : null,
     refs.recurring ? refs.recurring + ' recurring item' + (refs.recurring === 1 ? '' : 's') : null,
+    refs.assignments ? refs.assignments + ' assignment' + (refs.assignments === 1 ? '' : 's') : null,
   ].filter(Boolean).join(', ');
   const options = listCats(S, cat.type).filter(c => c.id !== cat.id);
 

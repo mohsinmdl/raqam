@@ -17,7 +17,7 @@ import { openers } from '../drawers/openers.js';
 const DEFAULT_FILTERS = { q: '', type: 'all', status: 'active' };
 const selStyle = { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
 const colHeader = { fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)' };
-const gridCols = { display: 'grid', gridTemplateColumns: 'minmax(0,2.2fr) minmax(0,1fr) minmax(0,1.4fr) minmax(0,1fr) minmax(0,.9fr) 40px', gap: 12 };
+const gridCols = { display: 'grid', gridTemplateColumns: 'minmax(0,2.2fr) minmax(0,1fr) minmax(0,1.4fr) minmax(0,1fr) 40px', gap: 12 };
 
 export default function Categories() {
   const { data: S, applyData } = useStore();
@@ -125,7 +125,7 @@ export default function Categories() {
             <div style={{ ...gridCols, padding: '10px 18px', borderBottom: '1px solid var(--border)' }}>
               <span style={colHeader}>CATEGORY</span><span style={colHeader}>TYPE</span>
               <span style={colHeader}>USED BY</span><span style={colHeader}>THIS MONTH</span>
-              <span style={colHeader}>BUDGET</span><span />
+              <span />
             </div>
             {list.map(c => {
               const refs = catRefs(S, c.id);
@@ -133,9 +133,9 @@ export default function Categories() {
                 refs.transactions + ' tx',
                 refs.budgets ? refs.budgets + ' budget' : null,
                 refs.recurring ? refs.recurring + ' recurring' : null,
+                refs.assignments ? refs.assignments + ' assigned' : null,
               ].filter(Boolean).join(' · ');
               const spend = catMonthTotal(S, c.id, month);
-              const budget = S.budgets.find(b => b.category === c.id);
               const archived = (c.status || 'active') === 'archived';
               return (
                 <div key={c.id} style={{ ...gridCols, alignItems: 'center', padding: '11px 18px', borderBottom: '1px solid var(--border)' }}>
@@ -156,7 +156,6 @@ export default function Categories() {
                   </div>
                   <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{refsLabel}</div>
                   <div className="tnum" style={{ fontSize: 13, fontWeight: 600 }}>{spend ? money(spend) : '—'}</div>
-                  <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{budget ? money(budget.amount) : '—'}</div>
                   <RowMenu
                     open={menuOpen === c.id}
                     onToggle={() => setMenuOpen(m => (m === c.id ? null : c.id))}

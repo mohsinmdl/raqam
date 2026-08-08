@@ -125,8 +125,14 @@ export const validate = {
     // Type change is blocked once financial records exist.
     if (o.id && o.originalType && f.type !== o.originalType) {
       const refs = catRefs(store, o.id);
-      if (refs.transactions || refs.budgets || refs.recurring) {
-        e.type = 'This category is used by ' + refs.transactions + ' transaction' + (refs.transactions === 1 ? '' : 's') +
+      if (refs.total > 0) {
+        const bits = [
+          refs.transactions ? refs.transactions + ' transaction' + (refs.transactions === 1 ? '' : 's') : null,
+          refs.budgets ? refs.budgets + ' budget' + (refs.budgets === 1 ? '' : 's') : null,
+          refs.recurring ? refs.recurring + ' recurring item' + (refs.recurring === 1 ? '' : 's') : null,
+          refs.assignments ? refs.assignments + ' assignment' + (refs.assignments === 1 ? '' : 's') : null,
+        ].filter(Boolean).join(', ');
+        e.type = 'This category is used by ' + bits +
           ' — its income/expense type can no longer be changed. Archive it and create a new one instead.';
       }
     }

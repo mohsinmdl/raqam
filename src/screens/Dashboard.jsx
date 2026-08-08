@@ -97,21 +97,6 @@ export default function Dashboard() {
     return { prevName: C.monthLabel(prevMonth).split(' ')[0], curName: monthName.split(' ')[0], rows: [mk('Income', P.income, M.income, 'var(--accent)'), mk('Expenses', P.expenses, M.expenses, 'var(--warn)')] };
   })() : null;
 
-  const budgetRow = b => {
-    // Personal-budget view always: budgetSpent excludes recoverable categories
-    // and clamps at zero, matching the Budgets screen's default view.
-    const spent = C.budgetSpent(S, b, month, null, now);
-    const eff = C.effectiveBudget(S, b, month); // rollover-effective amount
-    const pct = eff > 0 ? (spent / eff) * 100 : 0;
-    const stx = C.budgetState(pct, spent);
-    const tone = { pos: ['var(--pos-soft)', 'var(--pos)', 'var(--accent)'], warn: ['var(--warn-soft)', 'var(--warn)', 'var(--warn)'], neg: ['var(--neg-soft)', 'var(--neg)', 'var(--neg)'], muted: ['var(--elev)', 'var(--muted)', 'var(--border)'] }[stx.tone];
-    const name = b.category ? (S.categories.find(c => c.id === b.category) || {}).name : (b.label || 'Overall');
-    const left = eff - spent;
-    return { id: b.id, name, stateLabel: stx.label, stateBg: tone[0], stateFg: tone[1], barColor: tone[2], w: Math.min(Math.round(pct), 100) + '%', pct, spentLabel: money(spent) + ' of ' + money(eff) + (left >= 0 ? ' · ' + money(left) + ' left' : ' · ' + money(-left) + ' over') };
-  };
-  const brows = S.budgets.map(budgetRow);
-  const budgetRows = (brows.length ? [brows[0]] : []).concat(brows.slice(1).sort((a, b) => b.pct - a.pct).slice(0, 4));
-
   const nowStr = nowIso();
   const upc = isPast ? [] : upcomingRules(S, month, nowStr).slice(0, 5);
   // Missed occurrences never advance on their own, so they can sit outside the
@@ -254,32 +239,6 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
-            </section>
-
-            <section aria-label="Budget progress" style={{ ...card, padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <h2 style={h2}>Budgets</h2><span style={{ flex: 1 }} />
-                <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{monthName}</span>
-                <button onClick={() => nav('/budget')} className="hv-accent-fg" style={linkBtn}>Manage ›</button>
-              </div>
-              {budgetRows.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-                  {budgetRows.map(b => (
-                    <div key={b.id}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{b.name}</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: b.stateBg, color: b.stateFg }}>{b.stateLabel}</span>
-                      </div>
-                      <div style={{ height: 7, background: 'var(--track)', borderRadius: 4, overflow: 'hidden', marginTop: 6 }}>
-                        <div style={{ width: b.w, height: '100%', background: b.barColor }} />
-                      </div>
-                      <div className="tnum" style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4 }}>{b.spentLabel}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ padding: '18px 0 8px', fontSize: 12.5, color: 'var(--muted)' }}>No budgets set up yet. Budget management is planned; demo budgets appear here once data exists.</div>
-              )}
             </section>
 
             <section aria-label="Upcoming" style={{ ...card, padding: '16px 18px' }}>

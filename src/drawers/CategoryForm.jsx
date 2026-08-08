@@ -14,7 +14,7 @@ function Body() {
   const f = drawer.form, errors = drawer.errors;
   const editing = !!f.editId;
   const refs = editing ? catRefs(S, f.editId) : null;
-  const typeLocked = editing && refs && (refs.transactions || refs.budgets || refs.recurring);
+  const typeLocked = editing && refs && refs.total > 0;
 
   return (
     <>

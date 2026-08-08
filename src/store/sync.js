@@ -71,8 +71,18 @@ export const COLLECTIONS = [
     }),
   },
   {
-    name: 'assignments', table: 'assignments', keyOf: r => r.id,
-    toRow: r => ({ id: r.id, category_id: r.category, month: r.month, amount: r.amount }),
+    // Identity is (category_id, month), mirroring snapshots — NOT the surrogate
+    // id. assignments carries a surrogate id AND a unique (user_id, category_id,
+    // month), and setAssigned deletes-then-re-inserts a fresh id on the same
+    // (category, month) at amount 0 → nonzero. Keying the differ on id meant a
+    // recreate-within-one-debounce diffed as a delete + an insert, and pushDiff
+    // runs inserts before deletes — so the insert hit the still-present old row
+    // and violated the unique key, wedging into a permanent 23505 retry loop.
+    // Keying on the composite instead makes the same edit a single UPDATE.
+    name: 'assignments', table: 'assignments', keyOf: r => r.category + '|' + r.month,
+    conflictKey: 'user_id,category_id,month',
+    deleteKeys: ['category_id', 'month'],
+    toRow: r => ({ id: r.id, category_id: r.category, month: r.month, amount: r.amount }), // surrogate id kept — harmless, unused for identity
     fromRow: r => ({ id: r.id, category: r.category_id, month: r.month, amount: Number(r.amount) || 0 }),
   },
   {
@@ -294,10 +304,15 @@ async function pushDiff(diff) {
     const d = diff.find(x => x.collection === c);
     if (!d || !d.deletes.length) continue;
     if (c.deleteKeys) {
-      // Composite-identity rows (snapshots): delete one by one — volumes are tiny.
+      // Composite-identity rows (snapshots, assignments): delete one by one —
+      // volumes are tiny. The key is keyOf()'s '|'-joined string; deleteKeys
+      // gives the column names in the SAME order, so splitting positionally
+      // reconstructs the .match() filter generically for any composite collection.
       for (const key of d.deletes) {
-        const [accountId, month] = key.split('|');
-        const { error } = await supabase.from(c.table).delete().match({ account_id: accountId, month });
+        const parts = key.split('|');
+        const match = {};
+        c.deleteKeys.forEach((col, i) => { match[col] = parts[i]; });
+        const { error } = await supabase.from(c.table).delete().match(match);
         if (error) throw Object.assign(new Error(`${c.table} delete: ${error.message}`), { code: error.code, status: error.status });
       }
     } else {
