@@ -1039,6 +1039,7 @@ export default function Plan() {
         onRename={renameView}
         onDelete={deleteView}
         onNew={() => { setManageOpen(false); setEditing('new'); }}
+        onEdit={v => { setManageOpen(false); setEditing(v); }}
         onClose={() => setManageOpen(false)}
       />
       <ActivityModal
