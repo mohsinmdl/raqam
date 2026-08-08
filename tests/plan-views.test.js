@@ -131,4 +131,21 @@ describe('reorderViews', () => {
     expect(reorderViews(V, 'v2', 'v2')).toEqual(V);
     expect(reorderViews(V, 'nope', 'v1')).toEqual(V);
   });
+
+  it('moves a middle item across multiple positions (splice-then-insert, not a pairwise swap)', () => {
+    const FIVE = [
+      { id: 'v1', name: 'A', categoryIds: ['a'], sortOrder: 0 },
+      { id: 'v2', name: 'B', categoryIds: ['b'], sortOrder: 1 },
+      { id: 'v3', name: 'C', categoryIds: ['c'], sortOrder: 2 },
+      { id: 'v4', name: 'D', categoryIds: ['a'], sortOrder: 3 },
+      { id: 'v5', name: 'E', categoryIds: ['b'], sortOrder: 4 },
+    ];
+    // Hand-derived: [v1,v2,v3,v4,v5] with v2 removed -> [v1,v3,v4,v5]; then v2
+    // spliced back in at index 3 (v4's original index) -> [v1,v3,v4,v2,v5].
+    // This is NOT a pairwise swap of v2 and v4 (that would give
+    // [v1,v4,v3,v2,v5]) — splice-then-insert shifts v3 and v4 down by one.
+    const out = reorderViews(FIVE, 'v2', 'v4');
+    expect(out.map(v => v.id)).toEqual(['v1', 'v3', 'v4', 'v2', 'v5']);
+    expect(out.map(v => v.sortOrder)).toEqual([0, 1, 2, 3, 4]);
+  });
 });
