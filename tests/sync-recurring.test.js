@@ -6,8 +6,8 @@ import { COLLECTIONS, diffStores } from '../src/store/sync.js';
 
 const entry = COLLECTIONS.find(c => c.name === 'recurring');
 const empty = () => ({
-  institutions: [], cardProducts: [], categories: [], accounts: [], cards: [],
-  snapshots: [], transactions: [], budgets: [], recurring: [], audit: [],
+  institutions: [], cardProducts: [], categoryGroups: [], categories: [], accounts: [], cards: [],
+  snapshots: [], transactions: [], budgets: [], recurring: [], audit: [], assignments: [],
 });
 const rule = over => ({
   id: 'r1', name: 'Rent', type: 'expense', amount: 35000, estimated: false,
