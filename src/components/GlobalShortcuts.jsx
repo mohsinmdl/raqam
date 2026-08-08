@@ -26,7 +26,7 @@ export default function GlobalShortcuts() {
   const seq = [
     { seq: SPEC.goDashboard.seq, run: () => nav('/dashboard') },
     { seq: SPEC.goTransactions.seq, run: () => nav('/transactions') },
-    { seq: SPEC.goAccounts.seq, run: () => nav('/transactions') },
+    { seq: SPEC.goAccounts.seq, run: () => nav('/accounts') },
     { seq: SPEC.goBudget.seq, run: () => nav('/budget') },
   ];
   useSequence(seq, !drawer && !confirmOpen && !shortcutsOpen);
