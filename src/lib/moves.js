@@ -10,7 +10,7 @@
 // from the panel just because nobody has assigned it a chip yet.
 const GROUPS = {
   money: ['transaction'],
-  plans: ['recurring', 'budget'],
+  plans: ['recurring', 'budget', 'assignment', 'categoryGroup'],
   setup: ['account', 'category', 'card'],
 };
 

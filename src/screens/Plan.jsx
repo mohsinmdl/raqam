@@ -105,6 +105,9 @@ function RtaBreakdown({ env, prevRta, month, money, moneyS, fg, labelColor }) {
   // Exact by construction: rearranging rta = prevRta + opening + income -
   // assigned - uncategorized - prevOverspend (envelope.js's own fold) for
   // prevOverspend is what makes the breakdown's rows sum to `rta`.
+  // Derived, not read off env: this is the one term envelope.js doesn't hand
+  // back directly, and the same fold identity that makes it exact also
+  // guarantees it is >= 0 — it only ever subtracts from the displayed total.
   const overspend = prevRta + env.openingTotal + env.income - env.assignedTotal - env.uncategorized - env.rta;
   const rows = [
     { label: 'Left over from last month', value: prevRta },
@@ -158,7 +161,9 @@ function RtaBreakdown({ env, prevRta, month, money, moneyS, fg, labelColor }) {
 function AssignPopover({ rta, env, S, month, money, applyData }) {
   const { notify } = useUI();
   const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState(() => String(rta));
+  // rta can be negative (overspent); a negative prefill would read as "assign
+  // a negative amount", which moveAssigned rejects anyway (amt <= 0 no-ops).
+  const [amount, setAmount] = useState(() => String(Math.max(0, rta)));
   const [to, setTo] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const rootRef = useRef(null);
@@ -167,7 +172,7 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
   usePopoverDismiss(open, rootRef, close);
 
   const openPopover = () => {
-    setAmount(String(rta));
+    setAmount(String(Math.max(0, rta)));
     setTo(null);
     setPickerOpen(false);
     setOpen(true);
@@ -178,7 +183,7 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
   const canAssign = !!to && amt > 0;
 
   const confirm = () => {
-    if (!canAssign) return;
+    if (!canAssign || to === 'rta') return;
     const name = toCat ? toCat.name : to;
     applyData(data => moveAssigned(data, { from: 'rta', to, month, amount: parseAmt(amount) }));
     setOpen(false);
@@ -413,16 +418,23 @@ function OpPopover({ onPick }) {
 
 // Read-only Moves history for one category+month, opened by the ASSIGNED
 // editor's clock button. Replays S.audit into human rows rather than owning
-// any state of its own — the same "dumb panel, host owns open/dismiss" split
-// PlanCategoryPicker uses, except here the dismiss wiring lives inside this
-// component since nothing else needs its ref. Move rows are found via
-// after.month/from/to; direct set/create/update/delete rows via the entityId
-// convention setAssigned uses (categoryId + '|' + month).
+// any state of its own. Unlike PlanCategoryPicker, the dismiss wiring does
+// NOT live inside this component: the trigger button lives outside the
+// card's own DOM subtree, so a ref scoped to just this card would leave the
+// clock button "outside" for the outside-mousedown check — closing the
+// popover on mousedown, then the same click's onClick immediately reopening
+// it (I1). The host (CategoryRow) wraps the button and this popover in one
+// shared ref instead and owns usePopoverDismiss.
+//
+// Move rows are found via after.month/from/to; direct set/create/update/
+// delete rows via the entityId convention setAssigned uses (categoryId +
+// '|' + month). Import rows (importBudgetsAsAssignments) write one summary
+// row per import, keyed 'import|'+month rather than this category — surfaced
+// here too (amount omitted, rendered '—') since they DID affect this
+// category's assigned amount that month.
 function MovesPopover({ open, cat, month, S, money, onClose }) {
   const { user } = useAuth();
   const { prefs } = useStore();
-  const rootRef = useRef(null);
-  usePopoverDismiss(open, rootRef, onClose);
   if (!open) return null;
 
   const email = user?.email || '';
@@ -431,26 +443,30 @@ function MovesPopover({ open, cat, month, S, money, onClose }) {
 
   const nameOf = id => (id === 'rta' ? 'Ready to Assign' : (S.categories.find(c => c.id === id) || {}).name || id);
   const key = cat.id + '|' + month;
+  const importKey = 'import|' + month;
   const rows = (S.audit || [])
     .filter(a => a.entityType === 'assignment' && (
       a.action === 'move'
         ? a.after?.month === month && (a.after.from === cat.id || a.after.to === cat.id)
-        : a.entityId === key
+        : a.entityId === key || a.entityId === importKey
     ))
     .map(a => ({
       id: a.id,
       at: a.at,
-      amount: a.after?.amount ?? 0,
-      label: a.action === 'move'
-        ? (a.after.to === cat.id ? 'Moved from ' + nameOf(a.after.from) : 'Moved to ' + nameOf(a.after.to))
-        : a.action === 'delete' ? 'Removed' : 'Assigned',
+      amount: a.entityId === importKey ? null : (a.after?.amount ?? 0),
+      label: a.entityId === importKey ? 'Imported from budgets'
+        : a.action === 'move'
+          ? (a.after.to === cat.id ? 'Moved from ' + nameOf(a.after.from) : 'Moved to ' + nameOf(a.after.to))
+          : a.action === 'delete' ? 'Removed' : 'Assigned',
     }));
 
   return (
     <div
-      ref={rootRef} role="dialog" aria-label="Assignment history"
+      role="dialog" aria-label="Assignment history"
       onMouseDown={e => e.preventDefault()}
-      style={{ ...popCard, top: 36, right: 0, width: 340, textAlign: 'left' }}
+      // top sits below OpPopover's footprint (top:36 + ~74px card + 8px gap)
+      // so the two never overlap when both are open at once.
+      style={{ ...popCard, top: 118, right: 0, width: 340, textAlign: 'left' }}
     >
       <div style={{ fontSize: 14, fontWeight: 700 }}>Moves</div>
       <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>{cat.name}</div>
@@ -475,7 +491,7 @@ function MovesPopover({ open, cat, month, S, money, onClose }) {
                   </div>
                 </td>
                 <td style={{ padding: '6px 0', fontSize: 12.5 }}>{r.label}</td>
-                <td className="tnum" style={{ padding: '6px 0', fontSize: 12.5, textAlign: 'right' }}>{money(r.amount)}</td>
+                <td className="tnum" style={{ padding: '6px 0', fontSize: 12.5, textAlign: 'right' }}>{r.amount === null ? '—' : money(r.amount)}</td>
               </tr>
             ))}
           </tbody>
@@ -509,7 +525,9 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
   const amount = -available;
 
   const confirm = () => {
-    if (!canCover) return;
+    // moveAssigned itself no-ops on amount<=0 or from===to; check here too so
+    // notify() never fires for a commit that changed nothing.
+    if (!canCover || amount <= 0 || from === cat.id) return;
     applyData(data => moveAssigned(data, { from, to: cat.id, month, amount }));
     setOpen(false);
     notify('Covered ' + money(amount) + ' from ' + fromLabel + '.');
@@ -573,7 +591,9 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
   const canMove = !!to && amt > 0;
 
   const confirm = () => {
-    if (!canMove) return;
+    // moveAssigned itself no-ops on amount<=0 or from===to; check here too so
+    // notify() never fires for a commit that changed nothing.
+    if (!canMove || to === cat.id) return;
     applyData(data => moveAssigned(data, { from: cat.id, to, month, amount: amt }));
     setOpen(false);
     notify('Moved ' + money(amt) + ' to ' + toLabel + '.');
@@ -634,6 +654,14 @@ function CategoryRow({ cat, row, ctx }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const cancelledRef = useRef(false);
   const inputRef = useRef(null);
+  const historyRef = useRef(null);
+  const closeHistory = () => setHistoryOpen(false);
+  // Shared ref wraps BOTH the clock trigger and MovesPopover (I1): if the ref
+  // only wrapped the popover card, the trigger button would read as "outside"
+  // on its own mousedown, so the dismiss handler would close the popover a
+  // beat before onClick's toggle ran — and the toggle would then reopen it,
+  // making the trigger unable to ever close its own popover.
+  usePopoverDismiss(historyOpen, historyRef, closeHistory);
 
   useEffect(() => {
     if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); }
@@ -717,15 +745,17 @@ function CategoryRow({ cat, row, ctx }) {
                 onBlur={commit}
                 style={{ flex: 1, minWidth: 0, height: '100%', padding: 0, textAlign: 'right', border: 'none', outline: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 500 }}
               />
-              <button
-                type="button" onMouseDown={e => e.preventDefault()}
-                onClick={() => setHistoryOpen(o => !o)}
-                aria-label="Assignment history" aria-haspopup="dialog" aria-expanded={String(historyOpen)}
-                style={{ width: 20, height: 20, flex: 'none', border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-              >🕐</button>
+              <span ref={historyRef} style={{ flex: 'none' }}>
+                <button
+                  type="button" onMouseDown={e => e.preventDefault()}
+                  onClick={() => setHistoryOpen(o => !o)}
+                  aria-label="Assignment history" aria-haspopup="dialog" aria-expanded={String(historyOpen)}
+                  style={{ width: 20, height: 20, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                >🕐</button>
+                <MovesPopover open={historyOpen} cat={cat} month={month} S={S} money={money} onClose={closeHistory} />
+              </span>
             </div>
             <OpPopover onPick={insertOp} />
-            <MovesPopover open={historyOpen} cat={cat} month={month} S={S} money={money} onClose={() => setHistoryOpen(false)} />
           </>
         ) : (
           <button
