@@ -30,8 +30,6 @@ export default function TxMonthNav() {
   const { data: S } = useStore();
   const { range, setRange } = useTxView();
   const [open, setOpen] = useState(false);
-  // The popover edits a draft; nothing re-filters until Apply.
-  const [draft, setDraft] = useState(range);
   const rootRef = useRef(null);
 
   // Same dismissal contract as the other popovers in the header.
@@ -50,17 +48,18 @@ export default function TxMonthNav() {
   const years = yearOpts(S);
   const prev = shiftRange(range.from, range.to, -1, years);
   const next = shiftRange(range.from, range.to, 1, years);
-  const activePreset = presetOf(draft.from, draft.to);
+  const activePreset = presetOf(range.from, range.to);
 
-  const openPopover = () => { setDraft(range); setOpen(true); };
-  const applyRange = () => { setRange(clampRange(draft.from, draft.to)); setOpen(false); };
-  // The From/To selects are month-grained, so editing either one normalises the
-  // bound to a month ('YYYY-MM') — converting a day preset back to a month range.
-  const setBound = (key, part, v) => setDraft(d => {
-    const cur = (d[key] || rangeFor('month').from).slice(0, 7);
+  // Every control applies live — no draft, no Apply. The popover stays open
+  // until Esc, an outside click, or the × button. The From/To selects are
+  // month-grained, so editing one normalises that bound to a month ('YYYY-MM'),
+  // converting a day preset back to a month range.
+  const setBound = (key, part, v) => {
+    const cur = (range[key] || rangeFor('month').from).slice(0, 7);
     const nextVal = part === 'm' ? cur.slice(0, 4) + '-' + v : v + '-' + cur.slice(5, 7);
-    return { ...d, [key]: nextVal };
-  });
+    const nr = { ...range, [key]: nextVal };
+    setRange(clampRange(nr.from, nr.to));
+  };
 
   const label = rangeLabel(range.from, range.to, todayStr());
 
@@ -72,7 +71,7 @@ export default function TxMonthNav() {
           aria-label="Previous month" style={arrowStyle(!prev)}
         >‹</button>
         <button
-          onClick={openPopover}
+          onClick={() => setOpen(o => !o)}
           aria-haspopup="dialog" aria-expanded={String(open)}
           title="Choose dates"
           className="tnum"
@@ -90,12 +89,16 @@ export default function TxMonthNav() {
 
       {open && (
         <div role="dialog" aria-label="Date range" style={{ position: 'absolute', top: 38, left: 0, zIndex: 30, width: 800, maxWidth: '92vw', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 14 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, paddingBottom: 10 }}>View Options</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10 }}>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>View Options</span>
+            <button onClick={() => setOpen(false)} aria-label="Close" className="hv-soft"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+          </div>
           {/* nowrap keeps the presets on one line; it scrolls
               rather than wrapping if the window is too narrow. */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 12, borderTop: '1px solid var(--border)', paddingTop: 12, borderBottom: '1px solid var(--border)' }}>
             {RANGE_PRESETS.map(p => (
-              <button key={p.id} onClick={() => setDraft(rangeFor(p.id))} className={activePreset === p.id ? 'hv-accent' : 'hv-soft'}
+              <button key={p.id} onClick={() => setRange(rangeFor(p.id))} className={activePreset === p.id ? 'hv-accent' : 'hv-soft'}
                 style={{ flex: 'none', whiteSpace: 'nowrap', height: 30, padding: '0 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
                   border: '1px solid ' + (activePreset === p.id ? 'var(--accent)' : 'var(--border)'),
                   background: activePreset === p.id ? 'var(--accent)' : 'var(--surface)',
@@ -106,24 +109,20 @@ export default function TxMonthNav() {
             {[['from', 'From'], ['to', 'To']].map(([key, lbl]) => (
               <span key={key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 12.5, fontWeight: 600 }}>{lbl}:</span>
-                <select aria-label={lbl + ' month'} value={(draft[key] || rangeFor('month').from).slice(5, 7)}
+                <select aria-label={lbl + ' month'} value={(range[key] || rangeFor('month').from).slice(5, 7)}
                   onChange={e => setBound(key, 'm', e.target.value)} style={{ ...selStyle, height: 32, maxWidth: 120 }}>
                   {MONTH_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                 </select>
-                <select aria-label={lbl + ' year'} value={(draft[key] || rangeFor('month').from).slice(0, 4)}
+                <select aria-label={lbl + ' year'} value={(range[key] || rangeFor('month').from).slice(0, 4)}
                   onChange={e => setBound(key, 'y', e.target.value)} style={{ ...selStyle, height: 32, maxWidth: 92 }}>
                   {years.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
               </span>
             ))}
           </div>
-          {!draft.from && !draft.to && (
-            <div style={{ fontSize: 12, color: 'var(--muted)', paddingBottom: 10 }}>All dates — every transaction you have recorded.</div>
+          {!range.from && !range.to && (
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>All dates — every transaction you have recorded.</div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-            <button onClick={() => setOpen(false)} className="hv-soft" style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-            <button onClick={applyRange} className="hv-accent" style={{ height: 32, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Apply</button>
-          </div>
         </div>
       )}
     </div>
