@@ -15,8 +15,10 @@ import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
+import { BUILTIN_VIEWS, normalizeViews, visibleSections } from '../lib/planViews.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import Inspector from '../ui/plan/Inspector.jsx';
+import FilterPills from '../ui/plan/FilterPills.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
@@ -879,6 +881,28 @@ export default function Plan() {
     return out;
   }, [S.categories, groupsSorted, groupIds, env]);
 
+  const views = useMemo(() => normalizeViews(prefs.planViews, S.categories), [prefs.planViews, S.categories]);
+  const activeViewId = prefs.planViewId || 'all';
+  const activeView = useMemo(
+    () => BUILTIN_VIEWS.find(v => v.id === activeViewId) || views.find(v => v.id === activeViewId) || BUILTIN_VIEWS[0],
+    [activeViewId, views],
+  );
+  const shownSections = useMemo(() => visibleSections(sections, activeView, env), [sections, activeView, env]);
+  const visibleCatIds = useMemo(() => new Set(shownSections.flatMap(s => s.cats.map(c => c.id))), [shownSections]);
+
+  // A selected row that the active view hides must not stay actionable.
+  useEffect(() => {
+    setSelected(prev => {
+      const next = new Set([...prev].filter(id => visibleCatIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [visibleCatIds]);
+
+  // Task 4 wires these to ManageViewsModal / ViewEditorModal; here they only
+  // hold state so FilterPills has somewhere to send onManage/onNewView.
+  const [manageOpen, setManageOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+
   const noGroups = !(S.categoryGroups && S.categoryGroups.length);
   const catBudgets = useMemo(() => (S.budgets || []).filter(b => b.category), [S.budgets]);
   const assignedCatsThisMonth = useMemo(
@@ -912,6 +936,16 @@ export default function Plan() {
             <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
           </div>
 
+          <FilterPills
+            views={views}
+            activeId={activeViewId}
+            onSelect={id => setPrefs({ planViewId: id })}
+            onManage={() => setManageOpen(true)}
+            onNewView={() => setEditing({})}
+            env={env}
+            catIds={activeCatIds}
+          />
+
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
               <PlanCheckbox label="Select all categories"
@@ -923,7 +957,7 @@ export default function Plan() {
               <span style={{ ...HEAD, textAlign: 'right' }}>ACTIVITY</span>
               <span style={{ ...HEAD, textAlign: 'right' }}>AVAILABLE</span>
             </div>
-            {sections.map(({ group, key, cats, totals }) => {
+            {shownSections.map(({ group, key, cats, totals }) => {
               const isCollapsed = collapsed.has(key);
               return (
                 <div key={key ?? 'other'}>
@@ -937,6 +971,17 @@ export default function Plan() {
             {sections.length === 0 && (
               <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
                 No categories yet. Organize your categories into groups to start planning your budget.
+              </div>
+            )}
+            {sections.length > 0 && shownSections.length === 0 && (
+              <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                No categories match this view.
+                <div style={{ marginTop: 10 }}>
+                  <button onClick={() => setPrefs({ planViewId: 'all' })} className="hv-soft"
+                    style={{ height: 30, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+                    Show all
+                  </button>
+                </div>
               </div>
             )}
           </div>
