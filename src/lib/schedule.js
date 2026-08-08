@@ -268,9 +268,12 @@ export function estimatedSuggestion(rule) {
 // ---------------------------------------------------------------------------
 // Store-level selectors
 // ---------------------------------------------------------------------------
-const byNext = (a, b) => (a.nextDate < b.nextDate ? -1 : a.nextDate > b.nextDate ? 1 : 0);
+const byEffective = (a, b) => {
+  const an = effectiveNextDate(a) || '', bn = effectiveNextDate(b) || '';
+  return an < bn ? -1 : an > bn ? 1 : 0;
+};
 export function overdueRules(store, now) {
-  return (store.recurring || []).filter(r => ruleStatus(r, now) === 'overdue').sort(byNext);
+  return (store.recurring || []).filter(r => ruleStatus(r, now) === 'overdue').sort(byEffective);
 }
 // Rules whose next occurrence falls inside a date range — the Transactions
 // screen works in ranges, not a single month. Overdue rules appear when the
@@ -297,9 +300,11 @@ export function sourceLabel(store, r) {
 
 export function upcomingRules(store, month, now) {
   return (store.recurring || [])
-    .filter(r => r.status === 'active' && !isEnded(r) && r.nextDate
-      && r.nextDate.slice(0, 7) === month && daysUntil(r.nextDate, now) >= 0)
-    .sort(byNext);
+    .map(r => ({ r, nd: effectiveNextDate(r) }))
+    .filter(({ r, nd }) => r.status === 'active' && !isEnded(r) && nd
+      && nd.slice(0, 7) === month && daysUntil(nd, now) >= 0)
+    .sort((a, b) => (a.nd < b.nd ? -1 : a.nd > b.nd ? 1 : 0))
+    .map(({ r }) => r);
 }
 
 // ---------------------------------------------------------------------------

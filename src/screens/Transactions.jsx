@@ -17,7 +17,7 @@ import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
 import { txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
-import { advanceDue, longDate, ruleFromTx } from '../lib/schedule.js';
+import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
 import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
@@ -399,15 +399,16 @@ export default function Transactions() {
   const askSkip = async row => {
     const r = S.recurring.find(x => x.id === row.ruleId);
     if (!r) return;
-    const after = advanceDue(r.schedule, r.nextDate);
+    const nd = effectiveNextDate(r) || r.nextDate;
+    const after = advanceDue(r.schedule, nd);
     const ok = await ask({
       title: 'Skip this one?',
-      body: 'Nothing is recorded for ' + longDate(r.nextDate, now) + '. “' + r.name + '” moves on to ' + longDate(after, now) + '.',
+      body: 'Nothing is recorded for ' + longDate(nd, now) + '. “' + r.name + '” moves on to ' + longDate(after, now) + '.',
       action: 'Skip this one',
       tone: 'accent',
     });
     if (!ok) return;
-    applyData(data => skipOccurrence(data, { id: r.id, due: r.nextDate }));
+    applyData(data => skipOccurrence(data, { id: r.id, due: nd }));
     notify('Skipped — nothing recorded. Next due ' + longDate(after, now) + '.');
   };
 

@@ -10,7 +10,7 @@ import { useMoney } from '../lib/format.js';
 import { catById } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 import { iconStyle } from '../lib/catIcon.js';
-import { advanceDue, freqLabel, longDate, ruleDueLabel, ruleStatus, sourceLabel } from '../lib/schedule.js';
+import { advanceDue, effectiveNextDate, freqLabel, longDate, ruleDueLabel, ruleStatus, sourceLabel } from '../lib/schedule.js';
 import { skipOccurrence, toggleRulePause, deleteRule } from '../store/actions.js';
 import RowMenu from '../ui/RowMenu.jsx';
 import { RepeatIcon } from '../ui/icons.jsx';
@@ -68,7 +68,7 @@ function Row({ r, status, ctx }) {
           <span style={{ display: 'block', fontSize: 12.5, color: dueColor, fontWeight: status === 'overdue' ? 600 : 400 }}>
             {status === 'paused' ? 'Paused' : status === 'ended' ? 'Ended' : ruleDueLabel(r, now)}
           </span>
-          <span className="tnum" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{longDate(r.nextDate, now)}</span>
+          <span className="tnum" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{longDate(effectiveNextDate(r) || r.nextDate, now)}</span>
         </span>
         <span style={{ textAlign: 'right' }}>
           <span className="tnum" style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: r.type === 'income' ? 'var(--pos)' : 'var(--text)' }}>
@@ -117,20 +117,21 @@ export default function Recurring() {
   const now = nowIso();
   const rows = S.recurring.map(r => ({ r, status: ruleStatus(r, now) }));
   const groups = GROUPS
-    .map(g => ({ ...g, rows: rows.filter(x => x.status === g.key).sort((a, b) => String(a.r.nextDate).localeCompare(String(b.r.nextDate))) }))
+    .map(g => ({ ...g, rows: rows.filter(x => x.status === g.key).sort((a, b) => String(effectiveNextDate(a.r) || a.r.nextDate).localeCompare(String(effectiveNextDate(b.r) || b.r.nextDate))) }))
     .filter(g => g.rows.length > 0);
   const overdue = rows.filter(x => x.status === 'overdue');
 
   const askSkip = async r => {
-    const after = advanceDue(r.schedule, r.nextDate);
+    const nd = effectiveNextDate(r) || r.nextDate;
+    const after = advanceDue(r.schedule, nd);
     const ok = await ask({
       title: 'Skip this one?',
-      body: 'Nothing is recorded for ' + longDate(r.nextDate, now) + '. “' + r.name + '” moves on to ' + longDate(after, now) + '.',
+      body: 'Nothing is recorded for ' + longDate(nd, now) + '. “' + r.name + '” moves on to ' + longDate(after, now) + '.',
       action: 'Skip this one',
       tone: 'accent',
     });
     if (!ok) return;
-    applyData(data => skipOccurrence(data, { id: r.id, due: r.nextDate }));
+    applyData(data => skipOccurrence(data, { id: r.id, due: nd }));
     notify('Skipped — nothing recorded. Next due ' + longDate(after, now) + '.');
   };
 
@@ -175,7 +176,7 @@ export default function Recurring() {
               {overdue.length === 1 ? '1 occurrence is overdue' : overdue.length + ' occurrences are overdue'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
-              {overdue.map(x => x.r.name + ' (' + longDate(x.r.nextDate, now) + ')').join(' · ')}
+              {overdue.map(x => x.r.name + ' (' + longDate(effectiveNextDate(x.r) || x.r.nextDate, now) + ')').join(' · ')}
               {' — nothing advances on its own, so each one waits until you record or skip it.'}
             </div>
           </div>

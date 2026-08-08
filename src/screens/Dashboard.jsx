@@ -11,7 +11,7 @@ import PositionStrip from '../components/PositionStrip.jsx';
 import FirstUse from './FirstUse.jsx';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
-import { overdueRules, upcomingRules } from '../lib/schedule.js';
+import { effectiveNextDate, overdueRules, upcomingRules } from '../lib/schedule.js';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const h2 = { fontSize: 15, fontWeight: 600, margin: 0 };
@@ -117,7 +117,7 @@ export default function Dashboard() {
   // Missed occurrences never advance on their own, so they can sit outside the
   // upcoming window entirely — the pill is the only thing that surfaces them here.
   const overdue = isPast ? [] : overdueRules(S, nowStr);
-  const upcomingRows = upc.map(r => { const d = C.daysUntil(r.nextDate, nowStr); return { id: r.id, name: r.name, when: (d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : 'In ' + d + ' days') + ' · ' + C.dayLabel(r.nextDate + 'T00:00'), whenColor: d <= 3 ? 'var(--warn)' : 'var(--muted)', amt: (r.estimated ? '~' : '') + money(r.amount) }; });
+  const upcomingRows = upc.map(r => { const nd = effectiveNextDate(r) || r.nextDate; const d = C.daysUntil(nd, nowStr); return { id: r.id, name: r.name, when: (d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : 'In ' + d + ' days') + ' · ' + C.dayLabel(nd + 'T00:00'), whenColor: d <= 3 ? 'var(--warn)' : 'var(--muted)', amt: (r.estimated ? '~' : '') + money(r.amount) }; });
 
   const lg = C.largestExpenses(S, month, 5);
   const largestRows = lg.map(t => ({ id: t.id, merchant: t.merchant || '—', cat: (S.categories.find(c => c.id === t.category) || {}).name || '—', amt: money(t.amount) }));
