@@ -460,29 +460,109 @@ git commit -m "feat(plan): custom view editor and Manage Views modal"
 
 **Files:**
 - Create: `src/ui/plan/ActivityModal.jsx`
-- Modify: `src/screens/Plan.jsx` (ACTIVITY cell opens it)
+- Modify: `src/lib/envelope.js` (export a shared row selector), `src/screens/Plan.jsx` (ACTIVITY cell opens it)
+- Test: `tests/category-activity-rows.test.js`
+
+**Why a shared helper:** the envelope fold's per-category activity is NOT `sum(t.amount)` over a naive filter. It (1) skips `pending`, un-occurred, non-expense/refund rows; (2) skips any transaction dated before its account's earliest confirmed snapshot month (`seededAfter` — already embedded in the opening balance); and (3) sums `txBudgetImpact(store, t, { includeExcluded: true })`, not `t.amount` (which differs for refunds, sign, and excluded/recoverable categories). If the modal reimplements this it WILL disagree with the ACTIVITY cell for those cases. So the fold's row-selection is factored into one exported, tested function that both the modal and (optionally) the fold call.
 
 **Interfaces:**
-- Consumes: `S.transactions`, `S.accounts`, `money` from `useMoney()`, `monthLabel`.
-- Produces: `<ActivityModal open cat month S money onClose />`.
+- Consumes: `categoryActivityRows` (new, Task 5) ; `S.accounts`, `money` from `useMoney()`, `monthLabel`.
+- Produces: `categoryActivityRows(store, catId, month, now) -> { rows: [{ t, impact }], total }` where `rows` are the transactions contributing to that category's activity in `month` (newest first), `impact` is each row's signed activity contribution (negative = spending), and `total` equals the category's `activity` from `envelopeFor(store, month, now).rows.get(catId)`. And `<ActivityModal open cat month S money onClose />`.
 
-- [ ] **Step 1: Build the modal**
+- [ ] **Step 1: Write the failing test** (`tests/category-activity-rows.test.js`)
 
-Same modal shell. Header "Activity", subheader = category name + `monthLabel(month)`. Table columns exactly `Account · Date · Payee · Memo · Amount`. Rows: this category's transactions in `month`, newest first. **Use the same predicate the envelope fold uses for a category's activity** — read `src/lib/envelope.js` and mirror its filter (occurred, not pending, month match, `t.category === cat.id`) so the modal's total always equals the row's ACTIVITY figure; do not invent a second definition. Right-align Amount with `.tnum` and sign colors. Footer: a total row (`Total` + the summed amount) and a **Close** button. Empty state: "No transactions in this category for 〈month〉."
+```js
+import { describe, it, expect } from 'vitest';
+import { envelopeFor, categoryActivityRows } from '../src/lib/envelope.js';
 
-- [ ] **Step 2: Wire the ACTIVITY cell**
+const NOW = '2026-08-20T12:00:00.000Z';
+const store = () => ({
+  categories: [{ id: 'groc', name: 'Groceries', type: 'expense', status: 'active' }],
+  categoryGroups: [], assignments: [{ id: 'a', category: 'groc', month: '2026-08', amount: 10000 }],
+  accounts: [{ id: 'acc', nickname: 'Cash', type: 'Current', status: 'active', instId: 'i1' }],
+  snapshots: [{ id: 's', accountId: 'acc', month: '2026-07', balance: 0, amount: 0, status: 'confirmed' }],
+  transactions: [
+    { id: 't1', type: 'expense', category: 'groc', amount: 1500, date: '2026-08-05', status: 'confirmed', accountId: 'acc', payee: 'Store', notes: 'weekly' },
+    { id: 't2', type: 'expense', category: 'groc', amount: 900, date: '2026-08-12', status: 'confirmed', accountId: 'acc', payee: 'Market' },
+    { id: 't3', type: 'expense', category: 'groc', amount: 999, date: '2026-08-30', status: 'pending', accountId: 'acc' }, // pending, excluded
+    { id: 't4', type: 'expense', category: 'groc', amount: 500, date: '2026-06-01', status: 'confirmed', accountId: 'acc' }, // pre-seed month (< 2026-07), excluded
+    { id: 't5', type: 'expense', category: 'groc', amount: 40, date: '2026-08-01', status: 'confirmed', accountId: 'acc' },
+  ],
+  budgets: [], cards: [], recurring: [], audit: [],
+});
 
-In `CategoryRow`, the activity cell already carries `data-noselect`. Make its number a button (`className="hv-soft"`, `background: 'transparent'`, `border: 'none'`, underline on hover) that opens the modal for that category. Keep the existing `data-noselect` so row-selection is unaffected. Track `activityCat` state in `Plan()` and render one `<ActivityModal>` at the screen level (not per row).
+describe('categoryActivityRows', () => {
+  it('selects the same rows the fold counts and totals to the ACTIVITY figure', () => {
+    const S = store();
+    const { rows, total } = categoryActivityRows(S, 'groc', '2026-08', NOW);
+    expect(rows.map(r => r.t.id)).toEqual(['t2', 't1', 't5']); // newest first, no pending, no pre-seed
+    const foldActivity = envelopeFor(S, '2026-08', NOW).rows.get('groc').activity;
+    expect(total).toBe(foldActivity);
+    expect(total).toBe(-2440);
+  });
+  it('is empty for a category with no counted transactions that month', () => {
+    const S = store();
+    expect(categoryActivityRows(S, 'groc', '2026-09', NOW)).toEqual({ rows: [], total: 0 });
+  });
+});
+```
 
-- [ ] **Step 3: Verify**
+- [ ] **Step 2: Run to verify it fails**
 
-`npx vitest run` + `npx vite build` green. Dev server: click an ACTIVITY figure → modal lists that category's transactions for the month and the total equals the cell; a category with no transactions shows the empty state; Escape and Close both dismiss; clicking the figure does not select the row.
+Run: `npx vitest run tests/category-activity-rows.test.js` → FAIL (`categoryActivityRows` not exported).
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Implement `categoryActivityRows` in `src/lib/envelope.js`**
+
+Factor the row-selection predicate already inside `envelopeFor` into an exported pure function. It must reuse the SAME building blocks that file already has — `earliestOpeningSnapshots` (for the per-account seed months → `seededAfter`), `monthOf`, `hasOccurred` and `txBudgetImpact` — so it can never drift from the fold:
+
+```js
+// The transactions that make up ONE category's activity for a month, and their
+// signed total (negative = spending). Same predicate as the fold below, so the
+// Activity modal (Phase 4) can never disagree with the ACTIVITY cell: not
+// pending, occurred, expense/refund, category match, and NOT dated before the
+// account's opening-snapshot seed month. Amount is txBudgetImpact, not t.amount.
+export function categoryActivityRows(store, catId, month, now) {
+  const seed = earliestOpeningSnapshots(store); // accountId -> earliest confirmed snapshot
+  const seededAfter = (accountId, m) => { const s = seed.get(accountId); return !!s && s.month > m; };
+  const out = [];
+  let total = 0;
+  (store.transactions || []).forEach(t => {
+    if (t.status === 'pending') return;
+    if (monthOf(t) !== month) return;
+    if (!hasOccurred(t, now)) return;
+    if (t.type !== 'expense' && t.type !== 'refund') return;
+    if (t.category !== catId) return;
+    if (seededAfter(t.accountId, month)) return;
+    const impact = txBudgetImpact(store, t, { includeExcluded: true });
+    if (!impact) return;
+    out.push({ t, impact: -impact }); // spending is negative activity, matching the fold
+    total -= impact;
+  });
+  out.sort((a, b) => (a.t.date < b.t.date ? 1 : a.t.date > b.t.date ? -1 : 0));
+  return { rows: out, total };
+}
+```
+(`earliestOpeningSnapshots` returns snapshot objects keyed by account; `.month` is the seed month. If the helper is defined below `envelopeFor`, hoist it or move it above — keep it a module-scope function either way.)
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `npx vitest run tests/category-activity-rows.test.js` → both pass. Then `npx vitest run` (full suite — the fold's own tests must still pass unchanged, proving the factoring didn't alter `envelopeFor`).
+
+- [ ] **Step 5: Build `src/ui/plan/ActivityModal.jsx`**
+
+Modal shell exactly per `src/ui/ShortcutHelpModal.jsx` (scrim `var(--scrim)` zIndex 60, `FocusTrap`, `role="dialog" aria-modal="true" aria-label="Activity"`, capture-phase Escape + stopPropagation, header row with title + × close). Header "Activity", subheader = `cat.name` + " · " + `monthLabel(month)`. Body: a table with columns exactly `Account · Date · Payee · Memo · Amount` from `categoryActivityRows(S, cat.id, month, nowIso()).rows`. Per row: account nickname via `S.accounts.find(a => a.id === t.accountId)?.nickname` (or "—"); date formatted as the app formats transaction dates (check `src/lib/format.js`/existing tx rows — reuse, don't invent); `t.payee || '—'`; the memo = `t.notes || t.memo || ''` (match how the Transactions screen's Memo column reads it — read that screen and mirror it); Amount = `money(row.impact)` right-aligned `.tnum`, sign-colored (`var(--neg)` negative, `var(--pos)` positive). Footer: a **Total** row = `money(total)` (must visibly equal the ACTIVITY cell) and a **Close** button. Empty state when `rows.length === 0`: "No transactions in this category for " + `monthLabel(month)` + ".". Module-scope component.
+
+- [ ] **Step 6: Wire the ACTIVITY cell in `src/screens/Plan.jsx`**
+
+In `CategoryRow`, the activity cell already carries `data-noselect`. Make its number a button (`className="hv-soft"`, `background: 'transparent'`, `border: 'none'`, `cursor: 'pointer'`, underline-on-hover) that calls a handler opening the modal for that category. Keep the `data-noselect` so row-selection is unaffected (verify the guard in the row-click handler still excludes it). Track `activityCat` state in `Plan()` and render ONE `<ActivityModal>` at the screen level, not per row.
+
+- [ ] **Step 7: Verify + commit**
+
+`npx vitest run` + `npx vite build` green. Dev server: click an ACTIVITY figure → modal lists that category's transactions for the month and the **Total equals the cell exactly** (test a category whose activity includes an excluded/recoverable row or a refund, where t.amount != impact); a category with no activity shows the empty state; Escape and Close both dismiss; clicking the figure does not select the row.
 
 ```bash
-git add src/ui/plan/ActivityModal.jsx src/screens/Plan.jsx
-git commit -m "feat(plan): activity drill-down modal"
+git add src/lib/envelope.js src/ui/plan/ActivityModal.jsx src/screens/Plan.jsx tests/category-activity-rows.test.js
+git commit -m "feat(plan): activity drill-down modal over a shared category-activity selector"
 ```
 
 ---
