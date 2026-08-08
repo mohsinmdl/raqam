@@ -8,6 +8,8 @@ export const SHORTCUT_GROUPS = [
     { id: 'selectAll',   keys: ['⌘', 'A'],          label: 'Select all transactions',      spec: { key: 'a', meta: true } },
     { id: 'deselectAll', keys: ['esc'],             label: 'Deselect all',                 spec: { key: 'Escape' } },
     { id: 'addTx',       keys: ['shift', 'N'],      label: 'Add transaction',              spec: { key: 'n', shift: true } },
+    { id: 'toggleTheme', keys: ['ctrl', 'shift', 'L'], label: 'Toggle light / dark mode',  spec: { key: 'l', meta: true, shift: true } },
+    { id: 'hideAmounts', keys: ['H'],               label: 'Hide amounts',                 spec: { key: 'h' } },
   ] },
   { title: 'Transactions', items: [
     { id: 'toggleCleared', keys: ['C'],               label: 'Toggle cleared state',       spec: { key: 'c' } },
