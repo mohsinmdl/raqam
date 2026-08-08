@@ -1,148 +1,57 @@
 import { describe, it, expect } from 'vitest';
-import { MOVE_FILTERS, filterMoves, groupMovesByDay, moveCount } from '../src/lib/moves.js';
+import { recentMoves } from '../src/lib/moves.js';
 
-const NOW = '2026-08-07T10:00';
-const row = (id, over) => ({
-  id, at: '2026-08-07T09:00', entityType: 'transaction', entityId: 'x',
-  action: 'create', summary: 'Recorded expense', before: null, after: null, ...(over || {}),
-});
+const NOW = '2026-08-09T12:00:00.000Z';
+const S = {
+  categories: [
+    { id: 'groc', name: 'Groceries', type: 'expense', status: 'active' },
+    { id: 'fuel', name: 'Fuel', type: 'expense', status: 'active' },
+  ],
+  audit: [
+    { id: '1', entityType: 'assignment', action: 'move', entityId: 'groc>fuel|2026-08', after: { from: 'groc', to: 'fuel', amount: 2700, month: '2026-08' }, at: '2026-08-09T09:00:00.000Z' },
+    { id: '2', entityType: 'assignment', action: 'update', entityId: 'groc|2026-08', after: { amount: 5000 }, at: '2026-08-08T09:00:00.000Z' },
+    { id: '3', entityType: 'assignment', action: 'move', entityId: 'rta>groc|2026-08', after: { from: 'rta', to: 'groc', amount: 100, month: '2026-08' }, at: '2026-08-06T09:00:00.000Z' },
+    { id: '4', entityType: 'assignment', action: 'delete', entityId: 'fuel|2026-08', after: { amount: 0 }, at: '2026-08-06T08:00:00.000Z' },
+    { id: '5', entityType: 'assignment', action: 'move', entityId: 'gone>groc|2026-08', after: { from: 'gone', to: 'groc', amount: 42, month: '2026-08' }, at: '2026-08-06T07:00:00.000Z' },
+    { id: '6', entityType: 'transaction', action: 'create', entityId: 't1', at: '2026-08-09T10:00:00.000Z' },
+    { id: '7', entityType: 'assignment', action: 'update', entityId: 'groc|2026-07', after: { amount: 10 }, at: '2026-06-01T09:00:00.000Z' },
+  ],
+};
 
-describe('MOVE_FILTERS', () => {
-  it('offers exactly All, Money, Plans and Setup', () => {
-    expect(MOVE_FILTERS.map(f => f.id)).toEqual(['all', 'money', 'plans', 'setup']);
-    expect(MOVE_FILTERS.map(f => f.label)).toEqual(['All', 'Money', 'Plans', 'Setup']);
+describe('recentMoves', () => {
+  it('groups by day, newest first, with relative labels', () => {
+    const g = recentMoves(S, { now: NOW });
+    expect(g.map(x => x.relLabel)).toEqual(['Today', 'Yesterday', '3 days ago']);
+    expect(g[0].dateLabel).toBe('09 Aug 2026');
+    expect(g[0].rows.map(r => r.id)).toEqual(['1']);
   });
-});
-
-describe('filterMoves', () => {
-  it('always drops undo and redo — they are navigation, not change', () => {
-    const rows = [
-      row('a'),
-      row('u', { action: 'undo', entityType: 'app' }),
-      row('r', { action: 'redo', entityType: 'app' }),
-    ];
-    expect(filterMoves(rows, 'all').map(r => r.id)).toEqual(['a']);
+  it('ignores non-assignment audit rows', () => {
+    const ids = recentMoves(S, { now: NOW }).flatMap(g => g.rows.map(r => r.id));
+    expect(ids).not.toContain('6');
   });
-
-  it('Money is transactions', () => {
-    const rows = [row('t', { entityType: 'transaction' }), row('b', { entityType: 'budget' })];
-    expect(filterMoves(rows, 'money').map(r => r.id)).toEqual(['t']);
+  it('drops rows older than the window', () => {
+    const ids = recentMoves(S, { now: NOW, days: 34 }).flatMap(g => g.rows.map(r => r.id));
+    expect(ids).not.toContain('7');
   });
-
-  it('Plans is recurring rules and budgets', () => {
-    const rows = [
-      row('r', { entityType: 'recurring' }), row('b', { entityType: 'budget' }),
-      row('t', { entityType: 'transaction' }),
-    ];
-    expect(filterMoves(rows, 'plans').map(r => r.id).sort()).toEqual(['b', 'r']);
+  it('resolves rta and deleted categories to display names', () => {
+    const rows = recentMoves(S, { now: NOW }).flatMap(g => g.rows);
+    const rta = rows.find(r => r.id === '3');
+    expect(rta).toMatchObject({ verb: 'moved', from: 'Ready to Assign', to: 'Groceries', amount: 100 });
+    expect(rows.find(r => r.id === '5').from).toBe('(deleted category)');
   });
-
-  it('Setup is accounts, categories and cards', () => {
-    const rows = [
-      row('a', { entityType: 'account' }), row('c', { entityType: 'category' }),
-      row('k', { entityType: 'card' }), row('t', { entityType: 'transaction' }),
-    ];
-    expect(filterMoves(rows, 'setup').map(r => r.id).sort()).toEqual(['a', 'c', 'k']);
+  it('reads set rows: month and category come from entityId, verb from action', () => {
+    const rows = recentMoves(S, { now: NOW }).flatMap(g => g.rows);
+    expect(rows.find(r => r.id === '2')).toMatchObject({ verb: 'assigned', to: 'Groceries', amount: 5000, month: '2026-08' });
+    expect(rows.find(r => r.id === '4')).toMatchObject({ verb: 'removed', to: 'Fuel' });
   });
-
-  it('shows an unrecognised entity type under All only, never a named chip', () => {
-    const rows = [row('x', { entityType: 'investment' })];
-    expect(filterMoves(rows, 'all').map(r => r.id)).toEqual(['x']);
-    for (const f of ['money', 'plans', 'setup']) {
-      expect(filterMoves(rows, f)).toEqual([]);
-    }
+  it('filters by kind', () => {
+    const moved = recentMoves(S, { now: NOW, kind: 'moved' }).flatMap(g => g.rows.map(r => r.id));
+    expect(moved).toEqual(['1', '3', '5']);
+    const assigned = recentMoves(S, { now: NOW, kind: 'assigned' }).flatMap(g => g.rows.map(r => r.id));
+    expect(assigned).toEqual(['2', '4']);
   });
-
-  it('falls back to All for an unknown filter id', () => {
-    expect(filterMoves([row('a')], 'nonsense').map(r => r.id)).toEqual(['a']);
-  });
-
-  it('returns newest first regardless of input order', () => {
-    const rows = [
-      row('old', { at: '2026-08-01T09:00' }),
-      row('new', { at: '2026-08-07T09:00' }),
-      row('mid', { at: '2026-08-04T09:00' }),
-    ];
-    expect(filterMoves(rows, 'all').map(r => r.id)).toEqual(['new', 'mid', 'old']);
-  });
-
-  it('tolerates a missing audit array', () => {
-    expect(filterMoves(undefined, 'all')).toEqual([]);
-    expect(filterMoves(null, 'all')).toEqual([]);
-  });
-
-  it('leaves the array it was given untouched — the caller passes live store state', () => {
-    const rows = [
-      row('old', { at: '2026-08-01T09:00' }),
-      row('new', { at: '2026-08-07T09:00' }),
-    ];
-    const before = rows.map(r => r.id);
-    filterMoves(rows, 'all');
-    expect(rows.map(r => r.id)).toEqual(before);
-  });
-});
-
-describe('moveCount', () => {
-  it('counts what the filter would show', () => {
-    const rows = [
-      row('t', { entityType: 'transaction' }),
-      row('b', { entityType: 'budget' }),
-      row('u', { action: 'undo', entityType: 'app' }),
-    ];
-    expect(moveCount(rows, 'all')).toBe(2);
-    expect(moveCount(rows, 'money')).toBe(1);
-    expect(moveCount(rows, 'setup')).toBe(0);
-  });
-});
-
-describe('groupMovesByDay', () => {
-  it('groups by calendar day, newest day first', () => {
-    const rows = [
-      row('a', { at: '2026-08-07T09:00' }),
-      row('b', { at: '2026-08-06T09:00' }),
-      row('c', { at: '2026-08-07T08:00' }),
-    ];
-    const g = groupMovesByDay(rows, NOW);
-    expect(g.map(x => x.day)).toEqual(['2026-08-07', '2026-08-06']);
-    expect(g[0].rows.map(r => r.id)).toEqual(['a', 'c']);
-  });
-
-  it('labels today, yesterday and further back', () => {
-    const rows = [
-      row('a', { at: '2026-08-07T09:00' }),
-      row('b', { at: '2026-08-06T09:00' }),
-      row('c', { at: '2026-08-04T09:00' }),
-    ];
-    expect(groupMovesByDay(rows, NOW).map(x => x.relLabel))
-      .toEqual(['Today', 'Yesterday', '3 days ago']);
-  });
-
-  it('crosses a month boundary correctly', () => {
-    const rows = [row('a', { at: '2026-07-31T09:00' })];
-    expect(groupMovesByDay(rows, '2026-08-01T10:00')[0].relLabel).toBe('Yesterday');
-  });
-
-  it('gives each day an absolute label too', () => {
-    expect(groupMovesByDay([row('a', { at: '2026-08-07T09:00' })], NOW)[0].dayLabel)
-      .toBe('7 Aug 2026');
-  });
-
-  it('orders rows newest first inside a day', () => {
-    const rows = [
-      row('early', { at: '2026-08-07T02:02' }),
-      row('late', { at: '2026-08-07T17:30' }),
-    ];
-    expect(groupMovesByDay(rows, NOW)[0].rows.map(r => r.id)).toEqual(['late', 'early']);
-  });
-
-  it('skips a row with a missing or malformed timestamp rather than heading it Invalid Date', () => {
-    const rows = [row('good'), row('bad', { at: null }), row('worse', { at: 'nonsense' })];
-    const g = groupMovesByDay(rows, NOW);
-    expect(g).toHaveLength(1);
-    expect(g[0].rows.map(r => r.id)).toEqual(['good']);
-  });
-
-  it('returns nothing for an empty list', () => {
-    expect(groupMovesByDay([], NOW)).toEqual([]);
+  it('handles an empty/absent audit log', () => {
+    expect(recentMoves({ categories: [], audit: [] }, { now: NOW })).toEqual([]);
+    expect(recentMoves({ categories: [] }, { now: NOW })).toEqual([]);
   });
 });
