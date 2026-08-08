@@ -132,7 +132,7 @@ function MoreMenu({ items }) {
   );
 }
 
-export default function BulkBar({ count, actions, more, onClear }) {
+export default function BulkBar({ count, total, actions, more, onClear }) {
   const [clearHover, setClearHover] = useState(false);
   // Tell the toast to sit above this bar while it's showing (called before the
   // early return so the hook order is stable).
@@ -170,6 +170,17 @@ export default function BulkBar({ count, actions, more, onClear }) {
           {count} selected
         </span>
       </button>
+      {/* Signed sum of the selection (YNAB's "Selected Total"). Not part of the
+          clear button, so reading it never clears the selection. */}
+      {total != null && (
+        <>
+          {divider}
+          <span aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 6px', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 11.5, fontWeight: 500, opacity: 0.6 }}>Total</span>
+            <span className="tnum" style={{ fontSize: 12.5, fontWeight: 700 }}>{total}</span>
+          </span>
+        </>
+      )}
       {inlineActions.length > 0 && divider}
       {inlineActions.map(a => (
         <button
