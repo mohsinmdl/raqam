@@ -27,6 +27,15 @@ export const SHORTCUT_GROUPS = [
     { id: 'goAccounts',     keys: ['G', 'A'], label: 'Go to Accounts',        spec: { seq: ['g', 'a'] } },
     { id: 'goBudget',       keys: ['G', 'B'], label: 'Go to Budget',          spec: { seq: ['g', 'b'] } },
   ] },
+  // Keyboard cursor over the recorded rows. These are handled by a raw keydown
+  // listener + click handler in Transactions, not matchKey — the `spec` here is
+  // only to satisfy the registry shape and is never matched against an event.
+  { title: 'Row navigation (Transactions)', items: [
+    { id: 'moveCursor',   keys: ['↑', '↓'],          label: 'Move between rows',          spec: { key: 'RowArrow' } },
+    { id: 'selectCursor', keys: ['space'],            label: 'Select / deselect the row',  spec: { key: 'RowSpace' } },
+    { id: 'extendSel',    keys: ['shift', '↑', '↓'], label: 'Extend the selection',       spec: { key: 'RowShiftArrow' } },
+    { id: 'rangeClick',   keys: ['shift', 'click'],  label: 'Select a range',             spec: { key: 'RowShiftClick' } },
+  ] },
   // Transactions-screen date-range presets: press V, then the second key.
   { title: 'View (Transactions)', items: [
     { id: 'viewToday',     keys: ['V', 'T'], label: 'View: Today',      spec: { seq: ['v', 't'] } },
