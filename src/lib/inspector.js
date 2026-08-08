@@ -36,8 +36,26 @@ const spentIn = (envAt, catId, month) => Math.max(0, -rowOf(envAt(month), catId)
 const AVG_N = 3; // previous 3 calendar months; empty months count as 0 (spec assumption)
 const mean3 = vals => Math.round(vals.reduce((a, b) => a + b, 0) / AVG_N);
 
+// The complete set of Auto-Assign kinds — the UI's SIX_KINDS/KIND_LABELS
+// (src/ui/plan/Inspector.jsx) derive from this so the list can't drift.
+export const AUTO_ASSIGN_KINDS = Object.freeze([
+  'underfunded', 'assignedLastMonth', 'spentLastMonth',
+  'avgAssigned', 'avgSpent', 'resetAvailable', 'resetAssigned',
+]);
+
+// Both public functions below take the same ctx shape; validate it once here
+// rather than let a caller who omits e.g. envAt only find out when a user
+// happens to click a kind that needs it.
+function assertCtx(ctx) {
+  if (!ctx || !ctx.S || !ctx.month || !ctx.env || typeof ctx.envAt !== 'function') {
+    throw new Error('inspector: ctx must be { S, month, env, envAt }');
+  }
+}
+
 // The figure each button SHOWS (the target/total, YNAB-style — not the delta).
 export function autoAssignAmount(kind, catIds, ctx) {
+  if (!AUTO_ASSIGN_KINDS.includes(kind)) throw new Error('unknown auto-assign kind: ' + kind);
+  assertCtx(ctx);
   const { S, month, env, envAt } = ctx;
   const per = catId => {
     if (kind === 'assignedLastMonth') return assignedIn(S, catId, prevMonth(month));
@@ -45,8 +63,7 @@ export function autoAssignAmount(kind, catIds, ctx) {
     if (kind === 'avgAssigned') return mean3(trailingMonths(month, AVG_N).map(m => assignedIn(S, catId, m)));
     if (kind === 'avgSpent') return mean3(trailingMonths(month, AVG_N).map(m => spentIn(envAt, catId, m)));
     if (kind === 'resetAvailable') return rowOf(env, catId).available;
-    if (kind === 'resetAssigned') return rowOf(env, catId).assigned;
-    throw new Error('unknown auto-assign kind: ' + kind);
+    return rowOf(env, catId).assigned; // resetAssigned — the only kind left, guarded above
   };
   if (kind === 'underfunded') return underfundedFor(env, catIds);
   return catIds.reduce((n, id) => n + per(id), 0);
@@ -55,11 +72,17 @@ export function autoAssignAmount(kind, catIds, ctx) {
 // The moves that get the categories TO the shown figure. Target kinds emit the
 // signed delta vs the current assigned; reset kinds emit the zeroing move.
 export function autoAssignPlan(kind, catIds, ctx) {
+  if (!AUTO_ASSIGN_KINDS.includes(kind)) throw new Error('unknown auto-assign kind: ' + kind);
+  assertCtx(ctx);
   const { month, env } = ctx;
   const moves = [];
+  // Rounded so a plan can never carry a fractional amount — every input is
+  // integral today only because it's rounded upstream, and moveAssigned's
+  // `amt <= 0` guard would otherwise silently drop a fractional leg mid-reduce.
   const push = (catId, delta) => {
-    if (delta > 0) moves.push({ from: 'rta', to: catId, month, amount: delta });
-    else if (delta < 0) moves.push({ from: catId, to: 'rta', month, amount: -delta });
+    const amt = Math.round(delta);
+    if (amt > 0) moves.push({ from: 'rta', to: catId, month, amount: amt });
+    else if (amt < 0) moves.push({ from: catId, to: 'rta', month, amount: -amt });
   };
   for (const catId of catIds) {
     const r = rowOf(env, catId);
