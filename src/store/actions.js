@@ -5,6 +5,7 @@ import { accountBalance, accountDeletePolicy, cardOutstanding, INST_KINDS } from
 import { addMonths, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
 import { uid } from '../lib/util.js';
+import { YNAB_TREE, OTHER_GROUP, ALIASES, normName } from '../lib/ynabTree.js';
 import { makeAudit, diffFields, stampUpdate } from './audit.js';
 import { freshStore } from './seed.js';
 
@@ -938,6 +939,65 @@ export function setCategoryGroup(data, { categoryId, groupId }) {
     ...data,
     categories: data.categories.map(x => (x.id === categoryId ? stampUpdate({ ...x, groupId }) : x)),
     audit: [makeAudit({ entityType: 'category', entityId: categoryId, action: 'update', summary: 'Moved ' + c.name + ' to a group', before: { groupId: c.groupId }, after: { groupId } }), ...(data.audit || [])],
+  };
+}
+
+// One-click adoption of the captured YNAB tree. Idempotent: returns `data`
+// unchanged (same reference) when everything is already in place.
+export function adoptYnabTree(data) {
+  let changed = false;
+  let groups = [...(data.categoryGroups || [])];
+  const groupIdByName = {};
+  [...YNAB_TREE.map(g => g.group), OTHER_GROUP].forEach((name, i) => {
+    let g = groups.find(x => x.name === name);
+    if (!g) { g = { id: uid(), name, sortOrder: i + 1 }; groups.push(g); changed = true; }
+    groupIdByName[name] = g.id;
+  });
+
+  const seedColors = ['#0F766E', '#B7791F', '#2563EB', '#64748B', '#7C3AED', '#DC2626'];
+  let categories = [...data.categories];
+  const matchKey = c => ALIASES[normName(c.name)] || normName(c.name);
+  YNAB_TREE.forEach(g => g.categories.forEach((display, i) => {
+    const want = normName(display);
+    const hit = categories.find(c => c.type === 'expense' && matchKey(c) === want);
+    if (hit) {
+      if (hit.name !== display || hit.groupId !== groupIdByName[g.group]) {
+        categories = categories.map(c => (c === hit ? stampUpdate({ ...c, name: display, groupId: groupIdByName[g.group] }) : c));
+        changed = true;
+      }
+    } else {
+      categories.push({
+        id: uid(), name: display, type: 'expense', color: seedColors[i % seedColors.length],
+        icon: 'circle', sortOrder: 99, isSystem: false, status: 'active', description: '',
+        excludeFromBudget: false, groupId: groupIdByName[g.group],
+      });
+      changed = true;
+    }
+  }));
+  // Raqam-only active expense categories without a group land in Other.
+  categories = categories.map(c => {
+    if (c.type !== 'expense' || c.status !== 'active' || c.groupId) return c;
+    changed = true;
+    return stampUpdate({ ...c, groupId: groupIdByName[OTHER_GROUP] });
+  });
+  if (!changed) return data;
+  return {
+    ...data, categoryGroups: groups, categories,
+    audit: [makeAudit({ entityType: 'categoryGroup', entityId: 'adopt', action: 'create', summary: 'Organized categories into groups (YNAB set)' }), ...(data.audit || [])],
+  };
+}
+
+// Copy standing per-category budgets into `month` assignments. Skips the
+// overall budget and any category that already has an assignment that month.
+export function importBudgetsAsAssignments(data, { month }) {
+  const existing = new Set((data.assignments || []).filter(a => a.month === month).map(a => a.category));
+  const add = (data.budgets || [])
+    .filter(b => b.category && b.amount > 0 && !existing.has(b.category))
+    .map(b => ({ id: uid(), category: b.category, month, amount: b.amount }));
+  if (add.length === 0) return data;
+  return {
+    ...data, assignments: [...(data.assignments || []), ...add],
+    audit: [makeAudit({ entityType: 'assignment', entityId: 'import|' + month, action: 'create', summary: 'Imported ' + add.length + ' budget amounts as ' + month + ' assignments' }), ...(data.audit || [])],
   };
 }
 
