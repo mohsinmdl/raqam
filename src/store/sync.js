@@ -130,6 +130,11 @@ export const COLLECTIONS = [
     name: 'snapshots', table: 'snapshots', keyOf: r => `${r.accountId}|${r.month}`,
     conflictKey: 'user_id,account_id,month',
     deleteKeys: ['account_id', 'month'],
+    // Opt-in only (see pushDiff): a second device's rollover (or StrictMode
+    // double-run) must never overwrite an existing row — e.g. regress a
+    // confirmed snapshot. Other collections default to last-write-wins so an
+    // explicit user action on an `added` row isn't silently dropped.
+    addIgnoreDuplicates: true,
     toRow: r => stripNulls({
       account_id: r.accountId, month: r.month, amount: r.amount, status: r.status,
       confirmed_at: r.confirmedAt ?? null, corrected: !!r.corrected, history: r.history || [],
@@ -287,11 +292,24 @@ async function pushDiff(diff) {
     const d = diff.find(x => x.collection === c);
     if (!d) continue;
     if (d.added.length) {
-      // ignoreDuplicates: a second device's rollover (or StrictMode double-run)
-      // must never overwrite an existing row — e.g. regress a confirmed snapshot.
+      // ignoreDuplicates is opt-in per collection via addIgnoreDuplicates (see
+      // the snapshots entry above) — everything else is last-write-wins so an
+      // explicit user action (e.g. a fresh envelope assignment) never
+      // silently vanishes behind a stale duplicate insert.
       const { error } = await supabase.from(c.table)
-        .upsert(d.added, { onConflict: c.conflictKey || 'user_id,id', ignoreDuplicates: true });
-      if (error) throw Object.assign(new Error(`${c.table} insert: ${error.message}`), { code: error.code, status: error.status });
+        .upsert(d.added, { onConflict: c.conflictKey || 'user_id,id', ignoreDuplicates: !!c.addIgnoreDuplicates });
+      if (error) {
+        const err = Object.assign(new Error(`${c.table} insert: ${error.message}`), { code: error.code, status: error.status });
+        if (c.appendOnly) {
+          // A rejected row on the append-only audit trail must never wedge
+          // sync: data collections still have to advance past this baseline.
+          // Skip it and log — the trail loses one entry rather than blocking
+          // everything queued behind it forever.
+          console.warn(`${c.table} insert skipped (append-only, non-fatal)`, err);
+        } else {
+          throw err;
+        }
+      }
     }
     if (d.changed.length) {
       const { error } = await supabase.from(c.table)
@@ -325,6 +343,18 @@ async function pushDiff(diff) {
 // ---- queue -----------------------------------------------------------------
 
 const BACKOFF = [1000, 2000, 5000, 15000];
+
+// A hard 4xx (other than 401, which is transient and refreshed) or a Postgres
+// constraint violation will never succeed by retrying the SAME diff — 401 is
+// the auth-expired case pushOnce/run already refreshes and retries; anything
+// else in the 4xx range (bad request, RLS denial, not-found, …) or a
+// constraint-violation message means the payload itself is rejected, so
+// looping on it would just spin the UI in 'retrying' forever.
+function isNonRetryable(e) {
+  if (e.status === 401) return false;
+  if (typeof e.status === 'number' && e.status >= 400 && e.status < 500) return true;
+  return /violates .* constraint/i.test(e.message || '');
+}
 
 // Single-flight write-behind queue. `latest` always holds the newest store; a
 // push diffs lastPushed -> latest, and only a fully successful push advances
@@ -360,6 +390,14 @@ export function createSyncQueue({ initialBaseline, onStatus = () => {} }) {
       console.error('Raqam sync push failed', e);
       if (e.status === 401) {
         try { await supabase.auth.refreshSession(); } catch { /* fall through to retry */ }
+      } else if (isNonRetryable(e)) {
+        // Surface the failure and stop scheduling retries against this same
+        // diff. A later real store change still gets a fresh attempt (via
+        // update()'s !inFlight && !retryTimer check), since lastPushed hasn't
+        // advanced and diffStores will simply recompute.
+        attempt = 0;
+        status('error');
+        return;
       }
       const delay = BACKOFF[Math.min(attempt, BACKOFF.length - 1)];
       attempt += 1;
