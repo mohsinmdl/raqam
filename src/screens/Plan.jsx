@@ -731,7 +731,7 @@ function CategoryRow({ cat, row, ctx }) {
   return (
     <div
       onClick={e => {
-        if (e.target.closest('button, input, textarea, [role="dialog"]')) return;
+        if (e.target.closest('button, input, textarea, [role="dialog"], [data-noselect]')) return;
         toggleSelect(cat.id, e.metaKey || e.ctrlKey);
       }}
       style={{ ...ROW_COLS, minHeight: 44, padding: '7px 16px', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
@@ -756,7 +756,7 @@ function CategoryRow({ cat, row, ctx }) {
               <input
                 ref={inputRef} inputMode="numeric" className="tnum"
                 value={draft} onChange={e => setDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') cancel(); }}
+                onKeyDown={e => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') { e.stopPropagation(); cancel(); } }}
                 onBlur={commit}
                 style={{ flex: 1, minWidth: 0, height: '100%', padding: 0, textAlign: 'right', border: 'none', outline: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 500 }}
               />
@@ -779,7 +779,7 @@ function CategoryRow({ cat, row, ctx }) {
           >{money(r.assigned)}</button>
         )}
       </div>
-      <div className="tnum" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>{moneyS(r.activity)}</div>
+      <div data-noselect className="tnum" style={{ textAlign: 'right', fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>{moneyS(r.activity)}</div>
       <div style={{ textAlign: 'right' }}>
         {r.available === 0 ? (
           <span className="tnum" style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, background: pillBg, color: pillFg, fontSize: 13, fontWeight: 600 }}>{money(r.available)}</span>

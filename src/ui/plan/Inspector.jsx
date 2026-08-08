@@ -115,7 +115,10 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
     () => (S.categories || []).filter(c => c.type === 'expense' && c.status === 'active'),
     [S.categories],
   );
-  const ids = [...selected];
+  // Ordered by catalog (activeCats/S.categories) order, not Set-insertion
+  // order — an approximation of table order (which is group sortOrder then
+  // category sortOrder), which isn't cheaply available here.
+  const ordered = activeCats.filter(c => selected.has(c.id)).map(c => c.id);
 
   if (selected.size === 0) {
     const allIds = activeCats.map(c => c.id);
@@ -132,7 +135,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
   }
 
   if (selected.size === 1) {
-    const cat = activeCats.find(c => c.id === ids[0]);
+    const cat = activeCats.find(c => c.id === ordered[0]);
     if (!cat) return null;
     const row = env.rows.get(cat.id) || { assigned: 0, activity: 0, available: 0, carryIn: 0 };
     return (
@@ -147,7 +150,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
     );
   }
 
-  const names = ids.map(id => (activeCats.find(c => c.id === id) || {}).name).filter(Boolean);
+  const names = ordered.map(id => (activeCats.find(c => c.id === id) || {}).name).filter(Boolean);
   return (
     <div className="plan-inspector">
       <div style={{ padding: '2px 2px 0' }}>
@@ -155,10 +158,10 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
         <div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{names.join(', ')}</div>
       </div>
       <Card title={monthName + "'s Summary"}>
-        <SummaryLines sum={selectionSummary(env, ids)} money={money} monthName={monthName} />
+        <SummaryLines sum={selectionSummary(env, ordered)} money={money} monthName={monthName} />
       </Card>
       <Card title="Auto-Assign">
-        <AutoAssignRows kinds={['underfunded', ...SIX_KINDS]} catIds={ids} ctx={ctx} money={money} applyData={applyData} plural />
+        <AutoAssignRows kinds={['underfunded', ...SIX_KINDS]} catIds={ordered} ctx={ctx} money={money} applyData={applyData} plural />
       </Card>
     </div>
   );

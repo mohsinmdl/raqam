@@ -813,7 +813,7 @@ export function setCategoryNote(data, { id, note }) {
   const val = raw.trim() === '' ? '' : raw; // whitespace-only clears; inner formatting preserved
   const existing = data.categories[i].description || '';
   if (val === existing) return data;
-  const cat = { ...data.categories[i], description: val };
+  const cat = stampUpdate({ ...data.categories[i], description: val });
   const categories = [...data.categories];
   categories[i] = cat;
   return {
