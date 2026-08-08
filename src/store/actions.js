@@ -918,6 +918,39 @@ export function setAssigned(data, { categoryId, month, amount }) {
   };
 }
 
+// Move assigned money between two envelopes (or Ready to Assign) as ONE step:
+// one new assignments array, one audit row, one undo entry. Either side may be
+// 'rta' (from: plain assign; to: unassign). Sources may go negative — YNAB
+// permits pulling more than is assigned.
+export function moveAssigned(data, { from, to, month, amount }) {
+  const amt = Math.round(amount) || 0;
+  if (amt <= 0 || from === to || (from === 'rta' && to === 'rta')) return data;
+  const catOf = id => data.categories.find(c => c.id === id);
+  if (from !== 'rta' && !catOf(from)) return data;
+  if (to !== 'rta' && !catOf(to)) return data;
+
+  let assignments = [...(data.assignments || [])];
+  const bump = (categoryId, delta) => {
+    const existing = assignments.find(a => a.category === categoryId && a.month === month);
+    const next = (existing ? existing.amount : 0) + delta;
+    if (existing && next === 0) assignments = assignments.filter(a => a !== existing);
+    else if (existing) assignments = assignments.map(a => (a === existing ? { ...a, amount: next } : a));
+    else assignments.push({ id: uid(), category: categoryId, month, amount: next });
+  };
+  if (from !== 'rta') bump(from, -amt);
+  if (to !== 'rta') bump(to, amt);
+
+  const nameOf = id => (id === 'rta' ? 'Ready to Assign' : (catOf(id) || {}).name || id);
+  return {
+    ...data, assignments,
+    audit: [makeAudit({
+      entityType: 'assignment', action: 'move', entityId: from + '>' + to + '|' + month,
+      summary: 'Moved ' + amt + ' from ' + nameOf(from) + ' to ' + nameOf(to) + ' (' + month + ')',
+      after: { from, to, amount: amt, month },
+    }), ...(data.audit || [])],
+  };
+}
+
 export function addCategoryGroup(data, { name }) {
   const trimmed = String(name || '').trim();
   if (!trimmed) return data;
