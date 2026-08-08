@@ -9,7 +9,9 @@ const pillBase = { height: 25, padding: '3px 12px', borderRadius: 5, fontSize: 1
 export default function FilterPills({ views, activeId, onSelect, onManage, onNewView, env, catIds }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
-  const all = [...BUILTIN_VIEWS, ...views];
+  // Built-ins carry `label`, custom views carry `name` — normalize once here so
+  // the pill renderer below has exactly one concept to render.
+  const all = [...BUILTIN_VIEWS, ...views.map(v => ({ ...v, label: v.name }))];
 
   // Replicates Plan.jsx's usePopoverDismiss contract inline (that hook is
   // module-scoped to Plan.jsx): outside mousedown closes; Escape closes on
