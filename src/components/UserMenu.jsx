@@ -6,7 +6,15 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
+import Kbd from '../ui/Kbd.jsx';
+import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import { resetAll } from '../store/actions.js';
+
+// Compact keycaps for a menu row, right-aligned before any state note.
+const chips = keys => (
+  <span style={{ display: 'inline-flex', gap: 3 }}>{keys.map((k, i) => <Kbd key={i} sm>{k}</Kbd>)}</span>
+);
+const rightGroup = { marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 };
 
 const row = {
   display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px',
@@ -44,17 +52,20 @@ export default function UserMenu({ name, email, onClose }) {
       </div>
       {sep}
       <button role="menuitem" className="hv-elev" style={row} onClick={() => setPrefs({ theme: prefs.theme === 'light' ? 'dark' : 'light' })}>
-        <span aria-hidden="true">◐</span> Appearance <span style={rightNote}>{prefs.theme === 'light' ? 'Light' : 'Dark'}</span>
+        <span aria-hidden="true">◐</span> Appearance
+        <span style={rightGroup}>{chips(SHORTCUT_BY_ID.toggleTheme.keys)}<span style={{ color: 'var(--muted)', fontSize: 12 }}>{prefs.theme === 'light' ? 'Light' : 'Dark'}</span></span>
       </button>
       <button role="menuitem" className="hv-elev" style={row} aria-pressed={String(prefs.masked)} onClick={() => setPrefs({ masked: !prefs.masked })}>
-        <span aria-hidden="true">◔</span> Hide amounts <span style={rightNote}>{prefs.masked ? 'On' : 'Off'}</span>
+        <span aria-hidden="true">◔</span> Hide amounts
+        <span style={rightGroup}>{chips(SHORTCUT_BY_ID.hideAmounts.keys)}<span style={{ color: 'var(--muted)', fontSize: 12 }}>{prefs.masked ? 'On' : 'Off'}</span></span>
       </button>
       <button role="menuitem" className="hv-elev" style={row} onClick={() => { onClose(); navigate('/settings'); }}>
         <span aria-hidden="true">⚙</span> Settings
       </button>
       {sep}
       <button role="menuitem" className="hv-elev" style={row} onClick={() => { onClose(); openShortcuts(); }}>
-        <span aria-hidden="true">⌘</span> Keyboard shortcuts <span style={rightNote}>?</span>
+        <span aria-hidden="true">⌘</span> Keyboard shortcuts
+        <span style={rightGroup}>{chips(SHORTCUT_BY_ID.help.keys)}</span>
       </button>
       <button role="menuitem" className="hv-elev" style={row} onClick={() => { onClose(); signOut(); }}>
         <span aria-hidden="true">⇥</span> Sign out
