@@ -14,7 +14,7 @@ const iconBtnOff = { ...iconBtn, opacity: .4, cursor: 'not-allowed' };
 // immediate neighbour by calling onReorder(this id, neighbour id) —
 // reorderViews's splice-then-insert semantics place the moved item exactly
 // where the neighbour was, which for an adjacent pair is a plain swap.
-function ViewRow({ view, atTop, atBottom, renaming, draft, onDraftChange, onStartRename, onCommitRename, onDragStart, onDrop, onMoveUp, onMoveDown, onDelete }) {
+function ViewRow({ view, atTop, atBottom, renaming, draft, onDraftChange, onStartRename, onCommitRename, onDragStart, onDrop, onMoveUp, onMoveDown, onEdit, onDelete }) {
   return (
     <div
       onDragOver={e => e.preventDefault()}
@@ -44,12 +44,13 @@ function ViewRow({ view, atTop, atBottom, renaming, draft, onDraftChange, onStar
       </div>
       <button aria-label={'Move ' + view.name + ' up'} disabled={atTop} onClick={onMoveUp} className="hv-soft" style={atTop ? iconBtnOff : iconBtn}>↑</button>
       <button aria-label={'Move ' + view.name + ' down'} disabled={atBottom} onClick={onMoveDown} className="hv-soft" style={atBottom ? iconBtnOff : iconBtn}>↓</button>
+      <button aria-label={'Edit ' + view.name} onClick={onEdit} className="hv-soft" style={iconBtn}>✎</button>
       <button aria-label={'Delete ' + view.name} onClick={onDelete} className="hv-soft" style={{ ...iconBtn, color: 'var(--neg)' }}>🗑</button>
     </div>
   );
 }
 
-export default function ManageViewsModal({ open, views, onReorder, onRename, onDelete, onNew, onClose }) {
+export default function ManageViewsModal({ open, views, onReorder, onRename, onDelete, onNew, onEdit, onClose }) {
   const { ask, confirmOpen } = useUI();
   const [renamingId, setRenamingId] = useState(null);
   const [draft, setDraft] = useState('');
@@ -137,6 +138,7 @@ export default function ManageViewsModal({ open, views, onReorder, onRename, onD
                   }}
                   onMoveUp={() => !!i && onReorder(v.id, views[i - 1].id)}
                   onMoveDown={() => i < views.length - 1 && onReorder(v.id, views[i + 1].id)}
+                  onEdit={() => onEdit(v)}
                   onDelete={() => askDelete(v)}
                 />
               ))}
