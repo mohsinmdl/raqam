@@ -13,7 +13,7 @@ alter table public.category_groups enable row level security;
 alter table public.categories add column if not exists group_id text;
 alter table public.categories
   add constraint categories_group_fk
-  foreign key (user_id, group_id) references public.category_groups (user_id, id) on delete set null;
+  foreign key (user_id, group_id) references public.category_groups (user_id, id) on delete set null (group_id);
 
 create table public.assignments (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
