@@ -30,4 +30,24 @@ describe('categoryActivityRows', () => {
     const S = store();
     expect(categoryActivityRows(S, 'groc', '2026-09', NOW)).toEqual({ rows: [], total: 0 });
   });
+
+  it('a refund (txBudgetImpact != t.amount) contributes a positive impact and total still matches the fold', () => {
+    const S = store();
+    // Refund's txBudgetImpact is -t.amount, so its activity contribution
+    // (-impact) is POSITIVE — it reduces net spending, the opposite sign of
+    // an expense's contribution. This is exactly the case where t.amount
+    // would silently disagree with the real impact if the modal reimplemented
+    // the fold instead of sharing it.
+    S.transactions.push(
+      { id: 't6', type: 'refund', category: 'groc', amount: 300, date: '2026-08-15', status: 'confirmed', accountId: 'acc', payee: 'Return' },
+    );
+    const { rows, total } = categoryActivityRows(S, 'groc', '2026-08', NOW);
+    const refundRow = rows.find(r => r.t.id === 't6');
+    expect(refundRow).toBeTruthy();
+    expect(refundRow.impact).toBe(300);
+    const foldActivity = envelopeFor(S, '2026-08', NOW).rows.get('groc').activity;
+    expect(total).toBe(foldActivity);
+    // Hand-derived: -2440 (t1+t2+t5 expenses, as above) + 300 (t6 refund) = -2140.
+    expect(total).toBe(-2140);
+  });
 });
