@@ -8,6 +8,7 @@
 // rather than another card, and so it stays legible against both themes.
 import { useEffect, useRef, useState } from 'react';
 import { useBottomBar } from './UIProvider.jsx';
+import Kbd from './Kbd.jsx';
 
 const btn = {
   height: 30, padding: '0 12px', borderRadius: 8, cursor: 'pointer',
@@ -103,7 +104,12 @@ function MoreMenu({ items }) {
               }}
             >
               {it.icon && (MENU_ICONS[it.icon] || null)}
-              {it.label}
+              <span>{it.label}</span>
+              {it.keys && it.keys.length > 0 && (
+                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 3, paddingLeft: 14 }}>
+                  {it.keys.map((k, n) => <Kbd key={n}>{k}</Kbd>)}
+                </span>
+              )}
             </button>
           ))}
           {/* Speech-bubble tail pointing down at the More button: two stacked
@@ -168,8 +174,13 @@ export default function BulkBar({ count, actions, more, onClear }) {
       {inlineActions.map(a => (
         <button
           key={a.label} onClick={a.onClick} disabled={a.disabled} title={a.title}
-          style={{ ...btn, opacity: a.disabled ? 0.4 : 1, cursor: a.disabled ? 'default' : 'pointer', color: a.tone === 'neg' ? 'var(--neg)' : 'var(--bg)' }}
-        >{a.label}</button>
+          style={{ ...btn, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: a.disabled ? 0.4 : 1, cursor: a.disabled ? 'default' : 'pointer', color: a.tone === 'neg' ? 'var(--neg)' : 'var(--bg)' }}
+        >
+          <span>{a.label}</span>
+          {a.keys && a.keys.length > 0 && (
+            <span style={{ display: 'inline-flex', gap: 3 }}>{a.keys.map((k, n) => <Kbd key={n} onDark>{k}</Kbd>)}</span>
+          )}
+        </button>
       ))}
       {moreItems.length > 0 && (
         <>

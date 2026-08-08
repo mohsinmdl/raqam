@@ -24,6 +24,12 @@ export const SPEC = Object.fromEntries(
   SHORTCUT_GROUPS.flatMap(g => g.items.map(i => [i.id, i.spec])),
 );
 
+// Full item (id, keys, label, spec) by id — the source for shortcut tooltips,
+// so a tooltip's label/chips can never drift from the help modal.
+export const SHORTCUT_BY_ID = Object.fromEntries(
+  SHORTCUT_GROUPS.flatMap(g => g.items.map(i => [i.id, i])),
+);
+
 export function isTypingTarget(el) {
   if (!el) return false;
   const tag = el.tagName;

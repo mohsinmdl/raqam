@@ -8,7 +8,8 @@ import SortIcon from '../ui/SortIcon.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useShortcuts } from '../ui/useShortcuts.js';
-import { SPEC } from '../lib/shortcuts.js';
+import { SPEC, SHORTCUT_BY_ID } from '../lib/shortcuts.js';
+import Tooltip from '../ui/Tooltip.jsx';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { inRange, rangeLabel } from '../lib/dateRange.js';
@@ -247,10 +248,10 @@ function WideIcon() {
 
 // A toolbar action: icon + label, accent when enabled, muted when disabled, a
 // soft hover fill. The row that runs across the top of the ledger.
-function ToolbarAction({ icon, label, disabled, onClick, title }) {
-  return (
+function ToolbarAction({ icon, label, disabled, onClick, title, shortcut }) {
+  const btn = (
     <button
-      onClick={onClick} disabled={disabled} title={title || label}
+      onClick={onClick} disabled={disabled} title={shortcut ? undefined : (title || label)}
       className="hv-soft"
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 10px',
@@ -262,6 +263,9 @@ function ToolbarAction({ icon, label, disabled, onClick, title }) {
       {icon}<span>{label}</span>
     </button>
   );
+  // With a shortcut, the hover tooltip carries the label + keycaps (and replaces
+  // the native title). Disabled controls skip it — nothing to prompt.
+  return shortcut && !disabled ? <Tooltip shortcut={shortcut}>{btn}</Tooltip> : btn;
 }
 
 export default function Transactions() {
@@ -461,7 +465,7 @@ export default function Transactions() {
     if (!t) return null;
     const item = seriesItem(t.id, t.type === 'expense' || t.type === 'income');
     if (!item) return null;
-    return { label: item.label, icon: 'repeat', onClick: () => { clearSel(); item.onClick(); } };
+    return { label: item.label, icon: 'repeat', onClick: () => { clearSel(); item.onClick(); }, keys: SHORTCUT_BY_ID.makeRepeating.keys };
   };
   // Editing is a one-row action, so it appears in the bulk menu only for a lone
   // selection — the same rule as Make repeating. Card corrections cannot be
@@ -506,7 +510,7 @@ export default function Transactions() {
     }
     const series = seriesItem(x.selId, x.row.canRepeat);
     return [
-      { label: 'Post now', onClick: run(() => askPostNow(x.row)) },
+      { label: 'Post now', onClick: run(() => askPostNow(x.row)), keys: SHORTCUT_BY_ID.enterNow.keys },
       x.row.canEdit && { label: 'Edit', icon: 'edit', onClick: run(() => openers.editTx(S, x.selId, openDrawer)) },
       series && { label: series.label, icon: 'repeat', onClick: run(series.onClick) },
       { divider: true },
@@ -550,15 +554,15 @@ export default function Transactions() {
             count={sel.length}
             onClear={clearSel}
             actions={[
-              { label: 'Mark cleared', onClick: () => bulkStatus('cleared') },
-              { label: 'Mark uncleared', onClick: () => bulkStatus('pending') },
+              { label: 'Mark cleared', onClick: () => bulkStatus('cleared'), keys: SHORTCUT_BY_ID.toggleCleared.keys },
+              { label: 'Mark uncleared', onClick: () => bulkStatus('pending'), keys: SHORTCUT_BY_ID.toggleCleared.keys },
             ]}
             more={[
               singleEditItem(),
-              { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate },
+              { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate, keys: SHORTCUT_BY_ID.duplicate.keys },
               singleRepeatItem(),
               { divider: true },
-              { label: 'Delete', icon: 'delete', onClick: bulkDelete, tone: 'neg' },
+              { label: 'Delete', icon: 'delete', onClick: bulkDelete, tone: 'neg', keys: SHORTCUT_BY_ID.delete.keys },
             ]}
           />
         ) : (
@@ -575,11 +579,12 @@ export default function Transactions() {
           <ToolbarAction
             icon={<PlusCircle />} label="Add Transaction" disabled={addDisabled}
             title={addDisabled ? 'Add a bank account first' : 'Record an expense, income, transfer, refund, or adjustment'}
+            shortcut={addDisabled ? undefined : SHORTCUT_BY_ID.addTx}
             onClick={() => openers.addTx(openDrawer)}
           />
           <span aria-hidden="true" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 4px' }} />
-          <ToolbarAction icon={<UndoIcon />} label="Undo" disabled={!canUndo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} onClick={undo} />
-          <ToolbarAction icon={<RedoIcon />} label="Redo" disabled={!canRedo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} onClick={redo} />
+          <ToolbarAction icon={<UndoIcon />} label="Undo" disabled={!canUndo} shortcut={SHORTCUT_BY_ID.undo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} onClick={undo} />
+          <ToolbarAction icon={<RedoIcon />} label="Redo" disabled={!canRedo} shortcut={SHORTCUT_BY_ID.redo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} onClick={redo} />
           <RecentMoves />
           <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
             {sortLabel(sort) + ', ' + list.length + ' row' + (list.length === 1 ? '' : 's')}
@@ -598,7 +603,9 @@ export default function Transactions() {
           {/* Divider: Fit-width is a display control; Sort + Search are the
               content pair to its right. */}
           <span aria-hidden="true" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 6px' }} />
-          <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
+          <Tooltip shortcut={SHORTCUT_BY_ID.focusSearch} placement="bottom">
+            <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
+          </Tooltip>
           <button
             onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
             aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}
