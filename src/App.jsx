@@ -19,7 +19,7 @@ import Transactions from './screens/Transactions.jsx';
 import Accounts from './screens/Accounts.jsx';
 import Planned from './screens/Planned.jsx';
 import Categories from './screens/Categories.jsx';
-import Budgets from './screens/Budgets.jsx';
+import Plan from './screens/Plan.jsx';
 import Recurring from './screens/Recurring.jsx';
 import RecurringDetail from './screens/RecurringDetail.jsx';
 import BudgetHub from './screens/BudgetHub.jsx';
@@ -89,7 +89,7 @@ function Shell() {
             <Route path="/reports" element={<Planned />} />
             <Route path="/settings" element={<Planned />} />
             <Route path="/budget" element={<BudgetHub />}>
-              <Route index element={<Budgets />} />
+              <Route index element={<Plan />} />
               <Route path="categories" element={<Categories />} />
               <Route path="recurring" element={<Recurring />} />
             </Route>
