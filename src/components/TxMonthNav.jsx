@@ -92,7 +92,7 @@ export default function TxMonthNav() {
               rather than wrapping if the window is too narrow. */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 12, borderTop: '1px solid var(--border)', paddingTop: 12, borderBottom: '1px solid var(--border)' }}>
             {RANGE_PRESETS.map(p => (
-              <button key={p.id} onClick={() => setDraft(rangeFor(p.id))} className="hv-soft"
+              <button key={p.id} onClick={() => setDraft(rangeFor(p.id))} className={activePreset === p.id ? 'hv-accent' : 'hv-soft'}
                 style={{ height: 30, padding: '0 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
                   border: '1px solid ' + (activePreset === p.id ? 'var(--accent)' : 'var(--border)'),
                   background: activePreset === p.id ? 'var(--accent)' : 'var(--surface)',
