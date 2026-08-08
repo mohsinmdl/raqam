@@ -25,7 +25,7 @@ export default function GlobalShortcuts() {
   // G-then-key navigation to the main screens.
   const seq = [
     { seq: SPEC.goDashboard.seq, run: () => nav('/dashboard') },
-    { seq: SPEC.goAccounts.seq, run: () => nav('/accounts') },
+    { seq: SPEC.goAccounts.seq, run: () => nav('/transactions') },
     { seq: SPEC.goBudget.seq, run: () => nav('/budget') },
   ];
   useSequence(seq, !drawer && !confirmOpen && !shortcutsOpen);
