@@ -888,7 +888,8 @@ export default function Plan() {
     [activeViewId, views],
   );
   const shownSections = useMemo(() => visibleSections(sections, activeView, env), [sections, activeView, env]);
-  const visibleCatIds = useMemo(() => new Set(shownSections.flatMap(s => s.cats.map(c => c.id))), [shownSections]);
+  const visibleCatIdList = useMemo(() => shownSections.flatMap(s => s.cats.map(c => c.id)), [shownSections]);
+  const visibleCatIds = useMemo(() => new Set(visibleCatIdList), [visibleCatIdList]);
 
   // A selected row that the active view hides must not stay actionable.
   useEffect(() => {
@@ -949,9 +950,9 @@ export default function Plan() {
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
               <PlanCheckbox label="Select all categories"
-                checked={selected.size > 0 && selected.size === activeCatIds.length}
-                indeterminate={selected.size > 0 && selected.size < activeCatIds.length}
-                onChange={() => setMany(activeCatIds, selected.size !== activeCatIds.length)} />
+                checked={visibleCatIdList.length > 0 && visibleCatIdList.every(id => selected.has(id))}
+                indeterminate={visibleCatIdList.some(id => selected.has(id))}
+                onChange={() => setMany(visibleCatIdList, !visibleCatIdList.every(id => selected.has(id)))} />
               <span style={HEAD}>CATEGORY</span>
               <span style={{ ...HEAD, textAlign: 'right' }}>ASSIGNED</span>
               <span style={{ ...HEAD, textAlign: 'right' }}>ACTIVITY</span>
