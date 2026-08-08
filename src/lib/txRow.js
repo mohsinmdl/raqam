@@ -47,7 +47,11 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // Sort keys: the full timestamp (never the truncated display) and a unique
     // id, so the tie-break chain always terminates.
     sortAt: t.date, sortId: t.id,
-    merchant: t.merchant || (t.type === 'transfer' ? 'Own-account transfer' : '—'), notes: t.notes || '', hasNotes: !!t.notes,
+    // Memo = the adjustment's reason and/or the free-text note, joined. An
+    // adjustment stores its explanation in adjustmentReason (never notes) —
+    // showing only notes left those rows blank in the ledger.
+    merchant: t.merchant || (t.type === 'transfer' ? 'Own-account transfer' : '—'),
+    notes: [t.adjustmentReason, t.notes].filter(Boolean).join(' · '), hasNotes: !!(t.adjustmentReason || t.notes),
     hasChip: !!chip, chip, chipBg, chipFg, chipIcon,
     // The other end of a transfer, from THIS account's point of view. acctLabel
     // is always source → destination and never flips, so it can't answer

@@ -50,7 +50,7 @@ const COLUMNS = [
   { key: 'date', label: 'DATE', width: 96 },
   { key: 'details', label: 'DETAILS', width: null },
   { key: 'category', label: 'CATEGORY', width: 190 },
-  { key: 'notes', label: 'NOTES', width: 180 },
+  { key: 'notes', label: 'MEMO', width: 180 },
   // altKeys: the signed sort has no header of its own, so AMOUNT stays lit
   // while it drives the order — the reader can always see which column owns
   // the ordering, even when the mode came from the dropdown.
@@ -166,7 +166,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount }) {
       <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: 'middle' }}>
         <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
       </td>
-      {/* Notes: free text, truncated with an ellipsis and the full value on hover. */}
+      {/* Memo: adjustment reason and/or free-text note, truncated with an ellipsis and the full value on hover. */}
       <td style={{ ...td, ...dim, maxWidth: 200, padding: pad, verticalAlign: 'middle' }}>
         <span title={t.notes || undefined} style={{ display: 'block', fontSize: 14, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</span>
       </td>

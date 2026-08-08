@@ -37,6 +37,16 @@ describe('an adjustment labels itself', () => {
     expect(txRowOf({ ...t, accountId: 'cash' }, S, fmt).merchant).toBe('Balance adjustment');
   });
 
+  it('surfaces the reason in the Memo column (adjustments store it in adjustmentReason, not notes)', () => {
+    const t = buildTx(form({ reason: 'Counted the tin' }), 'adjustment', 3200, 0, null);
+    expect(txRowOf({ ...t, accountId: 'cash' }, S, fmt).notes).toBe('Counted the tin');
+  });
+
+  it('joins reason and note when an adjustment carries both', () => {
+    const t = { ...buildTx(form({ reason: 'Balance zeroed on account close' }), 'adjustment', 3200, 0, null), notes: 'Closed Account', accountId: 'cash' };
+    expect(txRowOf(t, S, fmt).notes).toBe('Balance zeroed on account close · Closed Account');
+  });
+
   it('still honours the sign of a decrease', () => {
     expect(buildTx(form({ direction: 'decrease' }), 'adjustment', 3200, 0, null).amount).toBe(-3200);
   });
