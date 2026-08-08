@@ -50,7 +50,7 @@ function ViewRow({ view, atTop, atBottom, renaming, draft, onDraftChange, onStar
 }
 
 export default function ManageViewsModal({ open, views, onReorder, onRename, onDelete, onNew, onClose }) {
-  const { ask } = useUI();
+  const { ask, confirmOpen } = useUI();
   const [renamingId, setRenamingId] = useState(null);
   const [draft, setDraft] = useState('');
   const dragIdRef = useRef(null);
@@ -70,14 +70,18 @@ export default function ManageViewsModal({ open, views, onReorder, onRename, onD
   // would never get a turn.
   useEffect(() => {
     if (!open) return undefined;
+    // !confirmOpen: when ask()'s confirm is stacked above (e.g. the delete
+    // prompt), its own capture-phase listener owns Escape — this listener
+    // must not also react, or one Escape would cancel the confirm AND close
+    // Manage Views. Same guard as DrawerProvider.jsx's requestClose effect.
     const onKey = e => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || confirmOpen) return;
       e.stopPropagation();
       if (renamingId) { cancelledRef.current = true; setRenamingId(null); } else onClose();
     };
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [open, renamingId, onClose]);
+  }, [open, renamingId, onClose, confirmOpen]);
 
   if (!open) return null;
 
