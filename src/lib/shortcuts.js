@@ -20,6 +20,12 @@ export const SHORTCUT_GROUPS = [
     { id: 'reconcile',     keys: ['shift', 'E'],      label: 'Reconcile account',          spec: { key: 'e', shift: true } },
     { id: 'focusSearch',   keys: ['⌘', 'shift', 'F'], label: 'Focus the search bar',       spec: { key: 'f', meta: true, shift: true } },
   ] },
+  // Two-key "leader" sequences: press G, then the second key (within ~1.2s).
+  { title: 'Navigation', items: [
+    { id: 'goDashboard', keys: ['G', 'D'], label: 'Go to Dashboard', spec: { seq: ['g', 'd'] } },
+    { id: 'goAccounts',  keys: ['G', 'A'], label: 'Go to Accounts',  spec: { seq: ['g', 'a'] } },
+    { id: 'goBudget',    keys: ['G', 'B'], label: 'Go to Budget',    spec: { seq: ['g', 'b'] } },
+  ] },
 ];
 
 export const SPEC = Object.fromEntries(
@@ -41,6 +47,7 @@ export function isTypingTarget(el) {
 // metaKey OR ctrlKey both count as "meta" (cross-platform). Shift equality is
 // enforced only for alphanumeric keys, so '?' (itself Shift+/) still matches.
 export function matchKey(e, spec) {
+  if (!spec || !spec.key) return false; // sequence specs (`{ seq: […] }`) are handled elsewhere
   const want = spec.key.length === 1 ? spec.key.toLowerCase() : spec.key;
   const got = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   const keyHit = got === want || (spec.alt && e.key === spec.alt);

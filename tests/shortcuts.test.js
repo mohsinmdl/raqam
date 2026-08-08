@@ -54,6 +54,11 @@ describe('matchKey', () => {
     expect(matchKey(ev('h', { shiftKey: true }), SPEC.hideAmounts)).toBe(false);
     expect(matchKey(ev('h', { metaKey: true }), SPEC.hideAmounts)).toBe(false);
   });
+
+  it('never matches a sequence spec (those are handled by useSequence)', () => {
+    expect(matchKey(ev('g'), SPEC.goDashboard)).toBe(false);
+    expect(matchKey(ev('d'), SPEC.goDashboard)).toBe(false);
+  });
 });
 
 describe('isTypingTarget', () => {
