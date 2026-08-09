@@ -16,6 +16,7 @@ import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
 import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visibleSections } from '../lib/planViews.js';
+import { hasTarget, targetNeeded } from '../lib/targets.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
@@ -725,10 +726,20 @@ function CategoryRow({ cat, row, ctx }) {
     if (inputRef.current) inputRef.current.focus();
   };
 
-  const target = r.carryIn + r.assigned;
   const spend = Math.max(0, -r.activity);
   const overspent = r.available < 0;
-  const pct = target > 0 ? Math.min(1, spend / target) : (spend > 0 ? 1 : 0);
+  let target, funded, pct, subLabel;
+  if (hasTarget(cat)) {
+    target = cat.targetAmount;
+    funded = cat.targetMode === 'setaside' ? r.assigned : r.available;
+    pct = target > 0 ? Math.min(1, Math.max(0, funded / target)) : 0;
+    const need = targetNeeded(r, cat);
+    subLabel = need > 0 ? 'Needs ' + money(need) + ' more' : 'Funded';
+  } else {
+    target = r.carryIn + r.assigned;
+    pct = target > 0 ? Math.min(1, spend / target) : (spend > 0 ? 1 : 0);
+    subLabel = 'Spent ' + money(spend) + ' of ' + money(target);
+  }
   const barColor = overspent ? 'var(--neg)' : 'var(--pos)';
 
   const pillBg = r.available > 0 ? 'var(--pos-soft)' : r.available < 0 ? 'var(--neg-soft)' : 'var(--elev)';
@@ -750,7 +761,7 @@ function CategoryRow({ cat, row, ctx }) {
             <div style={{ height: 4, borderRadius: 2, background: 'rgba(125,109,63,.16)', overflow: 'hidden' }}>
               <div style={{ width: (pct * 100) + '%', height: '100%', background: barColor }} />
             </div>
-            <div className="tnum" style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>Spent {money(spend)} of {money(target)}</div>
+            <div className="tnum" style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{subLabel}</div>
           </div>
         )}
       </div>
