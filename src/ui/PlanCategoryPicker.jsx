@@ -130,7 +130,9 @@ export default function PlanCategoryPicker({
   const selectedCat = showSelected && value && value !== 'rta' && value !== '__new'
     ? S.categories.find(c => c.id === value) : null;
 
-  const rowStyle = active => ({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', border: 'none', textAlign: 'left', padding: '5px 6px 5px 4px', borderRadius: 0, cursor: 'pointer', fontSize: 13, background: active ? 'var(--soft)' : 'transparent', color: 'var(--text)' });
+  // Category/selected rows indent past the group headers (which sit at the
+  // panel's left edge) so the grouping reads clearly.
+  const rowStyle = active => ({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', border: 'none', textAlign: 'left', padding: '5px 6px 5px 18px', borderRadius: 0, cursor: 'pointer', fontSize: 13, background: active ? 'var(--soft)' : 'transparent', color: 'var(--text)' });
   const noBlur = e => e.preventDefault(); // keep the combobox focused when clicking a list row
   const fieldLabel = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text)', margin: '0 0 4px' };
   const formField = { width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, marginBottom: 12 };
