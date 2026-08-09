@@ -33,8 +33,8 @@ function Body() {
   const txCount = cats.reduce((n, c) => n + catRefs(S, c.id).transactions, 0);
   const month = currentMonth();
   const env = envelopeFor(S, month, nowIso());
-  // Replacement: any active expense category outside this group.
-  const excludeIds = S.categories.filter(c => c.groupId === group.id).map(c => c.id);
+  // Replacement must sit outside this group, so hide every in-group member.
+  const excludeIds = cats.map(c => c.id);
 
   return (
     <>
