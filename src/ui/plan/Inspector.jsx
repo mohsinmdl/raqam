@@ -6,7 +6,7 @@ import { monthLabel } from '../../lib/calc.js';
 import {
   selectionSummary, autoAssignPlan, autoAssignAmount, AUTO_ASSIGN_KINDS,
 } from '../../lib/inspector.js';
-import { moveAssigned, setCategoryNote, setTarget, clearTarget, renameCategory, archiveCategory } from '../../store/actions.js';
+import { moveAssigned, setCategoryNote, setTarget, clearTarget, renameCategory, archiveCategory, setCategoryExcluded } from '../../store/actions.js';
 import { hasTarget, targetNeeded, targetSummary, costToBeMe } from '../../lib/targets.js';
 import { parseAmt } from '../../lib/format.js';
 import { useUI } from '../UIProvider.jsx';
@@ -271,6 +271,45 @@ function CategoryHeader({ cat, S, applyData }) {
   );
 }
 
+// Per-category "Exclude from budgets" switch (recoverable/advance money). Lives
+// in the inspector — one selected category or many — rather than as a control
+// in every table row (the design steer: no repeated per-row toggles; act on the
+// selection). Independent of grouping: it only flips the budget-math flag.
+// setCategoryExcluded also drops any budget/target on the category when turned
+// on (shared dropBudgetAndTargetOnExclude), so the Target card reflects it.
+function ExcludeToggle({ ids, S, applyData }) {
+  const { notify } = useUI();
+  const cats = ids.map(id => (S.categories || []).find(c => c.id === id)).filter(Boolean);
+  const allExcluded = cats.length > 0 && cats.every(c => c.excludeFromBudget);
+  const anyExcluded = cats.some(c => c.excludeFromBudget);
+  const mixed = anyExcluded && !allExcluded;
+  const next = !allExcluded; // all on → turn all off; otherwise turn all on
+  const many = ids.length > 1;
+  const apply = () => {
+    applyData(data => ids.reduce((d, id) => setCategoryExcluded(d, { id, excluded: next }), data));
+    const n = ids.length;
+    notify(next
+      ? (many ? n + ' categories excluded from budgets.' : 'Excluded from budgets.')
+      : (many ? n + ' categories included in budgets.' : 'Included in budgets.'));
+  };
+  const knobOn = mixed || allExcluded;
+  return (
+    <section style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700 }}>Exclude from budgets</div>
+        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }}>
+          {mixed ? 'Mixed — tap to exclude all selected.' : 'Recoverable / advance — kept out of budget math and net expenses.'}
+        </div>
+      </div>
+      <button role="switch" aria-checked={mixed ? 'mixed' : String(allExcluded)} onClick={apply}
+        aria-label={(next ? 'Exclude' : 'Include') + (many ? ' selected categories' : ' this category') + (next ? ' from budgets' : ' in budgets')}
+        style={{ flex: 'none', position: 'relative', width: 40, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer', background: knobOn ? 'var(--accent)' : 'var(--track)', opacity: mixed ? 0.7 : 1, transition: 'background .15s' }}>
+        <span aria-hidden="true" style={{ position: 'absolute', top: 2, left: knobOn ? 18 : 2, width: 20, height: 20, borderRadius: 999, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.25)', transition: 'left .15s' }} />
+      </button>
+    </section>
+  );
+}
+
 export default function Inspector({ S, env, envAt, month, money, applyData, selected }) {
   const ctx = { S, month, env, envAt };
   const monthName = monthLabel(month).split(' ')[0]; // "August" from "August 2026"
@@ -309,6 +348,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
     return (
       <div className="plan-inspector">
         <CategoryHeader cat={cat} S={S} applyData={applyData} />
+        <ExcludeToggle ids={[cat.id]} S={S} applyData={applyData} />
         <AvailableCard row={row} money={money} />
         <TargetCard key={'target-' + cat.id} cat={cat} row={row} money={money} applyData={applyData} />
         <Card title="Auto-Assign">
@@ -326,6 +366,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
         <div style={{ fontSize: 15, fontWeight: 700 }}>{selected.size} Categories Selected</div>
         <div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{names.join(', ')}</div>
       </div>
+      <ExcludeToggle ids={ordered} S={S} applyData={applyData} />
       <Card title={monthName + "'s Summary"}>
         <SummaryLines sum={selectionSummary(env, ordered)} money={money} monthName={monthName} />
       </Card>

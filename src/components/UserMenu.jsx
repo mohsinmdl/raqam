@@ -49,6 +49,9 @@ export default function UserMenu({ name, email, onClose }) {
       <button role="menuitem" className="hv-elev" style={row} aria-pressed={String(prefs.masked)} onClick={() => setPrefs({ masked: !prefs.masked })}>
         <span aria-hidden="true">◔</span> Hide amounts <span style={rightNote}>{prefs.masked ? 'On' : 'Off'}</span>
       </button>
+      <button role="menuitem" className="hv-elev" style={row} onClick={() => { onClose(); navigate('/budget/recurring'); }}>
+        <span aria-hidden="true">⟳</span> Recurring
+      </button>
       <button role="menuitem" className="hv-elev" style={row} onClick={() => { onClose(); navigate('/settings'); }}>
         <span aria-hidden="true">⚙</span> Settings
       </button>
