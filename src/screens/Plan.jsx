@@ -1098,7 +1098,7 @@ export default function Plan() {
           headerSlot.node,
         )}
 
-        {/* Row 1: filter views. */}
+        {/* Filter pills span above the grid (full width). */}
         <div style={rowInset || undefined}>
           <FilterPills
             builtins={builtinPills}
@@ -1112,22 +1112,23 @@ export default function Plan() {
           />
         </div>
 
-        {/* Row 3: action toolbar — Category Group, Undo, Redo, Recent Moves on
-            the left; the fit/full-width + row-view toggles on the right. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', ...rowInset }}>
-          <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
-          <ToolbarAction icon={<UndoIcon />} label="Undo" disabled={!canUndo} shortcut={SHORTCUT_BY_ID.undo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} onClick={undo} />
-          <ToolbarAction icon={<RedoIcon />} label="Redo" disabled={!canRedo} shortcut={SHORTCUT_BY_ID.redo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} onClick={redo} />
-          <RecentMoves />
-          <div style={{ flex: 1 }} />
-          <WidthToggle wide={wide} onToggle={() => setPrefs({ planWide: !wide })} />
-          <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
-        </div>
-
-        {/* Row 4: table on the left, inspector cards on the right — both
-            borderless (YNAB-style), separated only by the grid gap. */}
+        {/* Table (left) + inspector cards (right). The action toolbar lives
+            INSIDE the left column so it spans only the table's width — the
+            right-aligned width/row-view toggles sit above the table's right
+            edge, and the inspector's top aligns with the toolbar row. */}
         <div className="plan-grid">
-          <div style={{ background: 'var(--surface)', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', ...rowInset }}>
+              <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
+              <ToolbarAction icon={<UndoIcon />} label="Undo" disabled={!canUndo} shortcut={SHORTCUT_BY_ID.undo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} onClick={undo} />
+              <ToolbarAction icon={<RedoIcon />} label="Redo" disabled={!canRedo} shortcut={SHORTCUT_BY_ID.redo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} onClick={redo} />
+              <RecentMoves />
+              <div style={{ flex: 1 }} />
+              <WidthToggle wide={wide} onToggle={() => setPrefs({ planWide: !wide })} />
+              <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
+            </div>
+
+            <div style={{ background: 'var(--surface)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
               <button
                 onClick={toggleAllGroups}
@@ -1171,6 +1172,7 @@ export default function Plan() {
                 </div>
               </div>
             )}
+            </div>
           </div>
           <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} />
         </div>
