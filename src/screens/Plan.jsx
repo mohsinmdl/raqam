@@ -430,7 +430,7 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, fir
       style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', background: 'var(--track)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}
     >
       {showGroupLineAbove && (
-        <div aria-hidden="true" style={{ position: 'absolute', left: 16, right: 16, marginTop: -8, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
+        <div aria-hidden="true" style={{ position: 'absolute', top: -1, left: 16, right: 16, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
       )}
       <button
         onClick={onToggle} aria-label={(collapsed ? 'Expand ' : 'Collapse ') + group.name} aria-expanded={String(!collapsed)}
@@ -872,7 +872,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
       style={{ ...ROW_COLS, position: 'relative', minHeight: 44, padding: '7px 16px', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
     >
       {showLineAbove && (
-        <div aria-hidden="true" style={{ position: 'absolute', left: 16, right: 16, marginTop: -8, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
+        <div aria-hidden="true" style={{ position: 'absolute', top: -1, left: 16, right: 16, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
       )}
       <span
         draggable data-noselect
