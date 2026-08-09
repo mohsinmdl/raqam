@@ -1111,6 +1111,23 @@ export function deleteCategoryGroup(data, { id }) {
   };
 }
 
+// Delete a whole group by first reassigning every category in it to a single
+// replacement (transactions, budgets, recurring, assigned/available amounts —
+// exactly what reassignDeleteCategory moves for one category), then removing the
+// now-empty group. The replacement must live OUTSIDE the group so it isn't
+// deleted mid-fold. System categories can't be deleted, so they're left behind
+// and merely un-grouped when the group goes (deleteCategoryGroup's own rule).
+export function reassignDeleteCategoryGroup(data, { id, replacementId }) {
+  const g = (data.categoryGroups || []).find(x => x.id === id);
+  const repl = data.categories.find(c => c.id === replacementId);
+  if (!g || !repl) return data;
+  const groupCatIds = data.categories.filter(c => c.groupId === id).map(c => c.id);
+  if (groupCatIds.includes(replacementId)) return data; // replacement must be outside the group
+  let next = data;
+  for (const cid of groupCatIds) next = reassignDeleteCategory(next, { id: cid, replacementId });
+  return deleteCategoryGroup(next, { id });
+}
+
 export function setCategoryGroup(data, { categoryId, groupId }) {
   const c = data.categories.find(x => x.id === categoryId);
   if (!c || c.groupId === groupId) return data;

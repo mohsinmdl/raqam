@@ -163,6 +163,7 @@ export const openers = {
   },
 
   reassignCategory: (catId, openDrawer) => openDrawer('reassign', { catId, replacement: '' }),
+  reassignGroup: (groupId, openDrawer) => openDrawer('reassignGroup', { groupId, replacement: '' }),
 
   // Record an occurrence of a rule: prefill the normal transaction drawer and
   // pin the due date it settles, so a rule that moves on between opening and

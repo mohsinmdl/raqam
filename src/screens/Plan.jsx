@@ -12,7 +12,7 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { nowIso } from '../lib/dates.js';
-import { prevMonth, monthLabel } from '../lib/calc.js';
+import { prevMonth, monthLabel, catRefs } from '../lib/calc.js';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
@@ -31,6 +31,7 @@ import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import EditNamePopover from '../ui/plan/EditNamePopover.jsx';
 import { askDeleteCategory } from '../ui/categoryActions.js';
+import { openers } from '../drawers/openers.js';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
   adoptYnabTree, importBudgetsAsAssignments, moveAssigned,
@@ -385,8 +386,9 @@ function AddGroupButton({ onAdd }) {
 // Group (master) row: collapse chevron, name, a hover "+" that opens an inline
 // add-category popover, and the group's totals per column.
 function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
-  const { applyData, money, selected, setMany } = ctx;
+  const { S, applyData, money, selected, setMany } = ctx;
   const { notify, ask } = useUI();
+  const { openDrawer } = useDrawer();
   const [hover, setHover] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState('');
@@ -424,7 +426,12 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
             triggerStyle={{ display: 'block', minWidth: 0, maxWidth: '100%', border: 'none', background: 'transparent', padding: 0, font: 'inherit', fontSize: 16, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}
             onRename={nm => { applyData(d => renameCategoryGroup(d, { id: group.id, name: nm })); notify('Group renamed to “' + nm + '”.'); }}
             onDelete={async () => {
-              const ok = await ask({ title: 'Delete group “' + group.name + '”?', body: 'The group is removed and its categories move to “Other”. Nothing is deleted — categories, budgets, and transactions are kept.', action: 'Delete group', tone: 'neg' });
+              // If any category in the group still carries references, deleting
+              // the group means deleting those categories — so route through the
+              // reassign modal (pick a replacement, move everything, then delete).
+              const hasRefs = cats.some(c => catRefs(S, c.id).total > 0);
+              if (hasRefs) { openers.reassignGroup(group.id, openDrawer); return; }
+              const ok = await ask({ title: 'Delete group “' + group.name + '”?', body: 'This group has no categories in use, so it can be removed and its (empty) categories move to “Other”. Nothing is lost.', action: 'Delete group', tone: 'neg' });
               if (!ok) return;
               applyData(d => deleteCategoryGroup(d, { id: group.id }));
               notify('Group “' + group.name + '” deleted.');
