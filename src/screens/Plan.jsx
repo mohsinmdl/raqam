@@ -35,6 +35,10 @@ const OTHER = { id: null, name: 'Other' };
 
 const ROW_COLS = { display: 'grid', gridTemplateColumns: '24px minmax(0,2.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr)', gap: 10, alignItems: 'center' };
 const HEAD = { fontSize: 14, fontWeight: 500, letterSpacing: '.6px', color: 'var(--text)' };
+// Shared right inset for every numeric column value (header, group total, and
+// category cell) so the amounts line up down each column regardless of whether
+// the value is plain text, a click-to-edit button, or a rounded available pill.
+const NUM_INSET = 8;
 const popCard = { position: 'absolute', zIndex: 30, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 12 };
 const popBtnRow = { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 };
 const popCancel = { height: 30, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, cursor: 'pointer' };
@@ -403,9 +407,9 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
           </span>
         )}
       </div>
-      <div className="tnum" style={{ textAlign: 'right', fontSize: 13, fontWeight: 600 }}>{money(t.assigned)}</div>
-      <div className="tnum" style={{ textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>{money(t.activity)}</div>
-      <div className="tnum" style={{ textAlign: 'right', fontSize: 13, fontWeight: 600 }}>{money(t.available)}</div>
+      <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600 }}>{money(t.assigned)}</div>
+      <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>{money(t.activity)}</div>
+      <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600 }}>{money(t.available)}</div>
     </div>
   );
 }
@@ -569,7 +573,7 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
       <button
         onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
         className="tnum hv-elev"
-        style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, border: 'none', background: 'var(--neg-soft)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, border: 'none', background: 'var(--neg-soft)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
       >{money(available)}</button>
       {open && (
         <div role="dialog" aria-label="Cover overspending" style={{ ...popCard, ...(up ? { bottom: 30 } : { top: 30 }), right: 0, width: 300, textAlign: 'left' }}>
@@ -627,7 +631,7 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
       <button
         onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
         className="tnum hv-elev"
-        style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, border: 'none', background: 'var(--pos-soft)', color: 'var(--pos)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, border: 'none', background: 'var(--pos-soft)', color: 'var(--pos)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
       >{money(available)}</button>
       {open && (
         <div role="dialog" aria-label="Move available money" style={{ ...popCard, ...(up ? { bottom: 30 } : { top: 30 }), right: 0, width: 300, textAlign: 'left' }}>
@@ -792,7 +796,7 @@ function CategoryRow({ cat, row, ctx }) {
         ) : (
           <button
             onClick={startEdit} className="tnum hv-elev"
-            style={{ width: '100%', height: 30, padding: '0 8px', textAlign: 'right', border: '1px solid transparent', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+            style={{ width: '100%', height: 30, padding: `0 ${NUM_INSET}px`, textAlign: 'right', border: '1px solid transparent', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
           >{money(r.assigned)}</button>
         )}
       </div>
@@ -800,14 +804,14 @@ function CategoryRow({ cat, row, ctx }) {
         <button
           onClick={() => onOpenActivity(cat)} className="tnum hv-soft"
           aria-label={'Activity for ' + cat.name}
-          style={{ padding: '2px 4px', border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}
+          style={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}
           onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline'; }}
           onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none'; }}
         >{moneyS(r.activity)}</button>
       </div>
       <div style={{ textAlign: 'right' }}>
         {r.available === 0 ? (
-          <span className="tnum" style={{ display: 'inline-block', minWidth: 72, padding: '4px 10px', borderRadius: 999, background: pillBg, color: pillFg, fontSize: 13, fontWeight: 600 }}>{money(r.available)}</span>
+          <span className="tnum" style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, background: pillBg, color: pillFg, fontSize: 13, fontWeight: 600 }}>{money(r.available)}</span>
         ) : r.available < 0 ? (
           <CoverPopover cat={cat} month={month} available={r.available} env={env} S={S} money={money} applyData={applyData} />
         ) : (
@@ -1013,9 +1017,9 @@ export default function Plan() {
                 indeterminate={visibleCatIdList.some(id => selected.has(id))}
                 onChange={() => setMany(visibleCatIdList, !visibleCatIdList.every(id => selected.has(id)))} />
               <span style={HEAD}>CATEGORY</span>
-              <span style={{ ...HEAD, textAlign: 'right' }}>ASSIGNED</span>
-              <span style={{ ...HEAD, textAlign: 'right' }}>ACTIVITY</span>
-              <span style={{ ...HEAD, textAlign: 'right' }}>AVAILABLE</span>
+              <span style={{ ...HEAD, textAlign: 'right', paddingRight: NUM_INSET }}>ASSIGNED</span>
+              <span style={{ ...HEAD, textAlign: 'right', paddingRight: NUM_INSET }}>ACTIVITY</span>
+              <span style={{ ...HEAD, textAlign: 'right', paddingRight: NUM_INSET }}>AVAILABLE</span>
             </div>
             {shownSections.map(({ group, key, cats, totals }) => {
               const isCollapsed = collapsed.has(key);
