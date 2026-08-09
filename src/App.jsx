@@ -90,6 +90,9 @@ function Shell() {
             <Route path="/budget" element={<BudgetHub />}>
               <Route index element={<Plan />} />
               <Route path="recurring" element={<Recurring />} />
+              {/* Stale sub-paths (e.g. the removed /budget/categories tab) land
+                  back on the Budget screen rather than the app-wide dashboard. */}
+              <Route path="*" element={<Navigate to="/budget" replace />} />
             </Route>
             <Route path="/budgets" element={<Navigate to="/budget" replace />} />
             <Route path="/categories" element={<Navigate to="/budget" replace />} />
