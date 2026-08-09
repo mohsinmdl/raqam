@@ -1,7 +1,7 @@
 // Plan inspector (Phase 3): right-column sidebar reacting to row selection.
 // Structure live-captured from YNAB 2026-08-09 (see the phase-3 spec);
 // chrome follows Raqam tokens, not YNAB's.
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { monthLabel } from '../../lib/calc.js';
 import {
   selectionSummary, autoAssignPlan, autoAssignAmount, AUTO_ASSIGN_KINDS,

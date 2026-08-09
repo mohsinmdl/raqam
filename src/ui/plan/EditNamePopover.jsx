@@ -45,7 +45,8 @@ export default function EditNamePopover({
       if (triggerRef.current && triggerRef.current.contains(e.target)) return;
       setOpen(false);
     };
-    // Reposition if the page scrolls/resizes while open (fixed coords are stale otherwise).
+    // Fixed coords go stale on scroll/resize, so just dismiss the popover
+    // rather than chase the trigger.
     const reflow = () => setOpen(false);
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('mousedown', onDown);
