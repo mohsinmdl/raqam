@@ -98,7 +98,7 @@ function SortableHeader({ col, sort, onSort, last }) {
         // highlighted.
         style={{
           display: 'flex', alignItems: 'center', gap: 5, width: '100%',
-          minHeight: 44, padding: '9px 8px', whiteSpace: 'nowrap',
+          minHeight: 32, padding: '0 8px', whiteSpace: 'nowrap',
           justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start',
           border: 'none', background: 'none', font: 'inherit', cursor: 'pointer',
           letterSpacing: '0.6px',
@@ -721,7 +721,7 @@ export default function Transactions() {
                       away while the rest stuck, letting rows bleed through.
                       Sticky already provides the containing block the fill
                       checkbox needs. */}
-                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px', minWidth: 34, borderRight: 'none' }}>
+                  <th scope="col" style={{ ...th, padding: '0 4px 0 18px', minWidth: 34, borderRight: 'none' }}>
                     <Checkbox
                       fill
                       checked={allVisibleSelected}
