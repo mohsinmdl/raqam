@@ -49,13 +49,13 @@ export function AmountField({ id, field, big = true, placeholder = '0', ariaLabe
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 'var(--field-radius)', background: 'var(--surface)', overflow: 'hidden' }}>
       <span style={{ padding: '0 10px', fontSize: big ? 13 : 12.5, color: 'var(--muted)', borderRight: '1px solid var(--border)', height: big ? 40 : 38, display: 'flex', alignItems: 'center', background: big ? 'var(--elev)' : undefined }}>Rs</span>
       <input
         id={id} aria-label={ariaLabel} inputMode="decimal" placeholder={placeholder} data-autofocus={autoFocus ? '' : undefined}
         ref={inputRef} value={shown} onChange={onChange}
         className="tnum"
-        style={{ flex: 1, height: big ? 40 : 38, border: 'none', padding: '0 12px', background: 'transparent', color: 'var(--text)', fontSize: big ? 15 : 14, fontWeight: 600, minWidth: 0, outlineOffset: -2 }}
+        style={{ flex: 1, height: big ? 40 : 38, border: 'none', padding: '0 12px', background: 'transparent', color: 'var(--text)', fontSize: big ? 15 : 14, fontWeight: 600, minWidth: 0 }}
       />
     </div>
   );
