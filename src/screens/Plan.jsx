@@ -953,6 +953,17 @@ export default function Plan() {
   const visibleCatIdList = useMemo(() => shownSections.flatMap(s => s.cats.map(c => c.id)), [shownSections]);
   const visibleCatIds = useMemo(() => new Set(visibleCatIdList), [visibleCatIdList]);
 
+  // Header chevron collapses/expands every visible group at once: if all are
+  // already collapsed it expands them, otherwise it collapses them all.
+  const shownKeys = useMemo(() => shownSections.map(s => s.key), [shownSections]);
+  const allCollapsed = shownKeys.length > 0 && shownKeys.every(k => collapsed.has(k));
+  const toggleAllGroups = () => setCollapsed(prev => {
+    const next = new Set(prev);
+    if (shownKeys.every(k => next.has(k))) shownKeys.forEach(k => next.delete(k));
+    else shownKeys.forEach(k => next.add(k));
+    return next;
+  });
+
   // A selected row that the active view hides must not stay actionable.
   useEffect(() => {
     setSelected(prev => {
@@ -1067,7 +1078,12 @@ export default function Plan() {
         <div className="plan-grid">
           <div style={{ background: 'var(--surface)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
-              <span aria-hidden="true" />
+              <button
+                onClick={toggleAllGroups}
+                aria-label={allCollapsed ? 'Expand all groups' : 'Collapse all groups'} aria-expanded={String(!allCollapsed)}
+                title={allCollapsed ? 'Expand all' : 'Collapse all'} className="hv-soft"
+                style={{ width: 20, height: 20, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, flex: 'none', borderRadius: 4, transform: allCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .12s ease' }}
+              >▾</button>
               <PlanCheckbox label="Select all categories"
                 checked={visibleCatIdList.length > 0 && visibleCatIdList.every(id => selected.has(id))}
                 indeterminate={visibleCatIdList.some(id => selected.has(id))}
