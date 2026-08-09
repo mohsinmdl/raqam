@@ -4,17 +4,28 @@
 // Spec: docs/superpowers/specs/2026-08-09-envelope-budget-phase4-views-design.md
 //
 // Snoozed is deliberately absent: it needs snoozing support, not yet built.
-// Verified live against YNAB that, with no targets, "Underfunded" returns
-// exactly the same rows as "Overspent".
-import { hasTarget, targetNeeded, isOverTarget } from './targets.js';
+// Underfunded = a target shortfall OR overspend (targets.js's underfundedNeed,
+// the same figure the Auto-Assign "Underfunded" action funds) — deliberately a
+// SUPERSET of Overspent, not merely equal to it when no targets exist. Verified
+// live against YNAB.
+import { hasTarget, targetNeeded, isOverTarget, underfundedNeed } from './targets.js';
 
 const availOf = (env, id) => (env.rows.get(id) || { available: 0 }).available;
+
+// Over target and not also short — guards the edge where a set-aside category
+// can read both "over target" (assigned > target) and still owe money for the
+// month's overspend (negative available): that category is Underfunded, not
+// Overfunded.
+function overfundedMatch(cat, env) {
+  const r = env.rows.get(cat.id) || {};
+  return hasTarget(cat) && targetNeeded(r, cat) === 0 && isOverTarget(r, cat);
+}
 
 export const BUILTIN_VIEWS = Object.freeze([
   Object.freeze({ id: 'all', label: 'All', match: null }),
   Object.freeze({ id: 'overspent', label: 'Overspent', match: (cat, env) => availOf(env, cat.id) < 0 }),
-  Object.freeze({ id: 'underfunded', label: 'Underfunded', match: (cat, env) => hasTarget(cat) && targetNeeded(env.rows.get(cat.id) || {}, cat) > 0 }),
-  Object.freeze({ id: 'overfunded', label: 'Overfunded', match: (cat, env) => hasTarget(cat) && isOverTarget(env.rows.get(cat.id) || {}, cat) }),
+  Object.freeze({ id: 'underfunded', label: 'Underfunded', match: (cat, env) => underfundedNeed(env.rows.get(cat.id) || {}, cat) > 0 }),
+  Object.freeze({ id: 'overfunded', label: 'Overfunded', match: overfundedMatch }),
   Object.freeze({ id: 'available', label: 'Money Available', match: (cat, env) => availOf(env, cat.id) > 0 }),
 ]);
 
