@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasTarget, targetNeeded, isOverTarget, costToBeMe, targetSummary } from '../src/lib/targets.js';
+import { hasTarget, targetNeeded, isOverTarget, costToBeMe, targetSummary, underfundedNeed } from '../src/lib/targets.js';
 
 const money = n => 'Rs ' + n.toLocaleString('en-US');
 const cat = over => ({ id: 'c', name: 'Fuel', type: 'expense', status: 'active', excludeFromBudget: false, ...over });
@@ -11,6 +11,11 @@ describe('hasTarget', () => {
     expect(hasTarget(cat({ targetAmount: 0, targetMode: 'refill' }))).toBe(false);
     expect(hasTarget(cat({}))).toBe(false);
     expect(hasTarget(cat({ targetAmount: 5000, targetMode: 'refill', excludeFromBudget: true }))).toBe(false);
+  });
+  it('false for a bad or missing mode even with a positive amount — never silently "refill"', () => {
+    expect(hasTarget(cat({ targetAmount: 5000, targetMode: 'bogus' }))).toBe(false);
+    expect(hasTarget(cat({ targetAmount: 5000, targetMode: null }))).toBe(false);
+    expect(hasTarget(cat({ targetAmount: 5000 }))).toBe(false); // targetMode entirely absent
   });
 });
 
@@ -29,6 +34,37 @@ describe('targetNeeded', () => {
   it('is 0 when there is no target or the category is excluded', () => {
     expect(targetNeeded(row({ available: 0 }), cat({}))).toBe(0);
     expect(targetNeeded(row({ available: 0 }), cat({ targetAmount: 9000, targetMode: 'refill', excludeFromBudget: true }))).toBe(0);
+  });
+  it('setaside: also covers overspend (negative available) even when assigned meets the target', () => {
+    // target 5000, assigned 5000 → base shortfall 0; available −2000 → overspend term 2000. max(0, 0, 2000) = 2000.
+    const c = cat({ targetAmount: 5000, targetMode: 'setaside' });
+    expect(targetNeeded(row({ assigned: 5000, available: -2000 }), c)).toBe(2000);
+  });
+  it('refill: overspend just widens the shortfall against the target', () => {
+    // target 20000, available −1500 → 20000 − (−1500) = 21500.
+    const c = cat({ targetAmount: 20000, targetMode: 'refill' });
+    expect(targetNeeded(row({ available: -1500 }), c)).toBe(21500);
+  });
+  it('rounds a fractional target/available to the nearest whole unit', () => {
+    // target 5000.5, available 1000 → 5000.5 − 1000 = 4000.5 → Math.round → 4001.
+    const c = cat({ targetAmount: 5000.5, targetMode: 'refill' });
+    expect(targetNeeded(row({ available: 1000 }), c)).toBe(4001);
+  });
+});
+
+describe('underfundedNeed', () => {
+  it('targeted: equals targetNeeded', () => {
+    const c = cat({ targetAmount: 10000, targetMode: 'refill' });
+    expect(underfundedNeed(row({ available: 3000 }), c)).toBe(7000);
+  });
+  it('untargeted and overspent: covers the negative available', () => {
+    expect(underfundedNeed(row({ available: -2500 }), cat({}))).toBe(2500);
+  });
+  it('excluded: always 0, even when overspent', () => {
+    expect(underfundedNeed(row({ available: -2500 }), cat({ excludeFromBudget: true }))).toBe(0);
+  });
+  it('untargeted and not overspent: 0', () => {
+    expect(underfundedNeed(row({ available: 500 }), cat({}))).toBe(0);
   });
 });
 
