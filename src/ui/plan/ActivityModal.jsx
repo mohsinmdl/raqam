@@ -67,8 +67,8 @@ export default function ActivityModal({ open, cat, month, S, money, onClose }) {
                       <tr key={t.id}>
                         <td style={td}>{account?.nickname || '—'}</td>
                         <td style={{ ...td, whiteSpace: 'nowrap' }} className="tnum">{dayLabel(t.date)}</td>
-                        <td style={td}>{t.payee || '—'}</td>
-                        <td style={{ ...td, color: 'var(--muted)' }}>{t.notes || t.memo || ''}</td>
+                        <td style={td}>{t.merchant || '—'}</td>
+                        <td style={{ ...td, color: 'var(--muted)' }}>{t.notes || ''}</td>
                         <td style={{ ...td, textAlign: 'right', color: row.impact < 0 ? 'var(--neg)' : row.impact > 0 ? 'var(--pos)' : undefined }} className="tnum">{money(row.impact)}</td>
                       </tr>
                     );

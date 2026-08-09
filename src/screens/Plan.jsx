@@ -366,7 +366,7 @@ function AddGroupButton({ onAdd }) {
         aria-haspopup="dialog" aria-expanded={String(open)} aria-label="Add category group"
       />
       {open && (
-        <div role="dialog" aria-label="Add category group" style={{ ...popCard, top: 38, right: 0, width: 240 }}>
+        <div role="dialog" aria-label="Add category group" style={{ ...popCard, top: 38, left: 0, width: 240 }}>
           <input
             autoFocus className="field" placeholder="Group name" value={name}
             onChange={e => setName(e.target.value)}
