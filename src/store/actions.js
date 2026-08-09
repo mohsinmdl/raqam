@@ -63,6 +63,7 @@ function resolveCategory(next, f, type) {
     catId = uid();
     next.categories = [...next.categories, {
       id: catId, name: f.newCat.trim(), type: type === 'income' ? 'income' : 'expense',
+      groupId: f.newCatGroup || null,
       color: '#0F766E', icon: 'square', sortOrder: 99, isSystem: false, status: 'active', description: '',
     }];
   }

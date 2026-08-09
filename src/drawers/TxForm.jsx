@@ -8,12 +8,14 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
-import { accountBalance, cardOutstanding, dayLabel, findDuplicate, listCats, monthLabel, relTime } from '../lib/calc.js';
+import { accountBalance, cardOutstanding, dayLabel, findDuplicate, monthLabel, relTime } from '../lib/calc.js';
 import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { addTransaction, updateTransaction, deleteTransaction } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
 import { PRESETS, ruleFromTx } from '../lib/schedule.js';
 import WhenField from './WhenField.jsx';
+import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
+import { envelopeFor } from '../lib/envelope.js';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, Pill, grid2, noteBox } from './fields.jsx';
 
 const TYPES = ['expense', 'income', 'transfer', 'refund', 'adjustment'];
@@ -39,7 +41,11 @@ function useOpts() {
 function Body() {
   const { drawer, setForm, setField } = useDrawer();
   const { S, activeAccts, bankOpts, creditOpts } = useOpts();
-  const { moneyRaw } = useMoney();
+  const { money, moneyRaw } = useMoney();
+  const month = currentMonth();
+  // Envelope drives the available amount shown beside each expense category in
+  // the picker; income categories have no envelope, so amounts are hidden there.
+  const env = envelopeFor(S, month, nowIso());
   const f = drawer.form, errors = drawer.errors;
   const type = f.type || 'expense';
   // Body remounts per drawer (keyed by name), so this resets between opens.
@@ -62,13 +68,6 @@ function Body() {
   const repeatName = showRepeat && f.repeat && f.repeat !== 'never'
     ? (PRESETS.find(p => p.id === f.repeat) || {}).label : null;
   const catType = type === 'income' ? 'income' : 'expense';
-  const catOpts = listCats(S, catType).map(c => ({ id: c.id, label: c.name }));
-  if (f.editId && f.originalCategory) {
-    const orig = S.categories.find(c => c.id === f.originalCategory);
-    if (orig && orig.status === 'archived' && orig.type === catType && !catOpts.some(o => o.id === orig.id)) {
-      catOpts.push({ id: orig.id, label: orig.name + ' (archived)' });
-    }
-  }
   const cardHint = type === 'expense' && String(f.payWith || '').startsWith('card:');
   const amt = parseAmt(f.amount);
   const fee = parseAmt(f.fee);
@@ -118,14 +117,18 @@ function Body() {
 
       {fxCategory && (
         <div>
-          <Label htmlFor="f-cat" required>Category</Label>
-          <SelectField id="f-cat" field="category">
-            <option value="">Choose…</option>
-            {catOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-            <option value="__new">＋ New category…</option>
-          </SelectField>
-          {f.category === '__new' && (
-            <TextField field="newCat" ariaLabel="New category name" placeholder="New category name" accent />
+          <Label required>Category</Label>
+          <PlanCategoryPicker
+            env={env} S={S} month={month} money={money}
+            catType={catType} showAmounts={catType === 'expense'} excludeRta heading={null}
+            allowCreate showSelected
+            onCreate={({ name, groupId }) => setForm({ category: '__new', newCat: name, newCatGroup: groupId || '' })}
+            value={f.category} onChange={id => setField('category', id)}
+          />
+          {f.category === '__new' && f.newCat && (
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
+              New category “{f.newCat}” will be created when you save.
+            </div>
           )}
           <FieldError msg={errors.category} />
         </div>

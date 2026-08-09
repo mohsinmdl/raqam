@@ -8,7 +8,7 @@ export function txDefaults(type) {
   return {
     // Time defaults to NOW (app deviation from the design's fixed 12:00 — user request)
     type, date: todayStr(), time: nowIso().slice(11, 16), amount: '', payWith: '', account: '', from: '', to: '', fee: '',
-    category: '', newCat: '', merchant: '', notes: '', pending: false,
+    category: '', newCat: '', newCatGroup: '', merchant: '', notes: '', pending: false,
     direction: 'increase', reason: '', fromRecurring: null, recurringDue: null,
     // Repeat turns a one-off into a recurring rule on save (schedule.js PRESETS).
     repeat: 'never',
