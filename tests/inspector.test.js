@@ -61,11 +61,15 @@ describe('selectionSummary / underfundedFor', () => {
     expect(sum.carryIn).toBe(g.carryIn + f.carryIn);
   });
   it('underfunded counts only negative availables', () => {
-    const { env } = ctxFor(store());
+    const S = store();
+    const { env } = ctxFor(S);
     // fuel: assigned 1000, spent 2500 → available −1500
     expect(env.rows.get('fuel').available).toBe(-1500);
-    expect(underfundedFor(env, ['groc', 'fuel'])).toBe(1500);
-    expect(underfundedFor(env, ['groc'])).toBe(0);
+    // S is passed so underfundedNeed can resolve each cat (neither groc nor
+    // fuel carries a target here, so this still exercises the untargeted
+    // overspend fallback).
+    expect(underfundedFor(env, ['groc', 'fuel'], S)).toBe(1500);
+    expect(underfundedFor(env, ['groc'], S)).toBe(0);
   });
   it('underfunded prefers target need over overspending for a targeted cat', () => {
     const S = store({ categories: [
