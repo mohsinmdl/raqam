@@ -19,11 +19,16 @@ function scopeToAccount(store, accountId) {
 // is not a safe source for this: it keys a plain object by `t.category`, so a
 // null/undefined category coerces to the *string* "null"/"undefined" and
 // would otherwise leak through as a fake category row.
+// Floored at 0, matching categorySpending's own `amt > 0` convention for real
+// category rows — an uncategorized refund with no offsetting uncategorized
+// expense is not "negative spending" (which would push pct outside [0,1]),
+// it is simply nothing to report this month.
 function uncategorizedAmt(store, month, now) {
-  return store.transactions
+  const net = store.transactions
     .filter(t => inMonth(t, month) && t.status !== 'pending' && hasOccurred(t, now)
       && t.category == null && (t.type === 'expense' || t.type === 'refund'))
     .reduce((s, t) => s + (t.type === 'expense' ? t.amount : -t.amount), 0);
+  return Math.max(0, net);
 }
 
 // [{ id, name, icon, color, amt, pct }] — Spending Breakdown. Includes
@@ -93,7 +98,10 @@ export function spendingStats(store, month, opts = {}) {
     if (better) mostFrequent = { cat, count: v.count, amt: v.amt };
   });
 
-  const largest = largestExpenses(store, month, 1, now);
+  // Scoped to the same account as every other figure above — largestExpenses
+  // has no accountId of its own, so scope the store first (same pattern as
+  // spendingByCategory's scopeToAccount).
+  const largest = largestExpenses(scopeToAccount(store, accountId), month, 1, now);
   const largestOutflow = largest.length ? { merchant: largest[0].merchant, amt: largest[0].amount } : null;
 
   return {
@@ -104,8 +112,13 @@ export function spendingStats(store, month, opts = {}) {
 }
 
 // [{ month, label, value }] over the last opts.window months of monthsFor(store).
+// `now` defaults to nowIso(), matching every other function here — omitting it
+// would pass `undefined` into `pick`/`monthMetrics`, which reads as "count
+// every transaction regardless of date," silently pulling future-dated rows
+// into the current month's figure.
 export function monthlySeries(store, pick, opts = {}) {
-  const { window = 12, now } = opts;
+  const { window = 12 } = opts;
+  const now = opts.now || nowIso();
   return monthsFor(store).slice(-window).map(month => ({ month, label: monthLabel(month), value: pick(store, month, now) }));
 }
 
@@ -115,7 +128,8 @@ export function netWorthSeries(store, opts = {}) {
 
 // [{ month, label, income, expense, net }]
 export function incomeExpenseSeries(store, opts = {}) {
-  const { window = 12, now } = opts;
+  const { window = 12 } = opts;
+  const now = opts.now || nowIso();
   return monthsFor(store).slice(-window).map(month => {
     const m = monthMetrics(store, month, now);
     return { month, label: monthLabel(month), income: m.income, expense: m.expenses, net: m.net };

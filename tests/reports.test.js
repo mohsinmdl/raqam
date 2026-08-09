@@ -6,7 +6,7 @@ import {
   monthlySeries, netWorthSeries, incomeExpenseSeries, ageOfMoney,
 } from '../src/lib/reports.js';
 import { daysInMonth, monthMetrics } from '../src/lib/calc.js';
-import { addMonths, currentMonth } from '../src/lib/dates.js';
+import { addDays, addMonths, currentMonth, nowIso, todayStr } from '../src/lib/dates.js';
 
 // monthsFor(store) walks back from the REAL current month, so months are
 // anchored to it rather than a hardcoded literal (unlike calc.test.js, which
@@ -85,6 +85,21 @@ describe('spendingByCategory', () => {
     const rows = spendingByCategory(S, CUR);
     expect(rows.find(r => r.id === 'uncategorized')).toMatchObject({ amt: 0 });
   });
+
+  // Fix round 1, finding 1: a null-category refund with no offsetting
+  // null-category expense used to net negative, pushing pct outside [0,1].
+  it('Uncategorized is floored at 0 when null-category refunds exceed null-category expenses (no negative amt/pct)', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'refund', amount: 5000, category: null }),
+      tx({ id: 't2', type: 'expense', amount: 20000, category: 'rent' }),
+    ]);
+    const rows = spendingByCategory(S, CUR);
+    expect(rows.find(r => r.id === 'uncategorized').amt).toBe(0);
+    rows.forEach(r => {
+      expect(r.pct).toBeGreaterThanOrEqual(0);
+      expect(r.pct).toBeLessThanOrEqual(1);
+    });
+  });
 });
 
 describe('spendingByGroup', () => {
@@ -155,6 +170,27 @@ describe('spendingStats', () => {
   it('largestOutflow is null with no expenses', () => {
     expect(spendingStats(makeStore([]), CUR).largestOutflow).toBeNull();
   });
+
+  // Fix round 1, finding 3: largestOutflow used to ignore opts.accountId while
+  // total/avgDaily/mostFrequent all honored it, so a per-account call could
+  // return another account's biggest expense.
+  it('largestOutflow is scoped to opts.accountId, like every other stat here', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 5000, category: 'groc', accountId: 'a1', merchant: 'A1 shop' }),
+      tx({ id: 't2', type: 'expense', amount: 90000, category: 'rent', accountId: 'a2', merchant: 'A2 landlord' }),
+    ], { accounts: [{ id: 'a1', nickname: 'Main', status: 'active' }, { id: 'a2', nickname: 'Side', status: 'active' }] });
+    expect(spendingStats(S, CUR, { accountId: 'a1' }).largestOutflow).toEqual({ merchant: 'A1 shop', amt: 5000 });
+  });
+
+  // Cheap coverage bump: avgMonthly across a real 2-month fixture.
+  it('avgMonthly is the mean of spendingByCategory totals over monthsFor(store)', () => {
+    const S = makeStore([
+      tx({ id: 'e0', type: 'expense', amount: 10000, category: 'rent', date: PREV + '-06T12:00' }),
+      tx({ id: 'e1', type: 'expense', amount: 30000, category: 'rent', date: CUR + '-06T12:00' }),
+    ]);
+    // monthsFor(store) = [PREV, CUR]; per-month totals = [10000, 30000]; mean = 20000.
+    expect(spendingStats(S, CUR).avgMonthly).toBe(20000);
+  });
 });
 
 describe('monthlySeries / incomeExpenseSeries / netWorthSeries', () => {
@@ -198,6 +234,35 @@ describe('monthlySeries / incomeExpenseSeries / netWorthSeries', () => {
   });
 });
 
+// Fix round 1, finding 2: these three helpers used to destructure `opts.now`
+// with no fallback, threading `undefined` into `monthMetrics`/`pick` — which
+// reads as "count every transaction regardless of date," silently pulling
+// future-dated rows into the current month's figures. They must default to
+// nowIso(), matching spendingByCategory/spendingStats/ageOfMoney.
+describe('series helpers default `now` to the real clock, not undefined', () => {
+  it('monthlySeries threads a real ISO `now` into `pick` when opts.now is omitted', () => {
+    const series = monthlySeries(makeStore([]), (s, m, now) => now, {});
+    expect(series.length).toBeGreaterThan(0);
+    series.forEach(r => expect(r.value).toMatch(/^\d{4}-\d{2}-\d{2}/));
+  });
+
+  it('incomeExpenseSeries/netWorthSeries exclude a transaction dated after "now" in the current month when now is defaulted', () => {
+    const tomorrow = addDays(todayStr(), 1);
+    // Guard the rare case a test happens to run on the last calendar day of
+    // the month: monthsFor(store) never extends past the real current month,
+    // so a "future within CUR" transaction can't be constructed that day.
+    if (tomorrow.slice(0, 7) !== CUR) return;
+    const S = makeStore([
+      tx({ id: 'future', type: 'income', amount: 99999, category: 'salary', date: tomorrow + 'T09:00' }),
+    ]);
+    const incomeDefault = incomeExpenseSeries(S, { window: 1 })[0];
+    expect(incomeDefault.income).toBe(0); // future-dated income excluded by the default `now`
+    const nwDefault = netWorthSeries(S, { window: 1 })[0];
+    const nwExplicitNow = netWorthSeries(S, { window: 1, now: nowIso() })[0];
+    expect(nwDefault.value).toBe(nwExplicitNow.value); // default matches an explicit "right now"
+  });
+});
+
 describe('ageOfMoney', () => {
   it('one income dated D0, one expense N days later -> current === N', () => {
     const N = 5;
@@ -225,5 +290,26 @@ describe('ageOfMoney', () => {
     const { current, series } = ageOfMoney(S, CUR);
     expect(current).toBe(0);
     expect(series.every(r => r.value === 0)).toBe(true);
+  });
+
+  // Cheap coverage bump: a non-trivial series, spanning two months, computed
+  // independently in the test via the same calendar-day-distance rule.
+  it('series carries a distinct, correctly-averaged value per month across a multi-month fixture', () => {
+    const dayDiff = (a, b) => {
+      const [ay, am, ad] = a.split('-').map(Number);
+      const [by, bm, bd] = b.split('-').map(Number);
+      return Math.round((new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad)) / 86400000);
+    };
+    const S = makeStore([
+      tx({ id: 'i0', type: 'income', amount: 100000, category: 'salary', date: PREV + '-01T09:00' }),
+      tx({ id: 'e0', type: 'expense', amount: 20000, category: 'rent', date: PREV + '-05T09:00' }),
+      tx({ id: 'e1', type: 'expense', amount: 20000, category: 'rent', date: CUR + '-03T09:00' }),
+    ], { snapshots: [] });
+    const ageE0 = dayDiff(PREV + '-01', PREV + '-05');
+    const ageE1 = dayDiff(PREV + '-01', CUR + '-03');
+    const { series } = ageOfMoney(S, CUR, { window: 2 });
+    expect(series.map(r => r.month)).toEqual([PREV, CUR]);
+    expect(series.find(r => r.month === PREV).value).toBe(ageE0);
+    expect(series.find(r => r.month === CUR).value).toBe(Math.round((ageE0 + ageE1) / 2));
   });
 });
