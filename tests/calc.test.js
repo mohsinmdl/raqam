@@ -301,6 +301,30 @@ describe('monthMetrics — cleared / uncleared / working', () => {
     expect(monthMetrics(S, AUG).uncleared).toBe(-2500);
   });
 
+  it('splits recoverable advances out of spending; spending + recoverable === expenses (cash), net stays true', () => {
+    const S = makeStore([
+      tx({ id: 'e1', type: 'expense', amount: 8000, category: 'rent' }),                 // real spending
+      tx({ id: 'r1', type: 'refund', amount: 1000, category: 'rent' }),                  // real refund
+      tx({ id: 'a1', type: 'expense', amount: 50000, category: 'adv' }),                 // advance out (excluded)
+      tx({ id: 'a2', type: 'refund', amount: 20000, category: 'adv' }),                  // advance repaid (excluded)
+      tx({ id: 'i1', type: 'income', amount: 100000, category: 'salary' }),
+    ]);
+    const M = monthMetrics(S, AUG);
+    expect(M.recoverable).toBe(30000);          // 50000 advanced − 20000 repaid
+    expect(M.spending).toBe(7000);              // 8000 − 1000 real, advances excluded
+    expect(M.expenses).toBe(37000);             // cash: 7000 spending + 30000 recoverable
+    expect(M.spending + M.recoverable).toBe(M.expenses);
+    expect(M.net).toBe(100000 - 37000);         // true cash net, unchanged
+    expect(M.income - M.spending - M.recoverable).toBe(M.net); // reconciles on the dashboard
+  });
+
+  it('recoverable is 0 when no excluded categories move, so spending === expenses', () => {
+    const S = makeStore([tx({ id: 'e1', type: 'expense', amount: 5000, category: 'rent' })]);
+    const M = monthMetrics(S, AUG);
+    expect(M.recoverable).toBe(0);
+    expect(M.spending).toBe(M.expenses);
+  });
+
   it('scopes balance figures to one account when accountId is passed', () => {
     const S = makeStore(
       [

@@ -27,10 +27,15 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   v.snapshotPending = !isPast && activeAccts.length > 0 && S.snapshots.some(s => s.month === month && s.status === 'pending') && !snapDismissed;
   v.snapBannerTitle = 'Review your opening balances for ' + C.monthLabel(month) + '.';
   const netColor = M.net > 0 ? 'var(--pos)' : M.net < 0 ? 'var(--neg)' : 'var(--text)';
+  // Expenses is budget-spending (excludes recoverable advances); when advances
+  // moved this month, a Recoverable card carries them so Net cash flow stays the
+  // true bank change (income − spending − recoverable === net) and the row reconciles.
+  const hasRec = M.recoverable !== 0;
   v.sumCards = [
     { label: 'Income', val: money(M.income), color: 'var(--text)', sub: C.monthLabel(month) },
-    { label: 'Expenses', val: money(M.expenses), color: 'var(--text)', sub: 'incl. transfer fees' },
-    { label: 'Net cash flow', val: moneyS(M.net), color: netColor, sub: 'income − expenses' },
+    { label: 'Expenses', val: money(M.spending), color: 'var(--text)', sub: 'incl. transfer fees' },
+    ...(hasRec ? [{ label: 'Recoverable', val: moneyS(M.recoverable), color: 'var(--text)', sub: 'advances, net this month' }] : []),
+    { label: 'Net cash flow', val: moneyS(M.net), color: netColor, sub: hasRec ? 'income − expenses − recoverable' : 'income − expenses' },
     { label: 'Savings', val: money(M.savings), color: 'var(--text)', sub: M.net < 0 ? 'overspent this month' : 'set aside so far' },
     { label: 'Savings rate', val: M.rate == null ? '—' : C.fmtPct(M.rate), color: M.rate != null && M.rate < 0 ? 'var(--neg)' : 'var(--text)', sub: M.rate == null ? 'no income recorded' : 'of income' },
   ];
@@ -100,7 +105,7 @@ export default function Dashboard() {
     const prevMonth = months[prevIdx];
     const P = C.monthMetrics(S, prevMonth, now);
     const mk = (label, a, b, bColor) => { const mx = Math.max(a, b, 1); return { label, aVal: money(a), bVal: money(b), aW: Math.round(a / mx * 100) + '%', bW: Math.round(b / mx * 100) + '%', bColor }; };
-    return { prevName: C.monthLabel(prevMonth).split(' ')[0], curName: monthName.split(' ')[0], rows: [mk('Income', P.income, M.income, 'var(--accent)'), mk('Expenses', P.expenses, M.expenses, 'var(--warn)')] };
+    return { prevName: C.monthLabel(prevMonth).split(' ')[0], curName: monthName.split(' ')[0], rows: [mk('Income', P.income, M.income, 'var(--accent)'), mk('Expenses', P.spending, M.spending, 'var(--warn)')] };
   })() : null;
 
   const nowStr = nowIso();
@@ -133,7 +138,7 @@ export default function Dashboard() {
 
         <PositionStrip />
 
-        <section aria-label="Monthly summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
+        <section aria-label="Monthly summary" style={{ display: 'grid', gridTemplateColumns: `repeat(${v.sumCards.length},1fr)`, gap: 12 }}>
           {v.sumCards.map(s => (
             <div key={s.label} style={{ ...card, padding: '14px 16px' }}>
               <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>{s.label}</div>
