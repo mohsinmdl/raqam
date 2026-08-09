@@ -37,7 +37,11 @@ import {
 // groupId whose group no longer exists, land here — never written to the store.
 const OTHER = { id: null, name: 'Other' };
 
-const ROW_COLS = { display: 'grid', gridTemplateColumns: '24px minmax(0,2.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr)', gap: 10, alignItems: 'center' };
+// Leading columns match YNAB: a disclosure chevron FIRST (20px), then the
+// selection checkbox (22px), then the name — so group names align exactly with
+// the category names beneath them. Group rows fill the chevron cell with the
+// collapse toggle; category rows leave it empty.
+const ROW_COLS = { display: 'grid', gridTemplateColumns: '20px 22px minmax(0,2.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr)', gap: 10, alignItems: 'center' };
 const HEAD = { fontSize: 14, fontWeight: 500, letterSpacing: '.6px', color: 'var(--text)' };
 // Shared right inset for every numeric column value (header, group total, and
 // category cell) so the amounts line up down each column regardless of whether
@@ -399,15 +403,15 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', background: 'var(--elev)', borderBottom: '1px solid var(--border)' }}
     >
+      <button
+        onClick={onToggle} aria-label={(collapsed ? 'Expand ' : 'Collapse ') + group.name} aria-expanded={String(!collapsed)}
+        style={{ width: 20, height: 20, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, flex: 'none', transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .12s ease' }}
+      >▾</button>
       <PlanCheckbox label={'Select ' + group.name + ' categories'}
         checked={cats.length > 0 && cats.every(c => selected.has(c.id))}
         indeterminate={cats.some(c => selected.has(c.id))}
         onChange={() => setMany(cats.map(c => c.id), !cats.every(c => selected.has(c.id)))} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <button
-          onClick={onToggle} aria-label={(collapsed ? 'Expand ' : 'Collapse ') + group.name} aria-expanded={String(!collapsed)}
-          style={{ width: 20, height: 20, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, flex: 'none', transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .12s ease' }}
-        >▾</button>
         <span style={{ fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.name}</span>
         {(hover || addOpen) && (
           <span ref={popRef} style={{ position: 'relative', flex: 'none' }}>
@@ -783,6 +787,7 @@ function CategoryRow({ cat, row, ctx }) {
       }}
       style={{ ...ROW_COLS, minHeight: 44, padding: '7px 16px', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
     >
+      <span aria-hidden="true" />
       <PlanCheckbox label={'Select ' + cat.name} checked={selected.has(cat.id)} onChange={() => toggleSelect(cat.id, true)} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 16, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat.name}</div>
@@ -1062,6 +1067,7 @@ export default function Plan() {
         <div className="plan-grid">
           <div style={{ background: 'var(--surface)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
+              <span aria-hidden="true" />
               <PlanCheckbox label="Select all categories"
                 checked={visibleCatIdList.length > 0 && visibleCatIdList.every(id => selected.has(id))}
                 indeterminate={visibleCatIdList.some(id => selected.has(id))}
