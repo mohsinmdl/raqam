@@ -721,7 +721,7 @@ export default function Transactions() {
                       away while the rest stuck, letting rows bleed through.
                       Sticky already provides the containing block the fill
                       checkbox needs. */}
-                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px', minWidth: 34 }}>
+                  <th scope="col" style={{ ...th, padding: '9px 4px 9px 18px', minWidth: 34, borderRight: 'none' }}>
                     <Checkbox
                       fill
                       checked={allVisibleSelected}
