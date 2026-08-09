@@ -26,6 +26,9 @@ const h2 = { fontSize: 15, fontWeight: 600, margin: 0 };
 // stays available via monthLabel() for tooltips/table rows.
 const shortLabel = month => monthLabel(month).split(' ')[0].slice(0, 3);
 
+// "last 1 months" reads wrong — pluralize the count-driven noun.
+const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+
 export default function SpendingTrends() {
   const { month } = useOutletContext();
   const { data: S } = useStore();
@@ -53,7 +56,7 @@ export default function SpendingTrends() {
       <section aria-label="Spending totals" style={{ ...card, padding: '18px 20px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Total spending (last {series.length} months)</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Total spending (last {plural(series.length, 'month')})</div>
             <div className="tnum" style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{money(total)}</div>
           </div>
           <div>
@@ -67,7 +70,7 @@ export default function SpendingTrends() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={h2}>Spending Trends</h2>
           <span style={{ flex: 1 }} />
-          <button onClick={doExport} disabled={empty}
+          <button onClick={doExport} disabled={empty} aria-label="Export spending trends as CSV"
             style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: empty ? 'default' : 'pointer', opacity: empty ? 0.5 : 1, padding: 0 }}
           >Export</button>
         </div>

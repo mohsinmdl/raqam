@@ -76,7 +76,7 @@ export default function NetWorth() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={h2}>Net Worth</h2>
           <span style={{ flex: 1 }} />
-          <button onClick={doExport} disabled={empty}
+          <button onClick={doExport} disabled={empty} aria-label="Export net worth as CSV"
             style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: empty ? 'default' : 'pointer', opacity: empty ? 0.5 : 1, padding: 0 }}
           >Export</button>
         </div>

@@ -23,6 +23,8 @@ const h2 = { fontSize: 15, fontWeight: 600, margin: 0 };
 
 const shortLabel = month => monthLabel(month).split(' ')[0].slice(0, 3);
 const formatDays = n => n + 'd';
+// "1 days" reads wrong in the headline figure.
+const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 export default function AgeOfMoney() {
   const { month } = useOutletContext();
@@ -42,7 +44,7 @@ export default function AgeOfMoney() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <section aria-label="Age of money" style={{ ...card, padding: '18px 20px' }}>
         <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Age of Money</div>
-        <div className="tnum" style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{current} days</div>
+        <div className="tnum" style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{plural(current, 'day')}</div>
         <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '8px 0 0' }}>
           Average age of the money you spend — higher means you're spending money you earned longer ago.
         </p>
@@ -52,7 +54,7 @@ export default function AgeOfMoney() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 style={h2}>Age of Money</h2>
           <span style={{ flex: 1 }} />
-          <button onClick={doExport} disabled={empty}
+          <button onClick={doExport} disabled={empty} aria-label="Export age of money as CSV"
             style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: empty ? 'default' : 'pointer', opacity: empty ? 0.5 : 1, padding: 0 }}
           >Export</button>
         </div>

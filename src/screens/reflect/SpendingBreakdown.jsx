@@ -26,7 +26,13 @@ const h2 = { fontSize: 15, fontWeight: 600, margin: 0 };
 // Uncategorized row) — the accent color plus a handful of standard,
 // mutually-distinct chart hues (teal, amber, blue, red, violet, cyan, pink,
 // olive). Cycled by row index within the (already amt-descending) row list.
-const PALETTE = ['#0F766E', '#B7791F', '#2563EB', '#C2413B', '#7C3AED', '#0891B2', '#DB2777', '#65A30D'];
+// Violet is lightened from the usual #7C3AED — that hue sits right at ~3:1
+// against the dark-theme surface (#161D1A), too close to the line; #8B5CF6
+// keeps comfortable contrast on both surfaces.
+const PALETTE = ['#0F766E', '#B7791F', '#2563EB', '#C2413B', '#8B5CF6', '#0891B2', '#DB2777', '#65A30D'];
+
+// "1 transactions" reads wrong — pluralize the count-driven noun.
+const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 // pct display rule (brief): round to whole percent, but never show 0% for a
 // genuinely nonzero (if tiny) share, and never show >0% for an exact zero.
@@ -106,7 +112,7 @@ export default function SpendingBreakdown() {
   const statBlocks = [
     { label: 'Average Monthly Spending', value: money(stats.avgMonthly), sub: '' },
     { label: 'Average Daily Spending', value: money(stats.avgDaily), sub: '' },
-    { label: 'Most Frequent Category', value: stats.mostFrequent ? stats.mostFrequent.cat.name : '—', sub: stats.mostFrequent ? `${stats.mostFrequent.count} transactions` : '' },
+    { label: 'Most Frequent Category', value: stats.mostFrequent ? stats.mostFrequent.cat.name : '—', sub: stats.mostFrequent ? plural(stats.mostFrequent.count, 'transaction') : '' },
     { label: 'Largest Outflow', value: stats.largestOutflow ? stats.largestOutflow.merchant : '—', sub: stats.largestOutflow ? money(stats.largestOutflow.amt) : '' },
   ];
 
@@ -150,7 +156,7 @@ export default function SpendingBreakdown() {
           <h2 style={h2}>{lens === 'groups' ? 'Groups' : 'Categories'}</h2>
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Total Spending</span>
-          <button onClick={doExport} disabled={empty}
+          <button onClick={doExport} disabled={empty} aria-label={`Export ${lens === 'groups' ? 'spending by group' : 'spending by category'} as CSV`}
             style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: empty ? 'default' : 'pointer', opacity: empty ? 0.5 : 1, padding: 0 }}
           >Export</button>
         </div>

@@ -36,7 +36,7 @@ const selStyle = {
 
 function TabBar() {
   return (
-    <div role="tablist" aria-label="Reflect sections" style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 8, background: 'rgba(125,109,63,.16)' }}>
+    <div role="tablist" aria-label="Reflect sections" style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 2, padding: 2, borderRadius: 8, background: 'rgba(125,109,63,.16)' }}>
       {TABS.map(t => (
         <NavLink
           key={t.to}
@@ -64,7 +64,7 @@ function FilterRow({ categoryId, setCategoryId, accountId, setAccountId }) {
     .sort((a, b) => a.nickname.localeCompare(b.nickname));
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
       <select aria-label="Filter by category" value={categoryId || ''}
         onChange={e => setCategoryId(e.target.value || null)} style={selStyle}>
         <option value="">All Categories</option>
