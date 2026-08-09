@@ -323,6 +323,28 @@ function ToolBtn({ onClick, disabled, title, label, icon }) {
   );
 }
 
+// Fit/full-width toggle, mirroring the All-Accounts (Transactions) control.
+function WideIcon() {
+  return (
+    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 8L3 12l5 4" /><path d="M16 8l5 4-5 4" /><path d="M3 12h18" />
+    </svg>
+  );
+}
+function WidthToggle({ wide, onToggle }) {
+  return (
+    <button
+      onClick={onToggle} aria-pressed={wide}
+      aria-label={wide ? 'Fit budget to page width' : 'Expand budget to full width'}
+      title={wide ? 'Fit width' : 'Full width'} className="hv-soft"
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 7, background: wide ? 'var(--elev)' : 'transparent', color: wide ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', flex: 'none' }}
+    >
+      <WideIcon />
+    </button>
+  );
+}
+
 // Toolbar "+ Category Group": name input, Cancel/OK, caret-topped popover.
 function AddGroupButton({ onAdd }) {
   const [open, setOpen] = useState(false);
@@ -992,8 +1014,15 @@ export default function Plan() {
 
   const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, setMany, onOpenActivity: setActivityCat };
 
+  // Full width (default, like the Transactions screen): drop the max-width cap
+  // and page side-padding so the area sits flush against the sidebar and runs
+  // edge-to-edge. Fit: the centred 1280 column. The RTA/filter/toolbar rows get
+  // a light horizontal inset in wide mode so their content aligns with the
+  // table's own 16px row inset instead of jamming against the sidebar.
+  const wide = prefs.planWide !== false;
+  const rowInset = wide ? { paddingLeft: 16, paddingRight: 16 } : null;
   return (
-    <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 28px 56px' }}>
+    <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '16px 0 56px' : '24px 28px 56px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
         {showBanner && (
           <AdoptionBanner
@@ -1011,25 +1040,28 @@ export default function Plan() {
         </div>
 
         {/* Row 2: filter views. */}
-        <FilterPills
-          builtins={builtinPills}
-          views={views}
-          activeId={activeViewId}
-          onSelect={id => setPrefs({ planViewId: id })}
-          onManage={() => setManageOpen(true)}
-          onNewView={() => setEditing('new')}
-          env={env}
-          catIds={activeCatIds}
-        />
+        <div style={rowInset || undefined}>
+          <FilterPills
+            builtins={builtinPills}
+            views={views}
+            activeId={activeViewId}
+            onSelect={id => setPrefs({ planViewId: id })}
+            onManage={() => setManageOpen(true)}
+            onNewView={() => setEditing('new')}
+            env={env}
+            catIds={activeCatIds}
+          />
+        </div>
 
         {/* Row 3: action toolbar — Category Group, Undo, Redo, Recent Moves on
-            the left; the row-view toggle on the right (YNAB layout). */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            the left; the fit/full-width + row-view toggles on the right. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', ...rowInset }}>
           <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
           <ToolBtn onClick={undo} disabled={!canUndo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} label="Undo" icon="undo" />
           <ToolBtn onClick={redo} disabled={!canRedo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} label="Redo" icon="redo" />
           <RecentMoves />
           <div style={{ flex: 1 }} />
+          <WidthToggle wide={wide} onToggle={() => setPrefs({ planWide: !wide })} />
           <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
         </div>
 
