@@ -84,4 +84,11 @@ describe('moveCategories — no-op identity', () => {
     const s = store();
     expect(moveCategories(s, { ids: ['b'], groupId: 'g1', beforeId: 'c' })).toBe(s);
   });
+  it('dropping onto one of the dragged rows (beforeId is a mover) → same reference, not move-to-end', () => {
+    const s = store();
+    // Single row released over itself must not silently jump to the bottom.
+    expect(moveCategories(s, { ids: ['a'], groupId: 'g1', beforeId: 'a' })).toBe(s);
+    // Multi-selection released over one of the selected rows is likewise a no-op.
+    expect(moveCategories(s, { ids: ['a', 'c'], groupId: 'g1', beforeId: 'c' })).toBe(s);
+  });
 });
