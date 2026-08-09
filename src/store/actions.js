@@ -1213,6 +1213,32 @@ export function moveCategories(data, { ids, groupId, beforeId }) {
   return { ...data, categories, audit: [...audit, ...(data.audit || [])] };
 }
 
+// Drag-and-drop reorder of a category group. Lands the group before `beforeId`
+// (null/absent/unknown = move to the end) and renumbers every group's sortOrder
+// to a contiguous 0..n. The synthetic "Other" bucket is not a stored group, so
+// it can never be `id` or `beforeId` and always renders after the real groups.
+// Returns the same `data` reference when the resulting order is unchanged.
+export function reorderCategoryGroup(data, { id, beforeId }) {
+  if (id === beforeId) return data;
+  const cmp = (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name);
+  const sorted = [...(data.categoryGroups || [])].sort(cmp);
+  const from = sorted.findIndex(g => g.id === id);
+  if (from < 0) return data;
+  const before = sorted.map(g => g.id);
+  const next = [...sorted];
+  const [moved] = next.splice(from, 1);
+  let at = beforeId ? next.findIndex(g => g.id === beforeId) : -1;
+  if (at < 0) at = next.length;
+  next.splice(at, 0, moved);
+  if (before.join(' ') === next.map(g => g.id).join(' ')) return data;
+  const orderById = new Map(next.map((g, i) => [g.id, i]));
+  return {
+    ...data,
+    categoryGroups: data.categoryGroups.map(g => ({ ...g, sortOrder: orderById.get(g.id) })),
+    audit: [makeAudit({ entityType: 'categoryGroup', entityId: id, action: 'update', summary: 'Reordered group ' + moved.name }), ...(data.audit || [])],
+  };
+}
+
 // One-click adoption of the captured YNAB tree. Idempotent: returns `data`
 // unchanged (same reference) when everything is already in place.
 export function adoptYnabTree(data) {
