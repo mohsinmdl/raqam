@@ -11,10 +11,12 @@ input, select, textarea { font-family: inherit; color: inherit; }
 
 /* Text form controls, app-wide (YNAB-faithful): a small, consistent radius and
    a focus indicator that colors the field's OWN box edge instead of floating a
-   ring outside it. outline-offset:-2px draws the outline inside the border, so
-   it hugs the box (no external halo) and needs no !important to beat inline
-   borders. Radius uses !important only to unify the many inline borderRadius:8
-   on fields (buttons/cards keep their own radius — they aren't targeted here).
+   ring outside it. The outline is 1px and outline-offset:-1px, so it overlays
+   the field's own 1px border exactly — the resting edge just recolors to accent
+   on focus, with no thickness jump and no external halo. Offset:-1px means the
+   inset outline needs no !important to beat inline borders. Radius uses
+   !important only to unify the many inline borderRadius:8 on fields
+   (buttons/cards keep their own radius — they aren't targeted here).
    Checkboxes/radios are excluded. */
 input:not([type="checkbox"]):not([type="radio"]),
 select,
@@ -22,8 +24,8 @@ textarea { border-radius: var(--field-radius) !important; }
 input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus,
 textarea:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 
 :root {

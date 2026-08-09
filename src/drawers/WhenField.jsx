@@ -20,7 +20,7 @@ const QUICK = [{ v: '09:00', l: '9 am' }, { v: '12:00', l: 'Noon' }, { v: '15:00
 const p2 = n => String(n).padStart(2, '0');
 
 const trigger = open => ({
-  height: 40, padding: '0 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+  height: 40, padding: '0 12px', borderRadius: 'var(--field-radius)', cursor: 'pointer', textAlign: 'left',
   border: '1px solid ' + (open ? 'var(--accent)' : 'var(--border)'),
   background: 'var(--surface)', color: 'var(--text)', fontSize: 13.5,
   display: 'flex', alignItems: 'center', gap: 8, minWidth: 0,
