@@ -29,7 +29,9 @@ import { matchesQuery } from '../lib/txSearch.js';
 // Sticky against <main>'s scroll. No overflow is introduced here — the section
 // deliberately has none, because it would clip the per-row ⋯ menu. z-index sits
 // below RowMenu's 30 so an open menu still passes over the header.
-const th = { textAlign: 'left', fontSize: 12, fontWeight: 500, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)' };
+// borderRight draws the column dividers; the last header cell overrides it to
+// none so the outer right edge stays open (the outer left has no border-left).
+const th = { textAlign: 'left', fontSize: 12, fontWeight: 500, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)' };
 const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' };
 
 // Row and GroupHead live at MODULE scope on purpose. Defined inside
@@ -65,7 +67,7 @@ const COLUMNS = [
 
 // A sortable column header. The whole cell is the control, so the target is the
 // full header height rather than the width of the label text.
-function SortableHeader({ col, sort, onSort }) {
+function SortableHeader({ col, sort, onSort, last }) {
   const active = sort.key === col.key || (col.altKeys || []).includes(sort.key);
   const dir = active ? sort.dir : null;
   const nextDir = nextSortState(sort, col.key).dir;
@@ -82,7 +84,7 @@ function SortableHeader({ col, sort, onSort }) {
     <th
       scope="col"
       aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      style={{ ...th, padding: 0, textAlign: col.align || 'left' }}
+      style={{ ...th, padding: 0, textAlign: col.align || 'left', ...(last ? { borderRight: 'none' } : null) }}
     >
       <button
         type="button"
@@ -728,7 +730,7 @@ export default function Transactions() {
                       label={allVisibleSelected ? 'Clear selection' : 'Select all ' + visibleIds.length + ' visible transactions'}
                     />
                   </th>
-                  {columns.map(c => <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} />)}
+                  {columns.map((c, i) => <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} last={i === columns.length - 1} />)}
                 </tr>
               </thead>
               {scheduled.length > 0 && (
