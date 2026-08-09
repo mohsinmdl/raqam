@@ -10,7 +10,8 @@ import { useMoney } from '../lib/format.js';
 import { catRefs, catMonthTotal } from '../lib/calc.js';
 import { deletePolicy } from '../lib/validate.js';
 import { iconStyle } from '../lib/catIcon.js';
-import { archiveCategory, restoreCategory, deleteCategory } from '../store/actions.js';
+import { archiveCategory, restoreCategory } from '../store/actions.js';
+import { askDeleteCategory } from '../ui/categoryActions.js';
 import RowMenu from '../ui/RowMenu.jsx';
 import { openers } from '../drawers/openers.js';
 
@@ -61,32 +62,7 @@ export default function Categories() {
     notify('“' + cat.name + '” restored.');
   };
 
-  const askDelete = async cat => {
-    const policy = deletePolicy(S, cat);
-    if (policy.mode === 'archive') {
-      const ok = await ask({
-        title: '“' + cat.name + '” is a built-in category',
-        body: 'Built-in categories can be archived but never deleted — history and charts depend on them. Archive it instead?',
-        action: 'Archive instead',
-      });
-      if (!ok) return;
-      applyData(data => archiveCategory(data, { id: cat.id }));
-      notify('“' + cat.name + '” archived.');
-      return;
-    }
-    if (policy.mode === 'reassign') {
-      openers.reassignCategory(cat.id, openDrawer);
-      return;
-    }
-    const ok = await ask({
-      title: 'Delete “' + cat.name + '” permanently?',
-      body: 'Nothing uses this category, so it can be removed outright. The deletion is recorded in history.',
-      action: 'Delete permanently',
-    });
-    if (!ok) return;
-    applyData(data => deleteCategory(data, { id: cat.id }));
-    notify('“' + cat.name + '” deleted.');
-  };
+  const askDelete = cat => askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer });
 
   const menuLabelFor = cat => {
     const mode = deletePolicy(S, cat).mode;
