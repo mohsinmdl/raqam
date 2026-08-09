@@ -8,6 +8,7 @@ import { uid } from '../lib/util.js';
 import { YNAB_TREE, OTHER_GROUP, ALIASES, normName } from '../lib/ynabTree.js';
 import { makeAudit, diffFields, stampUpdate } from './audit.js';
 import { freshStore } from './seed.js';
+import { TARGET_MODES } from '../lib/targets.js';
 
 export const resetAll = () => freshStore();
 
@@ -763,8 +764,13 @@ const CAT_AUDIT_FIELDS = ['name', 'type', 'icon', 'color', 'description', 'sortO
 
 // When a category becomes excluded from budgets it must not keep an unusable
 // budget or target. Shared by upsertCategory (drawer) and setCategoryExcluded
-// (inspector) so the two never diverge. Mutates `next` in place; returns it.
+// (inspector) so the two never diverge — the target-clearing lives here and
+// ONLY here. Mutates `next` in place; returns it. Callers that need the
+// clearing to show up in their own before/after audit diff must call this
+// BEFORE computing that diff (see upsertCategory).
 function dropBudgetAndTargetOnExclude(next, id, name) {
+  const i = next.categories.findIndex(c => c.id === id);
+  if (i >= 0) next.categories[i] = { ...next.categories[i], targetAmount: undefined, targetMode: undefined, targetDueDay: undefined };
   const dropped = next.budgets.find(b => b.category === id);
   if (dropped) {
     next.budgets = next.budgets.filter(b => b.id !== dropped.id);
@@ -775,8 +781,9 @@ function dropBudgetAndTargetOnExclude(next, id, name) {
 
 // Create or edit a category. Budget amounts are owned by the Budgets screen
 // (design iteration 002) — no budget plumbing here, EXCEPT: turning
-// excludeFromBudget on removes the category's budget (an excluded category
-// must never keep an unusable budget attached; the form confirms first).
+// excludeFromBudget on removes the category's budget and target (an excluded
+// category must never keep an unusable budget or target attached; the form
+// confirms first).
 // `description` doubles as the inspector's Notes field (see setCategoryNote):
 // the trim here is intentional for this form's plain-text entry and must not
 // be extended to stripping inner formatting, which Notes deliberately preserves.
@@ -804,29 +811,39 @@ export function upsertCategory(data, { form: f }) {
     });
   }
   if (editing) {
+    // Called BEFORE the diff below so the target nulling it does shows up in
+    // the audit row's before/after, same as every other field in this edit —
+    // one call, one place the target-clear happens (see the helper's comment).
     if (excluded && before && !before.excludeFromBudget) {
-      const i = next.categories.findIndex(c => c.id === id);
-      next.categories[i] = { ...next.categories[i], targetAmount: undefined, targetMode: undefined, targetDueDay: undefined };
+      dropBudgetAndTargetOnExclude(next, id, next.categories.find(c => c.id === id).name);
     }
     const after = next.categories.find(c => c.id === id);
     const d = diffFields(before, after, CAT_AUDIT_FIELDS);
     next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: 'Edited category ' + after.name + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
-    if (excluded && !before.excludeFromBudget) dropBudgetAndTargetOnExclude(next, id, after.name);
   } else {
     next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'create', summary: 'Created category ' + f.name.trim(), after: { name: f.name.trim(), type: f.type } }), ...(next.audit || [])];
   }
   return next;
 }
 
-// Monthly target for a category. amount<=0 clears it. Excluded categories reject.
+// Monthly target for a category. amount<=0 clears it. Excluded and income
+// categories reject — only an expense category can hold a target; the UI
+// gates this too, but the reducer shouldn't trust the caller.
+// targetDueDay is stored but not yet consumed anywhere in the app's math —
+// it's reserved for a future due-date/pacing feature, so don't mistake it for
+// dead plumbing and delete it.
 export function setTarget(data, { id, amount, mode, dueDay }) {
   const i = data.categories.findIndex(c => c.id === id);
   if (i < 0) return data;
   const cur = data.categories[i];
   if (cur.excludeFromBudget) return data;
+  if (cur.type !== 'expense') return data;
+  if (!TARGET_MODES.includes(mode)) throw new Error('unknown target mode: ' + mode);
   const amt = Math.max(0, Math.round(amount) || 0);
   if (amt === 0) return clearTarget(data, { id });
-  const day = dueDay == null ? undefined : dueDay;
+  // DB range is 1–28 (no 29–31, which not every month has) — clamp so a
+  // programmatic out-of-range dueDay can't 4xx the sync push.
+  const day = dueDay == null ? undefined : Math.min(28, Math.max(1, Math.round(dueDay)));
   if (cur.targetAmount === amt && cur.targetMode === mode && (cur.targetDueDay ?? undefined) === day) return data;
   const cats = [...data.categories];
   cats[i] = stampUpdate({ ...cur, targetAmount: amt, targetMode: mode, targetDueDay: day });
@@ -854,14 +871,13 @@ export function setCategoryExcluded(data, { id, excluded }) {
   if (i < 0 || !!data.categories[i].excludeFromBudget === !!excluded) return data;
   const cur = data.categories[i];
   const next = { ...data, categories: [...data.categories], budgets: [...data.budgets] };
-  next.categories[i] = stampUpdate({
-    ...cur, excludeFromBudget: !!excluded,
-    ...(excluded ? { targetAmount: undefined, targetMode: undefined, targetDueDay: undefined } : {}),
-  });
+  next.categories[i] = stampUpdate({ ...cur, excludeFromBudget: !!excluded });
+  // Called BEFORE the before/after snapshot below so a cleared target shows up
+  // in this action's own audit row too, same ordering rule as upsertCategory.
+  if (excluded) dropBudgetAndTargetOnExclude(next, id, cur.name);
   const before = { excludeFromBudget: !!cur.excludeFromBudget, targetAmount: cur.targetAmount, targetMode: cur.targetMode };
   const after = { excludeFromBudget: !!excluded, targetAmount: next.categories[i].targetAmount, targetMode: next.categories[i].targetMode };
-  next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: (excluded ? 'Excluded ' : 'Included ') + cur.name + ' from budgets', before, after }), ...(data.audit || [])];
-  if (excluded) dropBudgetAndTargetOnExclude(next, id, cur.name);
+  next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: (excluded ? 'Excluded ' : 'Included ') + cur.name + ' from budgets', before, after }), ...next.audit];
   return next;
 }
 

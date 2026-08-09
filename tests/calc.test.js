@@ -6,7 +6,7 @@ import {
   categorySpending, dailySpending, effectiveBudget, effectsOf, isExcludedCat,
   monthBudgetSpending, monthMetrics, recoverableSpending, txBudgetImpact, unbudgetedSpend,
 } from '../src/lib/calc.js';
-import { upsertCategory } from '../src/store/actions.js';
+import { upsertCategory, setTarget } from '../src/store/actions.js';
 
 const AUG = '2026-08', SEP = '2026-09', JUL = '2026-07';
 const GROSS = { includeExcluded: true };
@@ -247,6 +247,14 @@ describe('upsertCategory exclusion edits', () => {
     const next = upsertCategory(S, { form: { editId: 'adv', name: 'Household advance', type: 'expense', icon: 'square', color: '#0F766E', description: '', sortOrder: '99', excludeFromBudget: false } });
     expect(next.categories.find(c => c.id === 'adv').excludeFromBudget).toBe(false);
     expect(next.budgets).toHaveLength(3);
+  });
+  it('turning exclusion on via the drawer also clears an existing target (shared helper)', () => {
+    const withT = setTarget(makeStore([]), { id: 'groc', amount: 5000, mode: 'refill' });
+    const next = upsertCategory(withT, { form: { editId: 'groc', name: 'Groceries', type: 'expense', icon: 'square', color: '#0F766E', description: '', sortOrder: '99', excludeFromBudget: true } });
+    const groc = next.categories.find(c => c.id === 'groc');
+    expect(groc.targetAmount).toBeUndefined();
+    expect(groc.targetMode).toBeUndefined();
+    expect(groc.targetDueDay).toBeUndefined();
   });
 });
 
