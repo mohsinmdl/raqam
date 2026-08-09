@@ -310,12 +310,13 @@ function ViewToggle({ view, onChange }) {
   );
 }
 
-// Small bordered toolbar button (Undo/Redo) matching the Category Group button.
+// Borderless toolbar text button (Undo/Redo), matching Recent Moves: icon +
+// label, accent colour, transparent (soft on hover), muted+dimmed when disabled.
 function ToolBtn({ onClick, disabled, title, label, icon }) {
   return (
     <button onClick={onClick} disabled={disabled} title={title} aria-label={label} className="hv-soft"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: disabled ? 'var(--muted)' : 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1 }}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 10px', border: 'none', borderRadius: 8, background: 'transparent', color: disabled ? 'var(--muted)' : 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
         {icon === 'undo'
           ? (<><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-1" /></>)
           : (<><path d="m15 14 5-5-5-5" /><path d="M20 9H9a5 5 0 0 0 0 10h1" /></>)}
@@ -366,9 +367,12 @@ function AddGroupButton({ onAdd }) {
     <div ref={rootRef} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(o => !o)} aria-haspopup="dialog" aria-expanded={String(open)}
-        className="hv-soft"
-        style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
-      >＋ Category Group</button>
+        aria-label="Add category group"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 12px 0 8px', border: 'none', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+      >
+        <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: 999, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, lineHeight: 1, flex: 'none' }}>＋</span>
+        Category Group
+      </button>
       {open && (
         <div role="dialog" aria-label="Add category group" style={{ ...popCard, top: 38, right: 0, width: 240 }}>
           <input
