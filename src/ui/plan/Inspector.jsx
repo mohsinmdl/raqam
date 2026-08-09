@@ -7,7 +7,7 @@ import {
   selectionSummary, autoAssignPlan, autoAssignAmount, AUTO_ASSIGN_KINDS,
 } from '../../lib/inspector.js';
 import { moveAssigned, setCategoryNote, setTarget, clearTarget, setCategoryExcluded } from '../../store/actions.js';
-import { hasTarget, targetNeeded, targetSummary } from '../../lib/targets.js';
+import { hasTarget, targetNeeded, targetSummary, costToBeMe } from '../../lib/targets.js';
 import { parseAmt } from '../../lib/format.js';
 import { useUI } from '../UIProvider.jsx';
 
@@ -235,6 +235,11 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
       <div className="plan-inspector">
         <Card title={monthName + "'s Summary"}>
           <SummaryLines sum={selectionSummary(env, allIds)} money={money} monthName={monthName} />
+          {costToBeMe(activeCats) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)', color: 'var(--muted)' }}>
+              <span>Cost to Be Me</span><span className="tnum">{money(costToBeMe(activeCats))}</span>
+            </div>
+          )}
         </Card>
         <Card title="Auto-Assign">
           <AutoAssignRows kinds={['underfunded', ...SIX_KINDS]} catIds={allIds} ctx={ctx} money={money} applyData={applyData} plural />
