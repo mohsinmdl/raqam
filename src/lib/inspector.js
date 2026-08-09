@@ -35,6 +35,7 @@ export function underfundedFor(env, catIds, S) {
   return catIds.reduce((n, id) => {
     const r = env.rows.get(id) || { available: 0 };
     const cat = catById.get(id);
+    if (cat && cat.excludeFromBudget) return n; // excluded: contributes 0
     if (cat && hasTarget(cat)) return n + targetNeeded(r, cat);
     return n + Math.max(0, -r.available); // untargeted: cover overspending
   }, 0);
@@ -98,7 +99,8 @@ export function autoAssignPlan(kind, catIds, ctx) {
     const r = rowOf(env, catId);
     if (kind === 'underfunded') {
       const cat = (ctx.S?.categories || []).find(c => c.id === catId);
-      const need = cat && hasTarget(cat) ? targetNeeded(r, cat) : Math.max(0, -r.available);
+      const need = cat && cat.excludeFromBudget ? 0
+        : cat && hasTarget(cat) ? targetNeeded(r, cat) : Math.max(0, -r.available);
       if (need > 0) push(catId, need); // push(catId, delta): from RTA into the category
       continue;
     }
