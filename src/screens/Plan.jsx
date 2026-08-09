@@ -44,6 +44,28 @@ const popBtnRow = { display: 'flex', justifyContent: 'flex-end', gap: 8, marginT
 const popCancel = { height: 30, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, cursor: 'pointer' };
 const popOk = { height: 30, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' };
 
+// Full-width toggle, mirroring the All-Accounts (Transactions) control.
+function WideIcon() {
+  return (
+    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 8L3 12l5 4" /><path d="M16 8l5 4-5 4" /><path d="M3 12h18" />
+    </svg>
+  );
+}
+function WidthToggle({ wide, onToggle }) {
+  return (
+    <button
+      onClick={onToggle} aria-pressed={wide}
+      aria-label={wide ? 'Fit budget to page width' : 'Expand budget to full width'}
+      title={wide ? 'Fit width' : 'Full width'} className="hv-soft"
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 7, background: wide ? 'var(--elev)' : 'transparent', color: wide ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', flex: 'none' }}
+    >
+      <WideIcon />
+    </button>
+  );
+}
+
 // Same dismissal contract as TxMonthNav / BulkBar's MoreMenu: outside mousedown
 // closes, Escape closes via the capture phase so it never bubbles into a
 // screen-level shortcut handler.
@@ -977,8 +999,12 @@ export default function Plan() {
 
   const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, setMany, onOpenActivity: setActivityCat };
 
+  const wide = !!prefs.planWide;
   return (
-    <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 28px 56px' }}>
+    // Full width: drop the max-width cap and let the grid reach the right edge
+    // (right padding 0), while keeping the left gap so the table clears the
+    // sidebar seam/drag-handle. Fit: the centred 1280 column as before.
+    <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '24px 0 56px 28px' : '24px 28px 56px' }}>
       <div className="plan-grid" style={{ animation: 'hsFade .25s ease' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {showBanner && (
@@ -995,6 +1021,7 @@ export default function Plan() {
             <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
             <div style={{ flex: 1 }} />
             <RecentMoves />
+            <WidthToggle wide={wide} onToggle={() => setPrefs({ planWide: !wide })} />
             <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
             <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
           </div>
