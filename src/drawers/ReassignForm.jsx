@@ -39,7 +39,7 @@ function Body() {
         <Label required>Move everything to</Label>
         <PlanCategoryPicker
           env={env} S={S} month={month} money={money}
-          catType={cat.type} showAmounts={cat.type === 'expense'} excludeRta excludeId={cat.id} heading={null}
+          catType={cat.type} showAmounts={cat.type === 'expense'} excludeRta excludeId={cat.id}
           value={f.replacement || null} onChange={id => setField('replacement', id)}
         />
         <FieldError msg={errors.replacement} />
