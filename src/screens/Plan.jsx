@@ -433,12 +433,15 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
             triggerStyle={{ display: 'block', minWidth: 0, maxWidth: '100%', border: 'none', background: 'transparent', padding: 0, font: 'inherit', fontSize: 16, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}
             onRename={nm => { applyData(d => renameCategoryGroup(d, { id: group.id, name: nm })); notify('Group renamed to “' + nm + '”.'); }}
             onDelete={async () => {
-              // If any category in the group still carries references, deleting
-              // the group means deleting those categories — so route through the
-              // reassign modal (pick a replacement, move everything, then delete).
-              const hasRefs = cats.some(c => catRefs(S, c.id).total > 0);
+              // Check the FULL group membership (all statuses) — `cats` is
+              // active-only, but the delete reducer touches every category with
+              // this groupId, so an archived category that still carries refs
+              // (incl. assignments) must be seen here or its money is dropped
+              // silently. Any referenced category → route to the reassign modal.
+              const groupCats = S.categories.filter(c => c.groupId === group.id);
+              const hasRefs = groupCats.some(c => catRefs(S, c.id).total > 0);
               if (hasRefs) { openers.reassignGroup(group.id, openDrawer); return; }
-              const n = cats.length;
+              const n = groupCats.length;
               const ok = await ask({
                 title: 'Delete group “' + group.name + '”?',
                 body: n > 0
@@ -1019,7 +1022,11 @@ export default function Plan() {
   // click so the next range starts from the last plainly-clicked row.
   const selectRow = (id, e) => {
     if (e && e.shiftKey && anchorId) {
-      setSelected(new Set(rangeBetween(visibleCatIdList, anchorId, id)));
+      // rangeBetween returns [] when the anchor is no longer visible (its group
+      // got collapsed/filtered out) — fall back to selecting just this row so a
+      // shift-click never clears the selection to nothing.
+      const range = rangeBetween(visibleCatIdList, anchorId, id);
+      setSelected(new Set(range.length ? range : [id]));
       return; // anchor stays put so the range can be re-dragged
     }
     if (e && (e.metaKey || e.ctrlKey)) { toggleSelect(id, true); return; }

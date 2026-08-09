@@ -1128,19 +1128,27 @@ export function reassignDeleteCategoryGroup(data, { id, replacementId }) {
   return deleteCategoryGroup(next, { id });
 }
 
-// Delete a group AND its empty categories, so nothing orphans into the
-// synthetic "Other" bucket. Each category is passed through deleteCategory,
-// which removes it only when it's non-system and unused (no transactions,
-// budgets, or recurring) — referenced categories should have been routed to
-// the reassign flow before reaching here, so in practice every category in the
-// group is deleted. deleteCategoryGroup then removes the (now empty) group; any
-// category deleteCategory refused (e.g. a built-in) is simply un-grouped.
+// Delete a group AND its truly-empty categories, so nothing orphans into the
+// synthetic "Other" bucket. "Empty" means ZERO references of ANY kind —
+// transactions, budgets, recurring, AND assignments — matching catRefs /
+// deletePolicy. A category with only an assignment is NOT empty: deleteCategory
+// would otherwise drop its assignment rows (its own `used` check omits
+// assignments), silently losing assigned money; so we skip it here and let
+// deleteCategoryGroup un-group it instead. Referenced categories (incl. across
+// ALL statuses — archived ones still carry assignments) should have been routed
+// to the reassign flow before reaching here; this guard is defense in depth.
 export function deleteCategoryGroupWithEmpties(data, { id }) {
   const g = (data.categoryGroups || []).find(x => x.id === id);
   if (!g) return data;
   const ids = data.categories.filter(c => c.groupId === id).map(c => c.id);
+  const refFree = cid => !(
+    data.transactions.some(t => t.category === cid)
+    || data.budgets.some(b => b.category === cid)
+    || data.recurring.some(r => r.category === cid)
+    || (data.assignments || []).some(a => a.category === cid)
+  );
   let next = data;
-  for (const cid of ids) next = deleteCategory(next, { id: cid });
+  for (const cid of ids) if (refFree(cid)) next = deleteCategory(next, { id: cid });
   return deleteCategoryGroup(next, { id });
 }
 

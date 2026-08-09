@@ -15,8 +15,11 @@ import { reassignDeleteCategoryGroup } from '../store/actions.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import { Label, FieldError, noteBox } from './fields.jsx';
 
+// All members regardless of status: the reassign reducer moves every category
+// with this groupId (archived ones still carry assignments), so the count and
+// the in-group validation set must not be limited to active categories.
 function groupCats(S, groupId) {
-  return S.categories.filter(c => c.groupId === groupId && c.status === 'active');
+  return S.categories.filter(c => c.groupId === groupId);
 }
 
 function Body() {
@@ -72,7 +75,7 @@ function useSubmit() {
     if (Object.keys(errs).length) { fail(errs, Object.values(errs)); return; }
     applyData(data => reassignDeleteCategoryGroup(data, { id: f.groupId, replacementId: f.replacement }));
     closeDrawer();
-    notify('Group “' + (group?.name || '') + '” deleted — its categories moved to the replacement.');
+    notify('Group “' + (group?.name || '') + '” deleted — its categories were reassigned to the replacement.');
   };
 }
 
