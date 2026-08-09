@@ -185,7 +185,7 @@ export default function PlanCategoryPicker({
             <>
               {allowCreate && (
                 <button onMouseDown={noBlur} onClick={startCreate} className="hv-soft"
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', padding: '2px 4px 10px', borderBottom: '1px solid var(--border)', marginBottom: 6 }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', padding: '8px 6px', marginBottom: 6 }}>
                   <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: 999, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, lineHeight: 1 }}>＋</span>
                   New Category
                 </button>
