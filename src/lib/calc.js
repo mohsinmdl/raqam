@@ -101,6 +101,15 @@ export function monthMetrics(store, month, now, accountId) {
     + mtx.filter(t => t.type === 'transfer').reduce((s, t) => s + (t.fee || 0), 0);
   const expenses = gross - refunds;
   const net = income - expenses;
+  // Recoverable = advances (excluded-from-budget categories) that left the
+  // account net of repayments this month. It is real cash out (so it stays in
+  // `expenses`/`net`), but it is not "spending", so the dashboard shows it
+  // separately: `spending` is the budget-spending figure, and by construction
+  // spending + recoverable === expenses, so income − spending − recoverable === net.
+  const recExpense = mtx.filter(t => t.type === 'expense' && isExcludedCat(store, t.category)).reduce((s, t) => s + t.amount, 0);
+  const recRefund = mtx.filter(t => t.type === 'refund' && isExcludedCat(store, t.category)).reduce((s, t) => s + t.amount, 0);
+  const recoverable = recExpense - recRefund;
+  const spending = expenses - recoverable;
   const active = accountId
     ? store.accounts.filter(a => a.id === accountId)
     : store.accounts.filter(a => a.status === 'active');
@@ -127,7 +136,7 @@ export function monthMetrics(store, month, now, accountId) {
     return s;
   }, 0);
   return {
-    income, expenses, net, savings: Math.max(net, 0), rate: income > 0 ? net / income : null,
+    income, expenses, net, spending, recoverable, savings: Math.max(net, 0), rate: income > 0 ? net / income : null,
     opening, totalBank, change: totalBank - opening, cardLiability, netWorth: totalBank - cardLiability,
     pendingCount: pend.length, pendingTotal: pend.reduce((s, t) => s + t.amount, 0),
     uncleared, working: totalBank + uncleared,
