@@ -29,6 +29,27 @@ describe('setTarget', () => {
     const s1 = setTarget(s0, { id: 'fuel', amount: 5000, mode: 'refill', dueDay: null });
     expect(setTarget(s1, { id: 'fuel', amount: 5000, mode: 'refill', dueDay: null })).toBe(s1);
   });
+  it('throws on an unknown mode, before any mutation', () => {
+    const s0 = store();
+    const before = catOf(s0);
+    expect(() => setTarget(s0, { id: 'fuel', amount: 5000, mode: 'bogus' })).toThrow(/unknown target mode/);
+    expect(catOf(s0)).toBe(before); // the input store itself was never touched
+  });
+  it('no-ops on an income-type category', () => {
+    const s0 = store({ categories: [{ id: 'salary', name: 'Salary', type: 'income', status: 'active', excludeFromBudget: false }] });
+    expect(setTarget(s0, { id: 'salary', amount: 5000, mode: 'refill' })).toBe(s0);
+  });
+  it('replacing an existing target writes the new values and audits the old ones as before', () => {
+    const s1 = setTarget(store(), { id: 'fuel', amount: 5000, mode: 'setaside' });
+    const s2 = setTarget(s1, { id: 'fuel', amount: 8000, mode: 'refill' });
+    expect(catOf(s2)).toMatchObject({ targetAmount: 8000, targetMode: 'refill' });
+    expect(s2.audit[0].before).toMatchObject({ targetAmount: 5000, targetMode: 'setaside' });
+    expect(s2.audit[0].after).toMatchObject({ targetAmount: 8000, targetMode: 'refill' });
+  });
+  it('clamps an out-of-range dueDay to the DB\'s 1–28 window', () => {
+    const s = setTarget(store(), { id: 'fuel', amount: 5000, mode: 'refill', dueDay: 31 });
+    expect(catOf(s).targetDueDay).toBe(28);
+  });
 });
 
 describe('clearTarget', () => {
@@ -55,5 +76,14 @@ describe('setCategoryExcluded', () => {
     const on = setCategoryExcluded(s0, { id: 'fuel', excluded: true });
     const off = setCategoryExcluded(on, { id: 'fuel', excluded: false });
     expect(catOf(off).excludeFromBudget).toBe(false);
+  });
+  it('excluding then re-including does not resurrect the cleared target', () => {
+    const withT = setTarget(store(), { id: 'fuel', amount: 5000, mode: 'refill' });
+    const on = setCategoryExcluded(withT, { id: 'fuel', excluded: true });
+    expect(catOf(on).targetAmount).toBeUndefined();
+    const off = setCategoryExcluded(on, { id: 'fuel', excluded: false });
+    expect(catOf(off).excludeFromBudget).toBe(false);
+    expect(catOf(off).targetAmount).toBeUndefined();
+    expect(catOf(off).targetMode).toBeUndefined();
   });
 });
