@@ -2,12 +2,21 @@
 // all driven by the shared month from Reflect.jsx's outlet context. Data
 // comes from src/lib/reports.js (untouched here); charting from
 // src/ui/charts/Donut.jsx (untouched here).
+//
+// Filters (Task 6): accountId scopes every figure on the tab — it's passed
+// straight into spendingByCategory/spendingByGroup/spendingStats via
+// opts.accountId, so the donut, list, and stat blocks (avg/day, most
+// frequent, largest outflow) all agree on the same account scope.
+// categoryId narrows only the *displayed* rows (donut slices + list) to that
+// one category — it does not re-scope spendingStats, so the stat blocks keep
+// reporting the full (account-scoped) picture per the brief.
 import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';
 import { useMoney } from '../../lib/format.js';
 import { monthLabel } from '../../lib/calc.js';
 import { spendingByCategory, spendingByGroup, spendingStats } from '../../lib/reports.js';
+import { toCsv, downloadCsv } from '../../lib/csv.js';
 import Donut from '../../ui/charts/Donut.jsx';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
@@ -48,23 +57,51 @@ function ViewToggle({ view, onChange }) {
 }
 
 export default function SpendingBreakdown() {
-  const { month } = useOutletContext();
+  const { month, categoryId, accountId } = useOutletContext();
   const { data: S } = useStore();
   const { money } = useMoney();
   const [lens, setLens] = useState('categories');
 
-  const rows = useMemo(
-    () => (lens === 'groups' ? spendingByGroup(S, month) : spendingByCategory(S, month)),
-    [S, month, lens]
+  // Unfiltered rows for the current lens, scoped to the selected account.
+  const baseRows = useMemo(
+    () => (lens === 'groups' ? spendingByGroup(S, month, { accountId }) : spendingByCategory(S, month, { accountId })),
+    [S, month, lens, accountId]
   );
-  const stats = useMemo(() => spendingStats(S, month), [S, month]);
-  const total = stats.total;
+
+  // categoryId narrows the displayed set to that one category — or, in
+  // Groups view, to the single group it belongs to (an "Other" fallback for
+  // ungrouped categories, matching spendingByGroup's own fallback bucket).
+  const narrowedRows = useMemo(() => {
+    if (!categoryId) return baseRows;
+    if (lens === 'categories') return baseRows.filter(r => r.id === categoryId);
+    const cat = S.categories.find(c => c.id === categoryId);
+    const groupId = cat && cat.groupId ? cat.groupId : 'other';
+    return baseRows.filter(r => r.id === groupId);
+  }, [baseRows, lens, categoryId, S]);
+
+  // Percentages are re-based to the displayed subset's own total, so a single
+  // filtered row reads as 100% (and the donut ring fills) rather than showing
+  // its share of the unfiltered total.
+  const total = useMemo(() => narrowedRows.reduce((s, r) => s + r.amt, 0), [narrowedRows]);
+  const rows = useMemo(
+    () => narrowedRows.map(r => ({ ...r, pct: total ? r.amt / total : 0 })),
+    [narrowedRows, total]
+  );
+
+  // The stat blocks below (avg/day, most frequent, largest outflow) stay
+  // scoped to the account filter only — categoryId never touches them.
+  const stats = useMemo(() => spendingStats(S, month, { accountId }), [S, month, accountId]);
   const empty = total === 0;
 
   const slices = useMemo(
     () => rows.filter(r => r.amt > 0).map((r, i) => ({ label: r.name, value: r.amt, pct: r.pct, color: r.color || PALETTE[i % PALETTE.length] })),
     [rows]
   );
+
+  const doExport = () => {
+    const csv = toCsv(['Category', 'Amount', 'Percent'], rows.map(r => [r.name, r.amt, Math.round(r.pct * 100) + '%']));
+    downloadCsv('spending-breakdown-' + month + '.csv', csv);
+  };
 
   const statBlocks = [
     { label: 'Average Monthly Spending', value: money(stats.avgMonthly), sub: '' },
@@ -113,6 +150,9 @@ export default function SpendingBreakdown() {
           <h2 style={h2}>{lens === 'groups' ? 'Groups' : 'Categories'}</h2>
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Total Spending</span>
+          <button onClick={doExport} disabled={empty}
+            style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: empty ? 'default' : 'pointer', opacity: empty ? 0.5 : 1, padding: 0 }}
+          >Export</button>
         </div>
         {empty ? emptyNote : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14, maxHeight: 380, overflowY: 'auto' }}>

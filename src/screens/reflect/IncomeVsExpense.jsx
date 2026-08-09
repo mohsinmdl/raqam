@@ -5,12 +5,17 @@
 // Inferred v1 (Task 5) — the live design reference for this tab wasn't
 // reachable, so this is a standard-report reading of "income vs expense":
 // incomeExpenseSeries(), windowed to 12 months, rendered as grouped bars.
+//
+// Filters (Task 6): the shared category/account filters are Spending
+// Breakdown-only for now — this tab ignores categoryId/accountId from the
+// outlet context.
 import { useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';
 import { useMoney } from '../../lib/format.js';
 import { monthLabel } from '../../lib/calc.js';
 import { incomeExpenseSeries } from '../../lib/reports.js';
+import { toCsv, downloadCsv } from '../../lib/csv.js';
 import Bars from '../../ui/charts/Bars.jsx';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
@@ -46,6 +51,11 @@ export default function IncomeVsExpense() {
     ],
   })), [series]);
 
+  const doExport = () => {
+    const csv = toCsv(['Month', 'Income', 'Expense', 'Net'], series.map(x => [x.label, x.income, x.expense, x.income - x.expense]));
+    downloadCsv('income-vs-expense.csv', csv);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <section aria-label="Income vs expense totals" style={{ ...card, padding: '18px 20px' }}>
@@ -73,6 +83,9 @@ export default function IncomeVsExpense() {
             <LegendDot color="var(--pos)" label="Income" />
             <LegendDot color="var(--neg)" label="Expense" />
           </div>
+          <button onClick={doExport} disabled={empty}
+            style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: empty ? 'default' : 'pointer', opacity: empty ? 0.5 : 1, padding: 0 }}
+          >Export</button>
         </div>
         {empty ? (
           <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>Not enough data yet for {monthLabel(month)}.</div>

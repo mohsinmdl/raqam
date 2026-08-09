@@ -6,12 +6,17 @@
 // Inferred v1 (Task 5) — the live design reference for this tab wasn't
 // reachable, so this is a standard-report reading of "spending trends":
 // monthlySeries() over spendingStats().total, windowed to 12 months.
+//
+// Filters (Task 6): the shared category/account filters are Spending
+// Breakdown-only for now — this tab ignores categoryId/accountId from the
+// outlet context.
 import { useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';
 import { useMoney } from '../../lib/format.js';
 import { monthLabel } from '../../lib/calc.js';
 import { monthlySeries, spendingStats } from '../../lib/reports.js';
+import { toCsv, downloadCsv } from '../../lib/csv.js';
 import Bars from '../../ui/charts/Bars.jsx';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
@@ -38,6 +43,11 @@ export default function SpendingTrends() {
   const chartData = useMemo(() => series.map(x => ({ label: shortLabel(x.month), value: x.value })), [series]);
   const rowsDesc = useMemo(() => [...series].reverse(), [series]);
 
+  const doExport = () => {
+    const csv = toCsv(['Month', 'Amount'], series.map(x => [x.label, x.value]));
+    downloadCsv('spending-trends.csv', csv);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <section aria-label="Spending totals" style={{ ...card, padding: '18px 20px' }}>
@@ -54,7 +64,13 @@ export default function SpendingTrends() {
       </section>
 
       <section aria-label="Spending Trends" style={{ ...card, padding: '18px 20px' }}>
-        <h2 style={h2}>Spending Trends</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h2 style={h2}>Spending Trends</h2>
+          <span style={{ flex: 1 }} />
+          <button onClick={doExport} disabled={empty}
+            style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: empty ? 'default' : 'pointer', opacity: empty ? 0.5 : 1, padding: 0 }}
+          >Export</button>
+        </div>
         {empty ? (
           <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>Not enough data yet for {monthLabel(month)}.</div>
         ) : (
