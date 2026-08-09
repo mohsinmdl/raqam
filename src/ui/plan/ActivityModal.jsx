@@ -1,6 +1,6 @@
 // Activity drill-down modal — lists the transactions behind one category's
 // ACTIVITY figure for a month, via the shared categoryActivityRows selector
-// (src/lib/envelope.js) so this Total can never disagree with the ACTIVITY
+// (src/lib/envelope.js) so the list can never disagree with the ACTIVITY
 // cell that opened it. Modal shell copied from ShortcutHelpModal.jsx.
 import { useEffect, useMemo } from 'react';
 import FocusTrap from '../FocusTrap.jsx';
@@ -8,7 +8,10 @@ import { categoryActivityRows } from '../../lib/envelope.js';
 import { monthLabel, dayLabel } from '../../lib/calc.js';
 import { nowIso } from '../../lib/dates.js';
 
-const th = { textAlign: 'left', fontSize: 12, fontWeight: 600, letterSpacing: '.4px', color: 'var(--muted)', padding: '0 8px 8px', borderBottom: '1px solid var(--border)' };
+// Bordered grid header: top+bottom rule on the row, vertical dividers between
+// columns (right border on every cell but the last), open outer left/right edges.
+const th = { textAlign: 'left', fontSize: 12, fontWeight: 600, letterSpacing: '.4px', color: 'var(--muted)', padding: '8px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' };
+const thDiv = { ...th, borderRight: '1px solid var(--border)' };
 const td = { padding: '8px', borderBottom: '1px solid var(--border)', fontSize: 13, verticalAlign: 'top' };
 
 export default function ActivityModal({ open, cat, month, S, money, onClose }) {
@@ -19,10 +22,10 @@ export default function ActivityModal({ open, cat, month, S, money, onClose }) {
     return () => document.removeEventListener('keydown', onKey, true);
   }, [open, onClose]);
 
-  // Same predicate the fold uses (via categoryActivityRows), so `total` below
-  // is guaranteed to equal the ACTIVITY cell that opened this modal.
-  const { rows, total } = useMemo(
-    () => (open && cat ? categoryActivityRows(S, cat.id, month, nowIso()) : { rows: [], total: 0 }),
+  // Same predicate the fold uses (via categoryActivityRows), so these rows
+  // match exactly the transactions behind the ACTIVITY cell that opened this modal.
+  const { rows } = useMemo(
+    () => (open && cat ? categoryActivityRows(S, cat.id, month, nowIso()) : { rows: [] }),
     [open, cat, S, month],
   );
 
@@ -49,10 +52,10 @@ export default function ActivityModal({ open, cat, month, S, money, onClose }) {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={th}>Account</th>
-                    <th style={th}>Date</th>
-                    <th style={th}>Payee</th>
-                    <th style={th}>Memo</th>
+                    <th style={thDiv}>Account</th>
+                    <th style={thDiv}>Date</th>
+                    <th style={thDiv}>Payee</th>
+                    <th style={thDiv}>Memo</th>
                     <th style={{ ...th, textAlign: 'right' }}>Amount</th>
                   </tr>
                 </thead>
@@ -75,10 +78,6 @@ export default function ActivityModal({ open, cat, month, S, money, onClose }) {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>Total</div>
-            <div className="tnum" style={{ fontSize: 14, fontWeight: 700, color: total < 0 ? 'var(--neg)' : total > 0 ? 'var(--pos)' : undefined }}>{money(total)}</div>
-          </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
             <button onClick={onClose} className="hv-accent" style={{ height: 36, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Close</button>
           </div>
