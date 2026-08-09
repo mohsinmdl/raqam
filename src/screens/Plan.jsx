@@ -19,6 +19,7 @@ import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
 import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visibleSections, normalizeBuiltins, reorderBuiltins, toggleBuiltinHidden, orderedBuiltinViews, builtinRows, isHiddenBuiltin } from '../lib/planViews.js';
 import { hasTarget, targetNeeded } from '../lib/targets.js';
+import { rangeBetween } from '../lib/rowCursor.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
@@ -738,7 +739,7 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
 // that opens Cover/Move popovers when non-zero. In "progress" view a thin bar
 // + note show spend against (carryIn + assigned); "compact" view drops both.
 function CategoryRow({ cat, row, ctx }) {
-  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, onOpenActivity } = ctx;
+  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, onOpenActivity } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
   const [editing, setEditing] = useState(false);
@@ -827,7 +828,7 @@ function CategoryRow({ cat, row, ctx }) {
     <div
       onClick={e => {
         if (e.target.closest('button, input, textarea, [role="dialog"], [data-noselect]')) return;
-        toggleSelect(cat.id, e.metaKey || e.ctrlKey);
+        selectRow(cat.id, e);
       }}
       style={{ ...ROW_COLS, minHeight: 44, padding: '7px 16px', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
     >
@@ -925,15 +926,21 @@ export default function Plan() {
   });
 
   const [selected, setSelected] = useState(() => new Set());
+  // The row a shift-range extends FROM — set by every non-shift interaction
+  // (plain/cmd click, checkbox), same anchor model as the Transactions table.
+  const [anchorId, setAnchorId] = useState(null);
   const activeCatIds = useMemo(
     () => (S.categories || []).filter(c => c.type === 'expense' && c.status === 'active').map(c => c.id),
     [S.categories],
   );
-  const toggleSelect = (id, additive) => setSelected(prev => {
-    const next = additive ? new Set(prev) : new Set();
-    if (prev.has(id) && (additive || prev.size === 1)) next.delete(id); else next.add(id);
-    return next;
-  });
+  const toggleSelect = (id, additive) => {
+    setAnchorId(id);
+    setSelected(prev => {
+      const next = additive ? new Set(prev) : new Set();
+      if (prev.has(id) && (additive || prev.size === 1)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   const setMany = (ids, on) => setSelected(prev => {
     const next = new Set(prev);
     ids.forEach(id => { if (on) next.add(id); else next.delete(id); });
@@ -1004,6 +1011,21 @@ export default function Plan() {
   const visibleCatIdList = useMemo(() => shownSections.flatMap(s => s.cats.map(c => c.id)), [shownSections]);
   const visibleCatIds = useMemo(() => new Set(visibleCatIdList), [visibleCatIdList]);
 
+  // Row-click selection, matching the Transactions table:
+  //  • plain click  → select just this row (or clear it if it was the only one)
+  //  • cmd/ctrl click → add/remove this row from the selection (multi-select)
+  //  • shift click  → select the contiguous range from the anchor to this row
+  // The anchor is where a shift-range extends from; it moves on every non-shift
+  // click so the next range starts from the last plainly-clicked row.
+  const selectRow = (id, e) => {
+    if (e && e.shiftKey && anchorId) {
+      setSelected(new Set(rangeBetween(visibleCatIdList, anchorId, id)));
+      return; // anchor stays put so the range can be re-dragged
+    }
+    if (e && (e.metaKey || e.ctrlKey)) { toggleSelect(id, true); return; }
+    toggleSelect(id, false);
+  };
+
   // Header chevron collapses/expands every visible group at once: if all are
   // already collapsed it expands them, otherwise it collapses them all.
   const shownKeys = useMemo(() => shownSections.map(s => s.key), [shownSections]);
@@ -1069,7 +1091,7 @@ export default function Plan() {
   const hasUnimportedStanding = catBudgets.length > 0 && !catBudgets.some(b => assignedCatsThisMonth.has(b.category));
   const showBanner = !prefs.planBannerDismissed && (noGroups || hasUnimportedStanding);
 
-  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, setMany, onOpenActivity: setActivityCat };
+  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, selectRow, setMany, onOpenActivity: setActivityCat };
 
   // Full width (default, like the Transactions screen): drop the max-width cap
   // and page side-padding so the area sits flush against the sidebar and runs
