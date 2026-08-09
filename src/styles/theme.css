@@ -64,10 +64,9 @@ textarea:focus {
 .hv-text:hover { color: var(--text) !important; }
 .hv-accent-fg:hover { color: var(--accent-h) !important; }
 
-/* Plan drag-and-drop: the row's drag handle is invisible until the row is
-   hovered (selected rows keep it shown via inline opacity). */
-.plan-row:hover .plan-drag-handle { opacity: 0.9 !important; }
-.plan-drag-handle:active { cursor: grabbing; }
+/* Plan drag-and-drop: the whole row is the drag handle (desktop mouse).
+   Show a grabbing cursor while a row is being dragged. */
+.plan-row[draggable="true"]:active { cursor: grabbing; }
 
 /* Shared bits used dozens of times in the prototype's inline styles. */
 .tnum { font-variant-numeric: tabular-nums; }

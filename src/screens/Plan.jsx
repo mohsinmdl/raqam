@@ -421,13 +421,20 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, fir
   return (
     <div
       className="plan-row"
+      draggable={!isOther}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      onDragStart={e => {
+        if (isOther) return;  // "Other" is a drop target but never draggable
+        if (e.target.closest('input, textarea, [role="dialog"], [contenteditable]')) { e.preventDefault(); return; }
+        dnd.startGroupDrag(e, group.id, group.name);
+      }}
+      onDragEnd={dnd.endDrag}
       onDragOver={e => {
         if (dnd.drag?.kind === 'group') dnd.overGroupGap(e, { beforeGroupId });
         else if (dnd.drag?.kind === 'category') dnd.overGroupHeader(e, { groupId: group.id, firstCatId });
       }}
       onDrop={dnd.drop}
-      style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', background: 'var(--track)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}
+      style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', cursor: isOther ? 'default' : 'grab', background: 'var(--track)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}
     >
       {showGroupLineAbove && (
         <div aria-hidden="true" style={{ position: 'absolute', top: -1, left: 16, right: 16, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
@@ -441,17 +448,6 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, fir
         indeterminate={cats.some(c => selected.has(c.id))}
         onChange={() => setMany(cats.map(c => c.id), !cats.every(c => selected.has(c.id)))} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        {!isOther && (
-          <span
-            draggable data-noselect
-            onDragStart={e => dnd.startGroupDrag(e, group.id, group.name)}
-            onDragEnd={dnd.endDrag}
-            title="Drag to reorder group"
-            aria-label={'Drag group ' + group.name}
-            className="plan-drag-handle"
-            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab', color: 'var(--muted)', opacity: 0, fontSize: 13, lineHeight: 1, flex: 'none' }}
-          >⠿</span>
-        )}
         {group.id ? (
           <EditNamePopover
             name={group.name} title={'Rename ' + group.name} align="left"
@@ -863,26 +859,29 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
   return (
     <div
       className="plan-row"
+      draggable
       onClick={e => {
         if (e.target.closest('button, input, textarea, [role="dialog"], [data-noselect]')) return;
         selectRow(cat.id, e);
       }}
+      onDragStart={e => {
+        // The whole row is the drag handle; but a drag that begins on an
+        // editable field or an open popover should stay a text/pointer
+        // interaction, not a reorder.
+        if (e.target.closest('input, textarea, [role="dialog"], [contenteditable]')) { e.preventDefault(); return; }
+        dnd.startCategoryDrag(e, cat.id, cat.name);
+      }}
+      onDragEnd={dnd.endDrag}
       onDragOver={e => dnd.overCategory(e, { groupId: sectionGroupId, beforeId: cat.id })}
       onDrop={dnd.drop}
-      style={{ ...ROW_COLS, position: 'relative', minHeight: 44, padding: '7px 16px', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
+      style={{ ...ROW_COLS, position: 'relative', minHeight: 44, padding: '7px 16px', cursor: 'grab', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
     >
       {showLineAbove && (
         <div aria-hidden="true" style={{ position: 'absolute', top: -1, left: 16, right: 16, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
       )}
-      <span
-        draggable data-noselect
-        onDragStart={e => dnd.startCategoryDrag(e, cat.id, cat.name)}
-        onDragEnd={dnd.endDrag}
-        title="Drag to reorder or move"
-        aria-label={'Drag ' + cat.name}
-        className="plan-drag-handle"
-        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab', color: 'var(--muted)', opacity: selected.has(cat.id) ? 0.9 : 0, fontSize: 13, lineHeight: 1 }}
-      >⠿</span>
+      {/* Empty leading cell — keeps the checkbox aligned under the group
+          chevron now that the drag handle is gone (the whole row drags). */}
+      <span aria-hidden="true" />
       <PlanCheckbox label={'Select ' + cat.name} checked={selected.has(cat.id)} onChange={() => toggleSelect(cat.id, true)} />
       <div style={{ minWidth: 0 }}>
         <EditNamePopover
