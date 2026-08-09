@@ -19,7 +19,7 @@ export default function Header() {
   const { pathname } = useLocation();
   // undo/redo stay wired here only for the global Cmd+Z / Cmd+Y shortcut below;
   // the visible buttons moved to the Transactions list toolbar.
-  const { data: S, syncStatus, undo, redo } = useStore();
+  const { data: S, syncStatus, prefsSaved, undo, redo } = useStore();
   const { month, isPast, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
   const { drawer, openDrawer } = useDrawer();
 
@@ -86,6 +86,11 @@ export default function Header() {
       {(syncStatus === 'retrying' || syncStatus === 'error') && (
         <span role="status" title="Changes are kept locally and pushed automatically when the connection recovers" style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
           Not saved — retrying
+        </span>
+      )}
+      {prefsSaved === false && (
+        <span role="status" title="This browser rejected saving your settings (storage full, private mode, or disabled). Your data is safe; only view/display preferences on this device won't persist." style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
+          Settings not saved here
         </span>
       )}
       {acct && (
