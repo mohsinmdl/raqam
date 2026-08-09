@@ -35,10 +35,16 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
     { label: 'Savings rate', val: M.rate == null ? '—' : C.fmtPct(M.rate), color: M.rate != null && M.rate < 0 ? 'var(--neg)' : 'var(--text)', sub: M.rate == null ? 'no income recorded' : 'of income' },
   ];
   const daily = C.dailySpending(S, month, view, now); const dmax = Math.max(...daily.map(d => d.amt), 1);
-  const dtotal = daily.reduce((s, d) => s + d.amt, 0);
+  // Total from the true daily net (`net`), not the floored bars (`amt`): a refund
+  // exceeding a day's spend must reduce the total, exactly as the Expenses card
+  // nets refunds. Summing `amt` dropped those refunds and over-stated the total.
+  const dtotal = daily.reduce((s, d) => s + d.net, 0);
+  const dbars = daily.reduce((s, d) => s + d.amt, 0); // any visible spending, for empty/has flags
   const today = todayStr().slice(0, 7) === month ? +todayStr().slice(8, 10) : null;
   v.trendBars = daily.map(d => ({ h: d.amt > 0 ? Math.max(Math.round(d.amt / dmax * 100), 4) + '%' : '2%', bg: d.amt > 0 ? (today === d.day ? 'var(--accent-h)' : 'var(--accent)') : 'var(--track)', label: (d.day === 1 || d.day % 5 === 0) ? String(d.day) : '', tip: d.day + ' ' + C.monthLabel(month).slice(0, 3) + ' — ' + moneyRaw(d.amt) }));
-  v.trendTotal = money(dtotal); v.trendEmpty = dtotal === 0; v.trendHas = dtotal > 0;
+  // empty/has track visible bars (a net-negative month can still have spending to show);
+  // the header figure is the true net.
+  v.trendTotal = money(dtotal); v.trendEmpty = dbars === 0; v.trendHas = dbars > 0;
   const peak = daily.reduce((a, b) => (b.amt > a.amt ? b : a), daily[0]);
   v.trendSummary = 'Daily cleared spending in ' + C.monthLabel(month) + ', total ' + moneyRaw(dtotal) + (peak && peak.amt > 0 ? ', highest on day ' + peak.day : '');
   const cats = C.categorySpending(S, month, view, now); const cmaxAmt = Math.max(...cats.map(c => c.amt), 1);
