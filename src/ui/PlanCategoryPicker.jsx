@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 // One-field category combobox (YNAB-style): the field IS the search input.
 // Closed, it shows the picked name (or a placeholder); focusing it opens the
@@ -40,6 +40,7 @@ export default function PlanCategoryPicker({
   const [newGroupId, setNewGroupId] = useState('');
   const [pendingName, setPendingName] = useState('');
   const inputRef = useRef(null);
+  const activeRowRef = useRef(null); // the highlighted row, scrolled into view on arrow-key nav
 
   const groups = useMemo(() => [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99)), [S.categoryGroups]);
   const nameOf = v => (v === 'rta' ? 'Ready to Assign'
@@ -121,6 +122,10 @@ export default function PlanCategoryPicker({
     if (inputRef.current) inputRef.current.blur();
   };
   const cancelCreate = () => { setCreating(false); if (inputRef.current) inputRef.current.focus(); };
+  // Keep the arrow-key-highlighted row visible: the .picker-scroll list only
+  // shows a few rows at a time, so moving the highlight past the fold must
+  // scroll it into view (block:'nearest' doesn't jump when it's already shown).
+  useEffect(() => { if (open && !creating && activeRowRef.current) activeRowRef.current.scrollIntoView({ block: 'nearest' }); }, [hi, open, creating]);
   const onKey = e => {
     if (!open && (e.key === 'ArrowDown' || e.key === 'Enter')) { e.preventDefault(); openList(); return; }
     if (e.key === 'ArrowDown') { e.preventDefault(); setHi(h => clampHi(h + 1)); }
@@ -218,7 +223,7 @@ export default function PlanCategoryPicker({
                 const isRta = item.kind === 'rta';
                 const val = isRta ? env.rta : availOf(item.cat.id);
                 return (
-                  <button key={isRta ? 'rta' : item.cat.id} onMouseDown={noBlur} onClick={() => pick(item)} className={active ? undefined : 'hv-elev'}
+                  <button key={isRta ? 'rta' : item.cat.id} ref={active ? activeRowRef : undefined} onMouseDown={noBlur} onClick={() => pick(item)} className={active ? undefined : 'hv-elev'}
                     style={{ ...rowStyle(active), background: active ? 'var(--soft)' : 'transparent' }}>
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isRta ? 'Ready to Assign' : item.cat.name}</span>
                     {showAmounts && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(val) }}>{money(val)}</span>}
