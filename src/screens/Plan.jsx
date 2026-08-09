@@ -391,10 +391,16 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
   const { openDrawer } = useDrawer();
   const [hover, setHover] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [addUp, setAddUp] = useState(false);
   const [name, setName] = useState('');
   const popRef = useRef(null);
+  const addBtnRef = useRef(null);
   const close = () => setAddOpen(false);
   usePopoverDismiss(addOpen, popRef, close);
+  // Flip the add-category popover above the "+" when the row is near the
+  // viewport bottom (the last group otherwise opens off-screen). ~120 ≈ input
+  // + button row + padding.
+  const openAdd = () => { setAddUp(flipIfLow(addBtnRef.current, 120)); setAddOpen(true); };
 
   const submit = () => {
     const trimmed = name.trim();
@@ -451,12 +457,13 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
         {(hover || addOpen) && (
           <span ref={popRef} style={{ position: 'relative', flex: 'none' }}>
             <button
-              onClick={() => setAddOpen(o => !o)} aria-label={'Add category to ' + group.name}
+              ref={addBtnRef}
+              onClick={() => (addOpen ? close() : openAdd())} aria-label={'Add category to ' + group.name}
               aria-haspopup="dialog" aria-expanded={String(addOpen)}
               style={{ width: 20, height: 20, borderRadius: 999, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--accent)', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             >＋</button>
             {addOpen && (
-              <div role="dialog" aria-label={'Add category to ' + group.name} style={{ ...popCard, top: 26, left: 0, width: 220 }}>
+              <div role="dialog" aria-label={'Add category to ' + group.name} style={{ ...popCard, ...(addUp ? { bottom: 26 } : { top: 26 }), left: 0, width: 220 }}>
                 <input
                   autoFocus className="field" placeholder="Category name" value={name}
                   onChange={e => setName(e.target.value)}
