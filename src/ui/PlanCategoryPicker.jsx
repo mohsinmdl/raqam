@@ -56,7 +56,9 @@ export default function PlanCategoryPicker({
     const cats = S.categories.filter(c => c.type === catType && c.status === 'active' && !excludeSet.has(c.id)
       && (!q || norm(c.name).includes(norm(q))));
     const out = [];
-    if (!excludeRta && (!q || 'ready to assign'.includes(norm(q)))) out.push({ kind: 'rta' });
+    // Ready to Assign sits under its own "Inflow:" header (YNAB), just like the
+    // category groups below — rendered as an indented row, not a flat one.
+    if (!excludeRta && (!q || 'ready to assign'.includes(norm(q)))) { out.push({ kind: 'head', name: 'Inflow' }); out.push({ kind: 'rta' }); }
     groups.forEach(g => {
       const members = cats.filter(c => c.groupId === g.id);
       if (members.length) { out.push({ kind: 'head', name: g.name }); members.forEach(c => out.push({ kind: 'cat', cat: c })); }
@@ -217,8 +219,8 @@ export default function PlanCategoryPicker({
                 const val = isRta ? env.rta : availOf(item.cat.id);
                 return (
                   <button key={isRta ? 'rta' : item.cat.id} onMouseDown={noBlur} onClick={() => pick(item)} className={active ? undefined : 'hv-elev'}
-                    style={{ ...rowStyle(active), background: active ? 'var(--soft)' : (isRta ? 'var(--elev)' : 'transparent') }}>
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isRta ? 'Inflow: Ready to Assign' : item.cat.name}</span>
+                    style={{ ...rowStyle(active), background: active ? 'var(--soft)' : 'transparent' }}>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isRta ? 'Ready to Assign' : item.cat.name}</span>
                     {showAmounts && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(val) }}>{money(val)}</span>}
                   </button>
                 );
