@@ -10,6 +10,37 @@ export function dragIdsFor(catId, selected, visibleCatIdList) {
   return [catId];
 }
 
+// Build a compact drag ghost and register it with the drag event. The node is
+// appended off-screen (the DnD spec requires it to be in the document at
+// setDragImage time) and removed on the next tick.
+function setGhost(e, label) {
+  const chip = document.createElement('div');
+  chip.textContent = label;
+  chip.style.cssText = 'position:fixed;top:-1000px;left:-1000px;padding:6px 10px;border-radius:8px;'
+    + 'background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;'
+    + 'box-shadow:var(--shadow);white-space:nowrap;';
+  document.body.appendChild(chip);
+  e.dataTransfer.setDragImage(chip, 12, 12);
+  setTimeout(() => chip.remove(), 0);
+}
+
+// Auto-scroll the nearest scrollable ancestor when the pointer nears its top or
+// bottom edge during a drag, so long category lists stay draggable.
+function edgeAutoScroll(e) {
+  const EDGE = 48, STEP = 12;
+  let el = e.target;
+  while (el && el !== document.body) {
+    const canScroll = el.scrollHeight > el.clientHeight && /(auto|scroll)/.test(getComputedStyle(el).overflowY);
+    if (canScroll) {
+      const r = el.getBoundingClientRect();
+      if (e.clientY < r.top + EDGE) { el.scrollTop -= STEP; return; }
+      if (e.clientY > r.bottom - EDGE) { el.scrollTop += STEP; return; }
+      return;
+    }
+    el = el.parentElement;
+  }
+}
+
 // Transient drag-state controller for the Plan screen. Holds the active drag
 // and the current drop target so rows can draw the insertion line; dispatches
 // the pure reducers on drop. Native HTML5 DnD, desktop mouse only.
@@ -17,31 +48,37 @@ export default function usePlanDnd({ selected, visibleCatIdList, applyData }) {
   const [drag, setDrag] = useState(null);
   const [target, setTarget] = useState(null);
 
-  const startCategoryDrag = useCallback((e, catId) => {
+  const startCategoryDrag = useCallback((e, catId, label) => {
     e.dataTransfer.effectAllowed = 'move';
-    setDrag({ kind: 'category', ids: dragIdsFor(catId, selected, visibleCatIdList) });
+    const ids = dragIdsFor(catId, selected, visibleCatIdList);
+    setGhost(e, ids.length > 1 ? ids.length + ' categories' : (label || 'Category'));
+    setDrag({ kind: 'category', ids });
   }, [selected, visibleCatIdList]);
 
-  const startGroupDrag = useCallback((e, groupId) => {
+  const startGroupDrag = useCallback((e, groupId, label) => {
     e.dataTransfer.effectAllowed = 'move';
+    setGhost(e, label || 'Group');
     setDrag({ kind: 'group', ids: [groupId] });
   }, []);
 
   const overCategory = useCallback((e, { groupId, beforeId }) => {
     if (!drag || drag.kind !== 'category') return;
     e.preventDefault();
+    edgeAutoScroll(e);
     setTarget({ kind: 'category', groupId, beforeId });
   }, [drag]);
 
   const overGroupHeader = useCallback((e, { groupId, firstCatId }) => {
     if (!drag || drag.kind !== 'category') return;
     e.preventDefault();
+    edgeAutoScroll(e);
     setTarget({ kind: 'category', groupId, beforeId: firstCatId ?? null });
   }, [drag]);
 
   const overGroupGap = useCallback((e, { beforeGroupId }) => {
     if (!drag || drag.kind !== 'group') return;
     e.preventDefault();
+    edgeAutoScroll(e);
     setTarget({ kind: 'group', beforeId: beforeGroupId ?? null });
   }, [drag]);
 

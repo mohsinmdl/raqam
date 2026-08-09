@@ -444,7 +444,7 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, fir
         {!isOther && (
           <span
             draggable data-noselect
-            onDragStart={e => dnd.startGroupDrag(e, group.id)}
+            onDragStart={e => dnd.startGroupDrag(e, group.id, group.name)}
             onDragEnd={dnd.endDrag}
             title="Drag to reorder group"
             aria-label={'Drag group ' + group.name}
@@ -876,7 +876,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
       )}
       <span
         draggable data-noselect
-        onDragStart={e => dnd.startCategoryDrag(e, cat.id)}
+        onDragStart={e => dnd.startCategoryDrag(e, cat.id, cat.name)}
         onDragEnd={dnd.endDrag}
         title="Drag to reorder or move"
         aria-label={'Drag ' + cat.name}
