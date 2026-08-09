@@ -884,6 +884,26 @@ export function setCategoryExcluded(data, { id, excluded }) {
 // Inspector Notes (Phase 3): the note IS categories.description — the field
 // already syncs, so no schema work. Whitespace-only input clears to '';
 // intentional inner formatting is preserved.
+export function renameCategory(data, { id, name }) {
+  const i = data.categories.findIndex(c => c.id === id);
+  if (i < 0) return data;
+  const val = (name || '').trim();
+  const existing = data.categories[i].name;
+  if (val === '' || val === existing) return data;
+  const cat = stampUpdate({ ...data.categories[i], name: val });
+  const categories = [...data.categories];
+  categories[i] = cat;
+  return {
+    ...data, categories,
+    audit: [makeAudit({
+      entityType: 'category', entityId: id, action: 'update',
+      summary: 'Renamed category “' + existing + '” → “' + val + '”',
+      before: { name: existing },
+      after: { name: val },
+    }), ...(data.audit || [])],
+  };
+}
+
 export function setCategoryNote(data, { id, note }) {
   const i = data.categories.findIndex(c => c.id === id);
   if (i < 0) return data;
