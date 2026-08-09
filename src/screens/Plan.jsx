@@ -28,9 +28,13 @@ import ActivityModal from '../ui/plan/ActivityModal.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
 import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarAction.jsx';
 import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
+import { useDrawer } from '../ui/DrawerProvider.jsx';
+import EditNamePopover from '../ui/plan/EditNamePopover.jsx';
+import { askDeleteCategory } from '../ui/categoryActions.js';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
   adoptYnabTree, importBudgetsAsAssignments, moveAssigned,
+  renameCategory, archiveCategory, renameCategoryGroup, deleteCategoryGroup,
 } from '../store/actions.js';
 
 // Synthetic group used only for rendering: categories with no groupId, or a
@@ -382,6 +386,7 @@ function AddGroupButton({ onAdd }) {
 // add-category popover, and the group's totals per column.
 function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
   const { applyData, money, selected, setMany } = ctx;
+  const { notify, ask } = useUI();
   const [hover, setHover] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState('');
@@ -412,7 +417,22 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
         indeterminate={cats.some(c => selected.has(c.id))}
         onChange={() => setMany(cats.map(c => c.id), !cats.every(c => selected.has(c.id)))} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <span style={{ fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.name}</span>
+        {group.id ? (
+          <EditNamePopover
+            name={group.name} title={'Rename ' + group.name} align="left"
+            triggerClassName="hv-text"
+            triggerStyle={{ display: 'block', minWidth: 0, maxWidth: '100%', border: 'none', background: 'transparent', padding: 0, font: 'inherit', fontSize: 16, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}
+            onRename={nm => { applyData(d => renameCategoryGroup(d, { id: group.id, name: nm })); notify('Group renamed to “' + nm + '”.'); }}
+            onDelete={async () => {
+              const ok = await ask({ title: 'Delete group “' + group.name + '”?', body: 'The group is removed and its categories move to “Other”. Nothing is deleted — categories, budgets, and transactions are kept.', action: 'Delete group', tone: 'neg' });
+              if (!ok) return;
+              applyData(d => deleteCategoryGroup(d, { id: group.id }));
+              notify('Group “' + group.name + '” deleted.');
+            }}
+          >{group.name}</EditNamePopover>
+        ) : (
+          <span style={{ fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{group.name}</span>
+        )}
         {(hover || addOpen) && (
           <span ref={popRef} style={{ position: 'relative', flex: 'none' }}>
             <button
@@ -697,6 +717,8 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
 // + note show spend against (carryIn + assigned); "compact" view drops both.
 function CategoryRow({ cat, row, ctx }) {
   const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, onOpenActivity } = ctx;
+  const { notify, ask } = useUI();
+  const { openDrawer } = useDrawer();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -790,7 +812,14 @@ function CategoryRow({ cat, row, ctx }) {
       <span aria-hidden="true" />
       <PlanCheckbox label={'Select ' + cat.name} checked={selected.has(cat.id)} onChange={() => toggleSelect(cat.id, true)} />
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 16, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat.name}</div>
+        <EditNamePopover
+          name={cat.name} title={'Edit ' + cat.name} align="left"
+          triggerClassName="hv-text"
+          triggerStyle={{ display: 'block', maxWidth: '100%', border: 'none', background: 'transparent', padding: 0, font: 'inherit', fontSize: 16, fontWeight: 500, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}
+          onRename={nm => { applyData(d => renameCategory(d, { id: cat.id, name: nm })); notify('Renamed to “' + nm + '”.'); }}
+          onHide={() => { applyData(d => archiveCategory(d, { id: cat.id })); notify('“' + cat.name + '” hidden.'); }}
+          onDelete={() => askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer })}
+        >{cat.name}</EditNamePopover>
         {view !== 'compact' && (
           <div style={{ marginTop: 4 }}>
             <div style={{ height: 4, borderRadius: 2, background: 'rgba(125,109,63,.16)', overflow: 'hidden' }}>
