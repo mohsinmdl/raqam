@@ -4,13 +4,18 @@
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
-import { catRefs, listCats } from '../lib/calc.js';
+import { useMoney } from '../lib/format.js';
+import { catRefs } from '../lib/calc.js';
+import { envelopeFor } from '../lib/envelope.js';
+import { currentMonth, nowIso } from '../lib/dates.js';
 import { reassignDeleteCategory } from '../store/actions.js';
-import { Label, FieldError, SelectField, noteBox } from './fields.jsx';
+import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
+import { Label, FieldError, noteBox } from './fields.jsx';
 
 function Body() {
-  const { drawer } = useDrawer();
+  const { drawer, setField } = useDrawer();
   const { data: S } = useStore();
+  const { money } = useMoney();
   const f = drawer.form, errors = drawer.errors;
   const cat = S.categories.find(c => c.id === f.catId);
   if (!cat) return null;
@@ -21,7 +26,8 @@ function Body() {
     refs.recurring ? refs.recurring + ' recurring item' + (refs.recurring === 1 ? '' : 's') : null,
     refs.assignments ? refs.assignments + ' assignment' + (refs.assignments === 1 ? '' : 's') : null,
   ].filter(Boolean).join(', ');
-  const options = listCats(S, cat.type).filter(c => c.id !== cat.id);
+  const month = currentMonth();
+  const env = envelopeFor(S, month, nowIso());
 
   return (
     <>
@@ -30,11 +36,12 @@ function Body() {
         {usedBits} point at it. Choose where they should go before it can be deleted.
       </div>
       <div>
-        <Label htmlFor="ra-repl" required>Move everything to</Label>
-        <SelectField id="ra-repl" field="replacement">
-          <option value="">Choose a category…</option>
-          {options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </SelectField>
+        <Label required>Move everything to</Label>
+        <PlanCategoryPicker
+          env={env} S={S} month={month} money={money}
+          catType={cat.type} showAmounts={cat.type === 'expense'} excludeRta excludeId={cat.id} heading={null}
+          value={f.replacement || null} onChange={id => setField('replacement', id)}
+        />
         <FieldError msg={errors.replacement} />
       </div>
       <div style={{ ...noteBox('var(--soft)'), lineHeight: 1.55 }}>

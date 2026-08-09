@@ -23,7 +23,7 @@ import { useMemo, useRef, useState } from 'react';
 //                        (with a ✓), even if that category is archived.
 export default function PlanCategoryPicker({
   env, S, month, money, value, onChange,
-  excludeRta, excludeId, placeholder = 'Choose a category',
+  excludeRta, excludeId, excludeIds, placeholder = 'Choose a category',
   catType = 'expense', showAmounts = true, heading = 'Plan Categories',
   allowCreate = false, onCreate, showSelected = false,
 }) {
@@ -47,10 +47,13 @@ export default function PlanCategoryPicker({
     : v ? ((S.categories.find(c => c.id === v) || {}).name || '') : '');
   const groupNameOf = c => (S.categoryGroups.find(g => g.id === (c || {}).groupId) || {}).name || 'Other';
 
+  // excludeIds hides a whole set (e.g. every category already in a group being
+  // deleted, or already-budgeted categories); excludeId is the single-id case.
+  const excludeSet = useMemo(() => new Set([...(excludeIds || []), ...(excludeId ? [excludeId] : [])]), [excludeIds, excludeId]);
   const flat = useMemo(() => {
     const norm = s => s.toLowerCase();
     const ids = new Set(groups.map(g => g.id));
-    const cats = S.categories.filter(c => c.type === catType && c.status === 'active' && c.id !== excludeId
+    const cats = S.categories.filter(c => c.type === catType && c.status === 'active' && !excludeSet.has(c.id)
       && (!q || norm(c.name).includes(norm(q))));
     const out = [];
     if (!excludeRta && (!q || 'ready to assign'.includes(norm(q)))) out.push({ kind: 'rta' });
@@ -61,7 +64,7 @@ export default function PlanCategoryPicker({
     const other = cats.filter(c => !c.groupId || !ids.has(c.groupId));
     if (other.length) { out.push({ kind: 'head', name: 'Other' }); other.forEach(c => out.push({ kind: 'cat', cat: c })); }
     return out;
-  }, [S, q, excludeRta, excludeId, catType, groups]);
+  }, [S, q, excludeRta, excludeSet, catType, groups]);
 
   const pickable = flat.filter(x => x.kind !== 'head');
   const clampHi = i => (pickable.length ? Math.max(0, Math.min(pickable.length - 1, i)) : -1);

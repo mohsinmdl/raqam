@@ -9,6 +9,7 @@ import { reconcileFormDef } from './ReconcileForm.jsx';
 import { adjustCardFormDef } from './AdjustCardForm.jsx';
 import { categoryFormDef } from './CategoryForm.jsx';
 import { reassignFormDef } from './ReassignForm.jsx';
+import { reassignGroupFormDef } from './ReassignGroupForm.jsx';
 import { budgetFormDef } from './BudgetForm.jsx';
 import { recurringFormDef } from './RecurringForm.jsx';
 
@@ -23,6 +24,7 @@ export const drawerRegistry = {
   adjustCard: adjustCardFormDef,
   category: categoryFormDef,
   reassign: reassignFormDef,
+  reassignGroup: reassignGroupFormDef,
   budget: budgetFormDef,
   // 'rule', not 'recurring': openers.recordRule already opens addTx *from* a rule,
   // and two different things called recurring in one namespace invites mistakes.
