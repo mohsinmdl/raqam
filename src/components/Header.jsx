@@ -13,7 +13,7 @@ import { useHeaderSlot } from '../ui/HeaderSlot.jsx';
 
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
-  budget: 'Budget', budgets: 'Budgets', recurring: 'Recurring', reports: 'Reports', categories: 'Categories', settings: 'Settings',
+  budget: 'Budget', budgets: 'Budgets', recurring: 'Recurring', categories: 'Categories', settings: 'Settings',
   reflect: 'Reflect',
 };
 

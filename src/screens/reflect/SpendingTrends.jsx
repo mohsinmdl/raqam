@@ -15,7 +15,7 @@ import { useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';
 import { useMoney } from '../../lib/format.js';
 import { monthLabel } from '../../lib/calc.js';
-import { monthlySeries, spendingStats } from '../../lib/reports.js';
+import { monthlySeries, spendingByCategory } from '../../lib/reports.js';
 import { toCsv, downloadCsv } from '../../lib/csv.js';
 import Bars from '../../ui/charts/Bars.jsx';
 
@@ -35,7 +35,7 @@ export default function SpendingTrends() {
   const { money } = useMoney();
 
   const series = useMemo(
-    () => monthlySeries(S, (s, m, now) => spendingStats(s, m, { now }).total, { window: 12 }),
+    () => monthlySeries(S, (s, m, now) => spendingByCategory(s, m, { now }).reduce((a, r) => a + r.amt, 0), { window: 12 }),
     [S]
   );
 
