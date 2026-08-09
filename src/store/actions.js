@@ -1162,6 +1162,57 @@ export function setCategoryGroup(data, { categoryId, groupId }) {
   };
 }
 
+// Drag-and-drop move/reorder of categories (Plan screen). `ids` are the dragged
+// category ids in the order they should land; `groupId` is the target group, or
+// null to ungroup into the synthetic "Other" bucket; `beforeId` is the
+// target-group member to land in front of (null/absent/unknown = append last).
+// Only groupId + sortOrder change — no amounts, assignments, or refs are
+// touched. The target group's members are renumbered to a contiguous 0..n so
+// sortOrder stays clean. A category whose group actually changes is stamped +
+// audited (like setCategoryGroup); a pure reorder is silent so a drag can't
+// flood the audit log / "Edited" chips. Returns the same `data` reference when
+// nothing effectively changes. Members are matched by the movers' own type so a
+// drag never disturbs unrelated categories that happen to share the null bucket.
+export function moveCategories(data, { ids, groupId, beforeId }) {
+  if (groupId != null && !(data.categoryGroups || []).some(g => g.id === groupId)) return data;
+  const byId = new Map(data.categories.map(c => [c.id, c]));
+  const moving = (ids || []).map(id => byId.get(id)).filter(Boolean);
+  if (!moving.length) return data;
+  const type = moving[0].type;
+  const movingIds = new Set(moving.map(c => c.id));
+  const cmp = (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name);
+  // Surviving members of the target group, in display order, minus the movers.
+  const keep = data.categories
+    .filter(c => c.type === type && (c.groupId ?? null) === (groupId ?? null) && !movingIds.has(c.id))
+    .sort(cmp);
+  let at = beforeId ? keep.findIndex(c => c.id === beforeId) : -1;
+  if (at < 0) at = keep.length; // append when beforeId is absent / unknown / a mover
+  const ordered = [...keep.slice(0, at), ...moving, ...keep.slice(at)];
+  const orderById = new Map(ordered.map((c, i) => [c.id, i]));
+  const audit = [];
+  let changed = false;
+  const categories = data.categories.map(c => {
+    if (!orderById.has(c.id)) return c;
+    const nextOrder = orderById.get(c.id);
+    const groupChanged = (c.groupId ?? null) !== (groupId ?? null);
+    const orderChanged = (c.sortOrder || 0) !== nextOrder;
+    if (!groupChanged && !orderChanged) return c;
+    changed = true;
+    let nc = { ...c, sortOrder: nextOrder };
+    if (groupId == null) delete nc.groupId; else nc.groupId = groupId;
+    if (groupChanged) {
+      nc = stampUpdate(nc);
+      audit.push(makeAudit({
+        entityType: 'category', entityId: c.id, action: 'update',
+        summary: 'Moved ' + c.name, before: { groupId: c.groupId ?? null }, after: { groupId: groupId ?? null },
+      }));
+    }
+    return nc;
+  });
+  if (!changed) return data;
+  return { ...data, categories, audit: [...audit, ...(data.audit || [])] };
+}
+
 // One-click adoption of the captured YNAB tree. Idempotent: returns `data`
 // unchanged (same reference) when everything is already in place.
 export function adoptYnabTree(data) {
