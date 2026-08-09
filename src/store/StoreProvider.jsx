@@ -8,18 +8,16 @@ import { currentMonth } from '../lib/dates.js';
 import LoadingScreen from '../components/LoadingScreen.jsx';
 import { makeAudit } from './audit.js';
 import { applyRedo, applyUndo, emptyStacks, labelFor, recordChange, redoLabel, undoLabel } from '../lib/undo.js';
+import { loadUserPrefs, writeUserPrefs } from '../lib/prefsStore.js';
 
 // Server-backed store. The in-memory store + pure actions are unchanged from the
 // localStorage era; persistence is now: hydrate from Supabase once per login, then
 // mirror every change through the diff-sync queue (src/store/sync.js).
 const Ctx = createContext(null);
 
-// Per-user, device-local prefs (currently just the onboarding skip flag).
-const userPrefsKey = uid => `raqam.prefs.u.${uid}`;
-const loadUserPrefs = uid => {
-  try { return { skippedSetup: false, ...JSON.parse(localStorage.getItem(userPrefsKey(uid)) || '{}') }; }
-  catch { return { skippedSetup: false }; }
-};
+// Per-user, device-local prefs (theme/mask/onboarding + Plan views) live in
+// src/lib/prefsStore.js — pure and injectable so the write-failure path is
+// unit-tested.
 
 export function reducer(state, act) {
   switch (act.type) {
@@ -66,6 +64,12 @@ export function StoreProvider({ userId, children }) {
   const { devicePrefs, setDevicePrefs } = useDevicePrefs();
   const { registerBeforeSignOut } = useAuth();
   const [userPrefs, setUserPrefs] = useState(() => loadUserPrefs(userId));
+  // Mirror of userPrefs so setPrefs can build `next` and persist OUTSIDE the
+  // setState updater — a nested setState (to flip prefsSaved) inside the updater
+  // is the React anti-pattern this avoids. setPrefs is the only writer, so the
+  // ref stays authoritative as long as it's updated alongside every write.
+  const userPrefsRef = useRef(userPrefs);
+  const [prefsSaved, setPrefsSaved] = useState(true);
   const [syncStatus, setSyncStatus] = useState('synced');
   const queueRef = useRef(null);
   const pushTimer = useRef(null);
@@ -160,17 +164,21 @@ export function StoreProvider({ userId, children }) {
     });
     if (Object.keys(device).length) setDevicePrefs(device);
     if (Object.keys(user).length) {
-      setUserPrefs(p => {
-        const next = { ...p, ...user };
-        try { localStorage.setItem(userPrefsKey(userId), JSON.stringify(next)); } catch {}
-        return next;
-      });
+      const next = { ...userPrefsRef.current, ...user };
+      userPrefsRef.current = next;
+      // A failed write leaves the in-memory prefs updated (the UI stays
+      // responsive) but flips prefsSaved so the Header can say it didn't stick.
+      setPrefsSaved(writeUserPrefs(userId, next));
+      setUserPrefs(next);
     }
   }, [setDevicePrefs, userId]);
 
   const value = useMemo(() => ({
     data: state.data,
     syncStatus,
+    // false after a device-local prefs write was rejected (quota/private mode/
+    // storage disabled). Settings, not financial data — those go through sync.
+    prefsSaved,
     // Facade: consumers (Header, format.js, Dashboard) see one flat prefs object.
     prefs: { ...userPrefs, theme: devicePrefs.theme, masked: devicePrefs.masked },
     setPrefs,
@@ -191,7 +199,7 @@ export function StoreProvider({ userId, children }) {
     canRedo: state.future.length > 0,
     undoLabel: undoLabel(state),
     redoLabel: redoLabel(state),
-  }), [state.data, state.past, state.future, syncStatus, userPrefs, devicePrefs, setPrefs]);
+  }), [state.data, state.past, state.future, syncStatus, prefsSaved, userPrefs, devicePrefs, setPrefs]);
 
   if (state.status === 'loading') return <LoadingScreen message="Loading your data…" />;
   if (state.status === 'error') {
