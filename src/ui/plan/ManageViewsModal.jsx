@@ -52,11 +52,36 @@ function ViewRow({ view, atTop, atBottom, renaming, draft, onDraftChange, onStar
   );
 }
 
-export default function ManageViewsModal({ open, views, onReorder, onRename, onDelete, onNew, onEdit, onClose }) {
+// One built-in row: drag handle, label, ↑/↓, and an eye toggle to show/hide the
+// pill. Built-ins can't be renamed or deleted (they're code-defined), so those
+// controls are absent — only order and visibility are user-editable.
+function BuiltinRow({ view, atTop, atBottom, onDragStart, onDrop, onMoveUp, onMoveDown, onToggle }) {
+  return (
+    <div
+      onDragOver={e => e.preventDefault()}
+      onDrop={onDrop}
+      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', borderBottom: '1px solid var(--border)', opacity: view.hidden ? 0.55 : 1 }}
+    >
+      <span
+        draggable onDragStart={onDragStart} aria-hidden="true" title="Drag to reorder"
+        style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 14, flex: 'none', padding: '4px 2px', userSelect: 'none' }}
+      >⠿</span>
+      <div style={{ flex: 1, minWidth: 0, padding: '6px 8px', fontSize: 13, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: view.hidden ? 'line-through' : 'none' }}>{view.label}</div>
+      <button aria-label={'Move ' + view.label + ' up'} disabled={atTop} onClick={onMoveUp} className="hv-soft" style={atTop ? iconBtnOff : iconBtn}>↑</button>
+      <button aria-label={'Move ' + view.label + ' down'} disabled={atBottom} onClick={onMoveDown} className="hv-soft" style={atBottom ? iconBtnOff : iconBtn}>↓</button>
+      <button aria-label={(view.hidden ? 'Show ' : 'Hide ') + view.label} aria-pressed={!view.hidden} title={view.hidden ? 'Hidden — click to show' : 'Shown — click to hide'} onClick={onToggle} className="hv-soft" style={iconBtn}>{view.hidden ? '🚫' : '👁'}</button>
+    </div>
+  );
+}
+
+const sectionLabel = { fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'var(--muted)', textTransform: 'uppercase', padding: '2px 4px 6px' };
+
+export default function ManageViewsModal({ open, builtins, onToggleBuiltin, onReorderBuiltin, views, onReorder, onRename, onDelete, onNew, onEdit, onClose }) {
   const { ask, confirmOpen } = useUI();
   const [renamingId, setRenamingId] = useState(null);
   const [draft, setDraft] = useState('');
   const dragIdRef = useRef(null);
+  const dragBuiltinRef = useRef(null);
   // Escape unmounts the rename input; if the browser fires a blur as part of
   // that removal, onBlur must not re-commit the just-cancelled draft. Same
   // guard as CategoryRow's ASSIGNED editor in Plan.jsx.
@@ -116,6 +141,32 @@ export default function ManageViewsModal({ open, views, onReorder, onRename, onD
             <button onClick={onClose} aria-label="Close" className="hv-soft" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
           </div>
 
+          <div style={sectionLabel}>Built-in views</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', borderBottom: '1px solid var(--border)' }}>
+            <span aria-hidden="true" style={{ color: 'var(--muted)', fontSize: 14, flex: 'none', padding: '4px 2px', opacity: .4 }}>⠿</span>
+            <div style={{ flex: 1, minWidth: 0, padding: '6px 8px', fontSize: 13, color: 'var(--text)' }}>All</div>
+            <span style={{ fontSize: 11, color: 'var(--muted)', flex: 'none', paddingRight: 4 }}>always shown</span>
+          </div>
+          {builtins.map((v, i) => (
+            <BuiltinRow
+              key={v.id}
+              view={v}
+              atTop={i === 0}
+              atBottom={i === builtins.length - 1}
+              onDragStart={e => { dragBuiltinRef.current = v.id; e.dataTransfer.effectAllowed = 'move'; }}
+              onDrop={e => {
+                e.preventDefault();
+                const from = dragBuiltinRef.current;
+                dragBuiltinRef.current = null;
+                if (from && from !== v.id) onReorderBuiltin(from, v.id);
+              }}
+              onMoveUp={() => !!i && onReorderBuiltin(v.id, builtins[i - 1].id)}
+              onMoveDown={() => i < builtins.length - 1 && onReorderBuiltin(v.id, builtins[i + 1].id)}
+              onToggle={() => onToggleBuiltin(v.id)}
+            />
+          ))}
+
+          <div style={{ ...sectionLabel, paddingTop: 16 }}>Your views</div>
           {views.length === 0 ? (
             <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No custom views yet.</div>
           ) : (

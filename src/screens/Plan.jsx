@@ -15,7 +15,7 @@ import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
-import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visibleSections } from '../lib/planViews.js';
+import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visibleSections, normalizeBuiltins, reorderBuiltins, toggleBuiltinHidden, orderedBuiltinViews, builtinRows, isHiddenBuiltin } from '../lib/planViews.js';
 import { hasTarget, targetNeeded } from '../lib/targets.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import Inspector from '../ui/plan/Inspector.jsx';
@@ -904,7 +904,11 @@ export default function Plan() {
   }, [S.categories, groupsSorted, groupIds, env]);
 
   const views = useMemo(() => normalizeViews(prefs.planViews, S.categories), [prefs.planViews, S.categories]);
-  const activeViewId = prefs.planViewId || 'all';
+  const builtinPref = useMemo(() => normalizeBuiltins(prefs.builtinViews), [prefs.builtinViews]);
+  const builtinPills = useMemo(() => orderedBuiltinViews(builtinPref), [builtinPref]);
+  const builtinManageRows = useMemo(() => builtinRows(builtinPref), [builtinPref]);
+  // A built-in that's hidden must not keep filtering invisibly — treat it as All.
+  const activeViewId = prefs.planViewId && !isHiddenBuiltin(builtinPref, prefs.planViewId) ? prefs.planViewId : 'all';
   const activeView = useMemo(
     () => BUILTIN_VIEWS.find(v => v.id === activeViewId) || views.find(v => v.id === activeViewId) || BUILTIN_VIEWS[0],
     [activeViewId, views],
@@ -951,6 +955,13 @@ export default function Plan() {
   const renameView = (id, name) => writeViews(views.map(v => (v.id === id ? { ...v, name: String(name).slice(0, MAX_NAME) } : v)));
   const reorder = (fromId, toId) => writeViews(reorderViews(views, fromId, toId));
 
+  const reorderBuiltin = (fromId, toId) => setPrefs({ builtinViews: reorderBuiltins(builtinPref, fromId, toId) });
+  const toggleBuiltin = id => setPrefs({
+    builtinViews: toggleBuiltinHidden(builtinPref, id),
+    // Hiding the currently-active pill drops the filter back to All.
+    ...(activeViewId === id ? { planViewId: 'all' } : {}),
+  });
+
   const noGroups = !(S.categoryGroups && S.categoryGroups.length);
   const catBudgets = useMemo(() => (S.budgets || []).filter(b => b.category), [S.budgets]);
   const assignedCatsThisMonth = useMemo(
@@ -985,6 +996,7 @@ export default function Plan() {
           </div>
 
           <FilterPills
+            builtins={builtinPills}
             views={views}
             activeId={activeViewId}
             onSelect={id => setPrefs({ planViewId: id })}
@@ -1046,6 +1058,9 @@ export default function Plan() {
       />
       <ManageViewsModal
         open={manageOpen}
+        builtins={builtinManageRows}
+        onToggleBuiltin={toggleBuiltin}
+        onReorderBuiltin={reorderBuiltin}
         views={views}
         onReorder={reorder}
         onRename={renameView}
