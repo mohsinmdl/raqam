@@ -251,7 +251,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
       <div className="plan-inspector">
         <div style={{ fontSize: 15, fontWeight: 700, padding: '2px 2px 0' }}>{cat.name}</div>
         <AvailableCard row={row} money={money} />
-        <TargetCard cat={cat} row={row} money={money} applyData={applyData} />
+        <TargetCard key={cat.id} cat={cat} row={row} money={money} applyData={applyData} />
         <Card title="Auto-Assign">
           <AutoAssignRows kinds={SIX_KINDS} catIds={[cat.id]} ctx={ctx} money={money} applyData={applyData} />
         </Card>
