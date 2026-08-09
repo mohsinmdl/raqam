@@ -12,6 +12,7 @@ import { parseAmt } from '../../lib/format.js';
 import { useUI } from '../UIProvider.jsx';
 import { useDrawer } from '../DrawerProvider.jsx';
 import { askDeleteCategory } from '../categoryActions.js';
+import EditNamePopover from './EditNamePopover.jsx';
 
 // Borderless cards (YNAB-style): the white surface on the off-white page reads
 // as a panel without an outline. The single-select header/toggle rows reuse
@@ -210,66 +211,19 @@ function TargetCard({ cat, row, money, applyData }) {
 function CategoryHeader({ cat, S, applyData }) {
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(cat.name);
-  const wrapRef = useRef(null);
-
-  // Same capture-phase Escape + outside-mousedown dismissal used by other Plan
-  // popovers, so the compact editor closes without committing a stray rename.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
-    const onDown = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('keydown', onKey, true);
-    document.addEventListener('mousedown', onDown);
-    return () => { document.removeEventListener('keydown', onKey, true); document.removeEventListener('mousedown', onDown); };
-  }, [open]);
-
-  const name = draft.trim();
-  const canSave = name !== '';
-  const toggle = () => { if (!open) setDraft(cat.name); setOpen(o => !o); };
-  const doRename = () => {
-    if (canSave && name !== cat.name) {
-      applyData(d => renameCategory(d, { id: cat.id, name }));
-      notify('Renamed to “' + name + '”.');
-    }
-    setOpen(false);
-  };
-  const doHide = () => {
-    applyData(d => archiveCategory(d, { id: cat.id }));
-    notify('“' + cat.name + '” hidden.');
-    setOpen(false);
-  };
-  const doDelete = () => {
-    setOpen(false);
-    askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer });
-  };
-
-  const softBtn = { padding: '7px 12px', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' };
   return (
-    <div ref={wrapRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, padding: '2px 2px 0' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 2px 0' }}>
       <div style={{ fontSize: 15, fontWeight: 700, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat.name}</div>
-      <button onClick={toggle} aria-label={'Edit ' + cat.name} aria-expanded={open} title="Edit category" className="hv-soft"
-        style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: open ? 'var(--soft)' : 'var(--surface)', color: open ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer' }}>
+      <EditNamePopover
+        name={cat.name} title={'Edit ' + cat.name} align="right"
+        triggerClassName="hv-soft"
+        triggerStyle={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer' }}
+        onRename={nm => { applyData(d => renameCategory(d, { id: cat.id, name: nm })); notify('Renamed to “' + nm + '”.'); }}
+        onHide={() => { applyData(d => archiveCategory(d, { id: cat.id })); notify('“' + cat.name + '” hidden.'); }}
+        onDelete={() => askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer })}
+      >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
-      </button>
-      {open && (
-        <div role="dialog" aria-label={'Edit ' + cat.name}
-          style={{ position: 'absolute', top: 36, right: 0, zIndex: 40, width: 340, maxWidth: '86vw', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 12 }}>
-          <span aria-hidden="true" style={{ position: 'absolute', top: -6, right: 9, width: 11, height: 11, background: 'var(--surface)', borderLeft: '1px solid var(--border)', borderTop: '1px solid var(--border)', transform: 'rotate(45deg)' }} />
-          <input autoFocus value={draft} onChange={e => setDraft(e.target.value)} onFocus={e => e.target.select()}
-            aria-label="Category name"
-            onKeyDown={e => { if (e.key === 'Enter') doRename(); if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } }}
-            style={{ width: '100%', boxSizing: 'border-box', height: 36, padding: '0 10px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 14, fontWeight: 600, marginBottom: 12 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={doHide} className="hv-soft" style={{ ...softBtn, background: 'var(--soft)', color: 'var(--accent)' }}>Hide</button>
-            <button onClick={doDelete} className="hv-soft" style={{ ...softBtn, background: 'var(--neg-soft)', color: 'var(--neg)' }}>Delete</button>
-            <button onClick={() => setOpen(false)} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '7px 4px' }}>Cancel</button>
-            <button onClick={doRename} disabled={!canSave}
-              style={{ padding: '7px 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 700, cursor: canSave ? 'pointer' : 'default', opacity: canSave ? 1 : .5 }}>OK</button>
-          </div>
-        </div>
-      )}
+      </EditNamePopover>
     </div>
   );
 }
