@@ -67,6 +67,24 @@ describe('selectionSummary / underfundedFor', () => {
     expect(underfundedFor(env, ['groc', 'fuel'])).toBe(1500);
     expect(underfundedFor(env, ['groc'])).toBe(0);
   });
+  it('underfunded prefers target need over overspending for a targeted cat', () => {
+    const S = store({ categories: [
+      { id: 'groc', name: 'Groceries', type: 'expense', status: 'active', groupId: 'g1' },
+      { id: 'fuel', name: 'Fuel', type: 'expense', status: 'active', groupId: 'g1' },
+      { id: 'rent', name: 'Rent', type: 'expense', status: 'active', groupId: 'g1', targetAmount: 20000, targetMode: 'refill', excludeFromBudget: false },
+    ], assignments: [
+      { id: 'a1', category: 'groc', month: '2026-08', amount: 5000 },
+      { id: 'a4', category: 'fuel', month: '2026-08', amount: 1000 },
+      { id: 'a5', category: 'rent', month: '2026-08', amount: 12000 },
+    ] });
+    const ctx = ctxFor(S);
+    // rent: assigned 12000, no activity → available 12000; target 20000 refill → need 8000
+    expect(ctx.env.rows.get('rent').available).toBe(12000);
+    expect(underfundedFor(ctx.env, ['rent'], S)).toBe(8000);
+    expect(autoAssignPlan('underfunded', ['rent'], ctx))
+      .toEqual([{ from: 'rta', to: 'rent', month: '2026-08', amount: 8000 }]);
+    expect(autoAssignAmount('underfunded', ['rent'], ctx)).toBe(8000);
+  });
 });
 
 describe('autoAssignPlan', () => {
