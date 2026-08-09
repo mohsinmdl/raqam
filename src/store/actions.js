@@ -759,7 +759,19 @@ export function skipOccurrence(data, { id, due }) {
 
 // ---- Categories (design v2 CRUD) -------------------------------------------
 
-const CAT_AUDIT_FIELDS = ['name', 'type', 'icon', 'color', 'description', 'sortOrder', 'excludeFromBudget'];
+const CAT_AUDIT_FIELDS = ['name', 'type', 'icon', 'color', 'description', 'sortOrder', 'excludeFromBudget', 'targetAmount', 'targetMode', 'targetDueDay'];
+
+// When a category becomes excluded from budgets it must not keep an unusable
+// budget or target. Shared by upsertCategory (drawer) and setCategoryExcluded
+// (inspector) so the two never diverge. Mutates `next` in place; returns it.
+function dropBudgetAndTargetOnExclude(next, id, name) {
+  const dropped = next.budgets.find(b => b.category === id);
+  if (dropped) {
+    next.budgets = next.budgets.filter(b => b.id !== dropped.id);
+    next.audit = [makeAudit({ entityType: 'budget', entityId: dropped.id, action: 'delete', summary: 'Budget removed — “' + name + '” excluded from budgets', before: { category: id, amount: dropped.amount, rollover: !!dropped.rollover } }), ...next.audit];
+  }
+  return next;
+}
 
 // Create or edit a category. Budget amounts are owned by the Budgets screen
 // (design iteration 002) — no budget plumbing here, EXCEPT: turning
@@ -792,17 +804,64 @@ export function upsertCategory(data, { form: f }) {
     });
   }
   if (editing) {
+    if (excluded && before && !before.excludeFromBudget) {
+      const i = next.categories.findIndex(c => c.id === id);
+      next.categories[i] = { ...next.categories[i], targetAmount: undefined, targetMode: undefined, targetDueDay: undefined };
+    }
     const after = next.categories.find(c => c.id === id);
     const d = diffFields(before, after, CAT_AUDIT_FIELDS);
     next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: 'Edited category ' + after.name + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
-    const dropped = excluded && !before.excludeFromBudget ? next.budgets.find(b => b.category === id) : null;
-    if (dropped) {
-      next.budgets = next.budgets.filter(b => b.id !== dropped.id);
-      next.audit = [makeAudit({ entityType: 'budget', entityId: dropped.id, action: 'delete', summary: 'Budget removed — “' + after.name + '” excluded from budgets', before: { category: id, amount: dropped.amount, rollover: !!dropped.rollover } }), ...next.audit];
-    }
+    if (excluded && !before.excludeFromBudget) dropBudgetAndTargetOnExclude(next, id, after.name);
   } else {
     next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'create', summary: 'Created category ' + f.name.trim(), after: { name: f.name.trim(), type: f.type } }), ...(next.audit || [])];
   }
+  return next;
+}
+
+// Monthly target for a category. amount<=0 clears it. Excluded categories reject.
+export function setTarget(data, { id, amount, mode, dueDay }) {
+  const i = data.categories.findIndex(c => c.id === id);
+  if (i < 0) return data;
+  const cur = data.categories[i];
+  if (cur.excludeFromBudget) return data;
+  const amt = Math.max(0, Math.round(amount) || 0);
+  if (amt === 0) return clearTarget(data, { id });
+  const day = dueDay == null ? undefined : dueDay;
+  if (cur.targetAmount === amt && cur.targetMode === mode && (cur.targetDueDay ?? undefined) === day) return data;
+  const cats = [...data.categories];
+  cats[i] = stampUpdate({ ...cur, targetAmount: amt, targetMode: mode, targetDueDay: day });
+  return {
+    ...data, categories: cats,
+    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: 'Set ' + (mode === 'setaside' ? 'set-aside' : 'refill') + ' target for ' + cur.name, before: { targetAmount: cur.targetAmount, targetMode: cur.targetMode }, after: { targetAmount: amt, targetMode: mode } }), ...(data.audit || [])],
+  };
+}
+
+export function clearTarget(data, { id }) {
+  const i = data.categories.findIndex(c => c.id === id);
+  if (i < 0 || data.categories[i].targetAmount === undefined) return data;
+  const cur = data.categories[i];
+  const cats = [...data.categories];
+  cats[i] = stampUpdate({ ...cur, targetAmount: undefined, targetMode: undefined, targetDueDay: undefined });
+  return {
+    ...data, categories: cats,
+    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: 'Removed target for ' + cur.name, before: { targetAmount: cur.targetAmount, targetMode: cur.targetMode }, after: { targetAmount: undefined } }), ...(data.audit || [])],
+  };
+}
+
+// Toggle excludeFromBudget from the inspector; enabling clears budget + target.
+export function setCategoryExcluded(data, { id, excluded }) {
+  const i = data.categories.findIndex(c => c.id === id);
+  if (i < 0 || !!data.categories[i].excludeFromBudget === !!excluded) return data;
+  const cur = data.categories[i];
+  const next = { ...data, categories: [...data.categories], budgets: [...data.budgets] };
+  next.categories[i] = stampUpdate({
+    ...cur, excludeFromBudget: !!excluded,
+    ...(excluded ? { targetAmount: undefined, targetMode: undefined, targetDueDay: undefined } : {}),
+  });
+  const before = { excludeFromBudget: !!cur.excludeFromBudget, targetAmount: cur.targetAmount, targetMode: cur.targetMode };
+  const after = { excludeFromBudget: !!excluded, targetAmount: next.categories[i].targetAmount, targetMode: next.categories[i].targetMode };
+  next.audit = [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: (excluded ? 'Excluded ' : 'Included ') + cur.name + ' from budgets', before, after }), ...(data.audit || [])];
+  if (excluded) dropBudgetAndTargetOnExclude(next, id, cur.name);
   return next;
 }
 
