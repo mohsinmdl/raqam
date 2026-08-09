@@ -387,10 +387,15 @@ function AddGroupButton({ onAdd }) {
 
 // Group (master) row: collapse chevron, name, a hover "+" that opens an inline
 // add-category popover, and the group's totals per column.
-function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
-  const { S, applyData, money, selected, setMany } = ctx;
+function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, firstCatId, ctx }) {
+  const { S, applyData, money, selected, setMany, dnd } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
+  // The synthetic "Other" (id null) can't be dragged or be a group-reorder
+  // target, but it still accepts a category drop (→ ungroup).
+  const isOther = group.id == null;
+  const showGroupLineAbove = dnd.target && dnd.target.kind === 'group'
+    && dnd.target.beforeId === group.id && dnd.drag?.ids[0] !== group.id && !isOther;
   const [hover, setHover] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addUp, setAddUp] = useState(false);
@@ -415,9 +420,18 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
 
   return (
     <div
+      className="plan-row"
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      onDragOver={e => {
+        if (dnd.drag?.kind === 'group') dnd.overGroupGap(e, { beforeGroupId });
+        else if (dnd.drag?.kind === 'category') dnd.overGroupHeader(e, { groupId: group.id, firstCatId });
+      }}
+      onDrop={dnd.drop}
       style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', background: 'var(--track)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}
     >
+      {showGroupLineAbove && (
+        <div aria-hidden="true" style={{ position: 'absolute', left: 16, right: 16, marginTop: -8, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
+      )}
       <button
         onClick={onToggle} aria-label={(collapsed ? 'Expand ' : 'Collapse ') + group.name} aria-expanded={String(!collapsed)}
         style={{ width: 20, height: 20, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, flex: 'none', transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .12s ease' }}
@@ -427,6 +441,17 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
         indeterminate={cats.some(c => selected.has(c.id))}
         onChange={() => setMany(cats.map(c => c.id), !cats.every(c => selected.has(c.id)))} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        {!isOther && (
+          <span
+            draggable data-noselect
+            onDragStart={e => dnd.startGroupDrag(e, group.id)}
+            onDragEnd={dnd.endDrag}
+            title="Drag to reorder group"
+            aria-label={'Drag group ' + group.name}
+            className="plan-drag-handle"
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab', color: 'var(--muted)', opacity: 0, fontSize: 13, lineHeight: 1, flex: 'none' }}
+          >⠿</span>
+        )}
         {group.id ? (
           <EditNamePopover
             name={group.name} title={'Rename ' + group.name} align="left"
@@ -1201,7 +1226,7 @@ export default function Plan() {
               const isCollapsed = collapsed.has(key);
               return (
                 <div key={key ?? 'other'}>
-                  <GroupRow group={group} totals={totals} cats={cats} collapsed={isCollapsed} onToggle={() => toggleGroup(key)} ctx={ctx} />
+                  <GroupRow group={group} totals={totals} cats={cats} collapsed={isCollapsed} beforeGroupId={group.id} firstCatId={cats[0]?.id ?? null} onToggle={() => toggleGroup(key)} ctx={ctx} />
                   {!isCollapsed && cats.map(cat => (
                     <CategoryRow key={cat.id} cat={cat} row={env.rows.get(cat.id)} sectionGroupId={group.id} ctx={ctx} />
                   ))}
