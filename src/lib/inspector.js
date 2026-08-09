@@ -3,7 +3,7 @@
 // chain them in ONE applyData call — one undo step, audit rows for free.
 // Spec: docs/superpowers/specs/2026-08-09-envelope-budget-phase3-inspector-design.md
 import { prevMonth } from './calc.js';
-import { hasTarget, targetNeeded } from './targets.js';
+import { underfundedNeed } from './targets.js';
 
 export function trailingMonths(month, n) {
   const out = [];
@@ -30,15 +30,11 @@ export function selectionSummary(env, catIds) {
 
 // Amount needed to fund each category up to its target (targeted cats) or to
 // cover overspending (untargeted cats), summed. Excluded cats contribute 0.
+// Same underfundedNeed the Underfunded pill matches on (src/lib/planViews.js),
+// so the button's total and the pill's membership can never disagree.
 export function underfundedFor(env, catIds, S) {
   const catById = new Map((S?.categories || []).map(c => [c.id, c]));
-  return catIds.reduce((n, id) => {
-    const r = env.rows.get(id) || { available: 0 };
-    const cat = catById.get(id);
-    if (cat && cat.excludeFromBudget) return n; // excluded: contributes 0
-    if (cat && hasTarget(cat)) return n + targetNeeded(r, cat);
-    return n + Math.max(0, -r.available); // untargeted: cover overspending
-  }, 0);
+  return catIds.reduce((n, id) => n + underfundedNeed(env.rows.get(id) || { available: 0 }, catById.get(id)), 0);
 }
 
 // Spent = outflow, so a month's "spent" figure is max(0, −activity).
@@ -99,9 +95,8 @@ export function autoAssignPlan(kind, catIds, ctx) {
     const r = rowOf(env, catId);
     if (kind === 'underfunded') {
       const cat = (ctx.S?.categories || []).find(c => c.id === catId);
-      const need = cat && cat.excludeFromBudget ? 0
-        : cat && hasTarget(cat) ? targetNeeded(r, cat) : Math.max(0, -r.available);
-      if (need > 0) push(catId, need); // push(catId, delta): from RTA into the category
+      const need = underfundedNeed(r, cat);
+      if (need > 0) push(catId, need);
       continue;
     }
     if (kind === 'resetAvailable') { push(catId, -r.available); continue; }
