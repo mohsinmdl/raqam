@@ -2,16 +2,17 @@
 // sortOrder, then a ⋯ menu (Manage Views / New View). Tokens captured from
 // YNAB's pill bar: 25px tall, radius 5, 12px/500, 3px 12px padding.
 import { useEffect, useRef, useState } from 'react';
-import { BUILTIN_VIEWS, countFor } from '../../lib/planViews.js';
+import { countFor } from '../../lib/planViews.js';
 
 const pillBase = { height: 25, padding: '3px 12px', borderRadius: 5, fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', border: '1.5px solid transparent', background: 'var(--elev)', color: 'var(--text)' };
 
-export default function FilterPills({ views, activeId, onSelect, onManage, onNewView, env, catIds }) {
+export default function FilterPills({ builtins, views, activeId, onSelect, onManage, onNewView, env, catIds }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
-  // Built-ins carry `label`, custom views carry `name` — normalize once here so
-  // the pill renderer below has exactly one concept to render.
-  const all = [...BUILTIN_VIEWS, ...views.map(v => ({ ...v, label: v.name }))];
+  // `builtins` arrives already ordered and with hidden ones removed. Built-ins
+  // carry `label`, custom views carry `name` — normalize once here so the pill
+  // renderer below has exactly one concept to render.
+  const all = [...builtins, ...views.map(v => ({ ...v, label: v.name }))];
 
   // Replicates Plan.jsx's usePopoverDismiss contract inline (that hook is
   // module-scoped to Plan.jsx): outside mousedown closes; Escape closes on

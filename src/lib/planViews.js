@@ -31,6 +31,63 @@ export const BUILTIN_VIEWS = Object.freeze([
 
 export const isBuiltin = id => BUILTIN_VIEWS.some(v => v.id === id);
 
+// "All" is the reset filter — always first, always visible, never hidden or
+// reordered. Only these four built-ins carry a user-editable order + hidden
+// flag (persisted in prefs.builtinViews).
+export const TOGGLEABLE_BUILTINS = Object.freeze(BUILTIN_VIEWS.filter(v => v.id !== 'all'));
+const TOGGLEABLE_IDS = Object.freeze(TOGGLEABLE_BUILTINS.map(v => v.id));
+
+// prefs.builtinViews is a hand-editable localStorage value, so every read is
+// repaired: exactly the four toggleable ids, in the stored order, unknown ids
+// and duplicates dropped, any missing appended in canonical order, hidden
+// coerced to boolean. Result shape: [{ id, hidden }].
+export function normalizeBuiltins(raw) {
+  const seen = new Set();
+  const kept = (Array.isArray(raw) ? raw : [])
+    .filter(v => v && TOGGLEABLE_IDS.includes(v.id) && !seen.has(v.id) && seen.add(v.id) !== false)
+    .map(v => ({ id: v.id, hidden: !!v.hidden }));
+  for (const id of TOGGLEABLE_IDS) if (!seen.has(id)) kept.push({ id, hidden: false });
+  return kept;
+}
+
+// Reorder within the toggleable-built-ins pref, same splice-then-insert
+// semantics as reorderViews.
+export function reorderBuiltins(pref, fromId, toId) {
+  if (fromId === toId) return pref;
+  const from = pref.findIndex(v => v.id === fromId);
+  const to = pref.findIndex(v => v.id === toId);
+  if (from < 0 || to < 0) return pref;
+  const next = [...pref];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+// Flip one built-in's hidden flag.
+export function toggleBuiltinHidden(pref, id) {
+  return pref.map(v => (v.id === id ? { ...v, hidden: !v.hidden } : v));
+}
+
+const viewById = id => BUILTIN_VIEWS.find(v => v.id === id);
+
+// For the pill bar: All (pinned) followed by the visible toggleable built-ins
+// in the user's order — full view objects, ready to render.
+export function orderedBuiltinViews(pref) {
+  return [viewById('all'), ...normalizeBuiltins(pref).filter(v => !v.hidden).map(v => viewById(v.id))];
+}
+
+// For Manage Views: the four toggleable built-ins in order, each paired with
+// its label and hidden flag (All is shown separately as a pinned row).
+export function builtinRows(pref) {
+  return normalizeBuiltins(pref).map(v => ({ id: v.id, label: viewById(v.id).label, hidden: v.hidden }));
+}
+
+// A view id that resolves to a hidden built-in must not filter invisibly — the
+// caller treats it as "All". Custom and visible built-in ids pass through.
+export function isHiddenBuiltin(pref, id) {
+  return normalizeBuiltins(pref).some(v => v.id === id && v.hidden);
+}
+
 // Only Overspent shows a badge (YNAB shows no count on the others).
 export function countFor(id, env, catIds) {
   if (id !== 'overspent') return 0;
