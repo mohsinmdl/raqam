@@ -832,7 +832,7 @@ export function setTarget(data, { id, amount, mode, dueDay }) {
   cats[i] = stampUpdate({ ...cur, targetAmount: amt, targetMode: mode, targetDueDay: day });
   return {
     ...data, categories: cats,
-    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: 'Set ' + (mode === 'setaside' ? 'set-aside' : 'refill') + ' target for ' + cur.name, before: { targetAmount: cur.targetAmount, targetMode: cur.targetMode }, after: { targetAmount: amt, targetMode: mode } }), ...(data.audit || [])],
+    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'update', summary: 'Set ' + (mode === 'setaside' ? 'set-aside' : 'refill') + ' target for ' + cur.name, before: { targetAmount: cur.targetAmount, targetMode: cur.targetMode, targetDueDay: cur.targetDueDay }, after: { targetAmount: amt, targetMode: mode, targetDueDay: day } }), ...(data.audit || [])],
   };
 }
 

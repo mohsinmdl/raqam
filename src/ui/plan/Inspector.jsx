@@ -258,7 +258,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
         <AvailableCard row={row} money={money} />
         <TargetCard key={cat.id} cat={cat} row={row} money={money} applyData={applyData} />
         <Card title="Auto-Assign">
-          <AutoAssignRows kinds={SIX_KINDS} catIds={[cat.id]} ctx={ctx} money={money} applyData={applyData} />
+          <AutoAssignRows kinds={['underfunded', ...SIX_KINDS]} catIds={[cat.id]} ctx={ctx} money={money} applyData={applyData} />
         </Card>
         <NotesCard key={cat.id} cat={cat} applyData={applyData} />
       </div>
