@@ -39,6 +39,12 @@ describe('isOverTarget', () => {
     expect(isOverTarget(row({ assigned: 6000 }), cat({ targetAmount: 5000, targetMode: 'setaside' }))).toBe(true);
     expect(isOverTarget(row({ assigned: 6000 }), cat({}))).toBe(false); // no target
   });
+  it('setaside: exactly at target is not over', () => {
+    expect(isOverTarget(row({ assigned: 5000 }), cat({ targetAmount: 5000, targetMode: 'setaside' }))).toBe(false);
+  });
+  it('setaside: under target is not over', () => {
+    expect(isOverTarget(row({ assigned: 4000 }), cat({ targetAmount: 5000, targetMode: 'setaside' }))).toBe(false);
+  });
 });
 
 describe('costToBeMe', () => {

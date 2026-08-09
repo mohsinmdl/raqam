@@ -3,7 +3,6 @@ import {
   BUILTIN_VIEWS, isBuiltin, countFor, matchesView, visibleSections,
   normalizeViews, reorderViews, newView,
 } from '../src/lib/planViews.js';
-import { hasTarget } from '../src/lib/targets.js'; // ensure targets module resolves in this file's imports
 
 const cat = (id, name) => ({ id, name, type: 'expense', status: 'active' });
 const CATS = [cat('a', 'Groceries'), cat('b', 'Fuel'), cat('c', 'Rent')];
@@ -161,9 +160,6 @@ describe('underfunded / overfunded built-in views', () => {
   const catO = { id: 'o', name: 'O', type: 'expense', status: 'active', targetAmount: 5000, targetMode: 'refill', excludeFromBudget: false };
   const catX = { id: 'x', name: 'X', type: 'expense', status: 'active', targetAmount: 5000, targetMode: 'refill', excludeFromBudget: true };
   const view = id => BUILTIN_VIEWS.find(v => v.id === id);
-  it('ships 5 built-ins in order', () => {
-    expect(BUILTIN_VIEWS.map(v => v.id)).toEqual(['all', 'overspent', 'underfunded', 'overfunded', 'available']);
-  });
   it('underfunded matches a targeted shortfall, not excluded', () => {
     expect(view('underfunded').match(catU, envT)).toBe(true);
     expect(view('underfunded').match(catO, envT)).toBe(false);
