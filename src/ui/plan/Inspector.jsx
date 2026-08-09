@@ -252,12 +252,12 @@ function CategoryHeader({ cat, S, applyData }) {
       </button>
       {open && (
         <div role="dialog" aria-label={'Edit ' + cat.name}
-          style={{ position: 'absolute', top: 36, right: 0, zIndex: 40, width: 272, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 12 }}>
+          style={{ position: 'absolute', top: 36, right: 0, zIndex: 40, width: 340, maxWidth: '86vw', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 12 }}>
           <span aria-hidden="true" style={{ position: 'absolute', top: -6, right: 9, width: 11, height: 11, background: 'var(--surface)', borderLeft: '1px solid var(--border)', borderTop: '1px solid var(--border)', transform: 'rotate(45deg)' }} />
           <input autoFocus value={draft} onChange={e => setDraft(e.target.value)} onFocus={e => e.target.select()}
             aria-label="Category name"
             onKeyDown={e => { if (e.key === 'Enter') doRename(); if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } }}
-            style={{ width: '100%', boxSizing: 'border-box', height: 36, padding: '0 10px', border: '1px solid var(--accent)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 14, fontWeight: 600, marginBottom: 12 }} />
+            style={{ width: '100%', boxSizing: 'border-box', height: 36, padding: '0 10px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 14, fontWeight: 600, marginBottom: 12 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button onClick={doHide} className="hv-soft" style={{ ...softBtn, background: 'var(--soft)', color: 'var(--accent)' }}>Hide</button>
             <button onClick={doDelete} className="hv-soft" style={{ ...softBtn, background: 'var(--neg-soft)', color: 'var(--neg)' }}>Delete</button>
