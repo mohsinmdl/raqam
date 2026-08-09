@@ -213,7 +213,7 @@ export default function PlanCategoryPicker({
                 const isRta = item.kind === 'rta';
                 const val = isRta ? env.rta : availOf(item.cat.id);
                 return (
-                  <button key={isRta ? 'rta' : item.cat.id} onMouseDown={noBlur} onClick={() => pick(item)} className="hv-elev"
+                  <button key={isRta ? 'rta' : item.cat.id} onMouseDown={noBlur} onClick={() => pick(item)} className={active ? undefined : 'hv-elev'}
                     style={{ ...rowStyle(active), background: active ? 'var(--soft)' : (isRta ? 'var(--elev)' : 'transparent') }}>
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isRta ? 'Inflow: Ready to Assign' : item.cat.name}</span>
                     {showAmounts && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(val) }}>{money(val)}</span>}
