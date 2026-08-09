@@ -3,14 +3,18 @@
 // over the envelope row; CUSTOM views carry an explicit `categoryIds` set.
 // Spec: docs/superpowers/specs/2026-08-09-envelope-budget-phase4-views-design.md
 //
-// Underfunded/Overfunded/Snoozed are deliberately absent: they need targets or
-// snoozing. Verified live against YNAB that, with no targets, "Underfunded"
-// returns exactly the same rows as "Overspent".
+// Snoozed is deliberately absent: it needs snoozing support, not yet built.
+// Verified live against YNAB that, with no targets, "Underfunded" returns
+// exactly the same rows as "Overspent".
+import { hasTarget, targetNeeded, isOverTarget } from './targets.js';
+
 const availOf = (env, id) => (env.rows.get(id) || { available: 0 }).available;
 
 export const BUILTIN_VIEWS = Object.freeze([
   Object.freeze({ id: 'all', label: 'All', match: null }),
   Object.freeze({ id: 'overspent', label: 'Overspent', match: (cat, env) => availOf(env, cat.id) < 0 }),
+  Object.freeze({ id: 'underfunded', label: 'Underfunded', match: (cat, env) => hasTarget(cat) && targetNeeded(env.rows.get(cat.id) || {}, cat) > 0 }),
+  Object.freeze({ id: 'overfunded', label: 'Overfunded', match: (cat, env) => hasTarget(cat) && isOverTarget(env.rows.get(cat.id) || {}, cat) }),
   Object.freeze({ id: 'available', label: 'Money Available', match: (cat, env) => availOf(env, cat.id) > 0 }),
 ]);
 

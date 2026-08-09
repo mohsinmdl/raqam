@@ -3,6 +3,7 @@
 // chain them in ONE applyData call — one undo step, audit rows for free.
 // Spec: docs/superpowers/specs/2026-08-09-envelope-budget-phase3-inspector-design.md
 import { prevMonth } from './calc.js';
+import { hasTarget, targetNeeded } from './targets.js';
 
 export function trailingMonths(month, n) {
   const out = [];
@@ -27,8 +28,16 @@ export function selectionSummary(env, catIds) {
   }, { carryIn: 0, assigned: 0, activity: 0, available: 0 });
 }
 
-export function underfundedFor(env, catIds) {
-  return catIds.reduce((n, id) => n + Math.max(0, -rowOf(env, id).available), 0);
+// Amount needed to fund each category up to its target (targeted cats) or to
+// cover overspending (untargeted cats), summed. Excluded cats contribute 0.
+export function underfundedFor(env, catIds, S) {
+  const catById = new Map((S?.categories || []).map(c => [c.id, c]));
+  return catIds.reduce((n, id) => {
+    const r = env.rows.get(id) || { available: 0 };
+    const cat = catById.get(id);
+    if (cat && hasTarget(cat)) return n + targetNeeded(r, cat);
+    return n + Math.max(0, -r.available); // untargeted: cover overspending
+  }, 0);
 }
 
 // Spent = outflow, so a month's "spent" figure is max(0, −activity).
@@ -65,7 +74,7 @@ export function autoAssignAmount(kind, catIds, ctx) {
     if (kind === 'resetAvailable') return rowOf(env, catId).available;
     return rowOf(env, catId).assigned; // resetAssigned — the only kind left, guarded above
   };
-  if (kind === 'underfunded') return underfundedFor(env, catIds);
+  if (kind === 'underfunded') return underfundedFor(env, catIds, ctx.S);
   return catIds.reduce((n, id) => n + per(id), 0);
 }
 
@@ -87,7 +96,12 @@ export function autoAssignPlan(kind, catIds, ctx) {
   };
   for (const catId of catIds) {
     const r = rowOf(env, catId);
-    if (kind === 'underfunded') { if (r.available < 0) push(catId, -r.available); continue; }
+    if (kind === 'underfunded') {
+      const cat = (ctx.S?.categories || []).find(c => c.id === catId);
+      const need = cat && hasTarget(cat) ? targetNeeded(r, cat) : Math.max(0, -r.available);
+      if (need > 0) push(catId, need); // push(catId, delta): from RTA into the category
+      continue;
+    }
     if (kind === 'resetAvailable') { push(catId, -r.available); continue; }
     if (kind === 'resetAssigned') { push(catId, -r.assigned); continue; }
     push(catId, autoAssignAmount(kind, [catId], ctx) - r.assigned);

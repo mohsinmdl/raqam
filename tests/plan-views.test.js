@@ -3,6 +3,7 @@ import {
   BUILTIN_VIEWS, isBuiltin, countFor, matchesView, visibleSections,
   normalizeViews, reorderViews, newView,
 } from '../src/lib/planViews.js';
+import { hasTarget } from '../src/lib/targets.js'; // ensure targets module resolves in this file's imports
 
 const cat = (id, name) => ({ id, name, type: 'expense', status: 'active' });
 const CATS = [cat('a', 'Groceries'), cat('b', 'Fuel'), cat('c', 'Rent')];
@@ -20,9 +21,9 @@ const SECTIONS = [
 const view = id => BUILTIN_VIEWS.find(v => v.id === id);
 
 describe('built-in views', () => {
-  it('exposes exactly All, Overspent and Money Available', () => {
-    expect(BUILTIN_VIEWS.map(v => v.id)).toEqual(['all', 'overspent', 'available']);
-    expect(BUILTIN_VIEWS.map(v => v.label)).toEqual(['All', 'Overspent', 'Money Available']);
+  it('exposes exactly All, Overspent, Underfunded, Overfunded and Money Available', () => {
+    expect(BUILTIN_VIEWS.map(v => v.id)).toEqual(['all', 'overspent', 'underfunded', 'overfunded', 'available']);
+    expect(BUILTIN_VIEWS.map(v => v.label)).toEqual(['All', 'Overspent', 'Underfunded', 'Overfunded', 'Money Available']);
     expect(isBuiltin('all')).toBe(true);
     expect(isBuiltin('v_custom')).toBe(false);
   });
@@ -147,5 +148,30 @@ describe('reorderViews', () => {
     const out = reorderViews(FIVE, 'v2', 'v4');
     expect(out.map(v => v.id)).toEqual(['v1', 'v3', 'v4', 'v2', 'v5']);
     expect(out.map(v => v.sortOrder)).toEqual([0, 1, 2, 3, 4]);
+  });
+});
+
+describe('underfunded / overfunded built-in views', () => {
+  const envT = { rows: new Map([
+    ['u', { assigned: 2000, activity: 0, available: 2000, carryIn: 0 }], // refill target 5000 → needs 3000
+    ['o', { assigned: 9000, activity: 0, available: 9000, carryIn: 0 }], // refill target 5000 → over
+    ['x', { assigned: 0, activity: 0, available: 0, carryIn: 0 }],       // excluded, has target → neither
+  ]) };
+  const catU = { id: 'u', name: 'U', type: 'expense', status: 'active', targetAmount: 5000, targetMode: 'refill', excludeFromBudget: false };
+  const catO = { id: 'o', name: 'O', type: 'expense', status: 'active', targetAmount: 5000, targetMode: 'refill', excludeFromBudget: false };
+  const catX = { id: 'x', name: 'X', type: 'expense', status: 'active', targetAmount: 5000, targetMode: 'refill', excludeFromBudget: true };
+  const view = id => BUILTIN_VIEWS.find(v => v.id === id);
+  it('ships 5 built-ins in order', () => {
+    expect(BUILTIN_VIEWS.map(v => v.id)).toEqual(['all', 'overspent', 'underfunded', 'overfunded', 'available']);
+  });
+  it('underfunded matches a targeted shortfall, not excluded', () => {
+    expect(view('underfunded').match(catU, envT)).toBe(true);
+    expect(view('underfunded').match(catO, envT)).toBe(false);
+    expect(view('underfunded').match(catX, envT)).toBe(false);
+  });
+  it('overfunded matches over-target, not excluded', () => {
+    expect(view('overfunded').match(catO, envT)).toBe(true);
+    expect(view('overfunded').match(catU, envT)).toBe(false);
+    expect(view('overfunded').match(catX, envT)).toBe(false);
   });
 });
