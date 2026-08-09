@@ -26,6 +26,7 @@ import FilterPills from '../ui/plan/FilterPills.jsx';
 import ViewEditorModal from '../ui/plan/ViewEditorModal.jsx';
 import ManageViewsModal from '../ui/plan/ManageViewsModal.jsx';
 import ActivityModal from '../ui/plan/ActivityModal.jsx';
+import usePlanDnd from '../ui/plan/usePlanDnd.js';
 import RecentMoves from '../components/RecentMoves.jsx';
 import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarAction.jsx';
 import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
@@ -741,8 +742,8 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
 // popover); ACTIVITY is a signed muted number; AVAILABLE is a coloured pill
 // that opens Cover/Move popovers when non-zero. In "progress" view a thin bar
 // + note show spend against (carryIn + assigned); "compact" view drops both.
-function CategoryRow({ cat, row, ctx }) {
-  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, onOpenActivity } = ctx;
+function CategoryRow({ cat, row, sectionGroupId, ctx }) {
+  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, onOpenActivity, dnd } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
   const [editing, setEditing] = useState(false);
@@ -827,15 +828,36 @@ function CategoryRow({ cat, row, ctx }) {
   const pillBg = r.available > 0 ? 'var(--pos-soft)' : r.available < 0 ? 'var(--neg-soft)' : 'var(--elev)';
   const pillFg = r.available > 0 ? 'var(--pos)' : r.available < 0 ? 'var(--neg)' : 'var(--muted)';
 
+  // Insertion line above this row when it's the current category drop target
+  // (and not itself being dragged).
+  const showLineAbove = dnd.target && dnd.target.kind === 'category'
+    && (dnd.target.groupId ?? null) === (sectionGroupId ?? null)
+    && dnd.target.beforeId === cat.id
+    && !dnd.drag?.ids.includes(cat.id);
+
   return (
     <div
+      className="plan-row"
       onClick={e => {
         if (e.target.closest('button, input, textarea, [role="dialog"], [data-noselect]')) return;
         selectRow(cat.id, e);
       }}
-      style={{ ...ROW_COLS, minHeight: 44, padding: '7px 16px', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
+      onDragOver={e => dnd.overCategory(e, { groupId: sectionGroupId, beforeId: cat.id })}
+      onDrop={dnd.drop}
+      style={{ ...ROW_COLS, position: 'relative', minHeight: 44, padding: '7px 16px', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
     >
-      <span aria-hidden="true" />
+      {showLineAbove && (
+        <div aria-hidden="true" style={{ position: 'absolute', left: 16, right: 16, marginTop: -8, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
+      )}
+      <span
+        draggable data-noselect
+        onDragStart={e => dnd.startCategoryDrag(e, cat.id)}
+        onDragEnd={dnd.endDrag}
+        title="Drag to reorder or move"
+        aria-label={'Drag ' + cat.name}
+        className="plan-drag-handle"
+        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab', color: 'var(--muted)', opacity: selected.has(cat.id) ? 0.9 : 0, fontSize: 13, lineHeight: 1 }}
+      >⠿</span>
       <PlanCheckbox label={'Select ' + cat.name} checked={selected.has(cat.id)} onChange={() => toggleSelect(cat.id, true)} />
       <div style={{ minWidth: 0 }}>
         <EditNamePopover
@@ -1012,6 +1034,7 @@ export default function Plan() {
   );
   const shownSections = useMemo(() => visibleSections(sections, activeView, env), [sections, activeView, env]);
   const visibleCatIdList = useMemo(() => shownSections.flatMap(s => s.cats.map(c => c.id)), [shownSections]);
+  const dnd = usePlanDnd({ selected, visibleCatIdList, applyData });
   const visibleCatIds = useMemo(() => new Set(visibleCatIdList), [visibleCatIdList]);
 
   // Row-click selection, matching the Transactions table:
@@ -1098,7 +1121,7 @@ export default function Plan() {
   const hasUnimportedStanding = catBudgets.length > 0 && !catBudgets.some(b => assignedCatsThisMonth.has(b.category));
   const showBanner = !prefs.planBannerDismissed && (noGroups || hasUnimportedStanding);
 
-  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, selectRow, setMany, onOpenActivity: setActivityCat };
+  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, selectRow, setMany, onOpenActivity: setActivityCat, dnd };
 
   // Full width (default, like the Transactions screen): drop the max-width cap
   // and page side-padding so the area sits flush against the sidebar and runs
@@ -1180,7 +1203,7 @@ export default function Plan() {
                 <div key={key ?? 'other'}>
                   <GroupRow group={group} totals={totals} cats={cats} collapsed={isCollapsed} onToggle={() => toggleGroup(key)} ctx={ctx} />
                   {!isCollapsed && cats.map(cat => (
-                    <CategoryRow key={cat.id} cat={cat} row={env.rows.get(cat.id)} ctx={ctx} />
+                    <CategoryRow key={cat.id} cat={cat} row={env.rows.get(cat.id)} sectionGroupId={group.id} ctx={ctx} />
                   ))}
                 </div>
               );
