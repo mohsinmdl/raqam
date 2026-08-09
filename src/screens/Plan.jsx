@@ -401,7 +401,7 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
   return (
     <div
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', background: 'var(--elev)', borderBottom: '1px solid var(--border)' }}
+      style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', background: 'var(--track)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}
     >
       <button
         onClick={onToggle} aria-label={(collapsed ? 'Expand ' : 'Collapse ') + group.name} aria-expanded={String(!collapsed)}
