@@ -152,7 +152,11 @@ export function dailySpending(store, month, opts, now) {
     const key = month + '-' + String(d).padStart(2, '0');
     const amt = store.transactions.filter(t => t.date.slice(0, 10) === key && t.status !== 'pending' && hasOccurred(t, now) && !(skip && (t.type === 'expense' || t.type === 'refund') && isExcludedCat(store, t.category)))
       .reduce((s, t) => s + (t.type === 'expense' ? t.amount : t.type === 'refund' ? -t.amount : 0), 0);
-    out.push({ day: d, amt: Math.max(amt, 0) });
+    // `amt` is floored for the bar (a bar can't render negative); `net` keeps the
+    // true signed daily value so the chart TOTAL can net refunds that land on a
+    // net-negative day — summing the floored bars would drop those refunds and
+    // over-state spending (matters most with recoverable advances toggled on).
+    out.push({ day: d, amt: Math.max(amt, 0), net: amt });
   }
   return out;
 }

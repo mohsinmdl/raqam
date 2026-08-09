@@ -187,6 +187,24 @@ describe('dashboard charts hide recoverable spending (addendum d)', () => {
     expect(day4({ includeExcluded: true })).toBe(8000 + 45386 - 20000);
     expect(dailySpending(S, AUG)[9].amt).toBe(35000); // normal cat unchanged either way
   });
+  it('a refund exceeding a day\'s spend clamps the bar to 0 but net keeps it for the total', () => {
+    // A recoverable loan out on day 5, repaid on day 7 (a net-negative day). The
+    // bar can\'t go negative, but the month total must still net the refund —
+    // otherwise the total over-states spending by the whole repayment.
+    const S2 = makeStore([
+      tx({ id: 'a', type: 'expense', amount: 1000000, category: 'adv', date: AUG + '-05T12:00' }),
+      tx({ id: 'b', type: 'refund', amount: 1035000, category: 'adv', date: AUG + '-07T12:00' }),
+    ]);
+    const days = dailySpending(S2, AUG, { includeExcluded: true });
+    const d5 = days.find(d => d.day === 5), d7 = days.find(d => d.day === 7);
+    expect(d5.amt).toBe(1000000);  // spike bar (display)
+    expect(d7.amt).toBe(0);        // refund day: bar floored to 0
+    expect(d7.net).toBe(-1035000); // ...but net preserves the refund
+    const totalNet = days.reduce((s, d) => s + d.net, 0);
+    const totalBars = days.reduce((s, d) => s + d.amt, 0);
+    expect(totalNet).toBe(-35000);    // true net = 1,000,000 − 1,035,000
+    expect(totalBars).toBe(1000000);  // summing clamped bars drops the refund (the old bug)
+  });
   it('unbudgetedSpend still lists only unbudgeted normal categories (regression)', () => {
     expect(unbudgetedSpend(S, AUG).map(u => u.id)).toEqual(['legacy']);
   });
