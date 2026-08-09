@@ -170,4 +170,16 @@ describe('underfunded / overfunded built-in views', () => {
     expect(view('overfunded').match(catU, envT)).toBe(false);
     expect(view('overfunded').match(catX, envT)).toBe(false);
   });
+  it('underfunded is a superset of overspent: an untargeted overspent category matches too', () => {
+    const envO = { rows: new Map([['n', { assigned: 100, activity: -150, available: -50, carryIn: 0 }]]) };
+    const catN = { id: 'n', name: 'N', type: 'expense', status: 'active', excludeFromBudget: false }; // no target
+    expect(view('underfunded').match(catN, envO)).toBe(true);
+    expect(view('overspent').match(catN, envO)).toBe(true);
+  });
+  it('an excluded overspent category matches neither underfunded nor overfunded', () => {
+    const envO = { rows: new Map([['n', { assigned: 100, activity: -150, available: -50, carryIn: 0 }]]) };
+    const catN = { id: 'n', name: 'N', type: 'expense', status: 'active', excludeFromBudget: true }; // excluded, no target
+    expect(view('underfunded').match(catN, envO)).toBe(false);
+    expect(view('overfunded').match(catN, envO)).toBe(false);
+  });
 });
