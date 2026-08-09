@@ -764,7 +764,7 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
 // that opens Cover/Move popovers when non-zero. In "progress" view a thin bar
 // + note show spend against (carryIn + assigned); "compact" view drops both.
 function CategoryRow({ cat, row, sectionGroupId, ctx }) {
-  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, onOpenActivity, dnd } = ctx;
+  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, onOpenActivity, dnd, cursorId } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
   const [editing, setEditing] = useState(false);
@@ -874,7 +874,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
       onDragEnd={dnd.endDrag}
       onDragOver={e => dnd.overCategory(e, { groupId: sectionGroupId, beforeId: cat.id })}
       onDrop={dnd.drop}
-      style={{ ...ROW_COLS, position: 'relative', minHeight: 44, padding: '7px 16px', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
+      style={{ ...ROW_COLS, position: 'relative', minHeight: 44, padding: '7px 16px', boxShadow: cat.id === cursorId ? 'inset 3px 0 0 var(--accent)' : undefined, background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
     >
       {showLineAbove && (
         <div aria-hidden="true" style={{ position: 'absolute', top: -1, left: 16, right: 16, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
@@ -978,12 +978,18 @@ export default function Plan() {
   // The row a shift-range extends FROM — set by every non-shift interaction
   // (plain/cmd click, checkbox), same anchor model as the Transactions table.
   const [anchorId, setAnchorId] = useState(null);
+  // The keyboard cursor (active row), shown as a left accent bar and used as
+  // Cmd+A's group reference. Independent of selection; defaults to the first
+  // visible category (see effectiveCursorId below), matching the Transactions
+  // table's cursor model.
+  const [cursorId, setCursorId] = useState(null);
   const activeCatIds = useMemo(
     () => (S.categories || []).filter(c => c.type === 'expense' && c.status === 'active').map(c => c.id),
     [S.categories],
   );
   const toggleSelect = (id, additive) => {
     setAnchorId(id);
+    setCursorId(id);
     setSelected(prev => {
       const next = additive ? new Set(prev) : new Set();
       if (prev.has(id) && (additive || prev.size === 1)) next.delete(id); else next.add(id);
@@ -1060,6 +1066,36 @@ export default function Plan() {
   const visibleCatIdList = useMemo(() => shownSections.flatMap(s => s.cats.map(c => c.id)), [shownSections]);
   const dnd = usePlanDnd({ selected, visibleCatIdList, applyData });
   const visibleCatIds = useMemo(() => new Set(visibleCatIdList), [visibleCatIdList]);
+  // The live cursor: the tracked row if it's still visible, otherwise the first
+  // visible category — so on first load the cursor sits on the first category of
+  // the first group with no interaction needed.
+  const effectiveCursorId = (cursorId && visibleCatIds.has(cursorId)) ? cursorId : (visibleCatIdList[0] ?? null);
+
+  // Cmd/Ctrl+A expands the selection in stages from the cursor's group outward,
+  // like the two-stage select-all in code editors: 1st press selects every
+  // category in the cursor's group, 2nd selects every visible category, 3rd
+  // clears — then it cycles. Skipped while a field is being edited or a dialog
+  // is open, so it never hijacks the browser's own select-all there. A ref
+  // carries live state into the once-registered listener (no stale closure).
+  const selAllRef = useRef(null);
+  selAllRef.current = { cursorId: effectiveCursorId, sections: shownSections, all: visibleCatIdList, selected };
+  useEffect(() => {
+    const onKey = e => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== 'a') return;
+      if (e.target?.closest?.('input, textarea, [contenteditable], [role="dialog"]')) return;
+      const st = selAllRef.current;
+      if (!st.all.length) return;
+      e.preventDefault();
+      const section = st.sections.find(s => s.cats.some(c => c.id === st.cursorId)) || st.sections[0];
+      const groupIds = (section?.cats || []).map(c => c.id);
+      const isExactly = ids => ids.length > 0 && ids.length === st.selected.size && ids.every(id => st.selected.has(id));
+      if (isExactly(st.all)) setSelected(new Set());          // all → clear
+      else if (isExactly(groupIds)) setSelected(new Set(st.all)); // group → all
+      else setSelected(new Set(groupIds));                    // (partial/none) → group
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   // Row-click selection, matching the Transactions table:
   //  • plain click  → select just this row (or clear it if it was the only one)
@@ -1068,6 +1104,7 @@ export default function Plan() {
   // The anchor is where a shift-range extends from; it moves on every non-shift
   // click so the next range starts from the last plainly-clicked row.
   const selectRow = (id, e) => {
+    setCursorId(id);
     if (e && e.shiftKey && anchorId) {
       // rangeBetween returns [] when the anchor is no longer visible (its group
       // got collapsed/filtered out) — fall back to selecting just this row so a
@@ -1145,7 +1182,7 @@ export default function Plan() {
   const hasUnimportedStanding = catBudgets.length > 0 && !catBudgets.some(b => assignedCatsThisMonth.has(b.category));
   const showBanner = !prefs.planBannerDismissed && (noGroups || hasUnimportedStanding);
 
-  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, selectRow, setMany, onOpenActivity: setActivityCat, dnd };
+  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, selectRow, setMany, onOpenActivity: setActivityCat, dnd, cursorId: effectiveCursorId };
 
   // Full width (default, like the Transactions screen): drop the max-width cap
   // and page side-padding so the area sits flush against the sidebar and runs
