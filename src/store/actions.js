@@ -1128,6 +1128,22 @@ export function reassignDeleteCategoryGroup(data, { id, replacementId }) {
   return deleteCategoryGroup(next, { id });
 }
 
+// Delete a group AND its empty categories, so nothing orphans into the
+// synthetic "Other" bucket. Each category is passed through deleteCategory,
+// which removes it only when it's non-system and unused (no transactions,
+// budgets, or recurring) — referenced categories should have been routed to
+// the reassign flow before reaching here, so in practice every category in the
+// group is deleted. deleteCategoryGroup then removes the (now empty) group; any
+// category deleteCategory refused (e.g. a built-in) is simply un-grouped.
+export function deleteCategoryGroupWithEmpties(data, { id }) {
+  const g = (data.categoryGroups || []).find(x => x.id === id);
+  if (!g) return data;
+  const ids = data.categories.filter(c => c.groupId === id).map(c => c.id);
+  let next = data;
+  for (const cid of ids) next = deleteCategory(next, { id: cid });
+  return deleteCategoryGroup(next, { id });
+}
+
 export function setCategoryGroup(data, { categoryId, groupId }) {
   const c = data.categories.find(x => x.id === categoryId);
   if (!c || c.groupId === groupId) return data;

@@ -35,7 +35,7 @@ import { openers } from '../drawers/openers.js';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
   adoptYnabTree, importBudgetsAsAssignments, moveAssigned,
-  renameCategory, archiveCategory, renameCategoryGroup, deleteCategoryGroup,
+  renameCategory, archiveCategory, renameCategoryGroup, deleteCategoryGroupWithEmpties,
 } from '../store/actions.js';
 
 // Synthetic group used only for rendering: categories with no groupId, or a
@@ -431,9 +431,17 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, ctx }) {
               // reassign modal (pick a replacement, move everything, then delete).
               const hasRefs = cats.some(c => catRefs(S, c.id).total > 0);
               if (hasRefs) { openers.reassignGroup(group.id, openDrawer); return; }
-              const ok = await ask({ title: 'Delete group “' + group.name + '”?', body: 'This group has no categories in use, so it can be removed and its (empty) categories move to “Other”. Nothing is lost.', action: 'Delete group', tone: 'neg' });
+              const n = cats.length;
+              const ok = await ask({
+                title: 'Delete group “' + group.name + '”?',
+                body: n > 0
+                  ? 'Its ' + n + ' categor' + (n === 1 ? 'y has' : 'ies have') + ' no transactions, budgets, or assignments, so they’ll be deleted along with the group.'
+                  : 'The group has no categories — it’ll just be removed.',
+                action: 'Delete group',
+                tone: 'neg',
+              });
               if (!ok) return;
-              applyData(d => deleteCategoryGroup(d, { id: group.id }));
+              applyData(d => deleteCategoryGroupWithEmpties(d, { id: group.id }));
               notify('Group “' + group.name + '” deleted.');
             }}
           >{group.name}</EditNamePopover>
