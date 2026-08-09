@@ -14,6 +14,7 @@ import { useHeaderSlot } from '../ui/HeaderSlot.jsx';
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
   budget: 'Budget', budgets: 'Budgets', recurring: 'Recurring', reports: 'Reports', categories: 'Categories', settings: 'Settings',
+  reflect: 'Reflect',
 };
 
 export default function Header() {
@@ -60,7 +61,7 @@ export default function Header() {
   const reconLabel = acctSnap && acctSnap.status === 'confirmed' ? 'Reconciled ' + relTime(acctSnap.confirmedAt, nowIso()) : 'Not reconciled';
   // Transactions gets its own control in this slot: it filters by a date range,
   // not a single month, so it cannot share the stepper below.
-  const showMonthSel = seg === 'dashboard' || pathname === '/budget';
+  const showMonthSel = seg === 'dashboard' || pathname === '/budget' || seg === 'reflect';
   const showTxNav = seg === 'transactions';
 
   return (
