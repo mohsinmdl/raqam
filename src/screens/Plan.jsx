@@ -17,6 +17,8 @@ import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
 import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visibleSections } from '../lib/planViews.js';
 import { hasTarget, targetNeeded } from '../lib/targets.js';
+import { useDrawer } from '../ui/DrawerProvider.jsx';
+import { openers } from '../drawers/openers.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
@@ -820,6 +822,7 @@ function CategoryRow({ cat, row, ctx }) {
 
 export default function Plan() {
   const { data: S, applyData, prefs, setPrefs } = useStore();
+  const { openDrawer } = useDrawer();
   const { month } = useMonth();
   const { money, moneyS } = useMoney();
 
@@ -1034,7 +1037,7 @@ export default function Plan() {
             )}
           </div>
         </div>
-        <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} />
+        <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} onEditCategory={id => openers.editCategory(S, id, openDrawer)} />
       </div>
 
       <ViewEditorModal

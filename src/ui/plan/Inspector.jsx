@@ -6,7 +6,7 @@ import { monthLabel } from '../../lib/calc.js';
 import {
   selectionSummary, autoAssignPlan, autoAssignAmount, AUTO_ASSIGN_KINDS,
 } from '../../lib/inspector.js';
-import { moveAssigned, setCategoryNote, setTarget, clearTarget, setCategoryExcluded } from '../../store/actions.js';
+import { moveAssigned, setCategoryNote, setTarget, clearTarget } from '../../store/actions.js';
 import { hasTarget, targetNeeded, targetSummary, costToBeMe } from '../../lib/targets.js';
 import { parseAmt } from '../../lib/format.js';
 import { useUI } from '../UIProvider.jsx';
@@ -127,23 +127,6 @@ function NotesCard({ cat, applyData }) {
 
 const DISABLED_CADENCES = ['Weekly', 'Yearly', 'Custom'];
 
-function ExcludeToggle({ cat, applyData }) {
-  const on = !!cat.excludeFromBudget;
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10 }}>
-      <button onClick={() => applyData(d => setCategoryExcluded(d, { id: cat.id, excluded: !on }))}
-        role="switch" aria-checked={String(on)} aria-label="Exclude from budgets"
-        style={{ width: 44, height: 26, flex: 'none', padding: 2, border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 999, background: on ? 'var(--accent)' : 'var(--track)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: on ? 'flex-end' : 'flex-start' }}>
-        <span aria-hidden="true" style={{ display: 'block', width: 20, height: 20, borderRadius: 999, background: on ? 'var(--on-accent)' : 'var(--surface)' }} />
-      </button>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 500 }}>Exclude from budgets</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, lineHeight: 1.5 }}>Use for advances or money you expect to receive back. Excluded categories carry no target.</div>
-      </div>
-    </div>
-  );
-}
-
 function TargetCard({ cat, row, money, applyData }) {
   const [editing, setEditing] = useState(false);
   const [amt, setAmt] = useState('');
@@ -212,12 +195,11 @@ function TargetCard({ cat, row, money, applyData }) {
       ) : (
         <button onClick={open} style={{ border: '1px solid var(--accent)', borderRadius: 8, background: 'transparent', color: 'var(--accent)', fontSize: 13, fontWeight: 600, padding: '7px 12px', cursor: 'pointer' }}>Create Target</button>
       )}
-      <ExcludeToggle cat={cat} applyData={applyData} />
     </Card>
   );
 }
 
-export default function Inspector({ S, env, envAt, month, money, applyData, selected }) {
+export default function Inspector({ S, env, envAt, month, money, applyData, selected, onEditCategory }) {
   const ctx = { S, month, env, envAt };
   const monthName = monthLabel(month).split(' ')[0]; // "August" from "August 2026"
   const activeCats = useMemo(
@@ -254,7 +236,13 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
     const row = env.rows.get(cat.id) || { assigned: 0, activity: 0, available: 0, carryIn: 0 };
     return (
       <div className="plan-inspector">
-        <div style={{ fontSize: 15, fontWeight: 700, padding: '2px 2px 0' }}>{cat.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 2px 0' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat.name}</div>
+          <button onClick={() => onEditCategory && onEditCategory(cat.id)} aria-label={'Edit ' + cat.name} title="Edit category" className="hv-soft"
+            style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
+          </button>
+        </div>
         <AvailableCard row={row} money={money} />
         <TargetCard key={'target-' + cat.id} cat={cat} row={row} money={money} applyData={applyData} />
         <Card title="Auto-Assign">
