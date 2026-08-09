@@ -22,6 +22,12 @@ import Plan from './screens/Plan.jsx';
 import Recurring from './screens/Recurring.jsx';
 import RecurringDetail from './screens/RecurringDetail.jsx';
 import BudgetHub from './screens/BudgetHub.jsx';
+import Reflect from './screens/reflect/Reflect.jsx';
+import SpendingBreakdown from './screens/reflect/SpendingBreakdown.jsx';
+import SpendingTrends from './screens/reflect/SpendingTrends.jsx';
+import NetWorth from './screens/reflect/NetWorth.jsx';
+import IncomeVsExpense from './screens/reflect/IncomeVsExpense.jsx';
+import AgeOfMoney from './screens/reflect/AgeOfMoney.jsx';
 import { HeaderSlotProvider } from './ui/HeaderSlot.jsx';
 
 // Sidebar width is user-draggable and remembered on the device (like theme).
@@ -87,7 +93,7 @@ function Shell() {
             <Route path="/transactions/:accountId" element={<Transactions />} />
             <Route path="/accounts" element={<Accounts />} />
             <Route path="/recurring/:id" element={<RecurringDetail />} />
-            <Route path="/reports" element={<Planned />} />
+            <Route path="/reports" element={<Navigate to="/reflect" replace />} />
             <Route path="/settings" element={<Planned />} />
             <Route path="/budget" element={<BudgetHub />}>
               <Route index element={<Plan />} />
@@ -95,6 +101,14 @@ function Shell() {
               {/* Stale sub-paths (e.g. the removed /budget/categories tab) land
                   back on the Budget screen rather than the app-wide dashboard. */}
               <Route path="*" element={<Navigate to="/budget" replace />} />
+            </Route>
+            <Route path="/reflect" element={<Reflect />}>
+              <Route index element={<SpendingBreakdown />} />
+              <Route path="trends" element={<SpendingTrends />} />
+              <Route path="net-worth" element={<NetWorth />} />
+              <Route path="income-expense" element={<IncomeVsExpense />} />
+              <Route path="age-of-money" element={<AgeOfMoney />} />
+              <Route path="*" element={<Navigate to="/reflect" replace />} />
             </Route>
             <Route path="/budgets" element={<Navigate to="/budget" replace />} />
             <Route path="/categories" element={<Navigate to="/budget" replace />} />
