@@ -6,9 +6,11 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { budgetSpent, catById, listCats, monthLabel } from '../lib/calc.js';
+import { envelopeFor } from '../lib/envelope.js';
 import { currentMonth, nowIso } from '../lib/dates.js';
 import { validate } from '../lib/validate.js';
 import { upsertBudget, deleteBudget } from '../store/actions.js';
+import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import { Label, FieldError, Hint, AmountField, noteBox } from './fields.jsx';
 
 function Body() {
@@ -24,6 +26,11 @@ function Body() {
   const budgeted = S.budgets.filter(b => b.category && b.id !== f.editId).map(b => b.category);
   const catOpts = listCats(S, 'expense').filter(c => !budgeted.includes(c.id) && !c.excludeFromBudget);
   const noCatsLeft = !fixedCat && !overall && catOpts.length === 0;
+  // Picker excludes categories that already have a budget or are excluded from
+  // budgets — the same set catOpts keeps, expressed as an exclude list.
+  const pickerMonth = currentMonth();
+  const pickerEnv = envelopeFor(S, pickerMonth, nowIso());
+  const catExcludeIds = [...budgeted, ...S.categories.filter(c => c.excludeFromBudget).map(c => c.id)];
 
   const on = !!f.rollover;
   const spentNow = f.editId ? budgetSpent(S, { category: overall ? null : f.category, amount: 0 }, currentMonth(), null, nowIso()) : null;
@@ -38,11 +45,12 @@ function Body() {
 
       {!overall && !fixedCat && (
         <div>
-          <Label htmlFor="b-cat" required>Category</Label>
-          <select id="b-cat" value={f.category ?? ''} onChange={e => setField('category', e.target.value)} className="field" style={{ padding: '0 10px' }}>
-            <option value="">Choose a category…</option>
-            {catOpts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
+          <Label required>Category</Label>
+          <PlanCategoryPicker
+            env={pickerEnv} S={S} month={pickerMonth} money={money}
+            excludeRta excludeIds={catExcludeIds}
+            value={f.category || null} onChange={id => setField('category', id)}
+          />
           <FieldError msg={errors.category} />
           {noCatsLeft && <Hint>Every active expense category already has a budget.</Hint>}
         </div>

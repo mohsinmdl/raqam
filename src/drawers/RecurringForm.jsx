@@ -4,11 +4,12 @@
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
-import { parseAmt } from '../lib/format.js';
-import { listCats } from '../lib/calc.js';
+import { parseAmt, useMoney } from '../lib/format.js';
 import { validate } from '../lib/validate.js';
 import { upsertRule, deleteRule } from '../store/actions.js';
-import { nowIso } from '../lib/dates.js';
+import { envelopeFor } from '../lib/envelope.js';
+import { currentMonth, nowIso } from '../lib/dates.js';
+import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import {
   buildSchedule, freqLabel, longDate, nextOccurrences, NTH_OPTS, WEEKDAYS,
 } from '../lib/schedule.js';
@@ -34,8 +35,11 @@ function Switch({ id, on, onClick, label }) {
 function Body() {
   const { drawer, setField, setForm } = useDrawer();
   const { data: S } = useStore();
+  const { money } = useMoney();
   const f = drawer.form, errors = drawer.errors;
   const isExp = f.type !== 'income';
+  const catMonth = currentMonth();
+  const catEnv = envelopeFor(S, catMonth, nowIso());
   const unit = f.unit || 'month';
   const rules = f.dayRules || [];
 
@@ -205,11 +209,12 @@ function Body() {
       </div>
 
       <div>
-        <Label htmlFor="rl-cat" required>Category</Label>
-        <SelectField id="rl-cat" field="category">
-          <option value="">Choose…</option>
-          {listCats(S, isExp ? 'expense' : 'income').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </SelectField>
+        <Label required>Category</Label>
+        <PlanCategoryPicker
+          env={catEnv} S={S} month={catMonth} money={money}
+          catType={isExp ? 'expense' : 'income'} showAmounts={isExp} excludeRta
+          value={f.category || null} onChange={id => setField('category', id)}
+        />
         <FieldError msg={errors.category} />
       </div>
 

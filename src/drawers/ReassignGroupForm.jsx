@@ -42,7 +42,7 @@ function Body() {
         <Label required>Select category</Label>
         <PlanCategoryPicker
           env={env} S={S} month={month} money={money}
-          excludeRta excludeIds={excludeIds} heading={null}
+          excludeRta excludeIds={excludeIds}
           value={f.replacement || null} onChange={id => setField('replacement', id)}
         />
         <FieldError msg={errors.replacement} />
