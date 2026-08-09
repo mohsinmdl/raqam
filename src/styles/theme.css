@@ -64,8 +64,11 @@ textarea:focus {
 .hv-text:hover { color: var(--text) !important; }
 .hv-accent-fg:hover { color: var(--accent-h) !important; }
 
-/* Plan drag-and-drop: the whole row is the drag handle (desktop mouse).
-   Show a grabbing cursor while a row is being dragged. */
+/* Plan drag-and-drop: the whole row is the drag handle (desktop mouse), but
+   the grab affordance stays hidden at rest — no persistent hand cursor. The
+   grabbing cursor appears only while a draggable row is pressed (the moment a
+   drag begins); at rest the row keeps the normal cursor, and buttons keep
+   their own pointer. */
 .plan-row[draggable="true"]:active { cursor: grabbing; }
 
 /* Shared bits used dozens of times in the prototype's inline styles. */

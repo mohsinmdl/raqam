@@ -434,7 +434,7 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, fir
         else if (dnd.drag?.kind === 'category') dnd.overGroupHeader(e, { groupId: group.id, firstCatId });
       }}
       onDrop={dnd.drop}
-      style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', cursor: isOther ? 'default' : 'grab', background: 'var(--track)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}
+      style={{ ...ROW_COLS, position: 'relative', height: 40, padding: '0 16px', background: 'var(--track)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}
     >
       {showGroupLineAbove && (
         <div aria-hidden="true" style={{ position: 'absolute', top: -1, left: 16, right: 16, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
@@ -874,7 +874,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
       onDragEnd={dnd.endDrag}
       onDragOver={e => dnd.overCategory(e, { groupId: sectionGroupId, beforeId: cat.id })}
       onDrop={dnd.drop}
-      style={{ ...ROW_COLS, position: 'relative', minHeight: 44, padding: '7px 16px', cursor: 'grab', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
+      style={{ ...ROW_COLS, position: 'relative', minHeight: 44, padding: '7px 16px', background: selected.has(cat.id) ? 'var(--soft)' : 'var(--surface)', borderBottom: '1px solid var(--border)' }}
     >
       {showLineAbove && (
         <div aria-hidden="true" style={{ position: 'absolute', top: -1, left: 16, right: 16, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
