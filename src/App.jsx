@@ -22,6 +22,7 @@ import Plan from './screens/Plan.jsx';
 import Recurring from './screens/Recurring.jsx';
 import RecurringDetail from './screens/RecurringDetail.jsx';
 import BudgetHub from './screens/BudgetHub.jsx';
+import { HeaderSlotProvider } from './ui/HeaderSlot.jsx';
 
 // Sidebar width is user-draggable and remembered on the device (like theme).
 const SB_MIN = 208, SB_MAX = 460, SB_DEFAULT = 236, SB_KEY = 'raqam.sidebarW';
@@ -76,6 +77,7 @@ function Shell() {
       >
         <span aria-hidden="true" style={{ width: (dragging || hover) ? 3 : 2, height: '100%', background: (dragging || hover) ? 'var(--accent)' : 'transparent', transition: 'background .15s ease, width .15s ease' }} />
       </div>
+      <HeaderSlotProvider>
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <Header />
         <main style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -101,6 +103,7 @@ function Shell() {
           </Routes>
         </main>
       </div>
+      </HeaderSlotProvider>
     </div>
   );
 }

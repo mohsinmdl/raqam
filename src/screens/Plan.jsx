@@ -5,7 +5,9 @@
 // docs/superpowers/specs/2026-08-08-ynab-budget-reference.md; math comes from
 // src/lib/envelope.js (T3) and the CRUD in src/store/actions.js (T4/T5).
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../store/StoreProvider.jsx';
+import { useHeaderSlot } from '../ui/HeaderSlot.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { envelopeFor } from '../lib/envelope.js';
@@ -861,6 +863,7 @@ function CategoryRow({ cat, row, ctx }) {
 
 export default function Plan() {
   const { data: S, applyData, prefs, setPrefs, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
+  const headerSlot = useHeaderSlot();
   const { month } = useMonth();
   const { money, moneyS } = useMoney();
 
@@ -1034,12 +1037,14 @@ export default function Plan() {
           />
         )}
 
-        {/* Row 1: Ready to Assign — centered, like YNAB. */}
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
-        </div>
+        {/* Ready to Assign lives UP in the top bar (portalled into the Header's
+            centered slot), next to the month nav — like YNAB. Filters below. */}
+        {headerSlot?.node && createPortal(
+          <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />,
+          headerSlot.node,
+        )}
 
-        {/* Row 2: filter views. */}
+        {/* Row 1: filter views. */}
         <div style={rowInset || undefined}>
           <FilterPills
             builtins={builtinPills}
