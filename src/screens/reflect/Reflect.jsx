@@ -1,7 +1,7 @@
 // Reflect: the reporting section shell. Hosts a five-tab segmented bar (same
 // pill-toggle idiom as Plan's ViewToggle) and routes the selected tab into an
 // Outlet. The month comes from the shared MonthContext; category/account
-// filters live here as shell state (Task 6) and are handed down alongside it
+// filters live here as shell state and are handed down alongside it
 // via outlet context so each tab can read them without re-subscribing.
 //
 // Filters are shell-owned (one source of truth, no prop drilling through
@@ -36,7 +36,10 @@ const selStyle = {
 
 function TabBar() {
   return (
-    <div role="tablist" aria-label="Reflect sections" style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 2, padding: 2, borderRadius: 8, background: 'rgba(125,109,63,.16)' }}>
+    // These are navigation links (NavLink), not a stateful ARIA tab widget —
+    // role="tablist" without role="tab" + aria-selected on the children was
+    // an incomplete pattern. A plain nav-labelled group is the honest fix.
+    <div aria-label="Reflect reports" style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 2, padding: 2, borderRadius: 8, background: 'rgba(125,109,63,.16)' }}>
       {TABS.map(t => (
         <NavLink
           key={t.to}

@@ -6,7 +6,7 @@ import {
   monthlySeries, netWorthSeries, incomeExpenseSeries, ageOfMoney,
 } from '../src/lib/reports.js';
 import { daysInMonth, monthMetrics } from '../src/lib/calc.js';
-import { addDays, addMonths, currentMonth, nowIso, todayStr } from '../src/lib/dates.js';
+import { addMonths, currentMonth } from '../src/lib/dates.js';
 
 // monthsFor(store) walks back from the REAL current month, so months are
 // anchored to it rather than a hardcoded literal (unlike calc.test.js, which
@@ -159,6 +159,20 @@ describe('spendingStats', () => {
     expect(spendingStats(makeStore([]), CUR).mostFrequent).toBeNull();
   });
 
+  // Fix round 2: the mostFrequent count loop ignored includeExcluded while
+  // total/avgMonthly both honored it, so an excluded (recoverable) category
+  // could win mostFrequent even in the "excluded" lens.
+  it('mostFrequent honors includeExcluded — an excluded category with the highest count is skipped when includeExcluded is false', () => {
+    const S = makeStore([
+      tx({ id: 'a1', type: 'expense', amount: 100, category: 'adv' }),
+      tx({ id: 'a2', type: 'expense', amount: 100, category: 'adv' }),
+      tx({ id: 'a3', type: 'expense', amount: 100, category: 'adv' }),
+      tx({ id: 'g1', type: 'expense', amount: 100, category: 'groc' }),
+    ]);
+    expect(spendingStats(S, CUR).mostFrequent.cat.id).toBe('adv'); // default lens: adv wins on count (3 vs 1)
+    expect(spendingStats(S, CUR, { includeExcluded: false }).mostFrequent.cat.id).toBe('groc'); // excluded lens: adv skipped, groc is the highest remaining
+  });
+
   it('largestOutflow is the single biggest expense (merchant + amt)', () => {
     const S = makeStore([
       tx({ id: 't1', type: 'expense', amount: 8000, category: 'groc', merchant: 'Metro' }),
@@ -232,6 +246,35 @@ describe('monthlySeries / incomeExpenseSeries / netWorthSeries', () => {
       expect(m.netWorth).toBe(m.totalBank - m.cardLiability);
     });
   });
+
+  // Fix round 2: netWorthSeries/incomeExpenseSeries used to call
+  // monthMetrics(s, m, now) with no 4th arg, silently dropping opts.accountId
+  // even when a caller passed one.
+  it('opts.accountId threads into monthMetrics instead of being silently dropped', () => {
+    const now = CUR + '-15T12:00'; // fixed, so this doesn't depend on the real wall clock
+    const S2 = makeStore([
+      tx({ id: 'i1', type: 'income', amount: 50000, category: 'salary', accountId: 'a1' }),
+      tx({ id: 'i2', type: 'income', amount: 20000, category: 'salary', accountId: 'a2' }),
+    ], {
+      accounts: [{ id: 'a1', nickname: 'Main', status: 'active' }, { id: 'a2', nickname: 'Side', status: 'active' }],
+      snapshots: [
+        { accountId: 'a1', month: CUR, amount: 100000, status: 'confirmed' },
+        { accountId: 'a2', month: CUR, amount: 30000, status: 'confirmed' },
+      ],
+    });
+
+    const nwAll = netWorthSeries(S2, { window: 1, now })[0].value;
+    const nwA1 = netWorthSeries(S2, { window: 1, now, accountId: 'a1' })[0].value;
+    expect(nwA1).toBe(monthMetrics(S2, CUR, now, 'a1').netWorth); // scoped call matches monthMetrics directly
+    expect(nwA1).not.toBe(nwAll); // a1-only balance differs from the two-account total -> accountId is actually reaching monthMetrics
+
+    // income/expense/net stay portfolio-wide regardless of accountId — that's
+    // monthMetrics's own contract (its flow metrics are never account-scoped),
+    // so equality here is correct, not evidence the fix did nothing.
+    const ieAll = incomeExpenseSeries(S2, { window: 1, now })[0];
+    const ieA1 = incomeExpenseSeries(S2, { window: 1, now, accountId: 'a1' })[0];
+    expect(ieA1).toEqual(ieAll);
+  });
 });
 
 // Fix round 1, finding 2: these three helpers used to destructure `opts.now`
@@ -246,20 +289,24 @@ describe('series helpers default `now` to the real clock, not undefined', () => 
     series.forEach(r => expect(r.value).toMatch(/^\d{4}-\d{2}-\d{2}/));
   });
 
-  it('incomeExpenseSeries/netWorthSeries exclude a transaction dated after "now" in the current month when now is defaulted', () => {
-    const tomorrow = addDays(todayStr(), 1);
-    // Guard the rare case a test happens to run on the last calendar day of
-    // the month: monthsFor(store) never extends past the real current month,
-    // so a "future within CUR" transaction can't be constructed that day.
-    if (tomorrow.slice(0, 7) !== CUR) return;
+  // Rewritten to pass an explicit fixed `now` (both helpers accept opts.now)
+  // instead of deriving "tomorrow" from the wall clock — the old version
+  // self-disabled (a bare `return`, asserting nothing) whenever a test run
+  // landed on the last calendar day of the month, and even on every other day
+  // it was implicitly at the mercy of the real clock rather than asserting
+  // anything deterministic.
+  it('incomeExpenseSeries/netWorthSeries exclude a transaction dated after an explicit "now" within the same month', () => {
+    const early = CUR + '-05T09:00';
+    const late = CUR + '-20T09:00'; // every month has at least 28 days
     const S = makeStore([
-      tx({ id: 'future', type: 'income', amount: 99999, category: 'salary', date: tomorrow + 'T09:00' }),
+      tx({ id: 'e1', type: 'income', amount: 99999, category: 'salary', date: late }),
     ]);
-    const incomeDefault = incomeExpenseSeries(S, { window: 1 })[0];
-    expect(incomeDefault.income).toBe(0); // future-dated income excluded by the default `now`
-    const nwDefault = netWorthSeries(S, { window: 1 })[0];
-    const nwExplicitNow = netWorthSeries(S, { window: 1, now: nowIso() })[0];
-    expect(nwDefault.value).toBe(nwExplicitNow.value); // default matches an explicit "right now"
+    expect(incomeExpenseSeries(S, { window: 1, now: early })[0].income).toBe(0); // now < tx date -> excluded
+    expect(incomeExpenseSeries(S, { window: 1, now: late })[0].income).toBe(99999); // now >= tx date -> included
+
+    const nwEarly = netWorthSeries(S, { window: 1, now: early })[0].value;
+    const nwLate = netWorthSeries(S, { window: 1, now: late })[0].value;
+    expect(nwLate).toBe(nwEarly + 99999); // the same income only lands in totalBank once `now` reaches its date
   });
 });
 
@@ -311,5 +358,94 @@ describe('ageOfMoney', () => {
     expect(series.map(r => r.month)).toEqual([PREV, CUR]);
     expect(series.find(r => r.month === PREV).value).toBe(ageE0);
     expect(series.find(r => r.month === CUR).value).toBe(Math.round((ageE0 + ageE1) / 2));
+  });
+
+  // Fix round 2, finding 1: a refund used to be pushed into the outflow
+  // queue (aging like a spend). It must instead join the inflow queue, so a
+  // later expense can draw on it.
+  it('a refund adds to the inflow queue rather than aging like a spend — a later expense can be sourced from it', () => {
+    const N = 6;
+    const d0 = CUR + '-02T09:00';
+    const d1 = CUR + '-' + String(2 + N).padStart(2, '0') + 'T09:00';
+    const now = CUR + '-28T23:59'; // fixed, so hasOccurred() doesn't depend on the real wall-clock day
+    const S = makeStore([
+      tx({ id: 'r1', type: 'refund', amount: 20000, category: 'adv', date: d0 }),
+      tx({ id: 'e1', type: 'expense', amount: 5000, category: 'rent', date: d1 }),
+    ], { snapshots: [] });
+    // If the refund were still treated as an outflow (the bug), it would add
+    // its own age-0 record and drag the average down to ~N/2 instead of N.
+    expect(ageOfMoney(S, CUR, { now }).current).toBe(N);
+  });
+
+  it('an outflow larger than the oldest inflow ages to the OLDEST inflow date; the next outflow ages to the next inflow once the first is exhausted', () => {
+    const dayDiff = (a, b) => {
+      const [ay, am, ad] = a.split('-').map(Number);
+      const [by, bm, bd] = b.split('-').map(Number);
+      return Math.round((new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad)) / 86400000);
+    };
+    const S = makeStore([
+      tx({ id: 'i0', type: 'income', amount: 10000, category: 'salary', date: PREV + '-01T09:00' }),
+      tx({ id: 'i1', type: 'income', amount: 50000, category: 'salary', date: PREV + '-03T09:00' }),
+      // 15000 > i0's 10000: drains i0 fully, then 5000 of i1.
+      tx({ id: 'e0', type: 'expense', amount: 15000, category: 'rent', date: PREV + '-10T09:00' }),
+      // Drawn entirely from i1's remaining 45000, now the oldest inflow left.
+      tx({ id: 'e1', type: 'expense', amount: 20000, category: 'rent', date: CUR + '-05T09:00' }),
+    ], { snapshots: [] });
+    const age0 = dayDiff(PREV + '-01', PREV + '-10'); // ages to i0 (the oldest), not i1
+    const age1 = dayDiff(PREV + '-03', CUR + '-05'); // ages to i1, the oldest remaining inflow
+    const now = CUR + '-28T23:59'; // fixed, so hasOccurred() doesn't depend on the real wall-clock day
+    const { series } = ageOfMoney(S, CUR, { window: 2, now });
+    expect(series.find(r => r.month === PREV).value).toBe(age0); // only e0 has landed by PREV's cutoff
+    expect(series.find(r => r.month === CUR).value).toBe(Math.round((age0 + age1) / 2)); // both records by CUR's cutoff
+  });
+
+  // Fix round 2, finding 2: an outflow the FIFO queue couldn't source at all
+  // used to be recorded as a fake age 0, diluting the average.
+  it('an outflow with no available inflow is excluded from the average, not counted as age 0', () => {
+    const now = CUR + '-28T23:59'; // fixed, so hasOccurred() doesn't depend on the real wall-clock day
+    const S = makeStore([
+      tx({ id: 'i0', type: 'income', amount: 3000, category: 'salary', date: CUR + '-01T09:00' }),
+      tx({ id: 'e0', type: 'expense', amount: 3000, category: 'rent', date: CUR + '-05T09:00' }), // exactly exhausts i0
+      tx({ id: 'e1', type: 'expense', amount: 5000, category: 'rent', date: CUR + '-10T09:00' }), // no inflow left at all
+    ], { snapshots: [] });
+    const age0 = 4; // CUR-01 -> CUR-05
+    // If e1 were counted as a fake age 0 (the bug), current would average to
+    // round((4 + 0) / 2) = 2 instead of staying at e0's own age.
+    expect(ageOfMoney(S, CUR, { now }).current).toBe(age0);
+  });
+
+  it('a transfer with fee>0 consumes the queue by the fee amount only', () => {
+    const N = 7;
+    const d0 = CUR + '-01T09:00';
+    const d1 = CUR + '-' + String(1 + N).padStart(2, '0') + 'T09:00';
+    const now = CUR + '-28T23:59'; // fixed, so hasOccurred() doesn't depend on the real wall-clock day
+    const S = makeStore([
+      tx({ id: 'i0', type: 'income', amount: 10000, category: 'salary', date: d0 }),
+      tx({ id: 't0', type: 'transfer', amount: 4000, fee: 2000, accountId: 'a1', toAccountId: 'a1', date: d1 }),
+    ], { snapshots: [] });
+    // The fee (2000) is the outflow; the 4000 principal never touches the
+    // ledger, so the age is driven purely by the fee's own draw on i0.
+    expect(ageOfMoney(S, CUR, { now }).current).toBe(N);
+  });
+
+  it('sample cap: current reflects only the last `sample` (10) outflow ages, not the whole history', () => {
+    // Fixed `now` (day 20) rather than the default real clock: all 12
+    // outflows below are dated within the first 13 days of CUR, and without
+    // an explicit `now` they'd be silently excluded by hasOccurred() on any
+    // test run before the 13th of the real current month.
+    const now = CUR + '-20T23:59';
+    const outflows = [];
+    for (let day = 2; day <= 13; day++) { // 12 outflows, well within the same month
+      outflows.push(tx({ id: 'e' + day, type: 'expense', amount: 100, category: 'rent', date: CUR + '-' + String(day).padStart(2, '0') + 'T09:00' }));
+    }
+    const S = makeStore([
+      tx({ id: 'i0', type: 'income', amount: 1000000, category: 'salary', date: CUR + '-01T09:00' }), // sources all 12 with room to spare
+      ...outflows,
+    ], { snapshots: [] });
+    const ages = outflows.map((_, idx) => idx + 1); // day (2+idx) - day 1 = idx + 1
+    const last10Avg = Math.round(ages.slice(-10).reduce((s, a) => s + a, 0) / 10);
+    const allAvg = Math.round(ages.reduce((s, a) => s + a, 0) / ages.length);
+    expect(last10Avg).not.toBe(allAvg); // sanity: the two windows actually differ
+    expect(ageOfMoney(S, CUR, { now }).current).toBe(last10Avg);
   });
 });

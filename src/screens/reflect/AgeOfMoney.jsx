@@ -1,15 +1,15 @@
 // Reflect — Age of Money tab: how many days, on average, sit between earning
-// a rupee and spending it — a FIFO ledger, built once over the whole store's
-// history by src/lib/reports.js's ageOfMoney(). Card/heading language matches
-// SpendingBreakdown.jsx (untouched here).
+// a rupee and spending it — a FIFO ledger (refunds count as inflows;
+// expenses and transfer fees are outflows), built once over the whole
+// store's history by src/lib/reports.js's ageOfMoney(). Card/heading
+// language matches SpendingBreakdown.jsx (untouched here).
 //
-// Inferred v1 (Task 5) — the live design reference for this tab wasn't
-// reachable, so this is a standard-report reading of "age of money": the
-// current figure plus its 12-month trend, both from ageOfMoney().
+// Inferred v1 — the live design reference for this tab wasn't reachable, so
+// this is a standard-report reading of "age of money": the current figure
+// plus its 12-month trend, both from ageOfMoney().
 //
-// Filters (Task 6): the shared category/account filters are Spending
-// Breakdown-only for now — this tab ignores categoryId/accountId from the
-// outlet context.
+// Filters: the shared category/account filters are Spending Breakdown-only
+// for now — this tab ignores categoryId/accountId from the outlet context.
 import { useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';

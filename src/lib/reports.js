@@ -3,7 +3,7 @@
 // Every function is pure: (store, ...args) => value. Nothing here touches the
 // DOM or React — see tests/reports.test.js for the fixture pattern.
 import {
-  categorySpending, daysInMonth, hasOccurred, inMonth, largestExpenses, monthLabel, monthMetrics,
+  categorySpending, daysInMonth, hasOccurred, inMonth, isExcludedCat, largestExpenses, monthLabel, monthMetrics,
 } from './calc.js';
 import { monthsFor, nowIso } from './dates.js';
 
@@ -82,7 +82,11 @@ export function spendingStats(store, month, opts = {}) {
   const avgMonthly = monthTotals.length ? Math.round(monthTotals.reduce((s, t) => s + t, 0) / monthTotals.length) : 0;
 
   const mtx = store.transactions.filter(t => inMonth(t, month) && (t.type === 'expense' || t.type === 'refund')
-    && t.status !== 'pending' && hasOccurred(t, now) && t.category != null && (!accountId || t.accountId === accountId));
+    && t.status !== 'pending' && hasOccurred(t, now) && t.category != null && (!accountId || t.accountId === accountId)
+    // Same lens as `total` above: an excluded (recoverable) category is not
+    // "spending" when the caller opts out of it, so it shouldn't be able to
+    // win mostFrequent either.
+    && (includeExcluded || !isExcludedCat(store, t.category)));
   const counts = {};
   mtx.forEach(t => {
     const e = counts[t.category] || (counts[t.category] = { count: 0, amt: 0 });
@@ -123,7 +127,11 @@ export function monthlySeries(store, pick, opts = {}) {
 }
 
 export function netWorthSeries(store, opts = {}) {
-  return monthlySeries(store, (s, m, now) => monthMetrics(s, m, now).netWorth, opts);
+  // monthMetrics's 4th positional arg scopes the balance figures (netWorth
+  // included) to one account — thread opts.accountId through rather than
+  // silently dropping it (the Reflect UI doesn't pass it yet; this just keeps
+  // the API honest for when it does).
+  return monthlySeries(store, (s, m, now) => monthMetrics(s, m, now, opts.accountId).netWorth, opts);
 }
 
 // [{ month, label, income, expense, net }]
@@ -131,7 +139,10 @@ export function incomeExpenseSeries(store, opts = {}) {
   const { window = 12 } = opts;
   const now = opts.now || nowIso();
   return monthsFor(store).slice(-window).map(month => {
-    const m = monthMetrics(store, month, now);
+    // Same accountId threading as netWorthSeries above — note income/expense/net
+    // stay portfolio-wide regardless (monthMetrics's own contract), only the
+    // balance figures this caller doesn't read would move.
+    const m = monthMetrics(store, month, now, opts.accountId);
     return { month, label: monthLabel(month), income: m.income, expense: m.expenses, net: m.net };
   });
 }
@@ -146,12 +157,14 @@ function daysBetween(a, b) {
 // FIFO "age of money" ledger: every outflow paired with the age (in days) of
 // the oldest inflow money it drew on, oldest-inflow-first. Built once over the
 // whole store; `ageOfMoney` below just windows/averages it per month.
+// Refunds count as inflows (money coming back IN); expenses and transfer fees
+// are outflows (real money leaving) — a refund itself is never "spent", so it
+// must never be pushed into the outflow queue.
 function buildAgeRecords(store, now) {
   const inflows = [];
   store.transactions.forEach(t => {
-    if (t.type === 'income' && t.status !== 'pending' && hasOccurred(t, now)) {
-      inflows.push({ date: t.date, remaining: t.amount });
-    }
+    if (t.status === 'pending' || !hasOccurred(t, now)) return;
+    if (t.type === 'income' || t.type === 'refund') inflows.push({ date: t.date, remaining: t.amount });
   });
   store.accounts.forEach(acc => {
     const opening = store.snapshots
@@ -164,7 +177,7 @@ function buildAgeRecords(store, now) {
   const outflows = [];
   store.transactions.forEach(t => {
     if (t.status === 'pending' || !hasOccurred(t, now)) return;
-    if (t.type === 'expense' || t.type === 'refund') outflows.push({ date: t.date, amount: t.amount });
+    if (t.type === 'expense') outflows.push({ date: t.date, amount: t.amount });
     else if (t.type === 'transfer' && t.fee > 0) outflows.push({ date: t.date, amount: t.fee });
   });
   outflows.sort((a, b) => a.date.localeCompare(b.date));
@@ -183,7 +196,10 @@ function buildAgeRecords(store, now) {
       need -= take;
       if (inflow.remaining <= 0) head++;
     }
-    records.push({ date: out.date, age: oldestDate === null ? 0 : daysBetween(oldestDate, out.date) });
+    // An outflow the queue couldn't (fully or partially) source — no inflow
+    // was ever drawn on — is excluded entirely, not recorded as a fake age 0;
+    // a phantom zero would silently drag the average down.
+    if (oldestDate !== null) records.push({ date: out.date, age: daysBetween(oldestDate, out.date) });
   });
   return records;
 }
@@ -201,7 +217,10 @@ export function ageOfMoney(store, month, opts = {}) {
   const now = opts.now || nowIso();
   const sample = opts.sample || 10;
   const window = opts.window || 12;
-  const records = buildAgeRecords(store, now);
+  // Same accountId-drop footgun as netWorthSeries/incomeExpenseSeries — scope
+  // the transactions the ledger is built from before threading them through.
+  const scoped = scopeToAccount(store, opts.accountId || null);
+  const records = buildAgeRecords(scoped, now);
   return {
     current: aomAsOf(records, month, sample),
     series: monthsFor(store).slice(-window).map(m => ({ month: m, label: monthLabel(m), value: aomAsOf(records, m, sample) })),

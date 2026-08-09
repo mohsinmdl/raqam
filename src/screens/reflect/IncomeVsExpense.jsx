@@ -2,13 +2,12 @@
 // the last 12 months, plus period totals. Card/heading language matches
 // SpendingBreakdown.jsx (untouched here); data from src/lib/reports.js.
 //
-// Inferred v1 (Task 5) — the live design reference for this tab wasn't
-// reachable, so this is a standard-report reading of "income vs expense":
+// Inferred v1 — the live design reference for this tab wasn't reachable, so
+// this is a standard-report reading of "income vs expense":
 // incomeExpenseSeries(), windowed to 12 months, rendered as grouped bars.
 //
-// Filters (Task 6): the shared category/account filters are Spending
-// Breakdown-only for now — this tab ignores categoryId/accountId from the
-// outlet context.
+// Filters: the shared category/account filters are Spending Breakdown-only
+// for now — this tab ignores categoryId/accountId from the outlet context.
 import { useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';

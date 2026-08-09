@@ -3,7 +3,7 @@
 // comes from src/lib/reports.js (untouched here); charting from
 // src/ui/charts/Donut.jsx (untouched here).
 //
-// Filters (Task 6): accountId scopes every figure on the tab — it's passed
+// Filters: accountId scopes every figure on the tab — it's passed
 // straight into spendingByCategory/spendingByGroup/spendingStats via
 // opts.accountId, so the donut, list, and stat blocks (avg/day, most
 // frequent, largest outflow) all agree on the same account scope.
@@ -105,8 +105,10 @@ export default function SpendingBreakdown() {
   );
 
   const doExport = () => {
-    const csv = toCsv(['Category', 'Amount', 'Percent'], rows.map(r => [r.name, r.amt, Math.round(r.pct * 100) + '%']));
-    downloadCsv('spending-breakdown-' + month + '.csv', csv);
+    const header = lens === 'groups' ? 'Group' : 'Category';
+    const csv = toCsv([header, 'Amount', 'Percent'], rows.map(r => [r.name, r.amt, Math.round(r.pct * 100) + '%']));
+    const filename = lens === 'groups' ? 'spending-by-group-' + month + '.csv' : 'spending-breakdown-' + month + '.csv';
+    downloadCsv(filename, csv);
   };
 
   const statBlocks = [
