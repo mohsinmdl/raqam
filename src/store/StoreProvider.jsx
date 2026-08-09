@@ -15,9 +15,11 @@ import { loadUserPrefs, writeUserPrefs } from '../lib/prefsStore.js';
 // mirror every change through the diff-sync queue (src/store/sync.js).
 const Ctx = createContext(null);
 
-// Per-user, device-local prefs (theme/mask/onboarding + Plan views) live in
-// src/lib/prefsStore.js — pure and injectable so the write-failure path is
-// unit-tested.
+// Per-user, device-local prefs (theme/mask/onboarding + Plan views) share the
+// pure, injectable persistence in src/lib/prefsStore.js — unit-tested so the
+// write-failure path is verified. Theme/mask persist via PrefsProvider (which
+// uses the same writeJson helper); this provider's prefsSaved combines both
+// providers' write results.
 
 export function reducer(state, act) {
   switch (act.type) {
@@ -61,15 +63,17 @@ export function reducer(state, act) {
 
 export function StoreProvider({ userId, children }) {
   const [state, dispatch] = useReducer(reducer, { status: 'loading', data: null, error: null, ...emptyStacks() });
-  const { devicePrefs, setDevicePrefs } = useDevicePrefs();
+  const { devicePrefs, setDevicePrefs, deviceSaved } = useDevicePrefs();
   const { registerBeforeSignOut } = useAuth();
   const [userPrefs, setUserPrefs] = useState(() => loadUserPrefs(userId));
   // Mirror of userPrefs so setPrefs can build `next` and persist OUTSIDE the
   // setState updater — a nested setState (to flip prefsSaved) inside the updater
   // is the React anti-pattern this avoids. setPrefs is the only writer, so the
-  // ref stays authoritative as long as it's updated alongside every write.
+  // ref stays authoritative as long as it's updated alongside every write. If
+  // any other call site writes userPrefs/setUserPrefs, update userPrefsRef.current
+  // there too or this ref goes stale.
   const userPrefsRef = useRef(userPrefs);
-  const [prefsSaved, setPrefsSaved] = useState(true);
+  const [userPrefsSaved, setUserPrefsSaved] = useState(true);
   const [syncStatus, setSyncStatus] = useState('synced');
   const queueRef = useRef(null);
   const pushTimer = useRef(null);
@@ -168,7 +172,7 @@ export function StoreProvider({ userId, children }) {
       userPrefsRef.current = next;
       // A failed write leaves the in-memory prefs updated (the UI stays
       // responsive) but flips prefsSaved so the Header can say it didn't stick.
-      setPrefsSaved(writeUserPrefs(userId, next));
+      setUserPrefsSaved(writeUserPrefs(userId, next));
       setUserPrefs(next);
     }
   }, [setDevicePrefs, userId]);
@@ -176,9 +180,11 @@ export function StoreProvider({ userId, children }) {
   const value = useMemo(() => ({
     data: state.data,
     syncStatus,
-    // false after a device-local prefs write was rejected (quota/private mode/
-    // storage disabled). Settings, not financial data — those go through sync.
-    prefsSaved,
+    // false after either the per-user prefs write (this provider) or the
+    // device-local theme/mask write (PrefsProvider) was rejected (quota/
+    // private mode/storage disabled). Settings, not financial data — those go
+    // through sync.
+    prefsSaved: userPrefsSaved && deviceSaved,
     // Facade: consumers (Header, format.js, Dashboard) see one flat prefs object.
     prefs: { ...userPrefs, theme: devicePrefs.theme, masked: devicePrefs.masked },
     setPrefs,
@@ -199,7 +205,7 @@ export function StoreProvider({ userId, children }) {
     canRedo: state.future.length > 0,
     undoLabel: undoLabel(state),
     redoLabel: redoLabel(state),
-  }), [state.data, state.past, state.future, syncStatus, prefsSaved, userPrefs, devicePrefs, setPrefs]);
+  }), [state.data, state.past, state.future, syncStatus, userPrefsSaved, deviceSaved, userPrefs, devicePrefs, setPrefs]);
 
   if (state.status === 'loading') return <LoadingScreen message="Loading your data…" />;
   if (state.status === 'error') {

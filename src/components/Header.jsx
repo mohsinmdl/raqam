@@ -89,7 +89,7 @@ export default function Header() {
         </span>
       )}
       {prefsSaved === false && (
-        <span role="status" title="This browser rejected saving your settings (storage full, private mode, or disabled). Your data is safe; only view/display preferences on this device won't persist." style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
+        <span role="status" title="This browser rejected saving your settings (storage full, private mode, or disabled). Your data is safe; only display settings on this device — including theme, amount masking, and other view preferences — won't persist." style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
           Settings not saved here
         </span>
       )}
