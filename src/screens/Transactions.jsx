@@ -10,7 +10,6 @@ import { useUI } from '../ui/UIProvider.jsx';
 import { useShortcuts, useSequence } from '../ui/useShortcuts.js';
 import { SPEC, SHORTCUT_BY_ID, isTypingTarget } from '../lib/shortcuts.js';
 import { stepCursor, rangeBetween } from '../lib/rowCursor.js';
-import Tooltip from '../ui/Tooltip.jsx';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
@@ -24,6 +23,7 @@ import BulkBar from '../ui/BulkBar.jsx';
 import PositionStrip from '../components/PositionStrip.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
 import SearchField from '../ui/SearchField.jsx';
+import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarAction.jsx';
 import { matchesQuery } from '../lib/txSearch.js';
 
 // Sticky against <main>'s scroll. No overflow is introduced here — the section
@@ -233,20 +233,6 @@ function GroupHead({ open, onToggle, label, count, note, bg, colSpan }) {
 // margin cancels it, so the toolbar layout never moves. The INNER pill is the
 // only visible part; its hover padding grows by 8px each side, compensated by
 // its own negative margin, so the label stays put (no jerk).
-// Toolbar icons for the "All Accounts" action row (reference layout). Stroke
-// icons take currentColor; the add glyph is a filled accent circle + a plus.
-const strokeIcon = children => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
-    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>{children}</svg>
-);
-const PlusCircle = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ flex: 'none' }}>
-    <circle cx="12" cy="12" r="11" fill="currentColor" />
-    <path d="M12 7.5v9M7.5 12h9" stroke="var(--on-accent)" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-);
-const UndoIcon = () => strokeIcon(<><path d="M9 14 4 9l5-5" /><path d="M4 9h9a6 6 0 0 1 0 12H7" /></>);
-const RedoIcon = () => strokeIcon(<><path d="m15 14 5-5-5-5" /><path d="M20 9h-9a6 6 0 0 0 0 12h6" /></>);
 // Full-width toggle glyph: arrows pushing outward to the edges.
 function WideIcon() {
   return (
@@ -255,28 +241,6 @@ function WideIcon() {
       <path d="M8 8L3 12l5 4" /><path d="M16 8l5 4-5 4" /><path d="M3 12h18" />
     </svg>
   );
-}
-
-// A toolbar action: icon + label, accent when enabled, muted when disabled, a
-// soft hover fill. The row that runs across the top of the ledger.
-function ToolbarAction({ icon, label, disabled, onClick, title, shortcut }) {
-  const btn = (
-    <button
-      onClick={onClick} disabled={disabled} title={shortcut ? undefined : (title || label)}
-      className="hv-soft"
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 10px',
-        border: 'none', borderRadius: 8, background: 'transparent',
-        color: disabled ? 'var(--muted)' : 'var(--accent)', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
-        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.55 : 1,
-      }}
-    >
-      {icon}<span>{label}</span>
-    </button>
-  );
-  // With a shortcut, the hover tooltip carries the label + keycaps (and replaces
-  // the native title). Disabled controls skip it — nothing to prompt.
-  return shortcut && !disabled ? <Tooltip shortcut={shortcut}>{btn}</Tooltip> : btn;
 }
 
 export default function Transactions() {

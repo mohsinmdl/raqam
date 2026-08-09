@@ -26,6 +26,8 @@ import ViewEditorModal from '../ui/plan/ViewEditorModal.jsx';
 import ManageViewsModal from '../ui/plan/ManageViewsModal.jsx';
 import ActivityModal from '../ui/plan/ActivityModal.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
+import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarAction.jsx';
+import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
   adoptYnabTree, importBudgetsAsAssignments, moveAssigned,
@@ -310,22 +312,6 @@ function ViewToggle({ view, onChange }) {
   );
 }
 
-// Borderless toolbar text button (Undo/Redo), matching Recent Moves: icon +
-// label, accent colour, transparent (soft on hover), muted+dimmed when disabled.
-function ToolBtn({ onClick, disabled, title, label, icon }) {
-  return (
-    <button onClick={onClick} disabled={disabled} title={title} aria-label={label} className="hv-soft"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 10px', border: 'none', borderRadius: 8, background: 'transparent', color: disabled ? 'var(--muted)' : 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
-        {icon === 'undo'
-          ? (<><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-1" /></>)
-          : (<><path d="m15 14 5-5-5-5" /><path d="M20 9H9a5 5 0 0 0 0 10h1" /></>)}
-      </svg>
-      {label}
-    </button>
-  );
-}
-
 // Fit/full-width toggle, mirroring the All-Accounts (Transactions) control.
 function WideIcon() {
   return (
@@ -365,14 +351,11 @@ function AddGroupButton({ onAdd }) {
 
   return (
     <div ref={rootRef} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen(o => !o)} aria-haspopup="dialog" aria-expanded={String(open)}
-        aria-label="Add category group"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 12px 0 8px', border: 'none', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-      >
-        <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: 999, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, lineHeight: 1, flex: 'none' }}>＋</span>
-        Category Group
-      </button>
+      <ToolbarAction
+        icon={<PlusCircle />} label="Category Group"
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="dialog" aria-expanded={String(open)} aria-label="Add category group"
+      />
       {open && (
         <div role="dialog" aria-label="Add category group" style={{ ...popCard, top: 38, right: 0, width: 240 }}>
           <input
@@ -1066,8 +1049,8 @@ export default function Plan() {
             the left; the fit/full-width + row-view toggles on the right. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', ...rowInset }}>
           <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
-          <ToolBtn onClick={undo} disabled={!canUndo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} label="Undo" icon="undo" />
-          <ToolBtn onClick={redo} disabled={!canRedo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} label="Redo" icon="redo" />
+          <ToolbarAction icon={<UndoIcon />} label="Undo" disabled={!canUndo} shortcut={SHORTCUT_BY_ID.undo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} onClick={undo} />
+          <ToolbarAction icon={<RedoIcon />} label="Redo" disabled={!canRedo} shortcut={SHORTCUT_BY_ID.redo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} onClick={redo} />
           <RecentMoves />
           <div style={{ flex: 1 }} />
           <WidthToggle wide={wide} onToggle={() => setPrefs({ planWide: !wide })} />
