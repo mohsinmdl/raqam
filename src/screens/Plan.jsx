@@ -391,11 +391,13 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, fir
   const { S, applyData, money, selected, setMany, dnd } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
-  // The synthetic "Other" (id null) can't be dragged or be a group-reorder
-  // target, but it still accepts a category drop (→ ungroup).
+  // The synthetic "Other" (id null) is never draggable, but a group dropped on
+  // it lands at the end of the real groups (beforeId → null, since Other's id
+  // is null), and it still accepts a category drop (→ ungroup). So the group
+  // insertion line IS allowed above Other — that is the "move to last" slot.
   const isOther = group.id == null;
   const showGroupLineAbove = dnd.target && dnd.target.kind === 'group'
-    && dnd.target.beforeId === group.id && dnd.drag?.ids[0] !== group.id && !isOther;
+    && dnd.target.beforeId === group.id && dnd.drag?.ids[0] !== group.id;
   const [hover, setHover] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addUp, setAddUp] = useState(false);
@@ -1269,6 +1271,19 @@ export default function Plan() {
                 </div>
               );
             })}
+            {/* End-of-list drop zone for group reorder. The last slot is
+                otherwise reachable only by dropping on the synthetic "Other"
+                header (beforeId → null) — which isn't present when every
+                category is grouped. This strip exists only while a group is
+                being dragged and only when "Other" is absent, supplying that
+                end slot and its insertion line. */}
+            {dnd.drag?.kind === 'group' && !shownSections.some(s => s.key === 'other') && (
+              <div onDragOver={e => dnd.overGroupGap(e, { beforeGroupId: null })} onDrop={dnd.drop} style={{ position: 'relative', height: 24 }}>
+                {dnd.target?.kind === 'group' && dnd.target.beforeId === null && (
+                  <div aria-hidden="true" style={{ position: 'absolute', top: -1, left: 16, right: 16, height: 2, background: 'var(--accent)', borderRadius: 1 }} />
+                )}
+              </div>
+            )}
             {sections.length === 0 && (
               <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
                 No categories yet. Organize your categories into groups to start planning your budget.

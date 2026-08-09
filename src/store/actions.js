@@ -1180,6 +1180,11 @@ export function moveCategories(data, { ids, groupId, beforeId }) {
   if (!moving.length) return data;
   const type = moving[0].type;
   const movingIds = new Set(moving.map(c => c.id));
+  // A drop whose beforeId is itself one of the dragged rows is a drop-in-place,
+  // not a reposition (the UI hides the insertion line over dragged rows). Bail
+  // as a no-op rather than fall through to the "beforeId not in keep → append
+  // to end" branch below, which would silently shove the row to the bottom.
+  if (beforeId != null && movingIds.has(beforeId)) return data;
   const cmp = (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name);
   // Surviving members of the target group, in display order, minus the movers.
   const keep = data.categories
