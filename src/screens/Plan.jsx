@@ -5,7 +5,9 @@
 // docs/superpowers/specs/2026-08-08-ynab-budget-reference.md; math comes from
 // src/lib/envelope.js (T3) and the CRUD in src/store/actions.js (T4/T5).
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../store/StoreProvider.jsx';
+import { useHeaderSlot } from '../ui/HeaderSlot.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { envelopeFor } from '../lib/envelope.js';
@@ -24,6 +26,8 @@ import ViewEditorModal from '../ui/plan/ViewEditorModal.jsx';
 import ManageViewsModal from '../ui/plan/ManageViewsModal.jsx';
 import ActivityModal from '../ui/plan/ActivityModal.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
+import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarAction.jsx';
+import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import {
   setAssigned, addCategoryGroup, setCategoryGroup, upsertCategory,
   adoptYnabTree, importBudgetsAsAssignments, moveAssigned,
@@ -43,28 +47,6 @@ const popCard = { position: 'absolute', zIndex: 30, background: 'var(--surface)'
 const popBtnRow = { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 };
 const popCancel = { height: 30, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, cursor: 'pointer' };
 const popOk = { height: 30, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' };
-
-// Full-width toggle, mirroring the All-Accounts (Transactions) control.
-function WideIcon() {
-  return (
-    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 8L3 12l5 4" /><path d="M16 8l5 4-5 4" /><path d="M3 12h18" />
-    </svg>
-  );
-}
-function WidthToggle({ wide, onToggle }) {
-  return (
-    <button
-      onClick={onToggle} aria-pressed={wide}
-      aria-label={wide ? 'Fit budget to page width' : 'Expand budget to full width'}
-      title={wide ? 'Fit width' : 'Full width'} className="hv-soft"
-      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 7, background: wide ? 'var(--elev)' : 'transparent', color: wide ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', flex: 'none' }}
-    >
-      <WideIcon />
-    </button>
-  );
-}
 
 // Same dismissal contract as TxMonthNav / BulkBar's MoreMenu: outside mousedown
 // closes, Escape closes via the capture phase so it never bubbles into a
@@ -330,6 +312,28 @@ function ViewToggle({ view, onChange }) {
   );
 }
 
+// Fit/full-width toggle, mirroring the All-Accounts (Transactions) control.
+function WideIcon() {
+  return (
+    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 8L3 12l5 4" /><path d="M16 8l5 4-5 4" /><path d="M3 12h18" />
+    </svg>
+  );
+}
+function WidthToggle({ wide, onToggle }) {
+  return (
+    <button
+      onClick={onToggle} aria-pressed={wide}
+      aria-label={wide ? 'Fit budget to page width' : 'Expand budget to full width'}
+      title={wide ? 'Fit width' : 'Full width'} className="hv-soft"
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 7, background: wide ? 'var(--elev)' : 'transparent', color: wide ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', flex: 'none' }}
+    >
+      <WideIcon />
+    </button>
+  );
+}
+
 // Toolbar "+ Category Group": name input, Cancel/OK, caret-topped popover.
 function AddGroupButton({ onAdd }) {
   const [open, setOpen] = useState(false);
@@ -347,11 +351,11 @@ function AddGroupButton({ onAdd }) {
 
   return (
     <div ref={rootRef} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen(o => !o)} aria-haspopup="dialog" aria-expanded={String(open)}
-        className="hv-soft"
-        style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
-      >＋ Category Group</button>
+      <ToolbarAction
+        icon={<PlusCircle />} label="Category Group"
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="dialog" aria-expanded={String(open)} aria-label="Add category group"
+      />
       {open && (
         <div role="dialog" aria-label="Add category group" style={{ ...popCard, top: 38, right: 0, width: 240 }}>
           <input
@@ -845,7 +849,8 @@ function CategoryRow({ cat, row, ctx }) {
 }
 
 export default function Plan() {
-  const { data: S, applyData, prefs, setPrefs } = useStore();
+  const { data: S, applyData, prefs, setPrefs, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
+  const headerSlot = useHeaderSlot();
   const { month } = useMonth();
   const { money, moneyS } = useMoney();
 
@@ -999,33 +1004,35 @@ export default function Plan() {
 
   const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, setMany, onOpenActivity: setActivityCat };
 
-  const wide = !!prefs.planWide;
+  // Full width (default, like the Transactions screen): drop the max-width cap
+  // and page side-padding so the area sits flush against the sidebar and runs
+  // edge-to-edge. Fit: the centred 1280 column. The RTA/filter/toolbar rows get
+  // a light horizontal inset in wide mode so their content aligns with the
+  // table's own 16px row inset instead of jamming against the sidebar.
+  const wide = prefs.planWide !== false;
+  const rowInset = wide ? { paddingLeft: 16, paddingRight: 16 } : null;
   return (
-    // Full width: drop the max-width cap and let the grid reach the right edge
-    // (right padding 0), while keeping the left gap so the table clears the
-    // sidebar seam/drag-handle. Fit: the centred 1280 column as before.
-    <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '24px 0 56px 28px' : '24px 28px 56px' }}>
-      <div className="plan-grid" style={{ animation: 'hsFade .25s ease' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {showBanner && (
-            <AdoptionBanner
-              noGroups={noGroups}
-              needsImport={hasUnimportedStanding}
-              onAdopt={() => applyData(data => adoptYnabTree(data))}
-              onImport={() => applyData(data => importBudgetsAsAssignments(data, { month }))}
-              onDismiss={() => setPrefs({ planBannerDismissed: true })}
-            />
-          )}
+    <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '16px 0 56px' : '24px 28px 56px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
+        {showBanner && (
+          <AdoptionBanner
+            noGroups={noGroups}
+            needsImport={hasUnimportedStanding}
+            onAdopt={() => applyData(data => adoptYnabTree(data))}
+            onImport={() => applyData(data => importBudgetsAsAssignments(data, { month }))}
+            onDismiss={() => setPrefs({ planBannerDismissed: true })}
+          />
+        )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
-            <div style={{ flex: 1 }} />
-            <RecentMoves />
-            <WidthToggle wide={wide} onToggle={() => setPrefs({ planWide: !wide })} />
-            <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
-            <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
-          </div>
+        {/* Ready to Assign lives UP in the top bar (portalled into the Header's
+            centered slot), next to the month nav — like YNAB. Filters below. */}
+        {headerSlot?.node && createPortal(
+          <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />,
+          headerSlot.node,
+        )}
 
+        {/* Row 1: filter views. */}
+        <div style={rowInset || undefined}>
           <FilterPills
             builtins={builtinPills}
             views={views}
@@ -1036,8 +1043,24 @@ export default function Plan() {
             env={env}
             catIds={activeCatIds}
           />
+        </div>
 
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        {/* Row 3: action toolbar — Category Group, Undo, Redo, Recent Moves on
+            the left; the fit/full-width + row-view toggles on the right. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', ...rowInset }}>
+          <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
+          <ToolbarAction icon={<UndoIcon />} label="Undo" disabled={!canUndo} shortcut={SHORTCUT_BY_ID.undo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} onClick={undo} />
+          <ToolbarAction icon={<RedoIcon />} label="Redo" disabled={!canRedo} shortcut={SHORTCUT_BY_ID.redo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} onClick={redo} />
+          <RecentMoves />
+          <div style={{ flex: 1 }} />
+          <WidthToggle wide={wide} onToggle={() => setPrefs({ planWide: !wide })} />
+          <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
+        </div>
+
+        {/* Row 4: table on the left, inspector cards on the right — both
+            borderless (YNAB-style), separated only by the grid gap. */}
+        <div className="plan-grid">
+          <div style={{ background: 'var(--surface)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
               <PlanCheckbox label="Select all categories"
                 checked={visibleCatIdList.length > 0 && visibleCatIdList.every(id => selected.has(id))}
@@ -1076,8 +1099,8 @@ export default function Plan() {
               </div>
             )}
           </div>
+          <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} />
         </div>
-        <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} />
       </div>
 
       <ViewEditorModal
