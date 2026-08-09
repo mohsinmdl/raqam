@@ -308,6 +308,21 @@ function ViewToggle({ view, onChange }) {
   );
 }
 
+// Small bordered toolbar button (Undo/Redo) matching the Category Group button.
+function ToolBtn({ onClick, disabled, title, label, icon }) {
+  return (
+    <button onClick={onClick} disabled={disabled} title={title} aria-label={label} className="hv-soft"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: disabled ? 'var(--muted)' : 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1 }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {icon === 'undo'
+          ? (<><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-1" /></>)
+          : (<><path d="m15 14 5-5-5-5" /><path d="M20 9H9a5 5 0 0 0 0 10h1" /></>)}
+      </svg>
+      {label}
+    </button>
+  );
+}
+
 // Toolbar "+ Category Group": name input, Cancel/OK, caret-topped popover.
 function AddGroupButton({ onAdd }) {
   const [open, setOpen] = useState(false);
@@ -823,7 +838,7 @@ function CategoryRow({ cat, row, ctx }) {
 }
 
 export default function Plan() {
-  const { data: S, applyData, prefs, setPrefs } = useStore();
+  const { data: S, applyData, prefs, setPrefs, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
   const { month } = useMonth();
   const { money, moneyS } = useMoney();
 
@@ -979,38 +994,49 @@ export default function Plan() {
 
   return (
     <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 28px 56px' }}>
-      <div className="plan-grid" style={{ animation: 'hsFade .25s ease' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {showBanner && (
-            <AdoptionBanner
-              noGroups={noGroups}
-              needsImport={hasUnimportedStanding}
-              onAdopt={() => applyData(data => adoptYnabTree(data))}
-              onImport={() => applyData(data => importBudgetsAsAssignments(data, { month }))}
-              onDismiss={() => setPrefs({ planBannerDismissed: true })}
-            />
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
-            <div style={{ flex: 1 }} />
-            <RecentMoves />
-            <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
-            <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
-          </div>
-
-          <FilterPills
-            builtins={builtinPills}
-            views={views}
-            activeId={activeViewId}
-            onSelect={id => setPrefs({ planViewId: id })}
-            onManage={() => setManageOpen(true)}
-            onNewView={() => setEditing('new')}
-            env={env}
-            catIds={activeCatIds}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
+        {showBanner && (
+          <AdoptionBanner
+            noGroups={noGroups}
+            needsImport={hasUnimportedStanding}
+            onAdopt={() => applyData(data => adoptYnabTree(data))}
+            onImport={() => applyData(data => importBudgetsAsAssignments(data, { month }))}
+            onDismiss={() => setPrefs({ planBannerDismissed: true })}
           />
+        )}
 
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        {/* Row 1: Ready to Assign — centered, like YNAB. */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
+        </div>
+
+        {/* Row 2: filter views. */}
+        <FilterPills
+          builtins={builtinPills}
+          views={views}
+          activeId={activeViewId}
+          onSelect={id => setPrefs({ planViewId: id })}
+          onManage={() => setManageOpen(true)}
+          onNewView={() => setEditing('new')}
+          env={env}
+          catIds={activeCatIds}
+        />
+
+        {/* Row 3: action toolbar — Category Group, Undo, Redo, Recent Moves on
+            the left; the row-view toggle on the right (YNAB layout). */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
+          <ToolBtn onClick={undo} disabled={!canUndo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} label="Undo" icon="undo" />
+          <ToolBtn onClick={redo} disabled={!canRedo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} label="Redo" icon="redo" />
+          <RecentMoves />
+          <div style={{ flex: 1 }} />
+          <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
+        </div>
+
+        {/* Row 4: table on the left, inspector cards on the right — both
+            borderless (YNAB-style), separated only by the grid gap. */}
+        <div className="plan-grid">
+          <div style={{ background: 'var(--surface)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
               <PlanCheckbox label="Select all categories"
                 checked={visibleCatIdList.length > 0 && visibleCatIdList.every(id => selected.has(id))}
@@ -1049,8 +1075,8 @@ export default function Plan() {
               </div>
             )}
           </div>
+          <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} />
         </div>
-        <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} />
       </div>
 
       <ViewEditorModal

@@ -13,7 +13,10 @@ import { useUI } from '../UIProvider.jsx';
 import { useDrawer } from '../DrawerProvider.jsx';
 import { askDeleteCategory } from '../categoryActions.js';
 
-const cardStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 };
+// Borderless cards (YNAB-style): the white surface on the off-white page reads
+// as a panel without an outline. The single-select header/toggle rows reuse
+// this too, so they lose their outline in step with the collapsible cards.
+const cardStyle = { background: 'var(--surface)', borderRadius: 12, padding: 14 };
 const lineRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, padding: '3px 0' };
 const tone = v => (v > 0 ? 'var(--pos)' : v < 0 ? 'var(--neg)' : 'var(--muted)');
 
