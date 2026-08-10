@@ -49,7 +49,9 @@ const OTHER = { id: null, name: 'Other' };
 // the category names beneath them. Group rows fill the chevron cell with the
 // collapse toggle; category rows leave it empty.
 const ROW_COLS = { display: 'grid', gridTemplateColumns: '20px 22px minmax(0,2.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr)', gap: 10, alignItems: 'center' };
-const HEAD = { fontSize: 14, fontWeight: 500, letterSpacing: '.6px', color: 'var(--text)' };
+// Column headers use the DESIGN.md "Label" role: a quiet small-caps table
+// header — muted, semibold, lightly tracked — so the figures below lead.
+const HEAD = { fontSize: 11.5, fontWeight: 600, letterSpacing: '.8px', textTransform: 'uppercase', color: 'var(--muted)' };
 // Shared right inset for every numeric column value (header, group total, and
 // category cell) so the amounts line up down each column regardless of whether
 // the value is plain text, a click-to-edit button, or a rounded available pill.
