@@ -126,7 +126,7 @@ export default function Dashboard() {
       <div className="dash-root" style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'hsFade .25s ease' }}>
 
         {v.snapshotPending && (
-          <div role="region" aria-label="Monthly opening reminder" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', border: '1px solid var(--border)', borderLeft: '3px solid var(--accent)', borderRadius: 12, background: 'var(--soft)' }}>
+          <div role="region" aria-label="Monthly opening reminder" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--soft)' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{v.snapBannerTitle}</div>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>Confirming locks in your starting position, so “change this month” stays trustworthy.</div>
