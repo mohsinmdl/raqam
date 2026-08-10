@@ -24,9 +24,9 @@ colors:
 typography:
   display:
     fontFamily: "Figtree, system-ui, sans-serif"
-    fontSize: "31px"
+    fontSize: "38px"
     fontWeight: 700
-    lineHeight: 1.1
+    lineHeight: 1.02
     letterSpacing: "-0.02em"
   headline:
     fontFamily: "Figtree, system-ui, sans-serif"
@@ -155,7 +155,7 @@ A quiet, green-leaning neutral field with one deep-teal accent and a reserved se
 **Character:** A single humanist sans across the whole product — friendly enough to feel human, geometric enough to keep long tables of figures orderly. Personality comes from weight and size steps, never from a second face. Body weight is 500 (not 400), giving the interface a quietly substantial, confident texture.
 
 ### Hierarchy
-- **Display** (700, 31px, line-height 1.1, tracking −0.02em): the single headline balance (e.g. Total bank balance). One per screen.
+- **Display** (700, 38px, line-height 1.02, tracking −0.02em): the single headline balance (e.g. Total bank balance). One per screen.
 - **Headline** (600, 19px, tracking −0.005em): card figures and secondary stats (summary cards, position figures).
 - **Title** (600, 15px): section headings (`h2` on cards).
 - **Body** (500, 13.5–14px, line-height 1.45): row content, values, running text.
