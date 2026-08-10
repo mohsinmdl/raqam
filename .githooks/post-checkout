@@ -1,0 +1,22 @@
+#!/bin/sh
+# Auto-install dependencies in a fresh worktree so `pnpm install` is never manual.
+#
+# Git runs this after `git worktree add` / `git checkout`, with cwd at the
+# worktree root. Args: <prev-HEAD> <new-HEAD> <branch-checkout-flag>.
+#
+# Guard on a missing node_modules so it installs only in a fresh worktree and
+# stays a no-op on ordinary branch switches in an already-installed checkout.
+
+[ -f package.json ] || exit 0
+[ -d node_modules ] && exit 0
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "[post-checkout] pnpm not on PATH — skipping auto-install." >&2
+  echo "[post-checkout] Run 'pnpm install' manually in $(pwd)." >&2
+  exit 0
+fi
+
+echo "[post-checkout] Fresh worktree — installing dependencies with pnpm…"
+# Deterministic + fast now that pnpm-lock.yaml is committed; fall back to a
+# normal resolve if the lockfile ever drifts from package.json.
+pnpm install --frozen-lockfile --prefer-offline || pnpm install --prefer-offline
