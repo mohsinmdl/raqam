@@ -5,9 +5,7 @@
 // docs/superpowers/specs/2026-08-08-ynab-budget-reference.md; math comes from
 // src/lib/envelope.js (T3) and the CRUD in src/store/actions.js (T4/T5).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useStore } from '../store/StoreProvider.jsx';
-import { useHeaderSlot } from '../ui/HeaderSlot.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { envelopeFor } from '../lib/envelope.js';
@@ -297,8 +295,9 @@ function RtaBanner({ env, prevRta, month, money, moneyS, S, applyData }) {
   const fg = rta > 0 ? 'var(--pos)' : rta === 0 ? 'var(--muted)' : 'var(--neg)';
   const labelColor = 'var(--muted)';
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, paddingRight: rta !== 0 ? 10 : 0, borderRadius: 8, background: bg, minWidth: 200 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 14px 4px 0', borderRadius: 12, border: '1px solid var(--border)', background: bg }}>
       <RtaBreakdown env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} fg={fg} labelColor={labelColor} />
+      <span style={{ flex: 1 }} />
       {rta !== 0 && <AssignPopover rta={rta} env={env} S={S} month={month} money={money} applyData={applyData} />}
     </div>
   );
@@ -963,7 +962,6 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
 
 export default function Plan() {
   const { data: S, applyData, prefs, setPrefs, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
-  const headerSlot = useHeaderSlot();
   const { month } = useMonth();
   const { money, moneyS } = useMoney();
 
@@ -1211,12 +1209,13 @@ export default function Plan() {
           />
         )}
 
-        {/* Ready to Assign lives UP in the top bar (portalled into the Header's
-            centered slot), next to the month nav — like YNAB. Filters below. */}
-        {headerSlot?.node && createPortal(
-          <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />,
-          headerSlot.node,
-        )}
+        {/* Ready to Assign is the Budget screen's north-star number, so it
+            leads the content as a full-width banner above the filters — in
+            context with the table it governs, rather than floating in the
+            global header. */}
+        <div style={rowInset || undefined}>
+          <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
+        </div>
 
         {/* Filter pills span above the grid (full width). */}
         <div style={rowInset || undefined}>
