@@ -9,7 +9,6 @@ import { openers } from '../drawers/openers.js';
 import Tooltip from '../ui/Tooltip.jsx';
 import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import TxMonthNav from './TxMonthNav.jsx';
-import { useHeaderSlot } from '../ui/HeaderSlot.jsx';
 
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
@@ -24,7 +23,6 @@ export default function Header() {
   const { data: S, syncStatus, prefsSaved, undo, redo } = useStore();
   const { month, isPast, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
   const { drawer, openDrawer } = useDrawer();
-  const headerSlot = useHeaderSlot();
 
   useEffect(() => {
     const onKey = e => {
@@ -65,9 +63,7 @@ export default function Header() {
   const showTxNav = seg === 'transactions';
 
   return (
-    // position: relative so the Budget screen's Ready-to-Assign portal target
-    // can be absolutely centered on the full header width (below).
-    <header style={{ position: 'relative', height: 60, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+    <header style={{ height: 60, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
       {acct ? (
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.nickname}</h1>
@@ -87,19 +83,7 @@ export default function Header() {
         </>
       )}
       {showTxNav && <TxMonthNav />}
-      {/* On the Budget screen the Ready-to-Assign pill is centered on the FULL
-          header width (not just the leftover flex space after the title/month
-          nav): the portal target is absolutely positioned at the header's
-          horizontal center and stays content-width, so it doesn't block clicks
-          on the title or month nav. A flex spacer still fills the flow so the
-          right-side status chips sit at the far edge. */}
       <div style={{ flex: 1 }} />
-      {pathname === '/budget' && (
-        <div
-          ref={headerSlot?.setNode}
-          style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, transform: 'translateX(-50%)', display: 'flex', alignItems: 'center' }}
-        />
-      )}
       {(syncStatus === 'retrying' || syncStatus === 'error') && (
         <span role="status" title="Changes are kept locally and pushed automatically when the connection recovers" style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
           Not saved — retrying
