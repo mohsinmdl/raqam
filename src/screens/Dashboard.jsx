@@ -123,7 +123,7 @@ export default function Dashboard() {
   // expenses"), capped so a long account list can't tower over the left column
   // and strand the Recent transactions section below it. The full list lives on
   // the Accounts screen; "View all" carries the total count.
-  const ACCT_CAP = 6;
+  const ACCT_CAP = 4;
   const acctAll = v.activeAccts
     .map(a => { const f = freshInfo(a, S); const raw = C.accountBalance(a, S, month, now); return { id: a.id, nick: a.nickname, inst: instName(S, a.instId), raw, bal: money(raw), dot: f.dot, freshTip: f.tip }; })
     .sort((x, y) => y.raw - x.raw);
