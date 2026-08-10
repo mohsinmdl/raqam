@@ -267,7 +267,7 @@ function ExcludeToggle({ ids, S, applyData }) {
   );
 }
 
-export default function Inspector({ S, env, envAt, month, money, applyData, selected }) {
+export default function Inspector({ S, env, envAt, month, money, applyData, selected, rtaBanner }) {
   const ctx = { S, month, env, envAt };
   const monthName = monthLabel(month).split(' ')[0]; // "August" from "August 2026"
   const activeCats = useMemo(
@@ -283,6 +283,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
     const allIds = activeCats.map(c => c.id);
     return (
       <div className="plan-inspector">
+        {rtaBanner}
         <Card title={monthName + "'s Summary"}>
           <SummaryLines sum={selectionSummary(env, allIds)} money={money} monthName={monthName} />
           {costToBeMe(activeCats) > 0 && (
@@ -304,6 +305,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
     const row = env.rows.get(cat.id) || { assigned: 0, activity: 0, available: 0, carryIn: 0 };
     return (
       <div className="plan-inspector">
+        {rtaBanner}
         <CategoryHeader cat={cat} S={S} applyData={applyData} />
         <ExcludeToggle ids={[cat.id]} S={S} applyData={applyData} />
         <AvailableCard row={row} money={money} />
@@ -319,6 +321,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
   const names = ordered.map(id => (activeCats.find(c => c.id === id) || {}).name).filter(Boolean);
   return (
     <div className="plan-inspector">
+      {rtaBanner}
       <div style={{ padding: '2px 2px 0' }}>
         <div style={{ fontSize: 15, fontWeight: 700 }}>{selected.size} Categories Selected</div>
         <div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{names.join(', ')}</div>

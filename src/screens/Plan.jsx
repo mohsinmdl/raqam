@@ -284,20 +284,21 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
   );
 }
 
-// Ready-to-Assign banner. State colours come from Raqam's own status tokens
-// (the Signal-Only Rule): positive money to assign reads in the ledger-green
-// pos tokens, zero is neutral, negative (overspent) is the negative tokens.
-// Splits into the clickable label/amount (opens RtaBreakdown) and, only when
-// there's something to move, a teal Assign ▾ button (opens AssignPopover).
+// Ready-to-Assign card. Lives at the top of the Plan inspector (right column),
+// where it sits with the summary figures it derives from. State colours come
+// from Raqam's own status tokens (the Signal-Only Rule): positive money to
+// assign reads in the ledger-green pos tokens, zero is neutral, negative
+// (overspent) is the negative tokens. Stacks the clickable label/amount (opens
+// RtaBreakdown) over a teal Assign ▾ button (opens AssignPopover) — both
+// left-anchored so their popovers stay inside the narrow inspector column.
 function RtaBanner({ env, prevRta, month, money, moneyS, S, applyData }) {
   const rta = env.rta;
   const bg = rta > 0 ? 'var(--pos-soft)' : rta === 0 ? 'var(--elev)' : 'var(--neg-soft)';
   const fg = rta > 0 ? 'var(--pos)' : rta === 0 ? 'var(--muted)' : 'var(--neg)';
   const labelColor = 'var(--muted)';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 14px 4px 0', borderRadius: 12, border: '1px solid var(--border)', background: bg }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, padding: '4px 8px 12px', borderRadius: 12, background: bg }}>
       <RtaBreakdown env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} fg={fg} labelColor={labelColor} />
-      <span style={{ flex: 1 }} />
       {rta !== 0 && <AssignPopover rta={rta} env={env} S={S} month={month} money={money} applyData={applyData} />}
     </div>
   );
@@ -1209,13 +1210,9 @@ export default function Plan() {
           />
         )}
 
-        {/* Ready to Assign is the Budget screen's north-star number, so it
-            leads the content as a full-width banner above the filters — in
-            context with the table it governs, rather than floating in the
-            global header. */}
-        <div style={rowInset || undefined}>
-          <RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />
-        </div>
+        {/* Ready to Assign lives at the top of the inspector (right column),
+            grouped with the summary figures it derives from — passed in as a
+            node so its RtaBreakdown/AssignPopover stay defined here. */}
 
         {/* Filter pills span above the grid (full width). */}
         <div style={rowInset || undefined}>
@@ -1306,7 +1303,8 @@ export default function Plan() {
             )}
             </div>
           </div>
-          <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} />
+          <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected}
+            rtaBanner={<RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />} />
         </div>
       </div>
 
