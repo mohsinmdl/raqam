@@ -65,7 +65,9 @@ export default function Header() {
   const showTxNav = seg === 'transactions';
 
   return (
-    <header style={{ height: 60, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+    // position: relative so the Budget screen's Ready-to-Assign portal target
+    // can be absolutely centered on the full header width (below).
+    <header style={{ position: 'relative', height: 60, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
       {acct ? (
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.nickname}</h1>
@@ -85,11 +87,19 @@ export default function Header() {
         </>
       )}
       {showTxNav && <TxMonthNav />}
-      {/* On the Budget screen this spacer becomes a portal target so the Plan
-          screen can center its Ready-to-Assign pill in the top bar (YNAB). */}
-      {pathname === '/budget'
-        ? <div ref={headerSlot?.setNode} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minWidth: 0 }} />
-        : <div style={{ flex: 1 }} />}
+      {/* On the Budget screen the Ready-to-Assign pill is centered on the FULL
+          header width (not just the leftover flex space after the title/month
+          nav): the portal target is absolutely positioned at the header's
+          horizontal center and stays content-width, so it doesn't block clicks
+          on the title or month nav. A flex spacer still fills the flow so the
+          right-side status chips sit at the far edge. */}
+      <div style={{ flex: 1 }} />
+      {pathname === '/budget' && (
+        <div
+          ref={headerSlot?.setNode}
+          style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, transform: 'translateX(-50%)', display: 'flex', alignItems: 'center' }}
+        />
+      )}
       {(syncStatus === 'retrying' || syncStatus === 'error') && (
         <span role="status" title="Changes are kept locally and pushed automatically when the connection recovers" style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
           Not saved — retrying
