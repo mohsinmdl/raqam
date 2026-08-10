@@ -29,3 +29,13 @@ key
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Impeccable (design skill) local runtime state. The committed artifacts are
+# PRODUCT.md, DESIGN.md, .impeccable/design.json, and .impeccable/live/config.json;
+# everything else here is per-machine session/cache state.
+.impeccable/hook.cache.json
+.impeccable/live/sessions/
+.impeccable/live/accept-receipts/
+.impeccable/live/roots.json
+.impeccable/live/server.json
+.impeccable/live/inject-journal.json

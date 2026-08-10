@@ -16,6 +16,12 @@ import ExplainDialog from '../ui/ExplainDialog.jsx';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const linkBtn = { border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 };
+// The three headline columns share one column shell: a centred stat stack with
+// a hairline lead-in. `lead` is wider so the balance commands the row.
+const colBase = { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 14, paddingLeft: 24, borderLeft: '1px solid var(--border)' };
+const statLabel = { fontSize: 11.5, color: 'var(--muted)', fontWeight: 500 };
+const statSub = { fontSize: 11, color: 'var(--muted)', marginTop: 1 };
+const statVal = { fontSize: 15, fontWeight: 600, marginTop: 2 };
 
 // `trailing` is an optional right-aligned slot — Transactions puts its search
 // there; Dashboard passes nothing.
@@ -81,25 +87,42 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
 
   return (
     <>
+      {/* The headline "Current position": the balance leads, then a net-worth
+          column, then the month's opening/change — three hairline-separated
+          columns spanning the full card width. */}
       <section aria-label="Current position" style={{ ...card, padding: '20px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 20, alignItems: 'start' }}>
-          <div>
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 24 }}>
+          <div style={{ flex: 1.4, minWidth: 0 }}>
             <div style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>Total bank balance</div>
-            <div className="tnum" style={{ fontSize: 31, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 4 }}>{money(M.totalBank)}</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{posAsOf}</div>
+            <div className="tnum" style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1.02 }}>{money(M.totalBank)}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{posAsOf}</div>
           </div>
-          {[
-            ['Start of month', money(M.opening), snapStatusLabel, null],
-            ['Change since start', moneyS(M.change), 'vs opening', changeColor],
-          ].map(([label, val, sub, color]) => (
-            <div key={label} style={{ borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
-              <div style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>{label}</div>
-              <div className="tnum" style={{ fontSize: 18, fontWeight: 600, marginTop: 6, color: color || 'var(--text)' }}>{val}</div>
-              <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{sub}</div>
+          <div style={colBase}>
+            <div>
+              <div style={statLabel}>Net worth</div>
+              <div className="tnum" style={statVal}>{money(M.netWorth)}</div>
+              <div style={statSub}>bank minus card debt</div>
             </div>
-          ))}
+            <div>
+              <div style={statLabel}>Card liability</div>
+              <div className="tnum" style={{ ...statVal, color: M.cardLiability > 0 ? 'var(--neg)' : 'var(--muted)' }}>{money(M.cardLiability)}</div>
+              <div style={statSub}>{M.cardLiability > 0 ? 'outstanding on cards' : 'no card debt'}</div>
+            </div>
+          </div>
+          <div style={colBase}>
+            <div>
+              <div style={statLabel}>Start of month</div>
+              <div className="tnum" style={statVal}>{money(M.opening)}</div>
+              <div style={statSub}>{snapStatusLabel}</div>
+            </div>
+            <div>
+              <div style={statLabel}>Change since start</div>
+              <div className="tnum" style={{ ...statVal, color: changeColor }}>{moneyS(M.change)}</div>
+              <div style={statSub}>vs opening</div>
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
           <button onClick={() => setExplain(true)} className="hv-accent-fg" style={linkBtn}>How these are calculated</button>
           {pendingNote && <span style={{ fontSize: 12, color: 'var(--warn)', fontWeight: 500 }}>{pendingNote}</span>}
           {trailing && <div style={{ marginLeft: 'auto', flex: 'none' }}>{trailing}</div>}

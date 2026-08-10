@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-10T02:10:00Z",
+  "title": "Design System: Raqam",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "Deep Teal", "canonical": "#0F766E", "tonalRamp": ["#04302C", "#073F39", "#0A5049", "#0F766E", "#1C9488", "#46B5AA", "#8FD6CC", "#DDF3EC"] },
+      "accent-hover": { "role": "primary", "displayName": "Teal Deep", "canonical": "#115E59", "tonalRamp": ["#04302C", "#073F39", "#0A5049", "#115E59", "#1C9488", "#46B5AA", "#8FD6CC", "#DDF3EC"] },
+      "soft": { "role": "primary", "displayName": "Soft Teal", "canonical": "#DDF3EC", "tonalRamp": ["#0A5049", "#0F766E", "#1C9488", "#46B5AA", "#8FD6CC", "#B8E7DC", "#DDF3EC", "#EFF9F5"] },
+      "paper": { "role": "neutral", "displayName": "Warm Paper", "canonical": "#F7F7F3", "tonalRamp": ["#2B2B27", "#45453F", "#66665F", "#8C8C84", "#B4B4AC", "#D6D6CE", "#ECECE6", "#F7F7F3"] },
+      "surface": { "role": "neutral", "displayName": "Card White", "canonical": "#FFFFFF", "tonalRamp": ["#2B2B27", "#45453F", "#66665F", "#8C8C84", "#B4B4AC", "#D6D6CE", "#F2F2EE", "#FFFFFF"] },
+      "raised": { "role": "neutral", "displayName": "Raised Paper", "canonical": "#FCFCFA", "tonalRamp": ["#2B2B27", "#45453F", "#66665F", "#8C8C84", "#B4B4AC", "#D6D6CE", "#EFEFEA", "#FCFCFA"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#14201B", "tonalRamp": ["#0A110E", "#14201B", "#24332C", "#3A4B43", "#66736C", "#93A099", "#C3CCC7", "#E9F0EC"] },
+      "muted": { "role": "neutral", "displayName": "Slate Sage", "canonical": "#66736C", "tonalRamp": ["#14201B", "#24332C", "#3A4B43", "#4F5F58", "#66736C", "#93A099", "#C3CCC7", "#E9F0EC"] },
+      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#DCE4DF", "tonalRamp": ["#3A4B43", "#4F5F58", "#66736C", "#93A099", "#B7C2BC", "#DCE4DF", "#ECEFEA", "#F7F7F3"] },
+      "track": { "role": "neutral", "displayName": "Track", "canonical": "#ECEFEA", "tonalRamp": ["#3A4B43", "#4F5F58", "#66736C", "#93A099", "#B7C2BC", "#DCE4DF", "#ECEFEA", "#F7F7F3"] },
+      "pos": { "role": "tertiary", "displayName": "Ledger Green", "canonical": "#15803D", "tonalRamp": ["#0A3E1E", "#0F5C2C", "#15803D", "#1FA24F", "#4CBE76", "#84D6A2", "#BCEBCF", "#E3F2E7"] },
+      "warn": { "role": "tertiary", "displayName": "Amber", "canonical": "#B7791F", "tonalRamp": ["#5A3B0F", "#875916", "#B7791F", "#D49A3E", "#E3B972", "#EFD3A2", "#F6E7C9", "#F6ECD9"] },
+      "neg": { "role": "tertiary", "displayName": "Rust Red", "canonical": "#C2413B", "tonalRamp": ["#5E1F1C", "#8A2E2A", "#C2413B", "#D4655F", "#E39089", "#EFBAB5", "#F7DAD6", "#F8E4E2"] },
+      "info": { "role": "tertiary", "displayName": "Signal Blue", "canonical": "#2563EB", "tonalRamp": ["#12326F", "#1B49A8", "#2563EB", "#5183F0", "#84A7F5", "#B0C7F9", "#D5E0FC", "#E3EBFC"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The single headline balance figure — one per screen." },
+      "headline": { "displayName": "Headline", "purpose": "Card figures and secondary stats." },
+      "title": { "displayName": "Title", "purpose": "Section headings (card h2)." },
+      "body": { "displayName": "Body", "purpose": "Row content, values, running text; weight 500." },
+      "label": { "displayName": "Label", "purpose": "Captions, sub-labels, metadata in Slate Sage." }
+    },
+    "shadows": [
+      { "name": "overlay", "value": "0 12px 32px rgba(10,20,16,.18)", "purpose": "Drawers and dialogs floating above the page (paired with a scrim). The only shadow in the system; never on an in-page surface." }
+    ],
+    "motion": [
+      { "name": "fade", "value": "hsFade .25s ease", "purpose": "Screen/content fade-in on mount." },
+      { "name": "slide", "value": "hsSlide .22s ease", "purpose": "Drawer entrance from the right edge." },
+      { "name": "reduced-motion", "value": "@media (prefers-reduced-motion: reduce) { animation: none; transition: none }", "purpose": "All motion is disabled under reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "dashboard-stack", "value": "820px", "purpose": "Container width at which the dashboard two-column body stacks to one column." },
+      { "name": "plan-stack", "value": "1100px", "purpose": "Container width at which the Plan grid drops its inspector below the table." },
+      { "name": "content-max", "value": "1180px", "purpose": "Max width of the primary content column." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single accent action per view (Add account, Review now, Sign in).",
+      "html": "<button class=\"ds-btn-primary\">Review now</button>",
+      "css": ".ds-btn-primary { height: 36px; padding: 0 16px; border: none; border-radius: var(--button-radius, 8px); background: var(--accent); color: var(--on-accent); font-family: 'Figtree', system-ui, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s ease; } .ds-btn-primary:hover { background: var(--accent-h); } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Neutral / dismiss action next to a primary (Later, row Edit/Record).",
+      "html": "<button class=\"ds-btn-secondary\">Later</button>",
+      "css": ".ds-btn-secondary { height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted); font-family: 'Figtree', system-ui, sans-serif; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: background .15s ease; } .ds-btn-secondary:hover { background: var(--soft); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Link Button",
+      "kind": "button",
+      "refersTo": "button-link",
+      "description": "Inline navigational action (View all ›).",
+      "html": "<button class=\"ds-btn-link\">View all ›</button>",
+      "css": ".ds-btn-link { border: none; background: none; padding: 0; color: var(--accent); font-family: 'Figtree', system-ui, sans-serif; font-size: 12.5px; font-weight: 600; cursor: pointer; } .ds-btn-link:hover { color: var(--accent-h); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The flat white surface for every section, on the warm-paper ground.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Accounts</div><div class=\"ds-card-body\">Flat surface, 1px hairline, no shadow.</div></div>",
+      "css": ".ds-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; font-family: 'Figtree', system-ui, sans-serif; } .ds-card-title { font-size: 15px; font-weight: 600; color: var(--text); } .ds-card-body { margin-top: 6px; font-size: 13.5px; font-weight: 500; color: var(--muted); line-height: 1.45; }"
+    },
+    {
+      "name": "Summary Stat",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "A single labeled figure in tabular numerals — the dashboard's summary cards.",
+      "html": "<div class=\"ds-stat\"><div class=\"ds-stat-label\">Net cash flow</div><div class=\"ds-stat-value\">+Rs 128,400</div><div class=\"ds-stat-sub\">income − expenses</div></div>",
+      "css": ".ds-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; font-family: 'Figtree', system-ui, sans-serif; } .ds-stat-label { font-size: 12px; font-weight: 500; color: var(--muted); } .ds-stat-value { margin-top: 4px; font-size: 19px; font-weight: 600; color: var(--pos); font-variant-numeric: tabular-nums; } .ds-stat-sub { margin-top: 2px; font-size: 11.5px; color: var(--muted); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Single-line input; focus recolors the field's own edge with no external halo.",
+      "html": "<input class=\"ds-field\" placeholder=\"Merchant\" />",
+      "css": ".ds-field { height: 40px; width: 100%; padding: 0 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); font-family: 'Figtree', system-ui, sans-serif; font-size: 13.5px; } .ds-field::placeholder { color: var(--muted); } .ds-field:focus { outline: 1px solid var(--accent); outline-offset: -1px; }"
+    },
+    {
+      "name": "Sidebar Nav Item (active)",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Active navigation row — soft-teal fill, teal icon, ink label at weight 600.",
+      "html": "<a class=\"ds-nav ds-nav-active\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 10h16M4 10l8-6 8 6M6 10v8m4-8v8m4-8v8m4-8v8M4 20h16\"/></svg><span>All Accounts</span></a>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 11px; height: 40px; padding: 0 12px; border-radius: 8px; text-decoration: none; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; font-weight: 500; color: var(--muted); } .ds-nav svg { color: var(--muted); flex: none; } .ds-nav:hover { background: var(--elev); } .ds-nav-active { background: var(--soft); color: var(--text); font-weight: 600; } .ds-nav-active svg { color: var(--accent); }"
+    },
+    {
+      "name": "List Row",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Dense row with a label/sub stack and a right-aligned tabular figure; hairline divider (removed on the last row of a list).",
+      "html": "<div class=\"ds-row\"><span class=\"ds-row-dot\"></span><span class=\"ds-row-main\"><span class=\"ds-row-name\">HBL Current</span><span class=\"ds-row-sub\">HBL</span></span><span class=\"ds-row-amt\">Rs 84,210</span></div>",
+      "css": ".ds-row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--border); font-family: 'Figtree', system-ui, sans-serif; } .ds-row:last-child { border-bottom: none; } .ds-row-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--pos); flex: none; } .ds-row-main { min-width: 0; flex: 1; } .ds-row-name { display: block; font-size: 13.5px; font-weight: 500; color: var(--text); } .ds-row-sub { display: block; font-size: 11.5px; color: var(--muted); } .ds-row-amt { font-size: 13.5px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Bar Meter",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "A track rail with a teal (or category-colored) fill; flat CSS, small radius.",
+      "html": "<div class=\"ds-meter\"><div class=\"ds-meter-fill\" style=\"width:62%\"></div></div>",
+      "css": ".ds-meter { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; } .ds-meter-fill { height: 100%; background: var(--accent); border-radius: 4px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Trusted Ledger",
+    "overview": "Raqam is a manual-entry personal-finance app: every figure on screen was typed in by the person reading it, and the product's promise is that those figures can be trusted. The visual system earns that trust through calm and precision, not persuasion — numbers lead, the interface recedes. A warm-paper page carries flat white cards separated by hairline borders, with a single deep-teal accent used sparingly for what you can act on. All monetary figures use tabular numerals so columns align to the pixel. Depth is built without shadows: three paper tones and 1px hairlines do the layering; the one soft shadow is reserved for drawers and dialogs.",
+    "keyCharacteristics": [
+      "Warm off-white ground; flat white cards; 1px hairline separation, never shadow.",
+      "One teal accent, used only on interactive and actionable elements.",
+      "Tabular numerals for every monetary figure — alignment is non-negotiable.",
+      "Small, consistent radii; refined and restrained controls.",
+      "Status color earns its place; it is a signal, not decoration."
+    ],
+    "rules": [
+      { "name": "The One Teal Rule", "body": "Teal is the only chromatic voice in the primary UI, and it appears only on things the user can act on. If an element is not interactive or actionable, it is neutral. Rarity is what makes the accent legible.", "section": "colors" },
+      { "name": "The Signal-Only Rule", "body": "Status hues (green/amber/red/blue) are signals about money or state, never styling. A red that isn't reporting a negative, or a green that isn't reporting a positive, is a bug.", "section": "colors" },
+      { "name": "The Tabular Money Rule", "body": "Every monetary figure uses tabular numerals (the .tnum class). Amounts must align vertically wherever they stack and must not reflow horizontally as digits change.", "section": "typography" },
+      { "name": "The Weight-Not-Face Rule", "body": "Emphasis is created with weight (500 to 600 to 700) and size, never with a second font, italics, or color.", "section": "typography" },
+      { "name": "The Flat Ledger Rule", "body": "If it lives in the page, it is flat — bordered and tonally layered, never shadowed. The only shadow in Raqam floats a drawer or dialog over the app. A resting shadow on a card is a defect.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do set every monetary figure in tabular numerals (.tnum); keep stacked amounts aligned.",
+      "Do build depth from the three paper tones and 1px hairlines; keep in-page surfaces flat.",
+      "Do reserve teal for interactive and actionable elements, and keep it rare.",
+      "Do carry callout/severity meaning with a soft background fill plus status text color.",
+      "Do use container queries against content width for responsive changes (stack the dashboard body at 820px, the Plan grid at 1100px).",
+      "Do create emphasis with weight and size steps in Figtree."
+    ],
+    "donts": [
+      "Don't put a resting shadow on any card, row, or in-page surface — shadow is for drawers/dialogs only.",
+      "Don't add a colored or thick side-border (accent bar) to cards, banners, or callouts.",
+      "Don't introduce a second typeface, italics, or gradient text for emphasis.",
+      "Don't use status color decoratively — a hue must report real money or state.",
+      "Don't let the primary column exceed 1180px, and don't leave a list's final row with a trailing divider.",
+      "Don't assume viewport media queries; the resizable sidebar means content width is not viewport width."
+    ]
+  }
+}

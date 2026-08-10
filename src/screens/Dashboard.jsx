@@ -119,14 +119,23 @@ export default function Dashboard() {
   const largestRows = lg.map(t => ({ id: t.id, merchant: t.merchant || '—', cat: (S.categories.find(c => c.id === t.category) || {}).name || '—', amt: money(t.amount) }));
   const recent = S.transactions.filter(t => C.inMonth(t, month)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
   const recentRows = recent.map(t => txRowOf(t, S, fmt));
-  const acctMini = v.activeAccts.map(a => { const f = freshInfo(a, S); return { id: a.id, nick: a.nickname, inst: instName(S, a.instId), bal: money(C.accountBalance(a, S, month, now)), dot: f.dot, freshTip: f.tip }; });
+  // Dashboard summary shows the highest-balance accounts only (like "Largest
+  // expenses"), capped so a long account list can't tower over the left column
+  // and strand the Recent transactions section below it. The full list lives on
+  // the Accounts screen; "View all" carries the total count.
+  const ACCT_CAP = 4;
+  const acctAll = v.activeAccts
+    .map(a => { const f = freshInfo(a, S); const raw = C.accountBalance(a, S, month, now); return { id: a.id, nick: a.nickname, inst: instName(S, a.instId), raw, bal: money(raw), dot: f.dot, freshTip: f.tip }; })
+    .sort((x, y) => y.raw - x.raw);
+  const acctMini = acctAll.slice(0, ACCT_CAP);
+  const acctHidden = acctAll.length - acctMini.length;
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'hsFade .25s ease' }}>
+      <div className="dash-root" style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'hsFade .25s ease' }}>
 
         {v.snapshotPending && (
-          <div role="region" aria-label="Monthly opening reminder" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', border: '1px solid var(--border)', borderLeft: '3px solid var(--accent)', borderRadius: 12, background: 'var(--soft)' }}>
+          <div role="region" aria-label="Monthly opening reminder" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--soft)' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{v.snapBannerTitle}</div>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>Confirming locks in your starting position, so “change this month” stays trustworthy.</div>
@@ -138,7 +147,7 @@ export default function Dashboard() {
 
         <PositionStrip />
 
-        <section aria-label="Monthly summary" style={{ display: 'grid', gridTemplateColumns: `repeat(${v.sumCards.length},1fr)`, gap: 12 }}>
+        <section aria-label="Monthly summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
           {v.sumCards.map(s => (
             <div key={s.label} style={{ ...card, padding: '14px 16px' }}>
               <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>{s.label}</div>
@@ -148,7 +157,7 @@ export default function Dashboard() {
           ))}
         </section>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, alignItems: 'start' }}>
+        <div className="dash-cols">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
             <section aria-label="Daily spending" style={{ ...card, padding: '18px 20px' }}>
@@ -229,28 +238,6 @@ export default function Dashboard() {
                 </div>
               </section>
             )}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-
-            <section aria-label="Accounts" style={{ ...card, padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <h2 style={h2}>Accounts</h2><span style={{ flex: 1 }} />
-                <button onClick={() => nav('/accounts')} className="hv-accent-fg" style={linkBtn}>View all ›</button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-                {acctMini.map(a => (
-                  <button key={a.id} onClick={() => nav(`/transactions/${a.id}`)} className="hv-elev" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 2px', border: 'none', borderBottom: '1px solid var(--border)', background: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', color: 'var(--text)' }}>
-                    <span title={a.freshTip} style={{ width: 8, height: 8, borderRadius: 999, background: a.dot, flex: 'none' }} />
-                    <span style={{ minWidth: 0, flex: 1 }}>
-                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nick}</span>
-                      <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{a.inst}</span>
-                    </span>
-                    <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600 }}>{a.bal}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
 
             <section aria-label="Upcoming" style={{ ...card, padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -266,8 +253,8 @@ export default function Dashboard() {
               {upcomingRows.length > 0 ? (
                 <>
                   <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-                    {upcomingRows.map(u => (
-                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
+                    {upcomingRows.map((u, i) => (
+                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: i === upcomingRows.length - 1 ? 'none' : '1px solid var(--border)' }}>
                         <span style={{ minWidth: 0, flex: 1 }}>
                           <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500 }}>{u.name}</span>
                           <span style={{ display: 'block', fontSize: 11.5, color: u.whenColor }}>{u.when}</span>
@@ -283,13 +270,35 @@ export default function Dashboard() {
                 <div style={{ padding: '16px 0 6px', fontSize: 12.5, color: 'var(--muted)' }}>Nothing due for the rest of this month.</div>
               )}
             </section>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+
+            <section aria-label="Accounts" style={{ ...card, padding: '16px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <h2 style={h2}>Accounts</h2><span style={{ flex: 1 }} />
+                <button onClick={() => nav('/accounts')} className="hv-accent-fg" style={linkBtn}>{acctHidden > 0 ? `View all ${acctAll.length} ›` : 'View all ›'}</button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
+                {acctMini.map((a, i) => (
+                  <button key={a.id} onClick={() => nav(`/transactions/${a.id}`)} className="hv-elev" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 2px', border: 'none', borderBottom: i === acctMini.length - 1 ? 'none' : '1px solid var(--border)', background: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', color: 'var(--text)' }}>
+                    <span title={a.freshTip} style={{ width: 8, height: 8, borderRadius: 999, background: a.dot, flex: 'none' }} />
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nick}</span>
+                      <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{a.inst}</span>
+                    </span>
+                    <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600 }}>{a.bal}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
 
             <section aria-label="Largest expenses" style={{ ...card, padding: '16px 18px' }}>
               <h2 style={h2}>Largest expenses</h2>
               {largestRows.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-                  {largestRows.map(l => (
-                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                  {largestRows.map((l, i) => (
+                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === largestRows.length - 1 ? 'none' : '1px solid var(--border)' }}>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: 'block', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.merchant}</span>
                         <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{l.cat}</span>
@@ -312,8 +321,8 @@ export default function Dashboard() {
           </div>
           {recentRows.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-              {recentRows.map(t => (
-                <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity }}>
+              {recentRows.map((t, i) => (
+                <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: i === recentRows.length - 1 ? 'none' : '1px solid var(--border)', opacity: t.rowOpacity }}>
                   <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
                   <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
