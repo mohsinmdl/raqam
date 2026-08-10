@@ -98,6 +98,16 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
 .sidebar-accounts { container-type: inline-size; }
 @container (max-width: 236px) { .sidebar-accounts-total { display: none; } }
 
+/* Dashboard two-column body (charts | side panels). A container query on the
+   dashboard root — not a viewport media query — so it reacts to the real content
+   width as the resizable sidebar widens, matching the sidebar-accounts pattern
+   above. Below ~820px the side panels would starve, so the columns stack. */
+.dash-root { container-type: inline-size; }
+.dash-cols { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
+@container (max-width: 820px) {
+  .dash-cols { grid-template-columns: 1fr; }
+}
+
 /* Plan screen: table + inspector two-column grid (Phase 3). Inspector is
    sticky in the right column; ≤1100px it drops below the table. */
 .plan-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }

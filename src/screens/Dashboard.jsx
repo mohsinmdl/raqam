@@ -123,7 +123,7 @@ export default function Dashboard() {
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'hsFade .25s ease' }}>
+      <div className="dash-root" style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'hsFade .25s ease' }}>
 
         {v.snapshotPending && (
           <div role="region" aria-label="Monthly opening reminder" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', border: '1px solid var(--border)', borderLeft: '3px solid var(--accent)', borderRadius: 12, background: 'var(--soft)' }}>
@@ -138,7 +138,7 @@ export default function Dashboard() {
 
         <PositionStrip />
 
-        <section aria-label="Monthly summary" style={{ display: 'grid', gridTemplateColumns: `repeat(${v.sumCards.length},1fr)`, gap: 12 }}>
+        <section aria-label="Monthly summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
           {v.sumCards.map(s => (
             <div key={s.label} style={{ ...card, padding: '14px 16px' }}>
               <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>{s.label}</div>
@@ -148,7 +148,7 @@ export default function Dashboard() {
           ))}
         </section>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, alignItems: 'start' }}>
+        <div className="dash-cols">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
             <section aria-label="Daily spending" style={{ ...card, padding: '18px 20px' }}>
@@ -239,8 +239,8 @@ export default function Dashboard() {
                 <button onClick={() => nav('/accounts')} className="hv-accent-fg" style={linkBtn}>View all ›</button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-                {acctMini.map(a => (
-                  <button key={a.id} onClick={() => nav(`/transactions/${a.id}`)} className="hv-elev" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 2px', border: 'none', borderBottom: '1px solid var(--border)', background: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', color: 'var(--text)' }}>
+                {acctMini.map((a, i) => (
+                  <button key={a.id} onClick={() => nav(`/transactions/${a.id}`)} className="hv-elev" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 2px', border: 'none', borderBottom: i === acctMini.length - 1 ? 'none' : '1px solid var(--border)', background: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', color: 'var(--text)' }}>
                     <span title={a.freshTip} style={{ width: 8, height: 8, borderRadius: 999, background: a.dot, flex: 'none' }} />
                     <span style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nick}</span>
@@ -266,8 +266,8 @@ export default function Dashboard() {
               {upcomingRows.length > 0 ? (
                 <>
                   <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-                    {upcomingRows.map(u => (
-                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
+                    {upcomingRows.map((u, i) => (
+                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: i === upcomingRows.length - 1 ? 'none' : '1px solid var(--border)' }}>
                         <span style={{ minWidth: 0, flex: 1 }}>
                           <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500 }}>{u.name}</span>
                           <span style={{ display: 'block', fontSize: 11.5, color: u.whenColor }}>{u.when}</span>
@@ -288,8 +288,8 @@ export default function Dashboard() {
               <h2 style={h2}>Largest expenses</h2>
               {largestRows.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-                  {largestRows.map(l => (
-                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                  {largestRows.map((l, i) => (
+                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === largestRows.length - 1 ? 'none' : '1px solid var(--border)' }}>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: 'block', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.merchant}</span>
                         <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{l.cat}</span>
@@ -312,8 +312,8 @@ export default function Dashboard() {
           </div>
           {recentRows.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-              {recentRows.map(t => (
-                <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: '1px solid var(--border)', opacity: t.rowOpacity }}>
+              {recentRows.map((t, i) => (
+                <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: i === recentRows.length - 1 ? 'none' : '1px solid var(--border)', opacity: t.rowOpacity }}>
                   <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
                   <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
