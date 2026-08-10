@@ -1198,7 +1198,7 @@ export default function Plan() {
   const rowInset = wide ? { paddingLeft: 16, paddingRight: 16 } : null;
   return (
     <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '16px 0 56px' : '24px 28px 56px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
+      <div className="plan-root" style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
         {showBanner && (
           <AdoptionBanner
             noGroups={noGroups}
