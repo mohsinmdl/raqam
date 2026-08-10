@@ -53,6 +53,7 @@ typography:
     lineHeight: 1.3
     letterSpacing: "normal"
 rounded:
+  bar: "3px"
   field: "4px"
   button: "8px"
   card: "12px"
