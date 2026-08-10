@@ -44,8 +44,9 @@ supabase/.temp/
 # Impeccable design skill — vendored copy is personal tooling, not app code.
 .claude/skills/impeccable/
 
-# Graphify — ignore regenerable cache/metadata; the report + graph.html/json
-# are kept as shareable artifacts (committed explicitly).
+# Graphify — ignore regenerable data/cache/metadata; only the lightweight report
+# and the standalone graph.html viewer are committed as shareable artifacts.
 graphify-out/cache/
 graphify-out/cost.json
 graphify-out/manifest.json
+graphify-out/graph.json
