@@ -244,7 +244,8 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
     <div ref={rootRef} style={{ position: 'relative', flex: 'none' }}>
       <button
         onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
-        style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: '#1F5D1A', color: '#EAF7DC', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        className="hv-accent"
+        style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
       >Assign ▾</button>
       {open && (
         // Left-anchored: the banner sits at the content's left edge, and a
@@ -283,16 +284,16 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
   );
 }
 
-// Ready-to-Assign banner. State colours per the reference doc: positive is a
-// literal green tint (not var(--pos-soft) — YNAB's own screenshot colour),
-// zero and negative reuse the theme's neutral / negative tokens. Splits into
-// the clickable label/amount (opens RtaBreakdown) and, only when there's
-// something to move, a dark-green Assign ▾ button (opens AssignPopover).
+// Ready-to-Assign banner. State colours come from Raqam's own status tokens
+// (the Signal-Only Rule): positive money to assign reads in the ledger-green
+// pos tokens, zero is neutral, negative (overspent) is the negative tokens.
+// Splits into the clickable label/amount (opens RtaBreakdown) and, only when
+// there's something to move, a teal Assign ▾ button (opens AssignPopover).
 function RtaBanner({ env, prevRta, month, money, moneyS, S, applyData }) {
   const rta = env.rta;
-  const bg = rta > 0 ? '#C9EE8F' : rta === 0 ? 'var(--elev)' : 'var(--neg-soft)';
-  const fg = rta > 0 ? '#132B12' : rta === 0 ? 'var(--muted)' : 'var(--neg)';
-  const labelColor = rta > 0 ? '#3B4A32' : 'var(--muted)';
+  const bg = rta > 0 ? 'var(--pos-soft)' : rta === 0 ? 'var(--elev)' : 'var(--neg-soft)';
+  const fg = rta > 0 ? 'var(--pos)' : rta === 0 ? 'var(--muted)' : 'var(--neg)';
+  const labelColor = 'var(--muted)';
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, paddingRight: rta !== 0 ? 10 : 0, borderRadius: 8, background: bg, minWidth: 200 }}>
       <RtaBreakdown env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} fg={fg} labelColor={labelColor} />
@@ -309,14 +310,16 @@ function ViewToggle({ view, onChange }) {
     <button
       key={key} onClick={() => onChange(key)} aria-pressed={val === key}
       style={{
-        height: 28, padding: '0 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
+        height: 28, padding: '0 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
+        // Flat selection cue (no in-page shadow — Flat Ledger Rule): the active
+        // segment is a white surface defined by a 1px hairline against the track.
+        border: val === key ? '1px solid var(--border)' : '1px solid transparent',
         background: val === key ? 'var(--surface)' : 'transparent', color: val === key ? 'var(--text)' : 'var(--muted)',
-        boxShadow: val === key ? 'var(--shadow)' : 'none',
       }}
     >{label}</button>
   );
   return (
-    <div role="group" aria-label="Row view" style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 8, background: 'rgba(125,109,63,.16)' }}>
+    <div role="group" aria-label="Row view" style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 8, background: 'var(--track)' }}>
       {seg('progress', 'Progress')}
       {seg('compact', 'Compact')}
     </div>
@@ -896,7 +899,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
         >{cat.name}</EditNamePopover>
         {view !== 'compact' && (
           <div style={{ marginTop: 4 }}>
-            <div style={{ height: 4, borderRadius: 2, background: 'rgba(125,109,63,.16)', overflow: 'hidden' }}>
+            <div style={{ height: 4, borderRadius: 2, background: 'var(--track)', overflow: 'hidden' }}>
               <div style={{ width: (pct * 100) + '%', height: '100%', background: barColor }} />
             </div>
             <div className="tnum" style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{subLabel}</div>
@@ -1195,7 +1198,7 @@ export default function Plan() {
   const rowInset = wide ? { paddingLeft: 16, paddingRight: 16 } : null;
   return (
     <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '16px 0 56px' : '24px 28px 56px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
+      <div className="plan-root" style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
         {showBanner && (
           <AdoptionBanner
             noGroups={noGroups}
