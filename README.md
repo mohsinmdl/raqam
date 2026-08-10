@@ -48,10 +48,17 @@ React + Vite with real dates and localStorage persistence.
 ## Run
 
 ```sh
-npm install
-npm run dev       # dev server
-npm run build     # production build (dist/, relative paths — any static host)
-npm run preview
+pnpm install
+pnpm run dev      # dev server
+pnpm run build    # production build (dist/, relative paths — any static host)
+pnpm run preview
+```
+
+Once per clone, enable the repo git hooks so new git worktrees auto-install their
+dependencies (no manual `pnpm install` per worktree):
+
+```sh
+git config core.hooksPath .githooks
 ```
 
 Plain JS + JSX; state is React context + reducer; routing is react-router (hash
