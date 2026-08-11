@@ -1,0 +1,29 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/ui/BulkBar.jsx"
+        ],
+        "createdAt": "2026-08-11T22:40:06.030Z",
+        "reason": "CSS-triangle caret pointer, not an accent side-border — detector false positive"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "16px",
+        "createdAt": "2026-08-11T22:40:14.954Z",
+        "reason": "iOS input auto-zoom threshold on phone — plan constraint, documented in theme.css"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "28px",
+        "createdAt": "2026-08-11T22:40:16.785Z",
+        "reason": "Phone display step from user feedback, documented in DESIGN.md Display role"
+      }
+    ]
+  }
+}
