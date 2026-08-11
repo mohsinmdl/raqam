@@ -41,6 +41,12 @@ export function fillRemainderIndex(lines) {
 // `fmt` formats the sum-error amounts. Defaults to a locale-naive 'Rs n' so
 // pure callers/tests keep working unchanged; TxForm passes its moneyRaw so
 // the message respects the privacy mask like every other amount in the form.
+
+// Category names from the YNAB import often carry a leading emoji (“⚡️ Utilities”);
+// compare names with any leading non-letter/digit prefix stripped so “Utilities”
+// still collides with “⚡️ Utilities”.
+const catName = s => String(s).trim().toLowerCase().replace(/^[^\p{L}\p{N}]+/u, '');
+
 export function validateSplit(totalStr, lines, store, fmt) {
   const money = fmt || (n => 'Rs ' + n.toLocaleString());
   if (lines.length < 2) return 'A split needs at least two lines.';
@@ -48,11 +54,11 @@ export function validateSplit(totalStr, lines, store, fmt) {
     return 'Choose a category for every line.';
   const ids = lines.filter(l => l.category !== '__new').map(l => l.category);
   if (new Set(ids).size !== ids.length) return 'Two lines use the same category — merge them.';
-  const newNames = lines.filter(l => l.category === '__new').map(l => l.newCat.trim().toLowerCase());
+  const newNames = lines.filter(l => l.category === '__new').map(l => catName(l.newCat));
   if (new Set(newNames).size !== newNames.length) return 'Two lines create the same new category — merge them.';
   if (store) {
     for (const n of new Set(newNames)) {
-      const collide = store.categories.find(c => c.type === 'expense' && c.status === 'active' && c.name.trim().toLowerCase() === n);
+      const collide = store.categories.find(c => c.type === 'expense' && c.status === 'active' && catName(c.name) === n);
       if (collide) return 'Another expense category is already called “' + collide.name + '”.';
     }
     for (let i = 0; i < lines.length; i++) {
