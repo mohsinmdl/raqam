@@ -133,3 +133,14 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
   .plan-grid { grid-template-columns: 1fr; }
   .plan-inspector { position: static; }
 }
+
+/* ---------- Phone shell (≤700px viewport; brief 2026-08-11) ----------
+   The shell swaps sidebar for a bottom tab bar (App.jsx renders them
+   conditionally); this block carries the CSS-only parts: safe-area
+   clearance and ≥16px inputs (iOS auto-zoom threshold). */
+@media (max-width: 700px) {
+  /* Header clears the Dynamic Island / notch under viewport-fit=cover. */
+  .app-header { padding-top: env(safe-area-inset-top); }
+  input:not([type="checkbox"]):not([type="radio"]),
+  select, textarea { font-size: 16px !important; }
+}
