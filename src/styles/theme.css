@@ -193,4 +193,16 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
     padding-bottom: env(safe-area-inset-bottom);
     animation: hsUp .22s ease !important;
   }
+
+  /* BulkBar sits at inline bottom:24, which lands underneath MobileTabBar
+     (normal-flow, ~60px tall + its own safe-area inset). Raise it to clear
+     the tab bar plus a 12px visual gap. !important beats the inline bottom. */
+  .bulk-bar { bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
+
+  /* Toast: same phone-only tab-bar clearance as .bulk-bar, so a toast alone
+     doesn't land under the tab bar either. The existing 62px raise (86 - 24
+     on desktop) still applies on top when a bulk bar is also up, so the two
+     bottom-pinned overlays keep stacking correctly on phone. */
+  .toast { bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
+  .toast-raised { bottom: calc(72px + env(safe-area-inset-bottom) + 62px) !important; }
 }

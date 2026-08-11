@@ -13,7 +13,7 @@ import { stepCursor, rangeBetween } from '../lib/rowCursor.js';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
-import { txGroups } from '../lib/txRow.js';
+import { schedNote, txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
 import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
@@ -633,7 +633,7 @@ export default function Transactions() {
         {phone && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
             <span style={{ flex: 1, minWidth: 0, display: 'flex' }}>
-              <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} collapsed="100%" expanded="100%"
+              <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} collapsed="100%" expanded="100%" height={44}
                 placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
             </span>
             <button
@@ -726,12 +726,7 @@ export default function Transactions() {
                   <GroupHead
                     open={schedOpen} onToggle={() => setSchedOpen(o => !o)} label="SCHEDULED" bg="var(--warn-soft)" colSpan={gridColSpan}
                     count={scheduled.length + (scheduled.length === 1 ? ' item' : ' items')}
-                    note={[
-                      overdueCount > 0 ? overdueCount + ' overdue' : 'not yet spent',
-                      // Say so rather than truncating silently: a folded reminder
-                      // is a real future obligation the reader can't see.
-                      hiddenRuleCount > 0 ? hiddenRuleCount + ' more later' : null,
-                    ].filter(Boolean).join(' · ')}
+                    note={schedNote(overdueCount, hiddenRuleCount)}
                   />
                   {/* Scheduled rows are selectable now (keyed by row key, since a
                       reminder has no tx id), and their verbs live in the bulk bar

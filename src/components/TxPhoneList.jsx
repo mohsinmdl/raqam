@@ -4,9 +4,12 @@
 // Tap toggles selection (additive, like the desktop checkbox); actions stay
 // in the existing BulkBar. Amounts arrive pre-formatted (amtLabel/amtColor).
 import TxChips from '../ui/TxChips.jsx';
+import { schedNote } from '../lib/txRow.js';
 
 function PhoneRow({ t, selId, checked, onToggle, scheduled, hideAccount, last }) {
-  const sub = [t.dateLabel, t.catName, !hideAccount && t.acctLabel].filter(Boolean).join(' · ');
+  // Signal-Only: overdue red marks the DATE as late, not the whole sub-line.
+  // Category/account are ordinary metadata and stay --muted either way.
+  const rest = [t.catName, !hideAccount && t.acctLabel].filter(Boolean).join(' · ');
   return (
     <button
       // Passes the click event through, mirroring the desktop Row's
@@ -20,6 +23,7 @@ function PhoneRow({ t, selId, checked, onToggle, scheduled, hideAccount, last })
       // the extra argument, so this is a no-op there.
       onClick={e => onToggle(selId, !checked, e)}
       aria-pressed={checked}
+      aria-label={'Select ' + t.merchant + ' on ' + t.dateLabel + ', ' + t.amtLabel}
       className={checked ? undefined : 'hv-elev'}
       style={{
         display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48,
@@ -35,7 +39,10 @@ function PhoneRow({ t, selId, checked, onToggle, scheduled, hideAccount, last })
           <span style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
           <TxChips row={t} meta />
         </span>
-        <span style={{ display: 'block', fontSize: 11.5, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: t.isOverdue ? 'var(--neg)' : 'var(--muted)' }}>{sub}</span>
+        <span style={{ display: 'block', fontSize: 11.5, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--muted)' }}>
+          <span style={{ color: t.isOverdue ? 'var(--neg)' : 'inherit' }}>{t.dateLabel}</span>
+          {rest && ' · ' + rest}
+        </span>
       </span>
       <span className="tnum" style={{ fontSize: 14, fontWeight: 600, color: t.amtColor, whiteSpace: 'nowrap', flex: 'none', opacity: t.rowOpacity }}>{t.amtLabel}</span>
       {!scheduled && t.stGlyph && (
@@ -58,10 +65,7 @@ export default function TxPhoneList({
   overdueCount, hiddenRuleCount, hideAccount,
 }) {
   const grouped = scheduled.length > 0;
-  const note = [
-    overdueCount > 0 ? overdueCount + ' overdue' : 'not yet spent',
-    hiddenRuleCount > 0 ? hiddenRuleCount + ' more later' : null,
-  ].filter(Boolean).join(' · ');
+  const note = schedNote(overdueCount, hiddenRuleCount);
   return (
     <div>
       {grouped && (

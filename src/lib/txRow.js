@@ -228,6 +228,16 @@ export function txGroups(list, S, fmt, now, range, anyFilter, sort, accountId) {
   };
 }
 
+// The scheduled-band note ("N overdue · M more later"), shared by the desktop
+// GroupHead and the phone list's collapsed band header. Say so rather than
+// truncating silently — a folded reminder is a real future obligation.
+export function schedNote(overdueCount, hiddenRuleCount) {
+  return [
+    overdueCount > 0 ? overdueCount + ' overdue' : 'not yet spent',
+    hiddenRuleCount > 0 ? hiddenRuleCount + ' more later' : null,
+  ].filter(Boolean).join(' · ');
+}
+
 export function freshInfo(acc, S) {
   const days = daysAgo(lastActivity(acc, S), nowIso());
   if (days <= 3) return { dot: 'var(--pos)', label: 'Up to date', tip: 'Activity recorded in the last 3 days' };
