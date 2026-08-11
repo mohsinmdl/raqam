@@ -313,8 +313,14 @@ function SplitLines({ f, setForm, env, S, month, money, errors }) {
   const rem = splitRemainder(f.amount, lines);
   const fillRemainder = () => {
     if (rem <= 0) return;
-    const idx = lines.map(l => parseAmt(l.amount)).lastIndexOf(0);
-    if (idx >= 0) setLine(idx, { amount: String(rem) }); // the found line parses to 0, so it takes the whole remainder
+    // "Empty" means not a positive amount — a fresh line's amount is '', and
+    // parseAmt('') is NaN (not 0), so this can't just lastIndexOf(0).
+    const amts = lines.map(l => parseAmt(l.amount));
+    let idx = -1;
+    for (let i = amts.length - 1; i >= 0; i--) {
+      if (!(amts[i] > 0)) { idx = i; break; }
+    }
+    if (idx >= 0) setLine(idx, { amount: String(rem) });
   };
   const amountBox = { width: 110, boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 'none' };
   return (
