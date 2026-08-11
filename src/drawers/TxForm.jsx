@@ -16,7 +16,7 @@ import { PRESETS, ruleFromTx } from '../lib/schedule.js';
 import WhenField from './WhenField.jsx';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import { envelopeFor } from '../lib/envelope.js';
-import { blankLine, fillRemainderIndex, splitRemainder, validateSplit } from '../lib/splitTx.js';
+import { blankLine, fillRemainderIndex, splitHalves, splitRemainder, validateSplit } from '../lib/splitTx.js';
 import { formatAmountInput } from '../lib/amountInput.js';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, Pill, grid2, noteBox } from './fields.jsx';
 
@@ -128,7 +128,18 @@ function Body() {
             <Label required>Category</Label>
             {canSplit && (
               <button type="button" className="hv-soft"
-                onClick={() => setForm({ splitOn: true, splits: [{ ...blankLine(), category: f.category === '__new' ? '' : (f.category || '') }, blankLine()], newCat: '', newCatGroup: '' })}
+                onClick={() => {
+                  // Seed a 50/50 prefill from the total (the common shared-purchase
+                  // case); with no total yet the lines start empty as before.
+                  const halves = splitHalves(f.amount);
+                  setForm({
+                    splitOn: true, newCat: '', newCatGroup: '',
+                    splits: [
+                      { ...blankLine(), category: f.category === '__new' ? '' : (f.category || ''), amount: halves ? formatAmountInput(String(halves[0])) : '' },
+                      { ...blankLine(), amount: halves ? formatAmountInput(String(halves[1])) : '' },
+                    ],
+                  });
+                }}
                 style={{ border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
               >Split across categories</button>
             )}

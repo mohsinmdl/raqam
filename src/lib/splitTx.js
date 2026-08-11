@@ -9,6 +9,18 @@ import { uid } from './util.js';
 
 export const blankLine = () => ({ id: uid(), category: '', amount: '', newCat: '', newCatGroup: '' });
 
+// 50/50 prefill for entering split mode: the common case is halving a shared
+// purchase, so both starting lines are seeded with half the total. Integers
+// only — the first half takes the extra rupee on odd totals so the pair still
+// sums exactly. Null when no positive total has been entered yet, in which
+// case the lines start empty as before.
+export function splitHalves(totalStr) {
+  const amt = parseAmt(totalStr);
+  if (!(amt > 0)) return null;
+  const first = Math.ceil(amt / 2);
+  return [first, amt - first];
+}
+
 export function splitRemainder(totalStr, lines) {
   return (parseAmt(totalStr) || 0) - lines.reduce((s, l) => s + (parseAmt(l.amount) || 0), 0);
 }
