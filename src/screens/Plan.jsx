@@ -20,7 +20,6 @@ import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visible
 import { hasTarget, targetNeeded } from '../lib/targets.js';
 import { rangeBetween } from '../lib/rowCursor.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
-import FocusTrap from '../ui/FocusTrap.jsx';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
 import ViewEditorModal from '../ui/plan/ViewEditorModal.jsx';
@@ -697,10 +696,9 @@ function MovesPopover({ open, up, cat, month, S, money, onClose }) {
 // Shared shell for the two AVAILABLE-pill popovers (Cover overspending / Move
 // leftover): a tone-coloured pill trigger whose card is portalled to <body> and
 // placed by usePopoverPosition, so the plan table's overflow:hidden can't clip
-// it. FocusTrap moves focus into the card on open and restores it to the pill on
-// close — the portal would otherwise drop the card out of Tab order. The caller
-// keeps its open state, the reset-on-open toggle (clearing picker/amount before
-// opening), and the card body; only tone, value, ariaLabel and body differ.
+// it. The caller keeps its open state, the reset-on-open toggle (clearing
+// picker/amount before opening), and the card body; only tone, value, ariaLabel
+// and body differ between the two.
 function PillPopover({ open, onToggle, onClose, tone, value, ariaLabel, children }) {
   const rootRef = useRef(null);
   const popRef = useRef(null);
@@ -716,7 +714,7 @@ function PillPopover({ open, onToggle, onClose, tone, value, ariaLabel, children
       >{value}</button>
       {open && pos && createPortal(
         <div ref={popRef} role="dialog" aria-label={ariaLabel} style={{ ...popCard, position: 'fixed', ...pos, textAlign: 'left' }}>
-          <FocusTrap>{children}</FocusTrap>
+          {children}
         </div>,
         document.body
       )}
