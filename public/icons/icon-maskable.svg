@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable variant: full-bleed ground, glyph inside the 80% safe zone
+       (launchers crop up to ~10% per edge into circles/squircles). -->
+  <rect width="512" height="512" fill="#0F766E"/>
+  <text x="256" y="330" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="208" font-weight="700" fill="#fff">₨</text>
+</svg>
