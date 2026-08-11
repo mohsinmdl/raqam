@@ -689,21 +689,43 @@ function MovesPopover({ open, up, cat, month, S, money, onClose }) {
   );
 }
 
+// Shared shell for the two AVAILABLE-pill popovers (Cover overspending / Move
+// leftover): a tone-coloured pill trigger whose card is portalled to <body> and
+// placed by usePopoverPosition, so the plan table's overflow:hidden can't clip
+// it. The caller keeps its open state, the reset-on-open toggle (clearing
+// picker/amount before opening), and the card body; only tone, value, ariaLabel
+// and body differ between the two.
+function PillPopover({ open, onToggle, onClose, tone, value, ariaLabel, children }) {
+  const rootRef = useRef(null);
+  const popRef = useRef(null);
+  usePopoverDismiss(open, rootRef, onClose, popRef);
+  // 300 = card width; 230 ≈ the card alone — the picker's list overlays and flips on its own.
+  const pos = usePopoverPosition(open, rootRef, 300, 230, onClose);
+  return (
+    <span ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        onClick={onToggle} aria-haspopup="dialog" aria-expanded={String(open)}
+        className="tnum hv-elev"
+        style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, border: 'none', background: `var(--${tone}-soft)`, color: `var(--${tone})`, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+      >{value}</button>
+      {open && pos && createPortal(
+        <div ref={popRef} role="dialog" aria-label={ariaLabel} style={{ ...popCard, position: 'fixed', ...pos, textAlign: 'left' }}>
+          {children}
+        </div>,
+        document.body
+      )}
+    </span>
+  );
+}
+
 // AVAILABLE pill for an overspent (red) category: covers the shortfall by
-// pulling a FIXED amount (money(-available)) in from another envelope (or
-// RTA) — only the source is picked. Self-contained trigger+popover, same
-// shape as AssignPopover.
+// pulling a FIXED amount (money(-available)) in from another envelope (or RTA)
+// — only the source is picked.
 function CoverPopover({ cat, month, available, env, S, money, applyData }) {
   const { notify } = useUI();
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState(null);
-  const rootRef = useRef(null);
-  const popRef = useRef(null);
   const close = useCallback(() => setOpen(false), []);
-  usePopoverDismiss(open, rootRef, close, popRef);
-  // 300 = card width; 230 ≈ the card alone — the picker's list overlays and flips on its own.
-  const pos = usePopoverPosition(open, rootRef, 300, 230, close);
-
   const openPopover = () => { setFrom(null); setOpen(true); };
 
   const fromCat = from && from !== 'rta' ? S.categories.find(c => c.id === from) : null;
@@ -721,31 +743,24 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
   };
 
   return (
-    <span ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
-        className="tnum hv-elev"
-        style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, border: 'none', background: 'var(--neg-soft)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-      >{money(available)}</button>
-      {open && pos && createPortal(
-        <div ref={popRef} role="dialog" aria-label="Cover overspending" style={{ ...popCard, position: 'fixed', ...pos, textAlign: 'left' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Cover overspending from</div>
-          <div className="tnum" style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>{money(amount)}</div>
-          <PlanCategoryPicker
-            env={env} S={S} month={month} money={money} excludeId={cat.id}
-            value={from} onChange={setFrom}
-          />
-          <div style={popBtnRow}>
-            <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
-            <button
-              onClick={confirm} disabled={!canCover} className="hv-accent"
-              style={{ ...popOk, opacity: canCover ? 1 : .5, cursor: canCover ? 'pointer' : 'not-allowed' }}
-            >OK</button>
-          </div>
-        </div>,
-        document.body
-      )}
-    </span>
+    <PillPopover
+      open={open} onToggle={() => (open ? close() : openPopover())} onClose={close}
+      tone="neg" value={money(available)} ariaLabel="Cover overspending"
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Cover overspending from</div>
+      <div className="tnum" style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>{money(amount)}</div>
+      <PlanCategoryPicker
+        env={env} S={S} month={month} money={money} excludeId={cat.id}
+        value={from} onChange={setFrom}
+      />
+      <div style={popBtnRow}>
+        <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
+        <button
+          onClick={confirm} disabled={!canCover} className="hv-accent"
+          style={{ ...popOk, opacity: canCover ? 1 : .5, cursor: canCover ? 'pointer' : 'not-allowed' }}
+        >OK</button>
+      </div>
+    </PillPopover>
   );
 }
 
@@ -757,13 +772,7 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(() => String(available));
   const [to, setTo] = useState(null);
-  const rootRef = useRef(null);
-  const popRef = useRef(null);
   const close = useCallback(() => setOpen(false), []);
-  usePopoverDismiss(open, rootRef, close, popRef);
-  // 300 = card width; 230 ≈ the card alone — the picker's list overlays and flips on its own.
-  const pos = usePopoverPosition(open, rootRef, 300, 230, close);
-
   const openPopover = () => { setAmount(String(available)); setTo(null); setOpen(true); };
 
   const toCat = to && to !== 'rta' ? S.categories.find(c => c.id === to) : null;
@@ -781,37 +790,30 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
   };
 
   return (
-    <span ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
-        className="tnum hv-elev"
-        style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, border: 'none', background: 'var(--pos-soft)', color: 'var(--pos)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-      >{money(available)}</button>
-      {open && pos && createPortal(
-        <div ref={popRef} role="dialog" aria-label="Move available money" style={{ ...popCard, position: 'fixed', ...pos, textAlign: 'left' }}>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Move:</label>
-          <input
-            className="tnum" value={amount} inputMode="numeric"
-            onFocus={e => e.target.select()}
-            onChange={e => setAmount(e.target.value)}
-            style={{ width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, marginBottom: 10 }}
-          />
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>To:</label>
-          <PlanCategoryPicker
-            env={env} S={S} month={month} money={money} excludeId={cat.id}
-            value={to} onChange={setTo}
-          />
-          <div style={popBtnRow}>
-            <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
-            <button
-              onClick={confirm} disabled={!canMove} className="hv-accent"
-              style={{ ...popOk, opacity: canMove ? 1 : .5, cursor: canMove ? 'pointer' : 'not-allowed' }}
-            >OK</button>
-          </div>
-        </div>,
-        document.body
-      )}
-    </span>
+    <PillPopover
+      open={open} onToggle={() => (open ? close() : openPopover())} onClose={close}
+      tone="pos" value={money(available)} ariaLabel="Move available money"
+    >
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Move:</label>
+      <input
+        className="tnum" value={amount} inputMode="numeric"
+        onFocus={e => e.target.select()}
+        onChange={e => setAmount(e.target.value)}
+        style={{ width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, marginBottom: 10 }}
+      />
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>To:</label>
+      <PlanCategoryPicker
+        env={env} S={S} month={month} money={money} excludeId={cat.id}
+        value={to} onChange={setTo}
+      />
+      <div style={popBtnRow}>
+        <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
+        <button
+          onClick={confirm} disabled={!canMove} className="hv-accent"
+          style={{ ...popOk, opacity: canMove ? 1 : .5, cursor: canMove ? 'pointer' : 'not-allowed' }}
+        >OK</button>
+      </div>
+    </PillPopover>
   );
 }
 
