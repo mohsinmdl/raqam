@@ -84,6 +84,9 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // Recoverable-spending indicator — the money moved, it just isn't budget spending.
     excluded: (t.type === 'expense' || t.type === 'refund') && !!(cat && cat.excludeFromBudget),
     excludedLabel: 'Excluded from budgets',
+    // Split-purchase indicator — this row is one leg of a multi-category entry.
+    split: !!t.splitId,
+    splitLabel: 'Split purchase',
   };
 }
 
