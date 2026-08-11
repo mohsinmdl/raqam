@@ -160,6 +160,10 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
   .dash-col-main .dash-upcoming { order: -1; }
   /* Position strip: balance leads; the two stat columns collapse. */
   .pos-cols { display: none; }
+  /* Phone display step: 38px Display overwhelms a 393pt screen (user
+     feedback 2026-08-12) — the headline balance steps down to 28px on
+     phone. !important beats the inline fontSize: 38. */
+  .pos-lead .tnum { font-size: 28px !important; }
   /* Recent tx rows: date · merchant+chips · amount; cap at 5 on phone
      (desktop keeps 8) — brief wants a short confirm-glance list. */
   .tx-row-grid { grid-template-columns: 64px minmax(0, 1fr) auto !important; }
