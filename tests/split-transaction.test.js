@@ -83,3 +83,18 @@ describe('transactions sync contract: splitId', () => {
     expect('splitId' in entry.fromRow(row)).toBe(false);
   });
 });
+
+import { txRowOf } from '../src/lib/txRow.js';
+
+describe('txRowOf split flag', () => {
+  const fmt = { money: n => 'Rs ' + Math.abs(n), moneyS: n => String(n) };
+  const S2 = {
+    accounts: [{ id: 'a1', nickname: 'Meezan' }], cards: [], categories: [{ id: 'groc', name: 'Groceries' }],
+    transactions: [], recurring: [],
+  };
+  const base = { id: 't1', date: '2026-08-11T12:00', type: 'expense', amount: 2500, accountId: 'a1', category: 'groc', merchant: '', notes: '', status: 'cleared' };
+  it('flags legs that carry a splitId', () => {
+    expect(txRowOf({ ...base, splitId: 'sp1' }, S2, fmt).split).toBe(true);
+    expect(txRowOf(base, S2, fmt).split).toBe(false);
+  });
+});
