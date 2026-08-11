@@ -103,10 +103,12 @@ function PlanCheckbox({ checked, indeterminate, onChange, label }) {
 // downward under its trigger (right edges aligned, matching the old right:0),
 // `width` is its fixed width and `estHeight` a height estimate — it flips above
 // only when the VIEWPORT itself lacks room below. A fixed card can't ride the
-// content scroll, so we CLOSE on scroll (and if the anchor row unmounts) rather
-// than let it drift over the header or freeze glued to an empty spot; resize
+// content scroll, so we CLOSE on a page/table scroll (and if the anchor row
+// unmounts) rather than let it drift over the header or freeze glued to an empty
+// spot — but scrolls that originate INSIDE the card (`cardRef`, e.g. the category
+// picker's own list) are ignored so the popover doesn't close itself. Resize
 // just re-places it.
-function usePopoverPosition(open, triggerRef, width, estHeight, onClose) {
+function usePopoverPosition(open, triggerRef, width, estHeight, onClose, cardRef) {
   const [pos, setPos] = useState(null);
   useLayoutEffect(() => {
     if (!open) { setPos(null); return undefined; }
@@ -124,14 +126,17 @@ function usePopoverPosition(open, triggerRef, width, estHeight, onClose) {
       });
     };
     place();
-    const onScroll = () => onClose?.();
+    const onScroll = e => {
+      if (cardRef?.current && cardRef.current.contains(e.target)) return;
+      onClose?.();
+    };
     window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', place);
     return () => {
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', place);
     };
-  }, [open, triggerRef, width, estHeight, onClose]);
+  }, [open, triggerRef, width, estHeight, onClose, cardRef]);
   return pos;
 }
 
@@ -702,7 +707,7 @@ function PillPopover({ open, onToggle, onClose, tone, value, ariaLabel, children
   const popRef = useRef(null);
   usePopoverDismiss(open, rootRef, onClose, popRef);
   // 300 = card width; 230 ≈ the card alone — the picker's list overlays and flips on its own.
-  const pos = usePopoverPosition(open, rootRef, 300, 230, onClose);
+  const pos = usePopoverPosition(open, rootRef, 300, 230, onClose, popRef);
   return (
     <span ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
       <button
