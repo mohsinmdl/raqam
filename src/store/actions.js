@@ -85,8 +85,9 @@ export function addTransaction(data, { form: f, type, amt, fee }) {
 
 // Split expense: N ordinary expense legs linked by one splitId, saved in a
 // single call — one undo step, one sync push, one audit entry. Legs reuse
-// buildTx so every cross-type rule stays in one place; the engine never reads
-// splitId. No repeat/recurring integration by design (split mode hides Repeat).
+// buildTx so every cross-type rule stays in one place; the budget/balance
+// engine never reads splitId (only display code does). No repeat/recurring
+// integration by design (split mode hides Repeat).
 export function addSplitTransaction(data, { form: f, legs, amt }) {
   const next = { ...data, transactions: [...data.transactions] };
   const splitId = uid();
@@ -170,7 +171,13 @@ export function updateTransaction(data, { form: f, type, amt, fee }) {
   // and it must not reach back into the store this action was given.
   const next = { ...data, transactions: [...data.transactions], recurring: [...data.recurring] };
   const catId = resolveCategory(next, f, type);
-  const rebuilt = stampUpdate({ ...buildTx(f, type, amt, fee, catId, before.id), editCount: before.editCount || 0 });
+  const built = buildTx(f, type, amt, fee, catId, before.id);
+  // buildTx never emits splitId (it builds add and edit records alike, and add
+  // never has one to carry) — reattach it here or an edit silently unlinks the
+  // leg from its split. A type change away from expense drops it on purpose:
+  // a non-expense record can't be a split leg.
+  if (type === 'expense' && before.splitId) built.splitId = before.splitId;
+  const rebuilt = stampUpdate({ ...built, editCount: before.editCount || 0 });
   next.transactions[i] = rebuilt;
   const d = diffFields(before, rebuilt, TX_AUDIT_FIELDS);
   next.audit = [makeAudit({ entityType: 'transaction', entityId: before.id, action: 'update', summary: 'Edited ' + rebuilt.type + (d.keys.length ? ' (' + d.keys.join(', ') + ')' : ''), before: d.before, after: d.after }), ...(next.audit || [])];
