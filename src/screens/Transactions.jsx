@@ -25,6 +25,8 @@ import RecentMoves from '../components/RecentMoves.jsx';
 import SearchField from '../ui/SearchField.jsx';
 import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarAction.jsx';
 import { matchesQuery } from '../lib/txSearch.js';
+import { useIsPhone } from '../lib/useIsPhone.js';
+import TxPhoneList from '../components/TxPhoneList.jsx';
 
 // Sticky against <main>'s scroll. No overflow is introduced here — the section
 // deliberately has none, because it would clip the per-row ⋯ menu. z-index sits
@@ -249,6 +251,10 @@ export default function Transactions() {
   // so the rows use all the space available. On by default; the toggle only
   // stores an explicit `false` to opt back into the narrow, boxed layout.
   const wide = prefs.wide !== false;
+  const phone = useIsPhone();
+  // Phone always uses the flush, full-width layout — the boxed 1180px card
+  // frame is a desktop choice; the wide pref stays desktop-only.
+  const flush = wide || phone;
   const { ask, notify, confirmOpen, shortcutsOpen } = useUI();
   const fmt = useMoney();
   const { openDrawer, drawer } = useDrawer();
@@ -593,13 +599,13 @@ export default function Transactions() {
   }, [navEnabled]);
 
   return (
-    <div style={{ maxWidth: wide ? 'none' : 1180, margin: '0 auto', padding: wide ? '0 0 56px' : '24px 28px 56px' }}>
+    <div style={{ maxWidth: flush ? 'none' : 1180, margin: '0 auto', padding: flush ? '0 0 56px' : '24px 28px 56px' }}>
       {/* Wide mode is flush and seamless: no column gap, so the sections meet at
           a single divider line rather than sitting apart as separate cards. */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: wide ? 0 : 14, animation: 'hsFade .25s ease' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: flush ? 0 : 14, animation: 'hsFade .25s ease' }}>
         {/* Balance strip: Cleared + Uncleared = Working (scoped to the account
             when one is selected). The account header now lives in the top bar. */}
-        <PositionStrip compact wide={wide} accountId={accountId} />
+        <PositionStrip compact wide={flush} accountId={accountId} />
 
         {/* One bar at a time: recorded selection wins, else the scheduled one.
             The two selections are mutually exclusive, so only one has a count. */}
@@ -624,12 +630,29 @@ export default function Transactions() {
           <BulkBar count={schedSel.size} total={fmt.moneyS(schedSelectedTotal)} onClear={clearSched} actions={[]} more={schedMore()} />
         )}
 
+        {phone && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+            <span style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+              <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} collapsed={220} expanded={220}
+                placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
+            </span>
+            <button
+              onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
+              aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}
+              className="hv-accent-fg"
+              style={{ minHeight: 44, border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '0 4px', whiteSpace: 'nowrap', flex: 'none' }}
+            >
+              {sortLabel(sort) + ' ' + (sort.dir === 'asc' ? '↑' : '↓')}
+            </button>
+          </div>
+        )}
         {/* Action toolbar — the All-Accounts reference row: Add Transaction on
             the left, Undo/Redo after a divider, then View + Search on the right. */}
+        {!phone && (
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: wide ? '9px 18px' : '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 6, padding: flush ? '9px 18px' : '10px 14px',
           background: 'var(--surface)',
-          ...(wide ? { borderBottom: '1px solid var(--border)' } : { border: '1px solid var(--border)', borderRadius: 12 }),
+          ...(flush ? { borderBottom: '1px solid var(--border)' } : { border: '1px solid var(--border)', borderRadius: 12 }),
         }}>
           <ToolbarAction
             icon={<PlusCircle />} label="Add Transaction" disabled={addDisabled}
@@ -668,10 +691,11 @@ export default function Transactions() {
             {sortLabel(sort) + ' ' + (sort.dir === 'asc' ? '↑' : '↓')}
           </button>
         </div>
+        )}
 
         {/* No overflow:hidden — it would clip the per-row ⋯ menu on the last rows. */}
-        <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: wide ? 'none' : '1px solid var(--border)', borderRadius: wide ? 0 : 12 }}>
-          {(postedRows.length > 0 || scheduled.length > 0) && (
+        <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: flush ? 'none' : '1px solid var(--border)', borderRadius: flush ? 0 : 12 }}>
+          {!phone && (postedRows.length > 0 || scheduled.length > 0) && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               {/* Widths declared once, so a header and its cells cannot drift. */}
               <colgroup>
@@ -740,6 +764,16 @@ export default function Transactions() {
                 ))}
               </tbody>
             </table>
+          )}
+          {phone && (postedRows.length > 0 || scheduled.length > 0) && (
+            <TxPhoneList
+              postedRows={postedRows} scheduled={scheduled} schedKey={schedKey}
+              selected={selected} schedSel={schedSel}
+              onToggleRow={toggleRow} onToggleSched={toggleSched}
+              schedOpen={schedOpen} onToggleSchedOpen={() => setSchedOpen(o => !o)}
+              overdueCount={overdueCount} hiddenRuleCount={hiddenRuleCount}
+              hideAccount={!!accountId}
+            />
           )}
           {list.length === 0 && monthTx.length > 0 && (
             <div style={{ padding: '44px 20px', textAlign: 'center' }}>
