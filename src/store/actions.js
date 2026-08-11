@@ -5,6 +5,7 @@ import { accountBalance, accountDeletePolicy, cardOutstanding, INST_KINDS } from
 import { addMonths, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
 import { uid } from '../lib/util.js';
+import { parseAmt } from '../lib/format.js';
 import { YNAB_TREE, OTHER_GROUP, ALIASES, normName } from '../lib/ynabTree.js';
 import { makeAudit, diffFields, stampUpdate } from './audit.js';
 import { freshStore } from './seed.js';
@@ -79,6 +80,28 @@ export function addTransaction(data, { form: f, type, amt, fee }) {
   next.audit = [makeAudit({ entityType: 'transaction', entityId: t.id, action: 'create', summary: 'Recorded ' + t.type, after: { type: t.type, amount: t.amount, date: t.date } }), ...(next.audit || [])];
   if (f.fromRecurring) markOccurrenceRecorded(next, f, t, amt);
   applyRepeat(next, f, t, amt, catId);
+  return next;
+}
+
+// Split expense: N ordinary expense legs linked by one splitId, saved in a
+// single call — one undo step, one sync push, one audit entry. Legs reuse
+// buildTx so every cross-type rule stays in one place; the engine never reads
+// splitId. No repeat/recurring integration by design (split mode hides Repeat).
+export function addSplitTransaction(data, { form: f, legs, amt }) {
+  const next = { ...data, transactions: [...data.transactions] };
+  const splitId = uid();
+  const made = legs.map(leg => {
+    const catId = resolveCategory(next, { category: leg.category, newCat: leg.newCat, newCatGroup: leg.newCatGroup }, 'expense');
+    const t = buildTx(f, 'expense', parseAmt(leg.amount), 0, catId);
+    t.splitId = splitId;
+    return t;
+  });
+  next.transactions = [...made, ...next.transactions];
+  next.audit = [makeAudit({
+    entityType: 'transaction', entityId: splitId, action: 'create',
+    summary: 'Recorded split expense (' + legs.length + ' ways)',
+    after: { type: 'expense', amount: amt, legs: legs.length, date: made[0].date },
+  }), ...(next.audit || [])];
   return next;
 }
 
