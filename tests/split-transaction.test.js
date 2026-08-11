@@ -65,3 +65,21 @@ describe('addSplitTransaction', () => {
     expect(s0.audit).toHaveLength(0);
   });
 });
+
+import { COLLECTIONS } from '../src/store/sync.js';
+
+describe('transactions sync contract: splitId', () => {
+  const entry = COLLECTIONS.find(c => c.name === 'transactions');
+  const leg = { id: 't1', date: '2026-08-11T12:00', type: 'expense', amount: 2500, accountId: 'a1', category: 'groc', merchant: 'Imtiaz', notes: '', status: 'cleared', splitId: 'sp1' };
+  it('round-trips splitId through toRow/fromRow', () => {
+    const row = entry.toRow(leg);
+    expect(row.split_id).toBe('sp1');
+    expect(entry.fromRow(row).splitId).toBe('sp1');
+  });
+  it('emits explicit null when absent and strips it coming back', () => {
+    const { splitId, ...plain } = leg;
+    const row = entry.toRow(plain);
+    expect(row.split_id).toBeNull();
+    expect('splitId' in entry.fromRow(row)).toBe(false);
+  });
+});
