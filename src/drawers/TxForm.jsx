@@ -10,12 +10,13 @@ import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { accountBalance, cardOutstanding, dayLabel, findDuplicate, monthLabel, relTime } from '../lib/calc.js';
 import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
-import { addTransaction, updateTransaction, deleteTransaction } from '../store/actions.js';
+import { addTransaction, updateTransaction, deleteTransaction, addSplitTransaction } from '../store/actions.js';
 import { validate } from '../lib/validate.js';
 import { PRESETS, ruleFromTx } from '../lib/schedule.js';
 import WhenField from './WhenField.jsx';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import { envelopeFor } from '../lib/envelope.js';
+import { blankLine, splitRemainder, validateSplit } from '../lib/splitTx.js';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, Pill, grid2, noteBox } from './fields.jsx';
 
 const TYPES = ['expense', 'income', 'transfer', 'refund', 'adjustment'];
@@ -56,6 +57,8 @@ function Body() {
   const fxTransfer = type === 'transfer';
   const fxAdjust = type === 'adjustment';
   const fxCategory = type === 'expense' || type === 'income' || type === 'refund';
+  const canSplit = type === 'expense' && !f.editId;
+  const splitOn = canSplit && !!f.splitOn;
   // An adjustment is not paid to anyone — it reconciles the record to reality,
   // and buildTx labels every one of them 'Balance adjustment' regardless of what
   // is typed here. Asking the question invited a wrong mental model and threw
@@ -64,7 +67,7 @@ function Body() {
   // Money in/out only, and never while recording an occurrence — that transaction
   // already belongs to a rule. Editing IS allowed: that is "Make repeating".
   // Hidden once converted, so one transaction can't spawn two rules.
-  const showRepeat = (type === 'expense' || type === 'income') && !f.fromRecurring && !ruleFromTx(S, f.editId);
+  const showRepeat = (type === 'expense' || type === 'income') && !f.fromRecurring && !ruleFromTx(S, f.editId) && !splitOn;
   const repeatName = showRepeat && f.repeat && f.repeat !== 'never'
     ? (PRESETS.find(p => p.id === f.repeat) || {}).label : null;
   const catType = type === 'income' ? 'income' : 'expense';
@@ -91,7 +94,7 @@ function Body() {
       )}
       <div role="group" aria-label="Transaction type" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {TYPES.map(id => (
-          <Pill key={id} on={type === id} onClick={() => setForm({ type: id, category: '' })}>
+          <Pill key={id} on={type === id} onClick={() => setForm({ type: id, category: '', splitOn: false, splits: undefined })}>
             {id.charAt(0).toUpperCase() + id.slice(1)}
           </Pill>
         ))}
@@ -115,9 +118,17 @@ function Body() {
         </div>
       )}
 
-      {fxCategory && (
+      {fxCategory && !splitOn && (
         <div>
-          <Label required>Category</Label>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <Label required>Category</Label>
+            {canSplit && (
+              <button type="button" className="hv-soft"
+                onClick={() => setForm({ splitOn: true, splits: [{ ...blankLine(), category: f.category === '__new' ? '' : (f.category || '') }, blankLine()] })}
+                style={{ border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+              >Split across categories</button>
+            )}
+          </div>
           <PlanCategoryPicker
             env={env} S={S} month={month} money={money}
             catType={catType} showAmounts={catType === 'expense'} excludeRta heading={null}
@@ -132,6 +143,9 @@ function Body() {
           )}
           <FieldError msg={errors.category} />
         </div>
+      )}
+      {fxCategory && splitOn && (
+        <SplitLines f={f} setForm={setForm} env={env} S={S} month={month} money={money} errors={errors} />
       )}
 
       {fxPayWith && (
@@ -283,6 +297,71 @@ function Body() {
   );
 }
 
+// Split-entry lines: category + amount per line, anchored to the main Amount
+// field. The remainder chip fills the last empty line on tap — the 50/50 case
+// is one tap. Lines must sum to the total exactly before save (validateSplit).
+function SplitLines({ f, setForm, env, S, month, money, errors }) {
+  const lines = f.splits || [];
+  const setLines = splits => setForm({ splits });
+  const setLine = (i, patch) => setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const removeLine = i => {
+    const rest = lines.filter((_, j) => j !== i);
+    // Down to one line = no longer a split: collapse back to the single picker.
+    if (rest.length < 2) setForm({ splitOn: false, splits: undefined, category: rest[0]?.category || '' });
+    else setLines(rest);
+  };
+  const rem = splitRemainder(f.amount, lines);
+  const fillRemainder = () => {
+    if (rem <= 0) return;
+    const idx = lines.map(l => parseAmt(l.amount)).lastIndexOf(0);
+    if (idx >= 0) setLine(idx, { amount: String(rem) }); // the found line parses to 0, so it takes the whole remainder
+  };
+  const amountBox = { width: 110, boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 'none' };
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <Label required>Split across categories</Label>
+        <button type="button" className="hv-soft"
+          onClick={() => setForm({ splitOn: false, splits: undefined, category: lines[0]?.category || '' })}
+          style={{ border: 'none', background: 'transparent', color: 'var(--muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+        >Un-split</button>
+      </div>
+      {lines.map((l, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <PlanCategoryPicker
+              env={env} S={S} month={month} money={money}
+              catType="expense" showAmounts excludeRta heading={null} allowCreate showSelected
+              onCreate={({ name, groupId }) => setLine(i, { category: '__new', newCat: name, newCatGroup: groupId || '' })}
+              value={l.category} onChange={id => setLine(i, { category: id, newCat: '', newCatGroup: '' })}
+            />
+            {l.category === '__new' && l.newCat && (
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>New category “{l.newCat}” will be created when you save.</div>
+            )}
+          </div>
+          <input className="tnum" value={l.amount} inputMode="numeric" aria-label={'Line ' + (i + 1) + ' amount'}
+            onFocus={e => e.target.select()} onChange={e => setLine(i, { amount: e.target.value })} style={amountBox} />
+          <button type="button" onClick={() => removeLine(i)} aria-label={'Remove line ' + (i + 1)} className="hv-soft"
+            style={{ width: 28, height: 34, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 15, flex: 'none' }}
+          >×</button>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <button type="button" className="hv-soft" onClick={() => setLines([...lines, blankLine()])}
+          style={{ border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+        >+ Add line</button>
+        {rem !== 0 && (
+          <button type="button" className="tnum hv-soft" onClick={fillRemainder} disabled={rem < 0}
+            title={rem > 0 ? 'Assign the remainder to the last empty line' : 'Lines exceed the total'}
+            style={{ border: 'none', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 600, cursor: rem > 0 ? 'pointer' : 'not-allowed', background: rem > 0 ? 'var(--elev)' : 'var(--neg-soft)', color: rem > 0 ? 'var(--muted)' : 'var(--neg)' }}
+          >{rem > 0 ? 'Rs ' + rem.toLocaleString() + ' left' : 'Over by Rs ' + Math.abs(rem).toLocaleString()}</button>
+        )}
+      </div>
+      <FieldError msg={errors.split} />
+    </div>
+  );
+}
+
 const TYPE_CHANGE_NOTES = {
   transfer: ' Leaving a transfer removes its linked destination leg.',
   toTransfer: ' Becoming a transfer stops it counting as income or an expense.',
@@ -297,9 +376,15 @@ function useSubmit() {
   return async () => {
     const f = drawer.form, type = f.type || 'expense';
     const amt = parseAmt(f.amount);
+    const splitting = type === 'expense' && !f.editId && f.splitOn && (f.splits || []).length >= 2;
     const errs = validate.transaction(S, f, {
       allowArchivedCategory: !!f.editId && f.originalCategory === f.category,
+      skipCategory: splitting,
     });
+    if (splitting) {
+      const splitErr = validateSplit(f.amount, f.splits);
+      if (splitErr) errs.split = splitErr;
+    }
     if (Object.keys(errs).length) { fail(errs, Object.values(errs)); return; }
 
     if (!f.editId && (type === 'expense' || type === 'income') && !drawer.dupAck) {
@@ -325,6 +410,12 @@ function useSubmit() {
     const payload = { form: f, type, amt, fee: parseAmt(f.fee) };
     const repeated = f.repeat && f.repeat !== 'never' && !f.fromRecurring
       && (type === 'expense' || type === 'income') && !ruleFromTx(S, f.editId);
+    if (splitting) {
+      applyData(data => addSplitTransaction(data, { form: f, legs: f.splits, amt }));
+      closeDrawer();
+      notify('Split expense recorded — ' + f.splits.length + ' categories updated.');
+      return;
+    }
     applyData(data => (f.editId ? updateTransaction(data, payload) : addTransaction(data, payload)));
     closeDrawer();
     if (f.editId) {
