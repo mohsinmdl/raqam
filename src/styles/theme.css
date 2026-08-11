@@ -165,4 +165,16 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
   .tx-row-grid { grid-template-columns: 64px minmax(0, 1fr) auto !important; }
   .tx-cell-cat, .tx-cell-acct, .tx-cell-edit { display: none; }
   .dash-recent .tx-row-grid:nth-child(n + 6) { display: none; }
+
+  /* Drawers become bottom sheets: full-width, up from the bottom, ~90% tall,
+     rounded top corners. The overlay shadow is legitimate here (transient
+     overlay — the one shadow in the system). hsUp already exists. */
+  .drawer-panel {
+    top: auto !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+    width: 100% !important; max-width: 100% !important; max-height: 90dvh;
+    border-left: none !important; border-top: 1px solid var(--border) !important;
+    border-radius: 12px 12px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: hsUp .22s ease !important;
+  }
 }
