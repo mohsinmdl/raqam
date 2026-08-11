@@ -44,7 +44,7 @@ export const validate = {
       else if (!ownsAcc(f.account)) e.account = 'That account is not available.';
       if (!req(f.reason)) e.reason = 'Add a short reason — adjustments are labelled in history.';
     }
-    if (type === 'expense' || type === 'income' || type === 'refund') {
+    if (!o.skipCategory && (type === 'expense' || type === 'income' || type === 'refund')) {
       if (!req(f.category)) e.category = 'Choose a category.';
       else if (f.category === '__new' && !req(f.newCat)) e.category = 'Name the new category.';
       else if (f.category !== '__new') {
