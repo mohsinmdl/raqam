@@ -4,7 +4,8 @@
 // the legacy per-category Budgets screen. Visual tokens follow
 // docs/superpowers/specs/2026-08-08-ynab-budget-reference.md; math comes from
 // src/lib/envelope.js (T3) and the CRUD in src/store/actions.js (T4/T5).
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
@@ -62,10 +63,16 @@ const popOk = { height: 30, padding: '0 14px', border: 'none', borderRadius: 8, 
 // Same dismissal contract as TxMonthNav / BulkBar's MoreMenu: outside mousedown
 // closes, Escape closes via the capture phase so it never bubbles into a
 // screen-level shortcut handler.
-function usePopoverDismiss(open, ref, onClose) {
+// `extraRef` covers a popover portalled outside `ref`'s subtree (see
+// usePopoverPosition): a click inside it must not read as "outside".
+function usePopoverDismiss(open, ref, onClose, extraRef) {
   useEffect(() => {
     if (!open) return;
-    const onDown = e => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onDown = e => {
+      const inTrigger = ref.current && ref.current.contains(e.target);
+      const inPortal = extraRef && extraRef.current && extraRef.current.contains(e.target);
+      if (!inTrigger && !inPortal) onClose();
+    };
     const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey, true);
@@ -73,7 +80,7 @@ function usePopoverDismiss(open, ref, onClose) {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey, true);
     };
-  }, [open, ref, onClose]);
+  }, [open, ref, onClose, extraRef]);
 }
 
 // Native checkbox, accent-tinted; indeterminate is only reachable via the
@@ -88,10 +95,44 @@ function PlanCheckbox({ checked, indeterminate, onChange, label }) {
   );
 }
 
-// A row popover near the viewport's bottom must open UPWARD — anchored below
-// its trigger it slides off-screen (absolute inside <main>'s scroll just
-// extends the scroll instead of staying visible). Decide at open time from the
-// trigger's live rect and an honest height estimate.
+// Fixed-position placement for a row popover portalled to <body>. The category
+// rows live inside the rounded plan-table wrapper (overflow:hidden for its
+// corners), which would clip an absolutely-positioned card at the last row even
+// when the page below has room. Portalling out sidesteps that: the card opens
+// downward under its trigger (right edges aligned, matching the old right:0) and
+// only flips above when the VIEWPORT itself lacks room below. Tracks scroll and
+// resize so it stays glued to the trigger while open.
+function usePopoverPosition(open, triggerRef, width, estHeight) {
+  const [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return undefined; }
+    const place = () => {
+      const el = triggerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const gap = 6;
+      const roomBelow = window.innerHeight - r.bottom;
+      const up = roomBelow < estHeight && r.top > roomBelow;
+      const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
+      setPos({
+        left, width,
+        ...(up ? { bottom: window.innerHeight - r.top + gap } : { top: r.bottom + gap }),
+      });
+    };
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, triggerRef, width, estHeight]);
+  return pos;
+}
+
+// Lighter flip check for popovers that stay in-flow (Add-category, view history):
+// open UPWARD only when anchoring below the trigger would slide off the viewport
+// bottom. Decided at open time from the trigger's live rect and a height estimate.
 function flipIfLow(el, estHeight) {
   if (!el) return false;
   const r = el.getBoundingClientRect();
@@ -651,14 +692,15 @@ function MovesPopover({ open, up, cat, month, S, money, onClose }) {
 function CoverPopover({ cat, month, available, env, S, money, applyData }) {
   const { notify } = useUI();
   const [open, setOpen] = useState(false);
-  const [up, setUp] = useState(false);
   const [from, setFrom] = useState(null);
   const rootRef = useRef(null);
+  const popRef = useRef(null);
   const close = () => setOpen(false);
-  usePopoverDismiss(open, rootRef, close);
-
+  usePopoverDismiss(open, rootRef, close, popRef);
   // 230 ≈ the card alone — the picker's list overlays and flips on its own.
-  const openPopover = () => { setFrom(null); setUp(flipIfLow(rootRef.current, 230)); setOpen(true); };
+  const pos = usePopoverPosition(open, rootRef, 300, 230);
+
+  const openPopover = () => { setFrom(null); setOpen(true); };
 
   const fromCat = from && from !== 'rta' ? S.categories.find(c => c.id === from) : null;
   const fromLabel = from === 'rta' ? 'Ready to Assign' : (fromCat ? fromCat.name : null);
@@ -681,8 +723,8 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
         className="tnum hv-elev"
         style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, border: 'none', background: 'var(--neg-soft)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
       >{money(available)}</button>
-      {open && (
-        <div role="dialog" aria-label="Cover overspending" style={{ ...popCard, ...(up ? { bottom: 30 } : { top: 30 }), right: 0, width: 300, textAlign: 'left' }}>
+      {open && pos && createPortal(
+        <div ref={popRef} role="dialog" aria-label="Cover overspending" style={{ ...popCard, position: 'fixed', ...pos, textAlign: 'left' }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Cover overspending from</div>
           <div className="tnum" style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>{money(amount)}</div>
           <PlanCategoryPicker
@@ -696,7 +738,8 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
               style={{ ...popOk, opacity: canCover ? 1 : .5, cursor: canCover ? 'pointer' : 'not-allowed' }}
             >OK</button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   );
@@ -708,15 +751,16 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
 function MovePopover({ cat, month, available, env, S, money, applyData }) {
   const { notify } = useUI();
   const [open, setOpen] = useState(false);
-  const [up, setUp] = useState(false);
   const [amount, setAmount] = useState(() => String(available));
   const [to, setTo] = useState(null);
   const rootRef = useRef(null);
+  const popRef = useRef(null);
   const close = () => setOpen(false);
-  usePopoverDismiss(open, rootRef, close);
-
+  usePopoverDismiss(open, rootRef, close, popRef);
   // 230 ≈ the card alone — the picker's list overlays and flips on its own.
-  const openPopover = () => { setAmount(String(available)); setTo(null); setUp(flipIfLow(rootRef.current, 230)); setOpen(true); };
+  const pos = usePopoverPosition(open, rootRef, 300, 230);
+
+  const openPopover = () => { setAmount(String(available)); setTo(null); setOpen(true); };
 
   const toCat = to && to !== 'rta' ? S.categories.find(c => c.id === to) : null;
   const toLabel = to === 'rta' ? 'Ready to Assign' : (toCat ? toCat.name : null);
@@ -739,8 +783,8 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
         className="tnum hv-elev"
         style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, border: 'none', background: 'var(--pos-soft)', color: 'var(--pos)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
       >{money(available)}</button>
-      {open && (
-        <div role="dialog" aria-label="Move available money" style={{ ...popCard, ...(up ? { bottom: 30 } : { top: 30 }), right: 0, width: 300, textAlign: 'left' }}>
+      {open && pos && createPortal(
+        <div ref={popRef} role="dialog" aria-label="Move available money" style={{ ...popCard, position: 'fixed', ...pos, textAlign: 'left' }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Move:</label>
           <input
             className="tnum" value={amount} inputMode="numeric"
@@ -760,7 +804,8 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
               style={{ ...popOk, opacity: canMove ? 1 : .5, cursor: canMove ? 'pointer' : 'not-allowed' }}
             >OK</button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   );
