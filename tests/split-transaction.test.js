@@ -98,3 +98,23 @@ describe('txRowOf split flag', () => {
     expect(txRowOf(base, S2, fmt).split).toBe(false);
   });
 });
+
+import { validate } from '../src/lib/validate.js';
+
+describe('validate.transaction skipCategory', () => {
+  const S3 = {
+    accounts: [{ id: 'a1', nickname: 'Meezan', status: 'active' }], cards: [],
+    categories: [], transactions: [],
+  };
+  const f = { type: 'expense', amount: '5000', payWith: 'acc:a1', date: '2026-08-11', category: '' };
+  it('still requires category by default', () => {
+    expect(validate.transaction(S3, f, {}).category).toBeTruthy();
+  });
+  it('skips only the category check with skipCategory', () => {
+    const errs = validate.transaction(S3, f, { skipCategory: true });
+    expect(errs.category).toBeUndefined();
+    expect(Object.keys(errs)).toHaveLength(0);
+    // other checks still run:
+    expect(validate.transaction(S3, { ...f, amount: '0' }, { skipCategory: true }).amount).toBeTruthy();
+  });
+});
