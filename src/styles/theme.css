@@ -139,8 +139,11 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
    conditionally); this block carries the CSS-only parts: safe-area
    clearance and ≥16px inputs (iOS auto-zoom threshold). */
 @media (max-width: 700px) {
-  /* Header clears the Dynamic Island / notch under viewport-fit=cover. */
-  .app-header { padding-top: env(safe-area-inset-top); }
+  /* Header clears the Dynamic Island / notch under viewport-fit=cover.
+     !important is required: Header.jsx sets an inline `padding: '0 28px'`
+     shorthand, which resolves padding-top to 0 and otherwise beats any
+     non-!important stylesheet rule. */
+  .app-header { padding-top: env(safe-area-inset-top) !important; }
   input:not([type="checkbox"]):not([type="radio"]),
   select, textarea { font-size: 16px !important; }
 }
