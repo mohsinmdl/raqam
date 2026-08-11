@@ -1,8 +1,9 @@
 # Auto-deploy to Cloudflare Pages (project "raqam", direct-upload mode).
-#   push to main        -> production deploy (raqam.pages.dev)
-#   pull request        -> preview deploy (<branch>.raqam.pages.dev, behind the
-#                          same Cloudflare Access wall via *.raqam.pages.dev)
-#   workflow_dispatch   -> manual production deploy for testing
+#   push to main       -> production deploy (raqam.pages.dev); PR merges land
+#                         as pushes to main, so merging a PR is what deploys
+#   workflow_dispatch  -> manual production deploy (explicit human trigger)
+#
+# PRs deliberately do NOT deploy previews — production ships only from main.
 #
 # Secrets required (Settings -> Secrets and variables -> Actions):
 #   CLOUDFLARE_API_TOKEN     token with "Cloudflare Pages: Edit" permission
@@ -13,7 +14,6 @@ name: Deploy
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -22,13 +22,9 @@ concurrency:
 
 jobs:
   deploy:
-    # Fork PRs get no secrets, so their deploys could never work anyway —
-    # skip them explicitly rather than failing halfway through.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write # preview-URL comment
     steps:
       - uses: actions/checkout@v4
 
@@ -48,41 +44,9 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-      # Branch names are untrusted input in workflow interpolation; reduce to a
-      # safe charset before they touch a command line (Cloudflare aliases
-      # preview URLs from a similarly sanitized form anyway).
-      - name: Resolve deploy branch
-        id: branch
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          ref="${HEAD_REF:-main}"
-          printf 'name=%s\n' "$(printf '%s' "$ref" | tr -c 'a-zA-Z0-9-' '-')" >> "$GITHUB_OUTPUT"
-
       - name: Deploy to Cloudflare Pages
-        id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: 7cd620c99fe1fdf94f01b938c0bc672a
-          command: pages deploy dist --project-name=raqam --branch=${{ steps.branch.outputs.name }}
-
-      - name: Comment preview URL on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        env:
-          DEPLOY_URL: ${{ steps.deploy.outputs.deployment-url }}
-        with:
-          script: |
-            const url = process.env.DEPLOY_URL;
-            const marker = '<!-- raqam-preview-url -->';
-            const body = `${marker}\n**Preview deployed:** ${url}\n\n(Behind the Cloudflare Access wall like production.)`;
-            const { data: comments } = await github.rest.issues.listComments({
-              ...context.repo, issue_number: context.issue.number,
-            });
-            const existing = comments.find(c => c.body.startsWith(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
-            } else {
-              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
-            }
+          command: pages deploy dist --project-name=raqam --branch=main
