@@ -246,7 +246,26 @@ const DELETE_ORDER = [...COLLECTIONS].reverse();
 
 // ---- fetch -----------------------------------------------------------------
 
+// PostgREST rejects a token whose iat sits ahead of its own clock — Supabase's
+// auth server occasionally mints "future" tokens when the two drift
+// (PostgREST#1139). Only just-issued tokens can hit it, so the condition
+// expires within seconds; one paused retry rides it out instead of showing
+// the hydrate-error screen for a self-healing failure. Any other error, and a
+// second skew failure, still surface immediately.
+const CLOCK_SKEW_RE = /issued at future/i;
+export const CLOCK_SKEW_RETRY_MS = 2000;
+
 export async function fetchAll() {
+  try {
+    return await fetchAllOnce();
+  } catch (e) {
+    if (!CLOCK_SKEW_RE.test(e.message || '')) throw e;
+    await new Promise(r => setTimeout(r, CLOCK_SKEW_RETRY_MS));
+    return fetchAllOnce();
+  }
+}
+
+async function fetchAllOnce() {
   const fetched = COLLECTIONS.filter(c => !c.skipFetch);
   const results = await Promise.all(
     fetched.map(c => {
