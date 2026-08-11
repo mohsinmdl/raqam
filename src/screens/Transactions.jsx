@@ -633,7 +633,7 @@ export default function Transactions() {
         {phone && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
             <span style={{ flex: 1, minWidth: 0, display: 'flex' }}>
-              <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} collapsed={220} expanded={220}
+              <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} collapsed="100%" expanded="100%"
                 placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
             </span>
             <button
