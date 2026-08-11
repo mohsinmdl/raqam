@@ -163,6 +163,7 @@ export const COLLECTIONS = [
       is_card_payment: !!r.isCardPayment, fee: r.fee ?? null,
       category_id: r.category ?? null, merchant: r.merchant || '', notes: r.notes || '', status: r.status,
       adjustment_reason: r.adjustmentReason ?? null,
+      split_id: r.splitId ?? null,
       edited_at: r.editedAt ?? null, edit_count: r.editCount || 0,
     }),
     fromRow: r => stripNulls({
@@ -172,6 +173,7 @@ export const COLLECTIONS = [
       isCardPayment: r.is_card_payment || undefined, fee: r.fee != null ? Number(r.fee) : undefined,
       category: r.category_id, merchant: r.merchant, notes: r.notes, status: r.status,
       adjustmentReason: r.adjustment_reason || undefined,
+      splitId: r.split_id || undefined,
       editedAt: r.edited_at || undefined, editCount: r.edit_count > 0 ? r.edit_count : undefined,
     }),
   },
