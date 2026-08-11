@@ -31,7 +31,7 @@ export default function TxChips({ row, meta }) {
           account-detail and dashboard rows have always omitted them. */}
       {meta && t.edited && <span title={t.editedLabel} style={chip('var(--elev)', 'var(--muted)')}>Edited</span>}
       {meta && t.excluded && <span style={chip('var(--elev)', 'var(--muted)')}>{t.excludedLabel}</span>}
-      {meta && t.split && <span style={chip('var(--elev)', 'var(--muted)')}>Split</span>}
+      {meta && t.split && <span title={t.splitLabel} style={chip('var(--elev)', 'var(--muted)')}>Split</span>}
     </>
   );
 }
