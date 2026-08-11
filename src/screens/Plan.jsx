@@ -4,7 +4,7 @@
 // the legacy per-category Budgets screen. Visual tokens follow
 // docs/superpowers/specs/2026-08-08-ynab-budget-reference.md; math comes from
 // src/lib/envelope.js (T3) and the CRUD in src/store/actions.js (T4/T5).
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
@@ -63,8 +63,8 @@ const popOk = { height: 30, padding: '0 14px', border: 'none', borderRadius: 8, 
 // Same dismissal contract as TxMonthNav / BulkBar's MoreMenu: outside mousedown
 // closes, Escape closes via the capture phase so it never bubbles into a
 // screen-level shortcut handler.
-// `extraRef` covers a popover portalled outside `ref`'s subtree (see
-// usePopoverPosition): a click inside it must not read as "outside".
+// `extraRef` covers a popover portalled outside `ref`'s subtree (via
+// createPortal to document.body): a click inside it must not read as "outside".
 function usePopoverDismiss(open, ref, onClose, extraRef) {
   useEffect(() => {
     if (!open) return;
@@ -99,16 +99,19 @@ function PlanCheckbox({ checked, indeterminate, onChange, label }) {
 // rows live inside the rounded plan-table wrapper (overflow:hidden for its
 // corners), which would clip an absolutely-positioned card at the last row even
 // when the page below has room. Portalling out sidesteps that: the card opens
-// downward under its trigger (right edges aligned, matching the old right:0) and
-// only flips above when the VIEWPORT itself lacks room below. Tracks scroll and
-// resize so it stays glued to the trigger while open.
-function usePopoverPosition(open, triggerRef, width, estHeight) {
+// downward under its trigger (right edges aligned, matching the old right:0),
+// `width` is its fixed width and `estHeight` a height estimate — it flips above
+// only when the VIEWPORT itself lacks room below. A fixed card can't ride the
+// content scroll, so we CLOSE on scroll (and if the anchor row unmounts) rather
+// than let it drift over the header or freeze glued to an empty spot; resize
+// just re-places it.
+function usePopoverPosition(open, triggerRef, width, estHeight, onClose) {
   const [pos, setPos] = useState(null);
   useLayoutEffect(() => {
     if (!open) { setPos(null); return undefined; }
     const place = () => {
       const el = triggerRef.current;
-      if (!el) return;
+      if (!el) { onClose?.(); return; }
       const r = el.getBoundingClientRect();
       const gap = 6;
       const roomBelow = window.innerHeight - r.bottom;
@@ -120,13 +123,14 @@ function usePopoverPosition(open, triggerRef, width, estHeight) {
       });
     };
     place();
-    window.addEventListener('scroll', place, true);
+    const onScroll = () => onClose?.();
+    window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', place);
     return () => {
-      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', place);
     };
-  }, [open, triggerRef, width, estHeight]);
+  }, [open, triggerRef, width, estHeight, onClose]);
   return pos;
 }
 
@@ -695,10 +699,10 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
   const [from, setFrom] = useState(null);
   const rootRef = useRef(null);
   const popRef = useRef(null);
-  const close = () => setOpen(false);
+  const close = useCallback(() => setOpen(false), []);
   usePopoverDismiss(open, rootRef, close, popRef);
-  // 230 ≈ the card alone — the picker's list overlays and flips on its own.
-  const pos = usePopoverPosition(open, rootRef, 300, 230);
+  // 300 = card width; 230 ≈ the card alone — the picker's list overlays and flips on its own.
+  const pos = usePopoverPosition(open, rootRef, 300, 230, close);
 
   const openPopover = () => { setFrom(null); setOpen(true); };
 
@@ -755,10 +759,10 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
   const [to, setTo] = useState(null);
   const rootRef = useRef(null);
   const popRef = useRef(null);
-  const close = () => setOpen(false);
+  const close = useCallback(() => setOpen(false), []);
   usePopoverDismiss(open, rootRef, close, popRef);
-  // 230 ≈ the card alone — the picker's list overlays and flips on its own.
-  const pos = usePopoverPosition(open, rootRef, 300, 230);
+  // 300 = card width; 230 ≈ the card alone — the picker's list overlays and flips on its own.
+  const pos = usePopoverPosition(open, rootRef, 300, 230, close);
 
   const openPopover = () => { setAmount(String(available)); setTo(null); setOpen(true); };
 
