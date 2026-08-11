@@ -16,7 +16,8 @@ import { PRESETS, ruleFromTx } from '../lib/schedule.js';
 import WhenField from './WhenField.jsx';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import { envelopeFor } from '../lib/envelope.js';
-import { blankLine, splitRemainder, validateSplit } from '../lib/splitTx.js';
+import { blankLine, fillRemainderIndex, splitRemainder, validateSplit } from '../lib/splitTx.js';
+import { formatAmountInput } from '../lib/amountInput.js';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, Pill, grid2, noteBox } from './fields.jsx';
 
 const TYPES = ['expense', 'income', 'transfer', 'refund', 'adjustment'];
@@ -59,6 +60,7 @@ function Body() {
   const fxCategory = type === 'expense' || type === 'income' || type === 'refund';
   // Not while recording an occurrence — a split save bypasses the recurring
   // bookkeeping (markOccurrenceRecorded), which would leave the rule stuck due.
+  // Mirrored by `splitting` in useSubmit — keep the two conditions in sync.
   const canSplit = type === 'expense' && !f.editId && !f.fromRecurring;
   const splitOn = canSplit && !!f.splitOn;
   // An adjustment is not paid to anyone — it reconciles the record to reality,
@@ -300,42 +302,41 @@ function Body() {
 }
 
 // Split-entry lines: category + amount per line, anchored to the main Amount
-// field. The remainder chip fills the last empty line on tap — the 50/50 case
-// is one tap. Lines must sum to the total exactly before save (validateSplit).
+// field. The remainder chip fills the last line without a positive amount on
+// tap — after typing one half, the other half is one tap. Lines must sum to
+// the total exactly before save (validateSplit).
 function SplitLines({ f, setForm, env, S, month, money, errors }) {
   const lines = f.splits || [];
   const setLines = splits => setForm({ splits });
   const setLine = (i, patch) => setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const removeLine = i => {
     const rest = lines.filter((_, j) => j !== i);
-    // Down to one line = no longer a split: collapse back to the single picker.
-    if (rest.length < 2) setForm({ splitOn: false, splits: undefined, category: rest[0]?.category || '' });
-    else setLines(rest);
+    // Down to one line = no longer a split: collapse back to the single
+    // picker, carrying over the survivor's category AND any pending inline
+    // "__new" category so it isn't silently lost on the round-trip.
+    if (rest.length < 2) {
+      const survivor = rest[0];
+      setForm({ splitOn: false, splits: undefined, category: survivor?.category || '', newCat: survivor?.newCat || '', newCatGroup: survivor?.newCatGroup || '' });
+    } else setLines(rest);
   };
   const rem = splitRemainder(f.amount, lines);
+  const fillIdx = fillRemainderIndex(lines);
   const fillRemainder = () => {
-    if (rem <= 0) return;
-    // "Empty" means not a positive amount — a fresh line's amount is '', and
-    // parseAmt('') is NaN (not 0), so this can't just lastIndexOf(0).
-    const amts = lines.map(l => parseAmt(l.amount));
-    let idx = -1;
-    for (let i = amts.length - 1; i >= 0; i--) {
-      if (!(amts[i] > 0)) { idx = i; break; }
-    }
-    if (idx >= 0) setLine(idx, { amount: String(rem) });
+    if (rem <= 0 || fillIdx < 0) return;
+    setLine(fillIdx, { amount: String(rem) });
   };
-  const amountBox = { width: 110, boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 'none' };
+  const amountBox = { width: 110, boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 'var(--field-radius)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 'none' };
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
         <Label required>Split across categories</Label>
         <button type="button" className="hv-soft"
-          onClick={() => setForm({ splitOn: false, splits: undefined, category: lines[0]?.category || '' })}
+          onClick={() => setForm({ splitOn: false, splits: undefined, category: lines[0]?.category || '', newCat: lines[0]?.newCat || '', newCatGroup: lines[0]?.newCatGroup || '' })}
           style={{ border: 'none', background: 'transparent', color: 'var(--muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
         >Un-split</button>
       </div>
       {lines.map((l, i) => (
-        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
+        <div key={l.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <PlanCategoryPicker
               env={env} S={S} month={month} money={money}
@@ -347,8 +348,8 @@ function SplitLines({ f, setForm, env, S, month, money, errors }) {
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>New category “{l.newCat}” will be created when you save.</div>
             )}
           </div>
-          <input className="tnum" value={l.amount} inputMode="numeric" aria-label={'Line ' + (i + 1) + ' amount'}
-            onFocus={e => e.target.select()} onChange={e => setLine(i, { amount: e.target.value })} style={amountBox} />
+          <input className="tnum" value={l.amount} inputMode="decimal" aria-label={'Line ' + (i + 1) + ' amount'}
+            onFocus={e => e.target.select()} onChange={e => setLine(i, { amount: formatAmountInput(e.target.value) })} style={amountBox} />
           <button type="button" onClick={() => removeLine(i)} aria-label={'Remove line ' + (i + 1)} className="hv-soft"
             style={{ width: 28, height: 34, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 15, flex: 'none' }}
           >×</button>
@@ -359,10 +360,10 @@ function SplitLines({ f, setForm, env, S, month, money, errors }) {
           style={{ border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
         >+ Add line</button>
         {rem !== 0 && (
-          <button type="button" className="tnum hv-soft" onClick={fillRemainder} disabled={rem < 0}
-            title={rem > 0 ? 'Assign the remainder to the last empty line' : 'Lines exceed the total'}
-            style={{ border: 'none', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 600, cursor: rem > 0 ? 'pointer' : 'not-allowed', background: rem > 0 ? 'var(--elev)' : 'var(--neg-soft)', color: rem > 0 ? 'var(--muted)' : 'var(--neg)' }}
-          >{rem > 0 ? 'Rs ' + rem.toLocaleString() + ' left' : 'Over by Rs ' + Math.abs(rem).toLocaleString()}</button>
+          <button type="button" className="tnum hv-soft" onClick={fillRemainder} disabled={rem < 0 || fillIdx < 0}
+            title={rem > 0 ? 'Assign the remainder to the last line without a positive amount' : 'Lines exceed the total'}
+            style={{ border: 'none', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 600, cursor: (rem > 0 && fillIdx >= 0) ? 'pointer' : 'not-allowed', background: rem > 0 ? 'var(--elev)' : 'var(--neg-soft)', color: rem > 0 ? 'var(--muted)' : 'var(--neg)' }}
+          >{rem > 0 ? money(rem) + ' left' : 'Over by ' + money(Math.abs(rem))}</button>
         )}
       </div>
       <FieldError msg={errors.split} />
@@ -390,7 +391,7 @@ function useSubmit() {
       skipCategory: splitting,
     });
     if (splitting) {
-      const splitErr = validateSplit(f.amount, f.splits);
+      const splitErr = validateSplit(f.amount, f.splits, S, moneyRaw);
       if (splitErr) errs.split = splitErr;
     }
     if (Object.keys(errs).length) { fail(errs, Object.values(errs)); return; }

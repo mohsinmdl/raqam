@@ -1,5 +1,6 @@
+// Split feature contracts: store action, sync round-trip, row flag, validator bypass
 import { describe, it, expect } from 'vitest';
-import { addSplitTransaction } from '../src/store/actions.js';
+import { addSplitTransaction, updateTransaction } from '../src/store/actions.js';
 
 const store = over => ({
   categoryGroups: [{ id: 'g1', name: 'Needs', sortOrder: 1 }],
@@ -116,5 +117,68 @@ describe('validate.transaction skipCategory', () => {
     expect(Object.keys(errs)).toHaveLength(0);
     // other checks still run:
     expect(validate.transaction(S3, { ...f, amount: '0' }, { skipCategory: true }).amount).toBeTruthy();
+  });
+});
+
+describe('updateTransaction preserves splitId on a leg edit', () => {
+  const splitStore = () => addSplitTransaction(store(), { form: form(), legs, amt: 5000 });
+
+  it('keeps splitId when only merchant/notes change', () => {
+    const s = splitStore();
+    const leg = s.transactions[0];
+    const f = {
+      editId: leg.id, type: 'expense', amount: String(leg.amount), payWith: 'acc:a1',
+      merchant: 'Corrected merchant', notes: 'fixed a typo', date: '2026-08-11', time: '12:00',
+      pending: false, category: leg.category,
+    };
+    const s2 = updateTransaction(s, { form: f, type: 'expense', amt: leg.amount, fee: 0 });
+    const updated = s2.transactions.find(t => t.id === leg.id);
+    expect(updated.splitId).toBe(leg.splitId);
+    expect(updated.merchant).toBe('Corrected merchant');
+    expect(updated.notes).toBe('fixed a typo');
+  });
+
+  it('drops splitId when the leg changes type away from expense', () => {
+    const s = splitStore();
+    const leg = s.transactions[0];
+    const f = {
+      editId: leg.id, type: 'transfer', amount: String(leg.amount), from: 'acc:a1', to: 'acc:a1',
+      date: '2026-08-11', time: '12:00', pending: false, notes: '', merchant: '',
+    };
+    const s2 = updateTransaction(s, { form: f, type: 'transfer', amt: leg.amount, fee: 0 });
+    const updated = s2.transactions.find(t => t.id === leg.id);
+    expect(updated.type).toBe('transfer');
+    expect(updated.splitId).toBeUndefined();
+  });
+});
+
+import { monthMetrics } from '../src/lib/calc.js';
+
+describe('monthMetrics integration: split legs', () => {
+  it('routes the normal leg to spending and the excluded leg to recoverable', () => {
+    const s = addSplitTransaction(store(), { form: form(), legs, amt: 5000 });
+    const M = monthMetrics(s, '2026-08');
+    expect(M.spending).toBe(2500);
+    expect(M.recoverable).toBe(2500);
+    expect(M.expenses).toBe(5000);
+  });
+});
+
+describe('addSplitTransaction with two distinct __new legs', () => {
+  it('creates two separate categories, each leg pointing at its own', () => {
+    const twoNew = [
+      { category: '__new', amount: '2000', newCat: 'Fuel', newCatGroup: 'g1' },
+      { category: '__new', amount: '3000', newCat: 'Repairs', newCatGroup: 'g1' },
+    ];
+    const s = addSplitTransaction(store(), { form: form(), legs: twoNew, amt: 5000 });
+    const fuel = s.categories.find(c => c.name === 'Fuel');
+    const repairs = s.categories.find(c => c.name === 'Repairs');
+    expect(fuel).toBeTruthy();
+    expect(repairs).toBeTruthy();
+    expect(fuel.id).not.toBe(repairs.id);
+    const t1 = s.transactions.find(t => t.amount === 2000);
+    const t2 = s.transactions.find(t => t.amount === 3000);
+    expect(t1.category).toBe(fuel.id);
+    expect(t2.category).toBe(repairs.id);
   });
 });
