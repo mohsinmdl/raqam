@@ -195,8 +195,8 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
   }
 
   /* BulkBar sits at inline bottom:24, which lands underneath MobileTabBar
-     (normal-flow, ~60px tall + its own safe-area inset). Raise it to clear
-     the tab bar plus a 12px visual gap. !important beats the inline bottom. */
+     (normal-flow, ~64px tall + its own safe-area inset). Raise it to clear
+     the tab bar plus a small visual gap. !important beats the inline bottom. */
   .bulk-bar { bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
 
   /* Toast: same phone-only tab-bar clearance as .bulk-bar, so a toast alone
