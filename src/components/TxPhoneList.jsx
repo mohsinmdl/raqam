@@ -36,7 +36,7 @@ function PhoneRow({ t, selId, checked, onToggle, scheduled, hideAccount, last })
             background: t.stOutline ? 'transparent' : t.stColor,
             color: t.stOutline ? t.stColor : t.stOn,
             border: t.stOutline ? ('1.25px solid ' + t.stColor) : 'none',
-            fontSize: 9, fontWeight: 700, lineHeight: 1, flex: 'none' }}
+            fontSize: 9, fontWeight: 700, lineHeight: 1, flex: 'none', opacity: t.rowOpacity }}
         >{t.stGlyph}</span>
       )}
     </button>
