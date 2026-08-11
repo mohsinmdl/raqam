@@ -146,4 +146,23 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
   .app-header { padding-top: env(safe-area-inset-top) !important; }
   input:not([type="checkbox"]):not([type="radio"]),
   select, textarea { font-size: 16px !important; }
+
+  /* Dashboard phone recomposition (brief §6). dash-root is a flex column,
+     so `order` re-sequences without touching JSX. */
+  .dash-summary, .dash-cats, .dash-cmp, .dash-accounts { display: none; }
+  .dash-lts { display: block !important; order: 2; }
+  .dash-recent { order: 3; }
+  .dash-cols { order: 4; display: flex; flex-direction: column; gap: 16px; }
+  /* Inside dash-cols: upcoming (main col) then largest (side col); daily
+     spending moves between them via column order. */
+  .dash-col-main { display: flex; flex-direction: column; gap: 16px; }
+  .dash-col-side { display: flex; flex-direction: column; gap: 16px; }
+  .dash-col-main .dash-upcoming { order: -1; }
+  /* Position strip: balance leads; the two stat columns collapse. */
+  .pos-cols { display: none; }
+  /* Recent tx rows: date · merchant+chips · amount; cap at 5 on phone
+     (desktop keeps 8) — brief wants a short confirm-glance list. */
+  .tx-row-grid { grid-template-columns: 64px minmax(0, 1fr) auto !important; }
+  .tx-cell-cat, .tx-cell-acct, .tx-cell-edit { display: none; }
+  .dash-recent .tx-row-grid:nth-child(n + 6) { display: none; }
 }

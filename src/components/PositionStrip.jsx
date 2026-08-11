@@ -92,12 +92,12 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
           columns spanning the full card width. */}
       <section aria-label="Current position" style={{ ...card, padding: '20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'stretch', gap: 24 }}>
-          <div style={{ flex: 1.4, minWidth: 0 }}>
+          <div className="pos-lead" style={{ flex: 1.4, minWidth: 0 }}>
             <div style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>Total bank balance</div>
             <div className="tnum" style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1.02 }}>{money(M.totalBank)}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{posAsOf}</div>
           </div>
-          <div style={colBase}>
+          <div className="pos-cols" style={colBase}>
             <div>
               <div style={statLabel}>Net worth</div>
               <div className="tnum" style={statVal}>{money(M.netWorth)}</div>
@@ -109,7 +109,7 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
               <div style={statSub}>{M.cardLiability > 0 ? 'outstanding on cards' : 'no card debt'}</div>
             </div>
           </div>
-          <div style={colBase}>
+          <div className="pos-cols" style={colBase}>
             <div>
               <div style={statLabel}>Start of month</div>
               <div className="tnum" style={statVal}>{money(M.opening)}</div>
