@@ -15,14 +15,16 @@ describe('accountRows', () => {
     expect(accountRows(s, MONTH, NOW).rows.map(r => r.id)).toEqual(['a']);
   });
 
-  it('sorts by balance descending', () => {
+  it('sorts alphabetically by nickname (case-insensitive), regardless of balance', () => {
+    // Input order (C, a, B) is neither alphabetical nor balance-sorted, and
+    // balances would give a different order (Bravo, Charlie, alpha) — so a
+    // clean alphabetical result proves the sort key is the nickname.
     const s = store(
-      [{ id: 'a', nickname: 'A', status: 'active' }, { id: 'b', nickname: 'B', status: 'active' }, { id: 'c', nickname: 'C', status: 'active' }],
-      [snap('a', 100), snap('b', 5000), snap('c', 750)],
+      [{ id: 'c', nickname: 'Charlie', status: 'active' }, { id: 'a', nickname: 'alpha', status: 'active' }, { id: 'b', nickname: 'Bravo', status: 'active' }],
+      [snap('c', 750), snap('a', 100), snap('b', 5000)],
     );
     const { rows } = accountRows(s, MONTH, NOW);
-    expect(rows.map(r => r.nickname)).toEqual(['B', 'C', 'A']);
-    expect(rows.map(r => r.balance)).toEqual([5000, 750, 100]);
+    expect(rows.map(r => r.nickname)).toEqual(['alpha', 'Bravo', 'Charlie']);
   });
 
   it('total equals the sum of the listed balances', () => {
