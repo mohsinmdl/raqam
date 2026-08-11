@@ -172,7 +172,7 @@ export function ruleRowOf(r, S, fmt, now) {
     stOn: overdue ? 'var(--on-neg)' : 'var(--on-info)',
     stTitle: overdue ? 'This was due and has not been recorded yet.' : 'A reminder — nothing is recorded until you record it.',
     rowOpacity: '1', isPending: false, canEdit: false, canRepeat: false,
-    edited: false, editedLabel: '', excluded: false, excludedLabel: '',
+    edited: false, editedLabel: '', excluded: false, excludedLabel: '', split: false,
   };
 }
 
