@@ -174,7 +174,7 @@ function RtaBreakdown({ env, prevRta, month, money, moneyS, fg, labelColor }) {
     <div ref={rootRef} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(o => !o)} aria-haspopup="dialog" aria-expanded={String(open)}
-        style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 6px 12px 16px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, padding: '8px 6px 12px 0', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}
       >
         <span style={{ fontSize: 14, fontWeight: 400, color: labelColor }}>Ready to Assign</span>
         <span className="tnum" style={{ fontSize: 21, fontWeight: 700, color: fg }}>{money(env.rta)}</span>
@@ -290,14 +290,15 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
 // assign reads in the ledger-green pos tokens, zero is neutral, negative
 // (overspent) is the negative tokens. Stacks the clickable label/amount (opens
 // RtaBreakdown) over a teal Assign ▾ button (opens AssignPopover) — both
-// left-anchored so their popovers stay inside the narrow inspector column.
+// left-aligned on a shared left rail, which also keeps their popovers anchored
+// at the card's left edge, inside the narrow inspector column.
 function RtaBanner({ env, prevRta, month, money, moneyS, S, applyData }) {
   const rta = env.rta;
   const bg = rta > 0 ? 'var(--pos-soft)' : rta === 0 ? 'var(--elev)' : 'var(--neg-soft)';
   const fg = rta > 0 ? 'var(--pos)' : rta === 0 ? 'var(--muted)' : 'var(--neg)';
   const labelColor = 'var(--muted)';
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, padding: '4px 8px 12px', borderRadius: 12, background: bg }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, padding: '10px 14px 14px', borderRadius: 12, background: bg }}>
       <RtaBreakdown env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} fg={fg} labelColor={labelColor} />
       {rta !== 0 && <AssignPopover rta={rta} env={env} S={S} month={month} money={money} applyData={applyData} />}
     </div>
