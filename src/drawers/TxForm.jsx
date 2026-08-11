@@ -57,7 +57,9 @@ function Body() {
   const fxTransfer = type === 'transfer';
   const fxAdjust = type === 'adjustment';
   const fxCategory = type === 'expense' || type === 'income' || type === 'refund';
-  const canSplit = type === 'expense' && !f.editId;
+  // Not while recording an occurrence — a split save bypasses the recurring
+  // bookkeeping (markOccurrenceRecorded), which would leave the rule stuck due.
+  const canSplit = type === 'expense' && !f.editId && !f.fromRecurring;
   const splitOn = canSplit && !!f.splitOn;
   // An adjustment is not paid to anyone — it reconciles the record to reality,
   // and buildTx labels every one of them 'Balance adjustment' regardless of what
@@ -124,7 +126,7 @@ function Body() {
             <Label required>Category</Label>
             {canSplit && (
               <button type="button" className="hv-soft"
-                onClick={() => setForm({ splitOn: true, splits: [{ ...blankLine(), category: f.category === '__new' ? '' : (f.category || '') }, blankLine()] })}
+                onClick={() => setForm({ splitOn: true, splits: [{ ...blankLine(), category: f.category === '__new' ? '' : (f.category || '') }, blankLine()], newCat: '', newCatGroup: '' })}
                 style={{ border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
               >Split across categories</button>
             )}
@@ -382,7 +384,7 @@ function useSubmit() {
   return async () => {
     const f = drawer.form, type = f.type || 'expense';
     const amt = parseAmt(f.amount);
-    const splitting = type === 'expense' && !f.editId && f.splitOn && (f.splits || []).length >= 2;
+    const splitting = type === 'expense' && !f.editId && !f.fromRecurring && f.splitOn && (f.splits || []).length >= 2;
     const errs = validate.transaction(S, f, {
       allowArchivedCategory: !!f.editId && f.originalCategory === f.category,
       skipCategory: splitting,
