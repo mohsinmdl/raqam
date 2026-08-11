@@ -4,6 +4,9 @@ dist/
 .DS_Store
 .playwright-mcp/
 *.png
+# …except the PWA icons the manifest ships (the blanket *.png above is for
+# stray screenshots, not first-party assets)
+!public/icons/*.png
 
 # Environment — real keys never committed; .env.example is the template
 .env
