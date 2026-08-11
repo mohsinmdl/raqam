@@ -9,7 +9,16 @@ function PhoneRow({ t, selId, checked, onToggle, scheduled, hideAccount, last })
   const sub = [t.dateLabel, t.catName, !hideAccount && t.acctLabel].filter(Boolean).join(' · ');
   return (
     <button
-      onClick={() => onToggle(selId, !checked)}
+      // Passes the click event through, mirroring the desktop Row's
+      // `e => onToggleRow(selId, !checked, e)`. Without it, toggleRow saw a
+      // missing event and always took its additive (Ctrl/Cmd-click) branch —
+      // every phone tap on a DIFFERENT row added to the selection instead of
+      // replacing it, unlike the desktop's plain-click single-select. A real
+      // tap event carries no metaKey/ctrlKey/shiftKey, so passing it through
+      // now lands on toggleRow's plain-click branch and matches desktop
+      // semantics exactly. onToggleSched (used for scheduled rows) ignores
+      // the extra argument, so this is a no-op there.
+      onClick={e => onToggle(selId, !checked, e)}
       aria-pressed={checked}
       className={checked ? undefined : 'hv-elev'}
       style={{
