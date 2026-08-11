@@ -1,4 +1,16 @@
 /* Raqam theme — ported from the Hisaab design prototype (template <helmet> styles). */
+
+/* Self-hosted Figtree (latin subset, variable, weights 400-700 — matches Google
+   Fonts' own Figtree v9 css2 "wght@400..700" response) so the app has no
+   runtime dependency on Google's font CDN. */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../assets/fonts/figtree-var.woff2') format('woff2');
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body { font-family: 'Figtree', system-ui, sans-serif; font-weight: 500; background: var(--bg); color: var(--text); }
