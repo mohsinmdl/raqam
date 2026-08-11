@@ -74,18 +74,18 @@ toolbar.
 
 ## Acceptance criteria
 
-- [ ] 393×852: no horizontal scroll (`scrollWidth ≤ 393`) on All Accounts with
+- [x] 393×852: no horizontal scroll (`scrollWidth ≤ 393`) on All Accounts with
       real-shaped data (both populations present).
-- [ ] Phone rows show merchant/chips/amount + date·category·account sub-line;
+- [x] Phone rows show merchant/chips/amount + date·category·account sub-line;
       rows ≥44pt tall; amounts right-aligned tabular.
-- [ ] Tap a row → BulkBar appears with count 1; its menu offers Edit;
+- [x] Tap a row → BulkBar appears with count 1; its menu offers Edit;
       tap again → selection clears.
-- [ ] Scheduled band collapses/expands; overdue cue visible.
-- [ ] Phone toolbar: full-width search (≥16px input font) + sort toggle only;
+- [x] Scheduled band collapses/expands; overdue cue visible.
+- [x] Phone toolbar: full-width search (≥16px input font) + sort toggle only;
       no Add/Undo/Redo/RecentMoves/wide controls.
-- [ ] Desktop 1280×800: table, toolbar, and all behaviors pixel-identical to
+- [x] Desktop 1280×800: table, toolbar, and all behaviors pixel-identical to
       pre-change (no DOM changes on the desktop path beyond the branch).
-- [ ] `pnpm test` green (851+), `pnpm build` clean.
+- [x] `pnpm test` green (851+), `pnpm build` clean.
 
 ## Self-review notes
 
