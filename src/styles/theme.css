@@ -140,10 +140,19 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
    clearance and ≥16px inputs (iOS auto-zoom threshold). */
 @media (max-width: 700px) {
   /* Header clears the Dynamic Island / notch under viewport-fit=cover.
-     !important is required: Header.jsx sets an inline `padding: '0 28px'`
-     shorthand, which resolves padding-top to 0 and otherwise beats any
-     non-!important stylesheet rule. */
-  .app-header { padding-top: env(safe-area-inset-top) !important; }
+     !important is required: Header.jsx sets inline `padding: '0 28px'` and
+     `height: 60` — with border-box sizing, padding-top alone would eat the
+     60px box (~59px inset on iPhone 15 Pro) and spill the title over the
+     page content below (seen live 2026-08-12). The height must GROW by the
+     inset so the content row keeps its 60px. Horizontal padding and the
+     24px title also step down for a 393pt-wide row. */
+  .app-header {
+    padding-top: env(safe-area-inset-top) !important;
+    height: calc(60px + env(safe-area-inset-top)) !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .app-header h1 { font-size: 19px !important; }
   input:not([type="checkbox"]):not([type="radio"]),
   select, textarea { font-size: 16px !important; }
 
