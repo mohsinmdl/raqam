@@ -78,6 +78,30 @@ describe('validateSplit with a store', () => {
   it('still runs with no store passed (pure path unaffected)', () => {
     expect(validateSplit('5000', [line('ghost', '2500'), line('groc', '2500')])).toBeNull();
   });
+  it('detects emoji-prefixed collision when new name matches store category minus emoji', () => {
+    const withEmojiCat = withCats([
+      { id: 'util', name: '⚡️ Utilities', type: 'expense', status: 'active' },
+      { id: 'rent', name: 'Rent', type: 'expense', status: 'active' },
+    ]);
+    expect(validateSplit('5000', [line('__new', '2500', { newCat: 'Utilities' }), line('rent', '2500')], withEmojiCat))
+      .toMatch(/already called/);
+  });
+  it('still catches plain-name collision with emoji category', () => {
+    const withEmojiCat = withCats([
+      { id: 'util', name: '⚡️ Utilities', type: 'expense', status: 'active' },
+      { id: 'rent', name: 'Rent', type: 'expense', status: 'active' },
+    ]);
+    expect(validateSplit('5000', [line('__new', '2500', { newCat: '⚡️ Utilities' }), line('rent', '2500')], withEmojiCat))
+      .toMatch(/already called/);
+  });
+  it('allows new category when normalized name differs from all store categories', () => {
+    const withEmojiCat = withCats([
+      { id: 'util', name: '⚡️ Utilities', type: 'expense', status: 'active' },
+      { id: 'rent', name: 'Rent', type: 'expense', status: 'active' },
+    ]);
+    expect(validateSplit('5000', [line('__new', '2500', { newCat: 'Fuel' }), line('rent', '2500')], withEmojiCat))
+      .toBeNull();
+  });
 });
 
 describe('validateSplit uses the injected formatter for sum errors', () => {

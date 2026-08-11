@@ -323,7 +323,7 @@ function SplitLines({ f, setForm, env, S, month, money, errors }) {
   const fillIdx = fillRemainderIndex(lines);
   const fillRemainder = () => {
     if (rem <= 0 || fillIdx < 0) return;
-    setLine(fillIdx, { amount: String(rem) });
+    setLine(fillIdx, { amount: formatAmountInput(String(rem)) });
   };
   const amountBox = { width: 110, boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 'var(--field-radius)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 'none' };
   return (
