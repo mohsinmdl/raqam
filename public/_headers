@@ -1,0 +1,16 @@
+# Cloudflare Pages serves these headers on every response (vite copies
+# public/ into dist/ verbatim). One rule, whole site — the app is a single
+# SPA document plus fingerprinted assets.
+#
+# CSP notes:
+# - style-src needs 'unsafe-inline' — the app styles via React inline style
+#   attributes throughout, and fonts.googleapis.com serves the Figtree css.
+# - connect-src pins the Supabase project (https for PostgREST/auth, wss for
+#   realtime); the anon key in the bundle is unusable anywhere else.
+# - Google Fonts entries can be dropped once Figtree is self-hosted.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://aegfyenponkuinmxtvem.supabase.co wss://aegfyenponkuinmxtvem.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
