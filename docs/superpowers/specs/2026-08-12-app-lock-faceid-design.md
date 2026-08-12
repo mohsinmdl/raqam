@@ -68,9 +68,11 @@ Server-side WebAuthn/passkey login; app-switcher snapshot blurring; a custom PIN
 
 ## Acceptance criteria
 
-1. "App lock" toggle appears in the account menu only when a platform authenticator exists; enabling runs the biometric enrollment and persists `{ enabled, credId }` per device.
-2. With the lock on, a cold launch and a resume-after->60s show the full-screen LockScreen over the app; the biometric sheet unlocks it; the session is never dropped by unlocking.
-3. Resume within 60s does not relock; disabling the toggle stops all locking.
-4. Sign-out from the LockScreen clears the pref and returns to the login screen (recovery path).
-5. Unsupported platforms never see the toggle and are never locked out.
-6. No server, schema, or dependency changes; desktop and phone both function.
+**Verified live 2026-08-12** — headless Chromium + CDP virtual authenticator (`WebAuthn.enable` / `addVirtualAuthenticator`, ctap2/internal, `isUserVerified` toggled per case), throwaway resolveId harness with stubbed auth/sync, at 393×852 (iPhone 15 Pro viewport) and 1280×800. The real Face ID sheet / device-passcode fallback cannot render headlessly — the user confirms it on-device after deploy. Live verification added two fixes (commit `1717f8f`): the phone shell has no account menu, so a capability-gated App lock row was added to the phone Dashboard (shared `useAppLockToggle` hook); and a pre-existing Dashboard hooks-order crash on setup-skip was hoisted out of the way.
+
+1. ✅ "App lock" toggle appears in the account menu (desktop) / Dashboard row (phone) only when a platform authenticator exists — verified absent with no authenticator, present with one; enabling runs the biometric enrollment and persists `{ enabled, credId }` per device (observed in `raqam.prefs.v1`).
+2. ✅ With the lock on, a cold launch and a resume-after->60s show the full-screen LockScreen over the app; the ceremony unlocks it (auto-attempt and button; failed verification keeps the lock with "Not verified. Try again."); the session is never dropped by unlocking.
+3. ✅ Resume within 60s does not relock (30s and exactly-60s boundary verified via shifted clock + dispatched visibilitychange); disabling the toggle stops all locking (reload stays unlocked).
+4. ✅ Sign-out from the LockScreen clears the pref (`{enabled:false, credId:null}`) and returns to the login screen (recovery path; stubbed signOut observed called once).
+5. ✅ Unsupported platforms never see the toggle (UVPAA false → no row on either shell) and are never locked out.
+6. ✅ No server, schema, or dependency changes; desktop and phone both function — including phone enrollment via the new Dashboard row.
