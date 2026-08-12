@@ -162,16 +162,20 @@ function AppLockGate({ children }) {
   // If the user disables the lock while it's showing (not reachable today, but
   // keeps state honest), drop the overlay.
   useEffect(() => { if (!enabled) setLocked(false); }, [enabled]);
-  const onSignOut = () => {
+  const onSignOut = async () => {
     if (signingOut) return;
-    // Order matters: raise the hold first, then start the sign-out, then clear
-    // the pref. The pref clear no longer affects rendering (signingOut holds
-    // the overlay) but is kept so a future login isn't locked with a stale
-    // credId. If signOut() rejects (offline, revoke failure) the overlay STAYS
-    // — the app must never be revealed while a session might still exist.
-    setSigningOut(true);
-    signOut().catch(() => {});
-    setPrefs({ appLock: { enabled: false, credId: null } });
+    setSigningOut(true); // holds the LockScreen up regardless of enabled/locked
+    try {
+      await signOut();
+      // Success only: clear so a re-login isn't locked with a dead credId
+      // (the escape-hatch path — passkey deleted in OS settings — still works
+      // because signOut() is a Supabase op, unaffected by the passkey).
+      setPrefs({ appLock: { enabled: false, credId: null } });
+    } catch {
+      // Fail-closed: the session is still alive and the pref stays enabled.
+      // The overlay remains (signingOut never resets), and because the pref
+      // was NOT cleared, a reload re-locks instead of exposing the session.
+    }
   };
   if (signingOut || (enabled && locked)) {
     return (
