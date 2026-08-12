@@ -1,8 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import FocusTrap from './FocusTrap.jsx';
 import { useUI } from './UIProvider.jsx';
-import { useIsPhone } from '../lib/useIsPhone.js';
-import { useKeyboardInset, kbGrowGeometry } from '../lib/useKeyboardInset.js';
 
 // Drawer system — chrome ported from the prototype (template 514-528, footer 742-746).
 // Drawer bodies register in src/drawers/index.js as:
@@ -18,32 +16,17 @@ function DrawerShell({ def, state, closeDrawer, requestClose }) {
   // Optional destructive action (e.g. Delete when editing). Conditional hook call
   // is safe: DrawerShell is keyed by drawer name, so `def` is fixed per mount.
   const danger = def.useDanger ? def.useDanger() : null;
-  const phone = useIsPhone();
-  const { inset: kb, viewportHeight } = useKeyboardInset();
-  // While the phone keyboard is up, the bottom sheet GROWS instead of merely
-  // sliding: its bottom edge pins to the keyboard's top and its height fills
-  // the remaining visual viewport, so the sheet's TOP rises and the form gains
-  // the space above the card (feedback on the reverted #100, which lifted the
-  // sheet without growing it and only rescued the footer). Inline transform +
-  // height are immune to the stylesheet's !important bottom-sheet positioning;
-  // max-height must clear the 90dvh cap or a short keyboard couldn't grow past
-  // it. Geometry (kbGrowGeometry) is driven by live visualViewport numbers,
-  // never CSS `dvh` — dvh doesn't track the keyboard on iOS Safari and can
-  // drift from the true visible height when Safari's own chrome also resizes
-  // on focus, which left a dead gap above the keyboard and a cramped form on
-  // real devices (see useKeyboardInset.js).
-  const kbGrow = phone && kb > 0 ? {
-    ...kbGrowGeometry(kb, viewportHeight),
-    maxHeight: 'none',
-    // Only transform is tweened: height must snap with each visualViewport
-    // step (iOS fires several during the keyboard's own animation), and a
-    // height transition would re-layout the whole form every frame.
-    transition: 'transform .15s ease',
-  } : null;
+  // On phone the .drawer-panel stylesheet rules turn this into a plain bottom
+  // sheet (bottom:0, max-height 90dvh, rounded top). No keyboard-follow logic:
+  // when the on-screen keyboard opens, the browser scrolls the focused field
+  // into the visual viewport and the footer simply sits at the sheet's bottom.
+  // Three attempts to grow/lift the sheet over the keyboard (#100/#105/#107)
+  // fought iOS's fixed-position + visualViewport geometry and left the footer
+  // floating with a dead gap on real devices, so we reverted to this baseline.
   return (
     <div onClick={requestClose} style={{ position: 'fixed', inset: 0, background: 'var(--scrim)', animation: 'hsFade .18s ease', zIndex: 40 }}>
       <FocusTrap>
-        <aside role="dialog" aria-modal="true" aria-label={def.title(state)} className="drawer-panel" onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, maxWidth: '94vw', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', animation: 'hsSlide .22s ease', color: 'var(--text)', ...kbGrow }}>
+        <aside role="dialog" aria-modal="true" aria-label={def.title(state)} className="drawer-panel" onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, maxWidth: '94vw', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', animation: 'hsSlide .22s ease', color: 'var(--text)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 22px', borderBottom: '1px solid var(--border)', flex: 'none' }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{def.title(state)}</div>
