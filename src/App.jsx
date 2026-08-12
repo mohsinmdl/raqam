@@ -29,6 +29,8 @@ import NetWorth from './screens/reflect/NetWorth.jsx';
 import IncomeVsExpense from './screens/reflect/IncomeVsExpense.jsx';
 import AgeOfMoney from './screens/reflect/AgeOfMoney.jsx';
 import { HeaderSlotProvider } from './ui/HeaderSlot.jsx';
+import { useIsPhone } from './lib/useIsPhone.js';
+import MobileTabBar from './components/MobileTabBar.jsx';
 
 // Sidebar width is user-draggable and remembered on the device (like theme).
 const SB_MIN = 208, SB_MAX = 460, SB_DEFAULT = 236, SB_KEY = 'raqam.sidebarW';
@@ -60,29 +62,33 @@ function Shell() {
     document.addEventListener('mouseup', onUp);
   };
   const resetWidth = () => { setSbW(SB_DEFAULT); try { localStorage.setItem(SB_KEY, String(SB_DEFAULT)); } catch {} };
+  const phone = useIsPhone();
 
   return (
     <div
       style={{
         position: 'relative',
-        display: 'grid', gridTemplateColumns: `${sbW}px minmax(0,1fr)`, height: '100vh',
+        display: 'grid', gridTemplateColumns: phone ? 'minmax(0,1fr)' : `${sbW}px minmax(0,1fr)`,
+        height: phone ? '100dvh' : '100vh',
         background: 'var(--bg)', color: 'var(--text)',
         fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 14, lineHeight: 1.45,
       }}
     >
       <GlobalShortcuts />
-      <Sidebar />
+      {!phone && <Sidebar />}
       {/* Drag handle sitting on the sidebar's right seam. A hairline stays
           invisible until hover/drag, then lights up in the accent colour. */}
-      <div
-        role="separator" aria-orientation="vertical" aria-label="Resize sidebar"
-        title="Drag to resize · double-click to reset"
-        onMouseDown={startDrag} onDoubleClick={resetWidth}
-        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-        style={{ position: 'absolute', top: 0, bottom: 0, left: sbW, width: 10, transform: 'translateX(-5px)', cursor: 'col-resize', zIndex: 50, display: 'flex', justifyContent: 'center' }}
-      >
-        <span aria-hidden="true" style={{ width: (dragging || hover) ? 3 : 2, height: '100%', background: (dragging || hover) ? 'var(--accent)' : 'transparent', transition: 'background .15s ease, width .15s ease' }} />
-      </div>
+      {!phone && (
+        <div
+          role="separator" aria-orientation="vertical" aria-label="Resize sidebar"
+          title="Drag to resize · double-click to reset"
+          onMouseDown={startDrag} onDoubleClick={resetWidth}
+          onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+          style={{ position: 'absolute', top: 0, bottom: 0, left: sbW, width: 10, transform: 'translateX(-5px)', cursor: 'col-resize', zIndex: 50, display: 'flex', justifyContent: 'center' }}
+        >
+          <span aria-hidden="true" style={{ width: (dragging || hover) ? 3 : 2, height: '100%', background: (dragging || hover) ? 'var(--accent)' : 'transparent', transition: 'background .15s ease, width .15s ease' }} />
+        </div>
+      )}
       <HeaderSlotProvider>
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <Header />
@@ -116,6 +122,7 @@ function Shell() {
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>
+        {phone && <MobileTabBar />}
       </div>
       </HeaderSlotProvider>
     </div>

@@ -19,7 +19,7 @@ function DrawerShell({ def, state, closeDrawer, requestClose }) {
   return (
     <div onClick={requestClose} style={{ position: 'fixed', inset: 0, background: 'var(--scrim)', animation: 'hsFade .18s ease', zIndex: 40 }}>
       <FocusTrap>
-        <aside role="dialog" aria-modal="true" aria-label={def.title(state)} onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, maxWidth: '94vw', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', animation: 'hsSlide .22s ease', color: 'var(--text)' }}>
+        <aside role="dialog" aria-modal="true" aria-label={def.title(state)} className="drawer-panel" onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, maxWidth: '94vw', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', animation: 'hsSlide .22s ease', color: 'var(--text)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 22px', borderBottom: '1px solid var(--border)', flex: 'none' }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{def.title(state)}</div>

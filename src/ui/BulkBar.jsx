@@ -142,7 +142,7 @@ export default function BulkBar({ count, total, actions, more, onClear }) {
   const moreItems = (more || []).filter(Boolean);
   return (
     <div
-      role="region" aria-label="Bulk actions"
+      role="region" aria-label="Bulk actions" className="bulk-bar"
       style={{
         // Centred with auto margins, NOT translateX(-50%): the hsUp entrance
         // animation drives `transform` (translateY), which would override a

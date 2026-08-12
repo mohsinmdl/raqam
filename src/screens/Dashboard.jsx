@@ -12,6 +12,8 @@ import FirstUse from './FirstUse.jsx';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
 import { effectiveNextDate, overdueRules, upcomingRules } from '../lib/schedule.js';
+import { envelopeFor } from '../lib/envelope.js';
+import { leftToSpend } from '../lib/leftToSpend.js';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const h2 = { fontSize: 15, fontWeight: 600, margin: 0 };
@@ -99,6 +101,8 @@ export default function Dashboard() {
   if (showFirstUse) return <FirstUse setup={setup} onSkip={() => setPrefs({ skippedSetup: true })} />;
 
   const { M } = v;
+  const env = useMemo(() => envelopeFor(S, month, now), [S, month, now]);
+  const lts = leftToSpend(env);
   const monthName = C.monthLabel(month);
   const prevIdx = months.indexOf(month) - 1;
   const cmp = prevIdx >= 0 ? (() => {
@@ -147,7 +151,18 @@ export default function Dashboard() {
 
         <PositionStrip />
 
-        <section aria-label="Monthly summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        <section aria-label="Left to spend" className="dash-lts" style={{ ...card, padding: '14px 16px', display: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Left to spend</span>
+              <span className="tnum" style={{ display: 'block', fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 2 }}>{money(lts)}</span>
+              <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>still in your envelopes · {C.monthLabel(month)}</span>
+            </span>
+            <button onClick={() => nav('/budget')} className="hv-accent-fg" style={linkBtn}>Budget ›</button>
+          </div>
+        </section>
+
+        <section aria-label="Monthly summary" className="dash-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
           {v.sumCards.map(s => (
             <div key={s.label} style={{ ...card, padding: '14px 16px' }}>
               <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>{s.label}</div>
@@ -158,9 +173,9 @@ export default function Dashboard() {
         </section>
 
         <div className="dash-cols">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          <div className="dash-col-main" style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
-            <section aria-label="Daily spending" style={{ ...card, padding: '18px 20px' }}>
+            <section aria-label="Daily spending" className="dash-daily" style={{ ...card, padding: '18px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                 <h2 style={h2}>Daily spending</h2>
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>cleared expenses · {monthName}</span>
@@ -187,7 +202,7 @@ export default function Dashboard() {
               )}
             </section>
 
-            <section aria-label="Spending by category" style={{ ...card, padding: '18px 20px' }}>
+            <section aria-label="Spending by category" className="dash-cats" style={{ ...card, padding: '18px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 4px' }}>
                 <h2 style={{ ...h2, margin: 0, flex: 1 }}>Spending by category</h2>
                 {recSwitch(true)}
@@ -212,7 +227,7 @@ export default function Dashboard() {
             </section>
 
             {cmp && (
-              <section aria-label="Month comparison" style={{ ...card, padding: '18px 20px' }}>
+              <section aria-label="Month comparison" className="dash-cmp" style={{ ...card, padding: '18px 20px' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                   <h2 style={h2}>Month to month</h2>
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}>{cmp.prevName} vs {cmp.curName}</span>
@@ -239,7 +254,7 @@ export default function Dashboard() {
               </section>
             )}
 
-            <section aria-label="Upcoming" style={{ ...card, padding: '16px 18px' }}>
+            <section aria-label="Upcoming" className="dash-upcoming" style={{ ...card, padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <h2 style={{ ...h2, flex: 1 }}>Upcoming this month</h2>
                 {overdue.length > 0 && (
@@ -272,9 +287,9 @@ export default function Dashboard() {
             </section>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          <div className="dash-col-side" style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
-            <section aria-label="Accounts" style={{ ...card, padding: '16px 18px' }}>
+            <section aria-label="Accounts" className="dash-accounts" style={{ ...card, padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <h2 style={h2}>Accounts</h2><span style={{ flex: 1 }} />
                 <button onClick={() => nav('/accounts')} className="hv-accent-fg" style={linkBtn}>{acctHidden > 0 ? `View all ${acctAll.length} ›` : 'View all ›'}</button>
@@ -293,7 +308,7 @@ export default function Dashboard() {
               </div>
             </section>
 
-            <section aria-label="Largest expenses" style={{ ...card, padding: '16px 18px' }}>
+            <section aria-label="Largest expenses" className="dash-largest" style={{ ...card, padding: '16px 18px' }}>
               <h2 style={h2}>Largest expenses</h2>
               {largestRows.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
@@ -314,7 +329,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <section aria-label="Recent transactions" style={{ ...card, padding: '16px 20px' }}>
+        <section aria-label="Recent transactions" className="dash-recent" style={{ ...card, padding: '16px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <h2 style={h2}>Recent transactions</h2><span style={{ flex: 1 }} />
             <button onClick={() => nav('/transactions')} className="hv-accent-fg" style={linkBtn}>View all ›</button>
@@ -322,19 +337,19 @@ export default function Dashboard() {
           {recentRows.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
               {recentRows.map((t, i) => (
-                <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: i === recentRows.length - 1 ? 'none' : '1px solid var(--border)', opacity: t.rowOpacity }}>
-                  <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
-                  <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div key={t.id} className="tx-row-grid" style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: i === recentRows.length - 1 ? 'none' : '1px solid var(--border)', opacity: t.rowOpacity }}>
+                  <div className="tnum tx-cell-date" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
+                  <div className="tx-cell-merchant" style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
                     <TxChips row={t} />
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                  <div className="tx-cell-cat" style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                     <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
                     <span style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
                   </div>
-                  <div style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</div>
-                  <div className="tnum" style={{ fontSize: 13.5, fontWeight: 600, textAlign: 'right', color: t.amtColor }}>{t.amtLabel}</div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div className="tx-cell-acct" style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</div>
+                  <div className="tnum tx-cell-amt" style={{ fontSize: 13.5, fontWeight: 600, textAlign: 'right', color: t.amtColor }}>{t.amtLabel}</div>
+                  <div className="tx-cell-edit" style={{ textAlign: 'right' }}>
                     {t.canEdit && (
                       <button onClick={() => openers.editTx(S, t.id, openDrawer)} aria-label="Edit this transaction" className="hv-soft" style={{ height: 24, padding: '0 9px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
                     )}

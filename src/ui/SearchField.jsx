@@ -19,7 +19,7 @@ function SearchIcon({ size = 15 }) {
   );
 }
 
-const SearchField = forwardRef(function SearchField({ value, onChange, placeholder = 'Search', label, collapsed = 190, expanded = 280 }, ref) {
+const SearchField = forwardRef(function SearchField({ value, onChange, placeholder = 'Search', label, collapsed = 190, expanded = 280, height = 34 }, ref) {
   const [focused, setFocused] = useState(false);
   const inputRef = useRef(null);
   useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }), []);
@@ -27,7 +27,7 @@ const SearchField = forwardRef(function SearchField({ value, onChange, placehold
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: 7, boxSizing: 'border-box',
-      height: 34, width: open ? expanded : collapsed, padding: '0 8px 0 10px',
+      height, width: open ? expanded : collapsed, padding: '0 8px 0 10px',
       border: '1px solid ' + (focused ? 'var(--accent)' : 'var(--border)'),
       borderRadius: 999, background: 'var(--surface)',
       transition: 'width .18s ease, border-color .15s ease',

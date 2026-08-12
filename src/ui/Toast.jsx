@@ -10,7 +10,7 @@ export default function Toast({ msg, raised }) {
     // animation drives `transform` (translateY), which would override a centring
     // transform mid-animation and snap the toast sideways. Auto-margin centring
     // leaves `transform` free for the animation. (Same fix as BulkBar.)
-    <div role="status" aria-live="polite" style={{ position: 'fixed', left: 0, right: 0, margin: '0 auto', width: 'fit-content', bottom: raised ? 86 : 26, transition: 'bottom .18s ease', background: 'var(--text)', color: 'var(--bg)', padding: '11px 20px', borderRadius: 10, fontSize: 13.5, fontWeight: 500, boxShadow: 'var(--shadow)', animation: 'hsUp .22s ease', zIndex: 60, maxWidth: '80vw' }}>
+    <div role="status" aria-live="polite" className={raised ? 'toast toast-raised' : 'toast'} style={{ position: 'fixed', left: 0, right: 0, margin: '0 auto', width: 'fit-content', bottom: raised ? 86 : 26, transition: 'bottom .18s ease', background: 'var(--text)', color: 'var(--bg)', padding: '11px 20px', borderRadius: 10, fontSize: 13.5, fontWeight: 500, boxShadow: 'var(--shadow)', animation: 'hsUp .22s ease', zIndex: 60, maxWidth: '80vw' }}>
       {msg}
     </div>
   );
