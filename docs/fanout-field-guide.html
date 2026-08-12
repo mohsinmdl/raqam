@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fan-Out Field Guide</title>
+<meta name="description" content="A learning reference for Claude Code's six orchestration techniques — Agent, SDD, Workflows, Task, Goal, and Loop.">
+
+<!--
+  impeccable-disable low-contrast design-system-color design-system-font design-system-font-size design-system-radius all-caps-body hero-eyebrow-chip em-dash-overuse cramped-padding
+  Standalone learning document with its own self-contained design system (NOT Raqam's DESIGN.md "Trusted Ledger" product UI); also published as an Artifact, so the waiver travels with the file.
+    - low-contrast: false positives. The dual-theme CSS-variable tokens make the static scanner pair a dark-theme color (#e4855d / #bab0a1 / #ece6dd) with a light-theme surface (#ffffff / #fbeee8) that never co-occur, and it reads SVG `fill: var(--ink)` as default black. Same-theme contrast was verified to meet WCAG AA after darkening --muted/--faint.
+    - design-system-color / design-system-font / design-system-font-size / design-system-radius: this document intentionally uses its own palette, font stack, type ramp, and radii, not the product design system.
+    - all-caps-body / hero-eyebrow-chip: deliberate monospace tracked-caps label system — the CLI/technical register chosen for this subject.
+    - em-dash-overuse: intentional technical prose voice.
+    - cramped-padding: the decision-matrix table sits flush in its bordered frame by table convention; its cells carry their own inset.
+-->
+
+<style>
+  /* ---- Light palette (bare :root = complete light theme) ---- */
+  :root {
+    --paper:   #F1F0EC;
+    --surface: #FBFAF7;
+    --raise:   #FFFFFF;
+    --ink:     #23201C;
+    --muted:   #5E564B;
+    --faint:   #6E675A;
+    --accent:  #C05A34;
+    --accent-ink: #A74A28;
+    --accent-soft: rgba(192, 90, 52, 0.11);
+    --line:    #E3DED5;
+    --line-strong: #D3CCC0;
+    --code-bg: #ECE8E0;
+    --code-ink:#37332C;
+    --good:    #3F7A57;
+    --warn:    #9C7328;
+    --shadow:  0 1px 1px rgba(35,32,28,.05), 0 5px 13px -9px rgba(35,32,28,.20);
+
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+
+    --wrap: 960px;
+    --prose: 68ch;
+  }
+
+  /* ---- Dark palette: system-dark (un-stamped) ---- */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:   #16130F;
+      --surface: #201C17;
+      --raise:   #262119;
+      --ink:     #ECE6DD;
+      --muted:   #BAB0A1;
+      --faint:   #98917F;
+      --accent:  #E4855D;
+      --accent-ink: #EE9873;
+      --accent-soft: rgba(228, 133, 93, 0.14);
+      --line:    #322B23;
+      --line-strong: #453C31;
+      --code-bg: #1A1611;
+      --code-ink:#D9D2C6;
+      --good:    #6DB187;
+      --warn:    #D6A758;
+      --shadow:  0 1px 1px rgba(0,0,0,.30), 0 5px 13px -9px rgba(0,0,0,.6);
+    }
+  }
+
+  /* ---- Dark palette: explicit toggle wins in both directions ---- */
+  :root[data-theme="dark"] {
+    --paper:   #16130F;
+    --surface: #201C17;
+    --raise:   #262119;
+    --ink:     #ECE6DD;
+    --muted:   #BAB0A1;
+    --faint:   #98917F;
+    --accent:  #E4855D;
+    --accent-ink: #EE9873;
+    --accent-soft: rgba(228, 133, 93, 0.14);
+    --line:    #322B23;
+    --line-strong: #453C31;
+    --code-bg: #1A1611;
+    --code-ink:#D9D2C6;
+    --good:    #6DB187;
+    --warn:    #D6A758;
+    --shadow:  0 1px 1px rgba(0,0,0,.30), 0 5px 13px -9px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  /* ---------- eyebrow / labels ---------- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0;
+  }
+
+  /* ---------- header ---------- */
+  header.hero { padding: clamp(56px, 9vw, 104px) 0 8px; }
+  .hero .eyebrow { color: var(--accent); }
+  h1 {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: clamp(2.15rem, 6vw, 3.5rem);
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    margin: 14px 0 0;
+    text-wrap: balance;
+  }
+  h1 .amp { color: var(--accent); font-weight: 500; }
+  .lede {
+    max-width: 60ch;
+    font-size: clamp(1.05rem, 2.4vw, 1.28rem);
+    line-height: 1.5;
+    color: var(--muted);
+    margin: 22px 0 0;
+    text-wrap: pretty;
+  }
+  .metaline {
+    font-family: var(--mono);
+    font-size: .74rem;
+    color: var(--faint);
+    letter-spacing: .04em;
+    margin: 30px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+  }
+  .metaline span { white-space: nowrap; }
+  .metaline b { color: var(--muted); font-weight: 600; }
+
+  /* ---------- theme toggle ---------- */
+  .toolbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; justify-content: flex-end;
+    padding-top: 14px;
+    pointer-events: none;
+  }
+  .toggle {
+    pointer-events: auto;
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .toggle:hover { color: var(--accent-ink); border-color: var(--line-strong); }
+
+  /* ---------- fan-out diagram ---------- */
+  .diagram {
+    margin: 40px 0 8px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    padding: 26px clamp(14px, 4vw, 40px) 22px;
+    box-shadow: var(--shadow);
+  }
+  .diagram figcaption {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 6px 2px 0;
+  }
+  svg.fan { display: block; width: 100%; height: auto; }
+  .fan .node-box { fill: var(--raise); stroke: var(--line-strong); }
+  .fan .node-main { fill: var(--accent-soft); stroke: var(--accent); }
+  .fan .wire { stroke: var(--accent); fill: none; opacity: .55; }
+  .fan .wire.back { stroke: var(--faint); stroke-dasharray: 3 4; opacity: .7; }
+  .fan .lbl { fill: var(--ink); font-family: var(--mono); font-size: 12.5px; }
+  .fan .lbl.sub { fill: var(--muted); font-size: 10.5px; }
+  .fan .lbl.main { fill: var(--accent-ink); font-weight: 600; }
+  .fan .dot { fill: var(--accent); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .fan .wire { stroke-dasharray: 260; stroke-dashoffset: 260; animation: draw 1.1s ease forwards; }
+    .fan .wire.w2 { animation-delay: .12s; }
+    .fan .wire.w3 { animation-delay: .24s; }
+    .fan .wire.w4 { animation-delay: .36s; }
+    .fan .wire.back { animation-delay: .6s; }
+    .fan .fadein { opacity: 0; animation: fade .5s ease forwards; }
+    .fan .fadein.f2 { animation-delay: .2s; }
+    .fan .fadein.f3 { animation-delay: .32s; }
+    .fan .fadein.f4 { animation-delay: .44s; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    @keyframes fade { to { opacity: 1; } }
+  }
+
+  /* ---------- section scaffolding ---------- */
+  section { padding: clamp(40px, 7vw, 72px) 0 0; }
+  .prose { max-width: var(--prose); }
+  .prose p { margin: 0 0 1.05em; text-wrap: pretty; }
+
+  h2 {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: clamp(1.35rem, 3vw, 1.72rem);
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    margin: 10px 0 0;
+    text-wrap: balance;
+  }
+  .section-head .eyebrow { color: var(--accent); }
+
+  /* ---------- decision matrix ---------- */
+  .matrix-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); background: var(--surface); }
+  table.matrix { border-collapse: collapse; width: 100%; min-width: 720px; font-size: .92rem; }
+  table.matrix th, table.matrix td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.matrix thead th {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 600;
+    background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  }
+  table.matrix tbody tr:last-child td { border-bottom: none; }
+  table.matrix .tname { font-family: var(--mono); font-weight: 600; color: var(--ink); white-space: nowrap; }
+  table.matrix .trig { font-family: var(--mono); font-size: .82rem; color: var(--accent-ink); }
+  table.matrix tr.groupsep td { border-top: 2px solid var(--line-strong); }
+
+  .fam {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: .62rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+  }
+  .fam.fanout { color: var(--accent-ink); }
+  .fam.driver { color: var(--good); }
+
+  /* ---------- technique cards ---------- */
+  .cards { display: grid; gap: 22px; margin-top: 26px; }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    padding: clamp(20px, 3.5vw, 30px);
+  }
+  .card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .card-idx { font-family: var(--mono); font-size: .74rem; letter-spacing: .12em; color: var(--faint); text-transform: uppercase; }
+  .card h3 { font-family: var(--mono); font-weight: 600; font-size: 1.28rem; margin: 8px 0 0; letter-spacing: -0.01em; }
+  .oneline { color: var(--muted); font-size: .98rem; margin: 6px 0 0; }
+
+  .kv { margin: 18px 0 0; display: grid; gap: 14px; }
+  .kv .k { font-family: var(--mono); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 0 0 4px; }
+  .kv .v { margin: 0; }
+  .kv .v.warnrow { color: var(--ink); }
+
+  .warnrow .k { color: var(--warn); }
+
+  /* ---------- terminal code blocks ---------- */
+  .term {
+    margin: 6px 0 0;
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-family: var(--mono);
+    font-size: .82rem;
+    line-height: 1.65;
+    color: var(--code-ink);
+    overflow-x: auto;
+  }
+  .term .bar {
+    display: flex; align-items: center; gap: 7px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    color: var(--faint);
+    font-size: .68rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .term .bar i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); display: inline-block; }
+  .term .bar i:nth-child(1) { background: color-mix(in srgb, var(--accent) 70%, transparent); }
+  .term .bar .fname { margin-left: auto; text-transform: none; letter-spacing: 0; }
+  .term pre { margin: 0; padding: 14px 16px; white-space: pre; }
+  .term .pr { color: var(--accent); user-select: none; }
+  .term .cm { color: var(--faint); }
+  .term .kw { color: var(--accent-ink); }
+  .term .st { color: var(--good); }
+
+  code.inl {
+    font-family: var(--mono);
+    font-size: .86em;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    padding: 1px 6px;
+    border-radius: 5px;
+  }
+
+  /* ---------- compose closer ---------- */
+  .axes { display: grid; gap: 18px; margin-top: 26px; }
+  @media (min-width: 720px) { .axes { grid-template-columns: 1fr 1fr; } }
+  .axis {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 24px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .axis h3 { font-family: var(--mono); font-weight: 600; font-size: .95rem; margin: 0; color: var(--ink); }
+  .axis .flow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 16px 0 0; font-family: var(--mono); font-size: .84rem; }
+  .axis .stepn { padding: 5px 11px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--raise); color: var(--ink); }
+  .axis .arr { color: var(--accent); font-weight: 700; }
+  .axis .sub { color: var(--muted); font-size: .78rem; display: block; margin-top: 2px; font-family: var(--sans); }
+  .axis p { color: var(--muted); font-size: .92rem; margin: 16px 0 0; }
+
+  .callout {
+    margin-top: 26px;
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+    background: var(--accent-soft);
+    border-radius: 12px;
+    padding: 20px 22px;
+  }
+  .callout .k { font-family: var(--mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--accent-ink); margin: 0 0 8px; }
+  .callout p { margin: 0; color: var(--ink); }
+  .callout code.inl { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+  /* ---------- footer ---------- */
+  footer { margin: clamp(56px, 9vw, 96px) 0 60px; padding-top: 28px; border-top: 1px solid var(--line); }
+  footer p { font-family: var(--mono); font-size: .74rem; color: var(--faint); letter-spacing: .03em; margin: 0; }
+
+  hr.rule { border: none; border-top: 1px solid var(--line); margin: 0; }
+</style>
+
+<div class="toolbar wrap">
+  <button class="toggle" id="themeToggle" type="button" aria-label="Toggle color theme">◐ Theme</button>
+</div>
+
+<header class="hero wrap">
+  <p class="eyebrow">Claude Code · Orchestration</p>
+  <h1>Fan-Out Field Guide</h1>
+  <p class="lede">Six ways to run more than one thing at once inside a Claude Code session — and, just as important, how to tell them apart so you reach for the right one.</p>
+  <div class="metaline">
+    <span><b>For:</b> getting fluent, not shipping</span>
+    <span><b>Covers:</b> Agent · SDD · Workflow · Task · Goal · Loop</span>
+    <span><b>Read:</b> ~7 min</span>
+  </div>
+
+  <figure class="diagram">
+    <svg class="fan" viewBox="0 0 820 300" role="img" aria-labelledby="fanTitle">
+      <title id="fanTitle">A main session fanning work out to isolated subagents, which report back</title>
+      <!-- main node -->
+      <g class="fadein">
+        <rect class="node-main" x="24" y="120" width="176" height="60" rx="12"/>
+        <text class="lbl main" x="112" y="146" text-anchor="middle">your session</text>
+        <text class="lbl sub" x="112" y="164" text-anchor="middle">one context window</text>
+      </g>
+      <!-- wires out -->
+      <path class="wire w1" d="M200 140 C 320 120, 380 60, 560 60"/>
+      <path class="wire w2" d="M200 148 C 320 140, 380 122, 560 122"/>
+      <path class="wire w3" d="M200 156 C 320 168, 380 184, 560 184"/>
+      <path class="wire w4" d="M200 164 C 320 196, 380 246, 560 246"/>
+      <!-- subagent nodes -->
+      <g class="fadein f2">
+        <rect class="node-box" x="560" y="34" width="220" height="52" rx="10"/>
+        <text class="lbl" x="576" y="58">subagent · Explore</text>
+        <text class="lbl sub" x="576" y="74">own tools · own context</text>
+      </g>
+      <g class="fadein f2">
+        <rect class="node-box" x="560" y="96" width="220" height="52" rx="10"/>
+        <text class="lbl" x="576" y="120">subagent · Plan</text>
+        <text class="lbl sub" x="576" y="136">works in isolation</text>
+      </g>
+      <g class="fadein f3">
+        <rect class="node-box" x="560" y="158" width="220" height="52" rx="10"/>
+        <text class="lbl" x="576" y="182">subagent · build task</text>
+        <text class="lbl sub" x="576" y="198">runs in parallel</text>
+      </g>
+      <g class="fadein f4">
+        <rect class="node-box" x="560" y="220" width="220" height="52" rx="10"/>
+        <text class="lbl" x="576" y="244">subagent · verify</text>
+        <text class="lbl sub" x="576" y="260">returns a report</text>
+      </g>
+      <!-- report back wire -->
+      <path class="wire back" d="M560 246 C 400 292, 300 240, 200 178"/>
+    </svg>
+    <figcaption>The whole toolkit is variations on this: hand work to an isolated worker, let it run, relay what comes back.</figcaption>
+  </figure>
+</header>
+
+<main>
+
+<!-- ============ MENTAL MODEL ============ -->
+<section class="wrap">
+  <div class="section-head prose">
+    <p class="eyebrow">The one idea to hold onto</p>
+    <h2>Two columns, pick one from each</h2>
+  </div>
+  <div class="prose">
+    <p>Every technique below answers one of two questions. <b>How wide does the work spread?</b> — one worker, several, or many. And <b>what tells it to keep going?</b> — a background job, a condition, or a clock. The first three are ways to <em>fan out</em>; the last three are <em>drivers</em> that decide when work stops. You almost always combine one of each.</p>
+  </div>
+
+  <div class="matrix-wrap" style="margin-top:24px">
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>Family</th>
+          <th>Technique</th>
+          <th>In one line</th>
+          <th>You trigger it with</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="fam fanout">Fan-out</span></td>
+          <td class="tname">Agent</td>
+          <td>One subagent with its own context does one job and reports back.</td>
+          <td class="trig">“use a subagent to…”</td>
+        </tr>
+        <tr>
+          <td><span class="fam fanout">Fan-out</span></td>
+          <td class="tname">SDD</td>
+          <td>One subagent per plan task, reviewed between each.</td>
+          <td class="trig">“execute this with SDD”</td>
+        </tr>
+        <tr>
+          <td><span class="fam fanout">Fan-out</span></td>
+          <td class="tname">Workflow</td>
+          <td>A JavaScript program orchestrating many subagents deterministically.</td>
+          <td class="trig">ultracode … / /effort ultracode</td>
+        </tr>
+        <tr class="groupsep">
+          <td><span class="fam driver">Driver</span></td>
+          <td class="tname">Task</td>
+          <td>Background execution + a progress checklist.</td>
+          <td class="trig">(automatic) · plain language</td>
+        </tr>
+        <tr>
+          <td><span class="fam driver">Driver</span></td>
+          <td class="tname">Goal</td>
+          <td>Keep working until a stated condition becomes true.</td>
+          <td class="trig">/goal &lt;condition&gt;</td>
+        </tr>
+        <tr>
+          <td><span class="fam driver">Driver</span></td>
+          <td class="tname">Loop</td>
+          <td>Re-run on an interval, or at a pace Claude picks.</td>
+          <td class="trig">/loop [interval] [prompt]</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ FAN-OUT FAMILY ============ -->
+<section class="wrap">
+  <div class="section-head prose">
+    <p class="eyebrow">Family one · ways to fan out</p>
+    <h2>Spreading the work</h2>
+  </div>
+
+  <div class="cards">
+
+    <!-- AGENT -->
+    <article class="card" id="agent">
+      <div class="card-top">
+        <span class="card-idx">Fan-out · one worker</span>
+        <span class="fam fanout">Agent</span>
+      </div>
+      <h3>Agent — a subagent you hand one job</h3>
+      <p class="oneline">A fresh Claude with its own context window, system prompt, and tools. It works, then returns a final report your main session relays to you.</p>
+
+      <div class="kv">
+        <div>
+          <p class="k">What it is</p>
+          <p class="v">Types are purpose-built: <code class="inl">Explore</code> for read-only search across many files, <code class="inl">Plan</code> for architecture, plus <code class="inl">general-purpose</code>, <code class="inl">code-reviewer</code>, <code class="inl">claude-code-guide</code>. Each runs in isolation so its noise never touches your main thread.</p>
+        </div>
+        <div>
+          <p class="k">Reach for it when</p>
+          <p class="v">A question means reading across the codebase, or you have independent work to run at the same time. Launch several in one message and they run concurrently.</p>
+        </div>
+        <div>
+          <p class="k">Try it</p>
+          <div class="term">
+            <div class="bar"><i></i><i></i><i></i><span class="fname">chat prompt</span></div>
+<pre><span class="pr">▸</span> Use an <span class="kw">Explore</span> subagent to find every call site
+  of validateSplit and summarise the patterns.
+
+<span class="cm"># or fan three out at once, in one message:</span>
+<span class="pr">▸</span> Spin up 3 subagents — one auditing auth, one the
+  API routes, one the migrations — and report back.</pre>
+          </div>
+        </div>
+        <div class="warnrow">
+          <p class="k">Watch out</p>
+          <p class="v">The subagent's report is <b>not</b> shown to you — the main agent has to relay what matters. To continue the <em>same</em> subagent with its memory intact you message it (its context is preserved); a fresh Agent call starts from zero.</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- SDD -->
+    <article class="card" id="sdd">
+      <div class="card-top">
+        <span class="card-idx">Fan-out · several, hand-sequenced</span>
+        <span class="fam fanout">SDD</span>
+      </div>
+      <h3>Subagent-Driven Development</h3>
+      <p class="oneline">A <em>pattern</em>, not a tool: take a written plan, dispatch one subagent per independent task in the current session, review each result, then move on.</p>
+
+      <div class="kv">
+        <div>
+          <p class="k">What it is</p>
+          <p class="v">The <code class="inl">subagent-driven-development</code> skill encodes it. Each task gets a clean worker; you (or Claude) act as the conductor between them — read the diff, then start the next. It keeps a big plan moving without one giant context.</p>
+        </div>
+        <div>
+          <p class="k">Reach for it when</p>
+          <p class="v">You have a plan whose tasks don't depend on each other and you want each built with a checkpoint in between — without leaving the session for a separate run.</p>
+        </div>
+        <div>
+          <p class="k">Try it</p>
+          <div class="term">
+            <div class="bar"><i></i><i></i><i></i><span class="fname">chat prompt</span></div>
+<pre><span class="pr">▸</span> Execute this plan with <span class="kw">subagent-driven development</span> —
+  one subagent per task, show me each diff before the next.</pre>
+          </div>
+        </div>
+        <div class="warnrow">
+          <p class="k">Watch out</p>
+          <p class="v">There's no built-in orchestrator — it's sequenced turn by turn, so tasks must be genuinely independent. (This is exactly the pattern behind “lots of little changes at once.”)</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- WORKFLOW -->
+    <article class="card" id="workflow">
+      <div class="card-top">
+        <span class="card-idx">Fan-out · many, programmed</span>
+        <span class="fam fanout">Workflow</span>
+      </div>
+      <h3>Workflows — orchestration as code</h3>
+      <p class="oneline">A deterministic JavaScript program that drives dozens of subagents. Runs in the background; intermediate results live in the script, never in your context.</p>
+
+      <div class="kv">
+        <div>
+          <p class="k">What it is</p>
+          <p class="v">Building blocks: <code class="inl">agent()</code> spawns one, <code class="inl">parallel()</code> waits for all (a barrier), <code class="inl">pipeline()</code> streams items through stages with no barrier (the default), <code class="inl">phase()</code> groups progress. Because it's a script, control flow — loops, conditionals, fan-out — is exact and repeatable.</p>
+        </div>
+        <div>
+          <p class="k">Reach for it when</p>
+          <p class="v">The fan-out is big or repeated: audit every route for auth, migrate every call site, review across N dimensions and adversarially verify each finding.</p>
+        </div>
+        <div>
+          <p class="k">Shape of a script</p>
+          <div class="term">
+            <div class="bar"><i></i><i></i><i></i><span class="fname">review-changes.workflow.js</span></div>
+<pre><span class="kw">const</span> results = <span class="kw">await</span> pipeline(
+  DIMENSIONS,
+  <span class="cm">// stage 1: review each dimension</span>
+  d =&gt; agent(d.prompt, { phase: <span class="st">'Review'</span>, schema: FINDINGS }),
+  <span class="cm">// stage 2: verify findings as soon as each review lands</span>
+  r =&gt; parallel(r.findings.map(f =&gt; () =&gt;
+    agent(<span class="st">`Refute: ${f.title}`</span>, { schema: VERDICT })))
+);</pre>
+          </div>
+        </div>
+        <div class="warnrow">
+          <p class="k">Watch out</p>
+          <p class="v">Opt-in only — say <code class="inl">ultracode …</code> or <code class="inl">/effort ultracode</code>, or run a saved <code class="inl">/workflow</code>. Up to 16 agents run at once (1,000 max per run), and there's <b>no pausing for your input</b> mid-run. It can burn a lot of tokens, so scale it to the ask.</p>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============ DRIVER FAMILY ============ -->
+<section class="wrap">
+  <div class="section-head prose">
+    <p class="eyebrow">Family two · drivers</p>
+    <h2>What keeps it running</h2>
+  </div>
+
+  <div class="cards">
+
+    <!-- TASK -->
+    <article class="card d" id="task">
+      <div class="card-top">
+        <span class="card-idx">Driver · substrate + checklist</span>
+        <span class="fam driver">Task</span>
+      </div>
+      <h3>Task — the ground everything runs on</h3>
+      <p class="oneline">Two things wearing one name: a live progress checklist, and the background jobs that long-running work (including agents and workflows) actually runs as.</p>
+
+      <div class="kv">
+        <div>
+          <p class="k">What it is</p>
+          <p class="v"><b>Tracking</b> — a checklist you can watch: each step flips <code class="inl">pending → in_progress → completed</code>, so multi-step work shows where it is. <b>Background execution</b> — long jobs (a build, a subagent, a whole workflow) keep running and <em>notify you on completion</em>.</p>
+        </div>
+        <div>
+          <p class="k">Reach for it when</p>
+          <p class="v">Work has several visible steps worth tracking, or something slow should run without blocking the conversation.</p>
+        </div>
+        <div>
+          <p class="k">In practice</p>
+          <div class="term">
+            <div class="bar"><i></i><i></i><i></i><span class="fname">task panel</span></div>
+<pre><span class="st">✔</span> migrate config loader        <span class="cm">completed</span>
+<span class="kw">◐</span> wire up the check script      <span class="cm">in progress</span>
+<span class="pr">○</span> add /parallel command         <span class="cm">pending</span>
+
+<span class="cm"># background: a long build runs, you're pinged when it exits —</span>
+<span class="cm"># no need to sit and watch it.</span></pre>
+          </div>
+        </div>
+        <div class="warnrow">
+          <p class="k">Watch out</p>
+          <p class="v">When a tracked background job finishes, Claude is re-invoked <b>automatically</b>. Polling it with a tight loop just burns turns — let the notification do the work.</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- GOAL -->
+    <article class="card d" id="goal">
+      <div class="card-top">
+        <span class="card-idx">Driver · run until true</span>
+        <span class="fam driver">Goal</span>
+      </div>
+      <h3>Goal — a finish line, not a step count</h3>
+      <p class="oneline"><code class="inl">/goal &lt;condition&gt;</code> sets a completion condition. Claude keeps working turn after turn, and a small, fast model checks after each turn whether the condition is met — then stops.</p>
+
+      <div class="kv">
+        <div>
+          <p class="k">What it is</p>
+          <p class="v">You describe “done” instead of the path to it. The evaluator fires immediately and re-checks each turn; when it's satisfied, the run ends on its own.</p>
+        </div>
+        <div>
+          <p class="k">Reach for it when</p>
+          <p class="v">You can state the finish line crisply and want an unattended run straight to it — “make the suite green,” not “try these five fixes.”</p>
+        </div>
+        <div>
+          <p class="k">Try it</p>
+          <div class="term">
+            <div class="bar"><i></i><i></i><i></i><span class="fname">slash command</span></div>
+<pre><span class="kw">/goal</span> all tests in test/auth pass and typecheck is clean
+
+<span class="cm"># pair with auto effort for a truly hands-off run:</span>
+<span class="kw">/effort</span> auto</pre>
+          </div>
+        </div>
+        <div class="warnrow">
+          <p class="k">Watch out</p>
+          <p class="v">Goal does <b>not</b> widen permissions — pair it with <code class="inl">/effort auto</code> for unattended work. The evaluator only sees what Claude <em>surfaced in the transcript</em>, not silent file reads, so make the evidence visible. Condition caps at ~4,000 characters.</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- LOOP -->
+    <article class="card d" id="loop">
+      <div class="card-top">
+        <span class="card-idx">Driver · run on a cadence</span>
+        <span class="fam driver">Loop</span>
+      </div>
+      <h3>Loop — do it again, on a clock</h3>
+      <p class="oneline"><code class="inl">/loop [interval] [prompt or /command]</code> re-runs on a fixed interval; omit the interval and Claude paces itself.</p>
+
+      <div class="kv">
+        <div>
+          <p class="k">What it is</p>
+          <p class="v">A recurring re-run of a prompt or slash command. Give it <code class="inl">5m</code> and it's a fixed cadence; leave it off and Claude chooses when to wake based on what it's watching. For durable, session-independent runs, <code class="inl">/schedule</code> creates cloud routines on a cron.</p>
+        </div>
+        <div>
+          <p class="k">Reach for it when</p>
+          <p class="v">You're polling or babysitting — a deploy, a PR queue, a flaky check — and want a light touch back on it every so often.</p>
+        </div>
+        <div>
+          <p class="k">Try it</p>
+          <div class="term">
+            <div class="bar"><i></i><i></i><i></i><span class="fname">slash command</span></div>
+<pre><span class="kw">/loop</span> 5m /check-deploy        <span class="cm"># fixed: every 5 minutes</span>
+<span class="kw">/loop</span> keep an eye on the PR queue  <span class="cm"># self-paced</span>
+<span class="kw">/schedule</span> every weekday 9am, triage new issues</pre>
+          </div>
+        </div>
+        <div class="warnrow">
+          <p class="k">Watch out</p>
+          <p class="v"><code class="inl">/loop</code> only fires while Claude Code is running — no catch-up if it's mid-task at fire time — and recurring loops expire after about 7 days. For runs that must survive your session, use <code class="inl">/schedule</code>.</p>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============ COMPOSE ============ -->
+<section class="wrap">
+  <div class="section-head prose">
+    <p class="eyebrow">Putting it together</p>
+    <h2>They stack — one from each column</h2>
+  </div>
+
+  <div class="axes">
+    <div class="axis">
+      <h3>How wide does the work spread?</h3>
+      <div class="flow">
+        <span class="stepn">Agent<span class="sub">one</span></span>
+        <span class="arr">→</span>
+        <span class="stepn">SDD<span class="sub">several, by hand</span></span>
+        <span class="arr">→</span>
+        <span class="stepn">Workflow<span class="sub">many, by program</span></span>
+      </div>
+      <p>Same atom — an isolated worker — at three widths. Move right as the work gets bigger or more repetitive.</p>
+    </div>
+    <div class="axis">
+      <h3>What tells it to keep going?</h3>
+      <div class="flow">
+        <span class="stepn">Task<span class="sub">background + tracking</span></span>
+        <span class="arr">·</span>
+        <span class="stepn">Goal<span class="sub">until a condition</span></span>
+        <span class="arr">·</span>
+        <span class="stepn">Loop<span class="sub">on a cadence</span></span>
+      </div>
+      <p>Not a progression — three different reasons work continues. Choose by whether “stop” is an event, a condition, or a clock.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p class="k">Tie-back — your parallel-changes flow</p>
+    <p>This is the toolkit behind “many small changes at once”: <b>SDD</b> (or a <b>Workflow</b>) fans the changes into isolated worktrees, <b>Task</b> tracks them and runs the checks in the background, and a <b>Goal</b> like <code class="inl">/goal every change's checks are green</code> holds the bar until they all pass — with a <b>Loop</b> only if you want it re-checked on a schedule.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <p>Fan-Out Field Guide · a learning reference for Claude Code orchestration · verified against current docs</p>
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('themeToggle');
+    var KEY = 'fanout-theme';
+    try {
+      var saved = localStorage.getItem(KEY);
+      if (saved === 'dark' || saved === 'light') root.setAttribute('data-theme', saved);
+    } catch (e) {}
+    function current() {
+      var explicit = root.getAttribute('data-theme');
+      if (explicit) return explicit;
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    btn.addEventListener('click', function () {
+      var next = current() === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem(KEY, next); } catch (e) {}
+    });
+  })();
+</script>
