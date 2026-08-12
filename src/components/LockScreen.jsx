@@ -9,21 +9,33 @@ import { unlock } from '../lib/appLock.js';
 export default function LockScreen({ credId, onUnlock, onSignOut, signingOut = false }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const tried = useRef(false);
   // Both buttons freeze while a biometric attempt is in flight or a sign-out
   // is underway, so a second tap can't race the in-flight operation.
   const frozen = busy || signingOut;
+  // Mirror the latest frozen flag into a ref so the visibility listener below
+  // (registered once) reads the current value, not its mount-time closure.
+  const frozenRef = useRef(frozen);
+  frozenRef.current = frozen;
   const attempt = async () => {
-    if (frozen) return;
+    if (frozenRef.current) return;
     setBusy(true); setFailed(false);
     const ok = await unlock(credId);
     setBusy(false);
     if (ok) onUnlock(); else setFailed(true);
   };
-  // Auto-attempt once on mount. iOS PWAs allow credentials.get() without a
-  // prior gesture; where a gesture is required this rejects quietly and the
-  // button takes over (failed state shown).
-  useEffect(() => { if (!tried.current) { tried.current = true; attempt(); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Auto-attempt the biometric prompt whenever the app is FOREGROUND: once now
+  // (cold launch mounts this while visible) and again each time it returns to
+  // visible. Because the lock now snaps on at background-time, the overlay is
+  // often mounted while hidden — firing on visibility is what surfaces Face ID
+  // the instant the user comes back, without a manual tap. iOS PWAs allow
+  // credentials.get() here; where a gesture is required it rejects quietly and
+  // the Unlock button takes over.
+  useEffect(() => {
+    const tryWhenVisible = () => { if (document.visibilityState === 'visible') attempt(); };
+    tryWhenVisible();
+    document.addEventListener('visibilitychange', tryWhenVisible);
+    return () => document.removeEventListener('visibilitychange', tryWhenVisible);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div role="dialog" aria-modal="true" aria-label="App locked" style={{
       position: 'fixed', inset: 0, zIndex: 80, background: 'var(--bg)', color: 'var(--text)',
