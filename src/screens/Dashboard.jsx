@@ -4,6 +4,8 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
+import { useUI } from '../ui/UIProvider.jsx';
+import { useAppLockToggle } from '../lib/useAppLockToggle.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { useMoney } from '../lib/format.js';
 import * as C from '../lib/calc.js';
@@ -70,6 +72,11 @@ export default function Dashboard() {
   const nav = useNavigate();
   const { openDrawer } = useDrawer();
   const { signOut, user } = useAuth();
+  const { notify } = useUI();
+  // Phone-only App lock enrollment row (the desktop account menu is
+  // unreachable without a sidebar). Hook runs unconditionally — before the
+  // first-use early return — per the Rules of Hooks.
+  const appLockToggle = useAppLockToggle({ user, email: user?.email, prefs, setPrefs, notify });
   const phone = useIsPhone();
   const [snapDismissed, setSnapDismissed] = useState(false);
   const now = nowIso();
@@ -102,10 +109,14 @@ export default function Dashboard() {
     </button>
   );
 
+  // Hooks must all run before the first-use early return: this useMemo used to
+  // sit below it, so completing/skipping setup changed the hook count and React
+  // threw "Rendered more hooks than during the previous render".
+  const env = useMemo(() => envelopeFor(S, month, now), [S, month, now]);
+
   if (showFirstUse) return <FirstUse setup={setup} onSkip={() => setPrefs({ skippedSetup: true })} />;
 
   const { M } = v;
-  const env = useMemo(() => envelopeFor(S, month, now), [S, month, now]);
   const lts = leftToSpend(env);
   const monthName = C.monthLabel(month);
   const prevIdx = months.indexOf(month) - 1;
@@ -371,10 +382,29 @@ export default function Dashboard() {
             Sits at the bottom of the scroll, away from financial content,
             and stays a quiet bordered row (not accent-filled) so it never
             competes with the primary add-transaction action. */}
+        {/* Phone-only App lock enrollment — the desktop toggle lives in the
+            sidebar account menu, which has no phone equivalent. Same quiet
+            bordered-row idiom as Sign out below; hidden (like the menu row)
+            when no platform authenticator exists. */}
+        {phone && appLockToggle.canLock && (
+          <button
+            onClick={appLockToggle.onToggleLock}
+            aria-pressed={String(appLockToggle.appLock.enabled)}
+            className="hv-elev dash-applock"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 44, padding: '11px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <span aria-hidden="true" style={{ fontSize: 15, flex: 'none' }}>⚿</span>
+            <span style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>App lock</span>
+              <span style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--muted)' }}>Face ID / device biometrics to open. Privacy lock, not full security.</span>
+            </span>
+            <span style={{ flex: 'none', fontSize: 12, color: 'var(--muted)' }}>{appLockToggle.appLock.enabled ? 'On' : 'Off'}</span>
+          </button>
+        )}
         {phone && (
           <button
             onClick={() => signOut()}
-            className="hv-elev"
+            className="hv-elev dash-signout"
             style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 44, padding: '11px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}
           >
             <span aria-hidden="true" style={{ fontSize: 15, flex: 'none' }}>⇥</span>

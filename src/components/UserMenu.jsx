@@ -2,10 +2,9 @@
 // everything that is not day-to-day navigation: a display-name field, the two
 // device toggles (moved out of the Header), Settings, Sign out, and the
 // destructive Reset (moved out of DataControls, confirm dialog preserved).
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.jsx';
-import { probePlatformAuthenticator, enroll } from '../lib/appLock.js';
+import { useAppLockToggle } from '../lib/useAppLockToggle.js';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { resetAll } from '../store/actions.js';
@@ -25,17 +24,7 @@ export default function UserMenu({ name, email, onClose }) {
   const navigate = useNavigate();
   const hasUserData = data && (data.accounts.length > 0 || data.transactions.length > 0 || data.cards.length > 0);
 
-  const [canLock, setCanLock] = useState(false);
-  useEffect(() => { let ok = true; probePlatformAuthenticator().then(v => ok && setCanLock(v)); return () => { ok = false; }; }, []);
-  const appLock = prefs.appLock || { enabled: false, credId: null };
-  const onToggleLock = async () => {
-    if (appLock.enabled) { setPrefs({ appLock: { enabled: false, credId: null } }); return; }
-    try {
-      const { credId } = await enroll({ userId: user.id, email });
-      setPrefs({ appLock: { enabled: true, credId } });
-      notify('App lock on — unlock with Face ID or your device biometrics.');
-    } catch { notify('Could not turn on App lock — the biometric prompt was dismissed.'); }
-  };
+  const { canLock, appLock, onToggleLock } = useAppLockToggle({ user, email, prefs, setPrefs, notify });
 
   const onReset = async () => {
     onClose();
