@@ -144,6 +144,12 @@ function AppLockGate({ children }) {
   const { signOut } = useAuth();
   const enabled = !!prefs.appLock?.enabled;
   const [locked, setLocked] = useState(enabled);
+  // Holds the LockScreen mounted from the moment Sign out is tapped until the
+  // session actually drops (Gate then swaps to <AuthScreen/> and unmounts this
+  // whole tree). Without it, clearing the pref flips `enabled` false and the
+  // Shell — all financial data — would render while signOut() is still
+  // draining/revoking (fail-open). Never reset on rejection: fail-closed.
+  const [signingOut, setSigningOut] = useState(false);
   const hiddenAt = useRef(null);
   useEffect(() => {
     const onVis = () => {
@@ -156,12 +162,24 @@ function AppLockGate({ children }) {
   // If the user disables the lock while it's showing (not reachable today, but
   // keeps state honest), drop the overlay.
   useEffect(() => { if (!enabled) setLocked(false); }, [enabled]);
-  if (enabled && locked) {
+  const onSignOut = () => {
+    if (signingOut) return;
+    // Order matters: raise the hold first, then start the sign-out, then clear
+    // the pref. The pref clear no longer affects rendering (signingOut holds
+    // the overlay) but is kept so a future login isn't locked with a stale
+    // credId. If signOut() rejects (offline, revoke failure) the overlay STAYS
+    // — the app must never be revealed while a session might still exist.
+    setSigningOut(true);
+    signOut().catch(() => {});
+    setPrefs({ appLock: { enabled: false, credId: null } });
+  };
+  if (signingOut || (enabled && locked)) {
     return (
       <LockScreen
-        credId={prefs.appLock.credId}
+        credId={prefs.appLock?.credId}
+        signingOut={signingOut}
         onUnlock={() => { hiddenAt.current = null; setLocked(false); }}
-        onSignOut={() => { setPrefs({ appLock: { enabled: false, credId: null } }); signOut(); }}
+        onSignOut={onSignOut}
       />
     );
   }

@@ -6,12 +6,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { unlock } from '../lib/appLock.js';
 
-export default function LockScreen({ credId, onUnlock, onSignOut }) {
+export default function LockScreen({ credId, onUnlock, onSignOut, signingOut = false }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const tried = useRef(false);
+  // Both buttons freeze while a biometric attempt is in flight or a sign-out
+  // is underway, so a second tap can't race the in-flight operation.
+  const frozen = busy || signingOut;
   const attempt = async () => {
-    if (busy) return;
+    if (frozen) return;
     setBusy(true); setFailed(false);
     const ok = await unlock(credId);
     setBusy(false);
@@ -33,13 +36,13 @@ export default function LockScreen({ credId, onUnlock, onSignOut }) {
       </svg>
       <div style={{ fontSize: 15, fontWeight: 600 }}>Raqam is locked</div>
       <div role="status" style={{ fontSize: 13, color: 'var(--muted)', minHeight: 18 }}>
-        {busy ? 'Waiting for biometrics…' : failed ? 'Not verified. Try again.' : 'Unlock to continue.'}
+        {signingOut ? 'Signing out…' : busy ? 'Waiting for biometrics…' : failed ? 'Not verified. Try again.' : 'Unlock to continue.'}
       </div>
-      <button onClick={attempt} disabled={busy} className="hv-accent" style={{ height: 44, padding: '0 22px', border: 'none', borderRadius: 10, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 14, fontWeight: 600, cursor: busy ? 'default' : 'pointer', opacity: busy ? .6 : 1 }}>
+      <button onClick={attempt} disabled={frozen} className="hv-accent" style={{ height: 44, padding: '0 22px', border: 'none', borderRadius: 10, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 14, fontWeight: 600, cursor: frozen ? 'default' : 'pointer', opacity: frozen ? .6 : 1 }}>
         Unlock
       </button>
-      <button onClick={onSignOut} className="hv-elev" style={{ height: 40, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: 'pointer' }}>
-        Sign out
+      <button onClick={onSignOut} disabled={frozen} className="hv-elev" style={{ height: 40, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: frozen ? 'default' : 'pointer', opacity: frozen ? .6 : 1 }}>
+        {signingOut ? 'Signing out…' : 'Sign out'}
       </button>
     </div>
   );
