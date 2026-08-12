@@ -732,7 +732,7 @@ export default function Transactions() {
                   </button>
                   <RowMenu
                     open={phoneMenuOpen} onToggle={() => setPhoneMenuOpen(o => !o)} onClose={() => setPhoneMenuOpen(false)}
-                    label="More options"
+                    label="More options" triggerSize={44}
                     items={[{
                       label: sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense',
                       onClick: () => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' })),

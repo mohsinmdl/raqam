@@ -5,7 +5,9 @@ import { useEffect, useRef } from 'react';
 // row id like the prototype's catMenu). Not modal: no focus trap; closes on
 // outside mousedown, Escape (refocusing the trigger), or item click.
 // items: [{ label, onClick, tone? ('neg'), divider? }]
-export default function RowMenu({ open, onToggle, onClose, label, items }) {
+// triggerSize: the square trigger's edge in px. Desktop rows keep the compact
+// 30 default; primary phone chrome passes 44 for a full touch target.
+export default function RowMenu({ open, onToggle, onClose, label, items, triggerSize = 30 }) {
   const rootRef = useRef(null);
   const triggerRef = useRef(null);
 
@@ -24,7 +26,7 @@ export default function RowMenu({ open, onToggle, onClose, label, items }) {
   }, [open, onClose]);
 
   return (
-    <div ref={rootRef} style={{ position: 'relative', width: 30 }}>
+    <div ref={rootRef} style={{ position: 'relative', width: triggerSize }}>
       <button
         ref={triggerRef}
         onClick={e => { e.stopPropagation(); onToggle(); }}
@@ -32,7 +34,7 @@ export default function RowMenu({ open, onToggle, onClose, label, items }) {
         aria-expanded={String(!!open)}
         aria-label={label}
         className="hv-elev"
-        style={{ width: 30, height: 30, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 15, cursor: 'pointer', lineHeight: 1 }}
+        style={{ width: triggerSize, height: triggerSize, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 15, cursor: 'pointer', lineHeight: 1 }}
       >
         ⋯
       </button>
@@ -40,7 +42,7 @@ export default function RowMenu({ open, onToggle, onClose, label, items }) {
         <div
           role="menu"
           onClick={e => e.stopPropagation()}
-          style={{ position: 'absolute', top: 34, right: 0, zIndex: 30, width: 'max-content', maxWidth: 'min(210px, 60vw)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow)', padding: 4, display: 'flex', flexDirection: 'column' }}
+          style={{ position: 'absolute', top: triggerSize + 4, right: 0, zIndex: 30, width: 'max-content', maxWidth: 'min(210px, 60vw)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow)', padding: 4, display: 'flex', flexDirection: 'column' }}
         >
           {items.filter(Boolean).map((it, i) =>
             it.divider ? (
