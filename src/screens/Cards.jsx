@@ -13,7 +13,9 @@ const ord = n => (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? '
 
 export default function Cards() {
   const { data: S } = useStore();
-  const { month } = useMonth();
+  // Balances clamp to the real current month — a future viewed month must
+  // not fabricate a zero/stale outstanding or linked-account balance.
+  const { balanceMonth } = useMonth();
   const { money } = useMoney();
   const { openDrawer } = useDrawer();
   const now = nowIso();
@@ -34,7 +36,7 @@ export default function Cards() {
       editedLabel: c.editedAt ? 'Edited ' + relTime(c.editedAt) : '',
     };
     if (c.type === 'credit') {
-      const out = cardOutstanding(c, S, month, now);
+      const out = cardOutstanding(c, S, balanceMonth, now);
       const ac = availableCredit(c, out, money);
       const pct = ac.pct;
       const dd = c.dueDate ? daysUntil(c.dueDate, now) : null;
@@ -50,7 +52,7 @@ export default function Cards() {
     } else {
       const la = S.accounts.find(a => a.id === c.linkedAccountId);
       base.linked = la ? la.nickname + ' · ' + instName(S, la.instId) : 'Not linked';
-      base.linkedBal = la ? money(accountBalance(la, S, month, now)) : '—';
+      base.linkedBal = la ? money(accountBalance(la, S, balanceMonth, now)) : '—';
     }
     return base;
   });
