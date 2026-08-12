@@ -93,8 +93,11 @@ function Shell() {
       <HeaderSlotProvider>
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <Header />
+        {/* Phone: clear the fixed tab bar (--phone-nav-clearance) PLUS the
+            floating AddTxPill (48px pill + 8px gap) so the last row is never
+            hidden behind either piece of bottom chrome. */}
         <main style={{ flex: 1, overflowY: 'auto', minHeight: 0,
-          paddingBottom: phone ? 'calc(76px + env(safe-area-inset-bottom))' : 0 }}>
+          paddingBottom: phone ? 'calc(var(--phone-nav-clearance) + 56px)' : 0 }}>
           <Routes>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />

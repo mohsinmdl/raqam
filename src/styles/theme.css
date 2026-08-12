@@ -50,6 +50,13 @@ textarea:focus {
   --scrim: rgba(8, 16, 13, .44);
   /* Field corner radius — matches YNAB's inputs (theme-independent). */
   --field-radius: 4px;
+  /* Phone bottom-chrome clearance: 8px tab-bar inset + ~60px fixed tab bar
+     + 8px breathing room, plus the home-indicator safe area. The one source
+     of truth for everything that must clear MobileTabBar: AddTxPill,
+     Spending's select action bar, the phone bulk-bar/toast overrides in the
+     ≤700px block below, and <main>'s phone padding (App.jsx adds 56px on top
+     so the last row also clears the 48px floating pill + 8px gap). */
+  --phone-nav-clearance: calc(76px + env(safe-area-inset-bottom));
 }
 [data-theme="dark"] {
   --bg: #0F1513; --surface: #161D1A; --elev: #1C2420; --text: #E9F0EC; --muted: #9AABA2;
@@ -194,15 +201,16 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
     animation: hsUp .22s ease !important;
   }
 
-  /* BulkBar sits at inline bottom:24, which lands underneath MobileTabBar
-     (normal-flow, ~64px tall + its own safe-area inset). Raise it to clear
-     the tab bar plus a small visual gap. !important beats the inline bottom. */
-  .bulk-bar { bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
+  /* BulkBar sits at inline bottom:24 (a desktop value), which lands
+     underneath the FIXED-position MobileTabBar. Raise it by the shared
+     --phone-nav-clearance so every bottom-pinned overlay clears the bar by
+     the same amount. !important beats the inline bottom. */
+  .bulk-bar { bottom: var(--phone-nav-clearance) !important; }
 
   /* Toast: same phone-only tab-bar clearance as .bulk-bar, so a toast alone
      doesn't land under the tab bar either. The existing 62px raise (86 - 24
      on desktop) still applies on top when a bulk bar is also up, so the two
      bottom-pinned overlays keep stacking correctly on phone. */
-  .toast { bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
-  .toast-raised { bottom: calc(72px + env(safe-area-inset-bottom) + 62px) !important; }
+  .toast { bottom: var(--phone-nav-clearance) !important; }
+  .toast-raised { bottom: calc(var(--phone-nav-clearance) + 62px) !important; }
 }

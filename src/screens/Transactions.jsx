@@ -938,7 +938,7 @@ export default function Transactions() {
             )}
             <div style={{
               position: 'fixed', left: 16, right: 16,
-              bottom: 'calc(76px + env(safe-area-inset-bottom))', zIndex: 39,
+              bottom: 'var(--phone-nav-clearance)', zIndex: 39,
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
             }}>
               <button onClick={() => setPickerOpen(true)} disabled={sel.length === 0} className="hv-soft"

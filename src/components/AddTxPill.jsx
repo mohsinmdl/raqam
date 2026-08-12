@@ -18,7 +18,7 @@ export default function AddTxPill() {
       aria-label="Add transaction"
       style={{
         position: 'fixed', right: 16,
-        bottom: 'calc(76px + env(safe-area-inset-bottom))', zIndex: 39,
+        bottom: 'var(--phone-nav-clearance)', zIndex: 39,
         display: 'flex', alignItems: 'center', gap: 8, minHeight: 48,
         padding: '0 20px', border: 'none', borderRadius: 999,
         background: 'var(--accent)', color: 'var(--on-accent)',
