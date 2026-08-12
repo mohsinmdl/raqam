@@ -20,7 +20,6 @@ import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/sche
 import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
-import RowMenu from '../ui/RowMenu.jsx';
 import { dayGroups } from '../lib/dayGroups.js';
 import PositionStrip from '../components/PositionStrip.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
@@ -301,7 +300,6 @@ export default function Transactions() {
   // query left active must arrive with its row VISIBLE — a collapsed row over a
   // persisting filter would silently narrow the list with no cue on screen.
   const [phoneQOpen, setPhoneQOpen] = useState(() => F.q !== '');
-  const [phoneMenuOpen, setPhoneMenuOpen] = useState(false); // ⋯ toolbar menu
   const [phoneMoreOpen, setPhoneMoreOpen] = useState(false); // select-mode ⋯ sheet
   const [pickerOpen, setPickerOpen] = useState(false);   // category picker sheet
   // Banner filters are phone-local view state, not TxView filters.
@@ -730,14 +728,6 @@ export default function Transactions() {
                     style={{ width: 44, height: 44, border: 'none', borderRadius: 999, background: phoneQOpen ? 'var(--soft)' : 'none', color: 'var(--text)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg aria-hidden="true" width="17" height="17" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.6"/><path d="M10.5 10.5 14 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
                   </button>
-                  <RowMenu
-                    open={phoneMenuOpen} onToggle={() => setPhoneMenuOpen(o => !o)} onClose={() => setPhoneMenuOpen(false)}
-                    label="More options" triggerSize={44}
-                    items={[{
-                      label: sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense',
-                      onClick: () => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' })),
-                    }]}
-                  />
                 </>
               )}
             </div>
