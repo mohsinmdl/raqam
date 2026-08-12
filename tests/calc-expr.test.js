@@ -28,4 +28,32 @@ describe('applyCalcExpr', () => {
     expect(applyCalcExpr(100, '÷0')).toBe(null);
     expect(applyCalcExpr(100, '+-3')).toBe(null);
   });
+
+  it('evaluates a left-to-right infix chain of plain numbers', () => {
+    expect(applyCalcExpr(5000, '20+40')).toBe(60);
+    expect(applyCalcExpr(5000, '20 + 40')).toBe(60);
+    expect(applyCalcExpr(5000, '1,000+500')).toBe(1500);
+  });
+
+  it('a leading operator seeds the accumulator with current, then folds the rest', () => {
+    expect(applyCalcExpr(5000, '+20+40')).toBe(5060);
+    expect(applyCalcExpr(5000, '+500')).toBe(5500);
+  });
+
+  it('has no operator precedence — strictly left-to-right', () => {
+    expect(applyCalcExpr(5000, '20+40×2')).toBe(120); // NOT 100
+    expect(applyCalcExpr(5000, '100-30-20')).toBe(50);
+    expect(applyCalcExpr(5000, '100÷4÷5')).toBe(5);
+  });
+
+  it('mixes unicode and ASCII operators in one chain', () => {
+    expect(applyCalcExpr(5000, '20 × 2 ÷ 4')).toBe(10);
+  });
+
+  it('rejects malformed or unsafe chains with null', () => {
+    expect(applyCalcExpr(100, '20+')).toBe(null);
+    expect(applyCalcExpr(100, '20++40')).toBe(null);
+    expect(applyCalcExpr(100, '20÷0+5')).toBe(null);
+    expect(applyCalcExpr(100, '20+abc')).toBe(null);
+  });
 });

@@ -880,16 +880,21 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
   };
   const cancel = () => { cancelledRef.current = true; setEditing(false); };
 
-  // Inserts an operator glyph into the draft, replacing any existing leading
-  // operator (calcExpr only ever looks at the first character). The op
-  // buttons mousedown-prevent their default so the input never loses focus in
-  // the first place; this focus() is a harmless belt-and-suspenders per the
-  // spec's "refocuses the input".
+  // Appends an operator glyph to the draft (calcExpr now folds a full
+  // left-to-right chain, so '500' + '+' → '500+', then '40' → '500+40').
+  // If the draft already ends with an operator, that trailing operator is
+  // replaced instead of stacking ('500+' + '×' → '500×', not '500+×'). An
+  // empty draft just becomes the glyph itself, preserving the leading-op
+  // shorthand that seeds the accumulator with the current value ('' + '+' →
+  // '+'). The op buttons mousedown-prevent their default so the input never
+  // loses focus in the first place; this focus() is a harmless
+  // belt-and-suspenders per the spec's "refocuses the input".
   const insertOp = op => {
     setDraft(d => {
       const s = String(d ?? '');
-      const isLeadingOp = OP_GLYPHS.includes(s[0]) || s[0] === '-' || s[0] === '*' || s[0] === '/';
-      return op + (isLeadingOp ? s.slice(1) : s);
+      const last = s[s.length - 1];
+      const isTrailingOp = OP_GLYPHS.includes(last) || last === '-' || last === '*' || last === '/';
+      return (isTrailingOp ? s.slice(0, -1) : s) + op;
     });
     if (inputRef.current) inputRef.current.focus();
   };
