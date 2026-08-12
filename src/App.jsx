@@ -31,6 +31,7 @@ import AgeOfMoney from './screens/reflect/AgeOfMoney.jsx';
 import { HeaderSlotProvider } from './ui/HeaderSlot.jsx';
 import { useIsPhone } from './lib/useIsPhone.js';
 import MobileTabBar from './components/MobileTabBar.jsx';
+import AddTxPill from './components/AddTxPill.jsx';
 
 // Sidebar width is user-draggable and remembered on the device (like theme).
 const SB_MIN = 208, SB_MAX = 460, SB_DEFAULT = 236, SB_KEY = 'raqam.sidebarW';
@@ -123,6 +124,7 @@ function Shell() {
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>
+        {phone && <AddTxPill />}
         {phone && <MobileTabBar />}
       </div>
       </HeaderSlotProvider>

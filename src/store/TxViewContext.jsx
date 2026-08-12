@@ -31,6 +31,9 @@ export function TxViewProvider({ children }) {
   const [range, setRange] = useState(() => ({ from: month, to: month }));
   const [schedOpen, setSchedOpen] = useState(true);
   const [postedOpen, setPostedOpen] = useState(true);
+  // Spending's phone Select mode, lifted here only so app-level chrome
+  // (AddTxPill) can hide while it is on. Transactions owns setting/clearing it.
+  const [phoneSelect, setPhoneSelect] = useState(false);
 
   // The header's month stepper still drives the range — stepping to July on the
   // Dashboard and then opening Transactions should show July, as it always did.
@@ -46,8 +49,9 @@ export function TxViewProvider({ children }) {
   const value = useMemo(() => ({
     filters, setFilters, sort, setSort, range, setRange,
     schedOpen, setSchedOpen, postedOpen, setPostedOpen,
+    phoneSelect, setPhoneSelect,
     resetView: () => { setFilters(DEFAULT_FILTERS); setRange({ from: month, to: month }); setSort(DEFAULT_SORT); },
-  }), [filters, sort, range, schedOpen, postedOpen, month]);
+  }), [filters, sort, range, schedOpen, postedOpen, phoneSelect, month]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
