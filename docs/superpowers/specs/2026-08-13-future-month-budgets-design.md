@@ -1,6 +1,6 @@
 # Future-month budgets — Design Spec
 
-**Date:** 2026-08-13 · **Status:** validated design, PR1 in progress
+**Date:** 2026-08-13 · **Status:** validated design, PR1 and PR2 implemented
 **Request:** "Let users plan budgets up to 3 months ahead on the Plan screen."
 
 ## Problem
@@ -23,6 +23,7 @@ The one place that clamps to "now" is `monthsFor()` (`src/lib/dates.js`), which 
 - **Horizon:** unchanged full past history, plus 3 months ahead. Past behavior (earliest-data-month → now) is untouched; the addition is purely additive at the top end.
 - **Where it's steppable:** everywhere the header stepper already appears — Dashboard, `/budget`, Reflect. One list, one component; no separate "future mode" UI.
 - **No cross-month "assigning money you don't have" warning in v1.** The forward fold already produces the natural signal: assigning more than RTA allows in a future month pushes RTA negative, exactly as it would for the current month. A dedicated warning can follow later if it turns out to be needed; it isn't required to ship the capability.
+- **Future-month balance reads clamp to the current month (user decision, post-PR2 fix).** Opening snapshots only exist up to `currentMonth()`, so account/net-worth balance reads for a future viewed month would fabricate zeros; those reads clamp to `min(viewedMonth, currentMonth())` and show the latest real position instead. The Plan/envelope screen is unaffected — its forward fold is correct by design and keeps reading the real viewed month.
 - **Ship as a two-PR stack.**
   - **PR1 (this PR, `feat/future-months-lib`):** the *capability* only — `monthsFor` grows an opt-in `lookahead` option, defaulted to 0. Zero behavior change for every existing caller.
   - **PR2 (activation):** `MonthContext` passes `lookahead: 3`, an `isFuture` flag is derived per month, and the header gets a "Future month" chip mirroring the existing "Closed month" chip.

@@ -19,10 +19,17 @@ export function MonthProvider({ children }) {
 
   const value = useMemo(() => {
     const idx = months.indexOf(month);
+    const cur = currentMonth();
     return {
       month, months,
-      isPast: month < currentMonth(),
-      isFuture: month > currentMonth(),
+      isPast: month < cur,
+      isFuture: month > cur,
+      // Balance reads clamp to the present: opening snapshots only exist up to
+      // the real current month, so a future month would fabricate zero
+      // balances. Consumers that read account/card balances (not envelope or
+      // assignment data, which are correctly future-aware) use this instead
+      // of `month`.
+      balanceMonth: month > cur ? cur : month,
       prevDisabled: idx <= 0,
       nextDisabled: idx >= months.length - 1,
       goPrev: () => idx > 0 && setMonth(months[idx - 1]),

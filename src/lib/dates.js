@@ -36,9 +36,10 @@ export function clampDay(ym, day) { return Math.min(day, daysInMonth(ym)); }
 // This is what the header month selector navigates. `lookahead` defaults to 0
 // because reports.js's trend series also drive off this list via
 // `.slice(-window)` — a nonzero default would push empty future months into
-// their window and crowd out real history. Callers that want future months
-// (the budget stepper) pass `{ lookahead }` explicitly; reports.js and
-// MonthContext keep calling `monthsFor(store)` unchanged.
+// their window and crowd out real history, so its trend windows must stay
+// past-only. Callers that want future months (the header stepper, via
+// MonthContext) pass `{ lookahead }` explicitly; reports.js keeps calling
+// `monthsFor(store)` unchanged.
 const MAX_MONTHS = 24;
 export function monthsFor(store, { lookahead = 0 } = {}) {
   const cur = currentMonth();

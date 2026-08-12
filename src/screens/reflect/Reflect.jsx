@@ -83,7 +83,7 @@ function FilterRow({ categoryId, setCategoryId, accountId, setAccountId }) {
 }
 
 export default function Reflect() {
-  const { month } = useMonth();
+  const { month, balanceMonth } = useMonth();
   const [categoryId, setCategoryId] = useState(null);
   const [accountId, setAccountId] = useState(null);
 
@@ -95,7 +95,7 @@ export default function Reflect() {
           <span style={{ flex: 1 }} />
           <FilterRow categoryId={categoryId} setCategoryId={setCategoryId} accountId={accountId} setAccountId={setAccountId} />
         </div>
-        <Outlet context={{ month, categoryId, accountId }} />
+        <Outlet context={{ month, balanceMonth, categoryId, accountId }} />
       </div>
     </div>
   );
