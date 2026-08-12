@@ -31,7 +31,10 @@ function DrawerShell({ def, state, closeDrawer, requestClose }) {
     transform: `translateY(-${kb}px)`,
     height: `calc(100dvh - ${kb + 10}px - env(safe-area-inset-top))`,
     maxHeight: 'none',
-    transition: 'transform .15s ease, height .15s ease',
+    // Only transform is tweened: height must snap with each visualViewport
+    // step (iOS fires several during the keyboard's own animation), and a
+    // height transition would re-layout the whole form every frame.
+    transition: 'transform .15s ease',
   } : null;
   return (
     <div onClick={requestClose} style={{ position: 'fixed', inset: 0, background: 'var(--scrim)', animation: 'hsFade .18s ease', zIndex: 40 }}>
