@@ -762,8 +762,11 @@ export default function Transactions() {
           )}
           {phone && (postedRows.length > 0 || scheduled.length > 0) && (
             <TxPhoneList
-              postedRows={postedRows} scheduled={scheduled} schedKey={schedKey}
-              selected={selected} schedSel={schedSel}
+              /* Temporary shim: flat list, no select mode, taps inert. Task 5
+                 wires groups/needsCat/selectMode and the tap handlers. */
+              groups={null} postedRows={postedRows} scheduled={scheduled} schedKey={schedKey}
+              selected={selected} schedSel={schedSel} needsCat={new Set()}
+              selectMode={false} onRowTap={() => {}} onSchedTap={() => {}}
               onToggleRow={toggleRow} onToggleSched={toggleSched}
               schedOpen={schedOpen} onToggleSchedOpen={() => setSchedOpen(o => !o)}
               overdueCount={overdueCount} hiddenRuleCount={hiddenRuleCount}
