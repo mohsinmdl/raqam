@@ -2,8 +2,10 @@
 // everything that is not day-to-day navigation: a display-name field, the two
 // device toggles (moved out of the Header), Settings, Sign out, and the
 // destructive Reset (moved out of DataControls, confirm dialog preserved).
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.jsx';
+import { probePlatformAuthenticator, enroll } from '../lib/appLock.js';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { resetAll } from '../store/actions.js';
@@ -17,11 +19,23 @@ const rightNote = { marginLeft: 'auto', color: 'var(--muted)', fontSize: 12 };
 const sep = <div aria-hidden="true" style={{ borderTop: '1px solid var(--border)', margin: '4px 8px' }} />;
 
 export default function UserMenu({ name, email, onClose }) {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { data, prefs, setPrefs, replaceData } = useStore();
   const { ask, notify, openShortcuts } = useUI();
   const navigate = useNavigate();
   const hasUserData = data && (data.accounts.length > 0 || data.transactions.length > 0 || data.cards.length > 0);
+
+  const [canLock, setCanLock] = useState(false);
+  useEffect(() => { let ok = true; probePlatformAuthenticator().then(v => ok && setCanLock(v)); return () => { ok = false; }; }, []);
+  const appLock = prefs.appLock || { enabled: false, credId: null };
+  const onToggleLock = async () => {
+    if (appLock.enabled) { setPrefs({ appLock: { enabled: false, credId: null } }); return; }
+    try {
+      const { credId } = await enroll({ userId: user.id, email });
+      setPrefs({ appLock: { enabled: true, credId } });
+      notify('App lock on — unlock with Face ID or your device biometrics.');
+    } catch { notify('Could not turn on App lock — the biometric prompt was dismissed.'); }
+  };
 
   const onReset = async () => {
     onClose();
@@ -49,6 +63,14 @@ export default function UserMenu({ name, email, onClose }) {
       <button role="menuitem" className="hv-elev" style={row} aria-pressed={String(prefs.masked)} onClick={() => setPrefs({ masked: !prefs.masked })}>
         <span aria-hidden="true">◔</span> Hide amounts <span style={rightNote}>{prefs.masked ? 'On' : 'Off'}</span>
       </button>
+      {canLock && (
+        <button role="menuitem" className="hv-elev" style={{ ...row, flexWrap: 'wrap' }} aria-pressed={String(appLock.enabled)} onClick={onToggleLock}>
+          <span aria-hidden="true">⚿</span> App lock <span style={rightNote}>{appLock.enabled ? 'On' : 'Off'}</span>
+          <span style={{ flexBasis: '100%', paddingLeft: 26, marginTop: 2, fontSize: 11, color: 'var(--muted)' }}>
+            Face ID / device biometrics to open. Privacy lock, not full security.
+          </span>
+        </button>
+      )}
       <button role="menuitem" className="hv-elev" style={row} onClick={() => { onClose(); navigate('/budget/recurring'); }}>
         <span aria-hidden="true">⟳</span> Recurring
       </button>
