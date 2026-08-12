@@ -332,6 +332,13 @@ export default function Transactions() {
     : phoneFilter === 'needsCat' ? postedRows.filter(r => needsCat.has(r.id))
     : postedRows;
   const groups = dayGroups(phoneRows, sort.key, now);
+  // A banner filter whose population empties (everything cleared/categorized)
+  // would strand an empty list with no reset control — the banner is the only
+  // way back to 'all' and it disappears with the population. Fall back here.
+  useEffect(() => {
+    if ((phoneFilter === 'uncleared' && unclearedIds.size === 0)
+      || (phoneFilter === 'needsCat' && needsCat.size === 0)) setPhoneFilter('all');
+  }, [phoneFilter, unclearedIds, needsCat]);
 
   // Hide the ACCOUNT column on a single-account ledger — every row is that
   // account. Header, colgroup, Row cells and the group-heading colSpan all read
@@ -350,8 +357,12 @@ export default function Transactions() {
   const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
   const clearSel = () => setSelected(new Set());
   const clearSched = () => setSchedSel(new Set());
-  const exitSelect = () => { setPhoneSelect(false); setPhoneMoreOpen(false); clearSel(); clearSched(); };
+  const exitSelect = () => { setPhoneSelect(false); setPhoneMoreOpen(false); setPickerOpen(false); clearSel(); clearSched(); };
   useEffect(() => () => setPhoneSelect(false), [setPhoneSelect]); // leave mode on unmount
+  // Switching ledgers reuses this mounted component (only :accountId changes),
+  // so account A's banner filter and Select mode would carry onto account B.
+  // Running on first mount too is a harmless no-op.
+  useEffect(() => { setPhoneFilter('all'); exitSelect(); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleRow = (id, on, e) => {
     setCursorId(id);
     setSchedSel(new Set()); // mutual exclusion with the scheduled selection
@@ -695,7 +706,7 @@ export default function Transactions() {
               ) : (
                 <>
                   <button onClick={() => setPhoneSelect(true)} className="hv-soft"
-                    style={{ minHeight: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 999, background: 'var(--elev)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    style={{ minHeight: 44, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 999, background: 'var(--elev)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                     Select
                   </button>
                   <button onClick={() => setPhoneQOpen(o => !o)} aria-pressed={phoneQOpen} aria-label="Search" className="hv-soft"
@@ -888,14 +899,17 @@ export default function Transactions() {
             pill sits above the action bar, which clears the bottom tab bar. */}
         {phone && phoneSelect && (
           <>
-            {(sel.length > 0 || schedSel.size > 0) && (
+            {/* Read-only chip: pointerEvents none so it can never intercept
+                taps meant for the ⋯ menu below it, and it hides entirely while
+                that menu is open so the items (Delete last) stay visible. */}
+            {(sel.length > 0 || schedSel.size > 0) && !phoneMoreOpen && (
               <div role="status" style={{
                 position: 'fixed', left: '50%', transform: 'translateX(-50%)',
                 bottom: 'calc(140px + env(safe-area-inset-bottom))', zIndex: 41,
                 padding: '10px 18px', borderRadius: 16, textAlign: 'center',
                 background: 'color-mix(in srgb, var(--surface) 88%, transparent)',
                 border: '1px solid var(--border)', boxShadow: 'var(--shadow)',
-                backdropFilter: 'blur(8px)',
+                backdropFilter: 'blur(8px)', pointerEvents: 'none',
               }}>
                 <div className="tnum" style={{ fontSize: 17, fontWeight: 700 }}>
                   {fmt.moneyS(sel.length > 0 ? selectedTotal : schedSelectedTotal)}
