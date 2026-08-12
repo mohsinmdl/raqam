@@ -333,7 +333,7 @@ export default function Dashboard() {
                         <span style={{ display: 'block', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.merchant}</span>
                         <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{l.cat}</span>
                       </span>
-                      <span className="tnum" style={{ fontSize: 13, fontWeight: 600 }}>{l.amt}</span>
+                      <span className="tnum" style={{ fontSize: 13, fontWeight: 600, flex: 'none', whiteSpace: 'nowrap' }}>{l.amt}</span>
                     </div>
                   ))}
                 </div>
