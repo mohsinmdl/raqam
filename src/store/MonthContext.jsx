@@ -9,12 +9,12 @@ const Ctx = createContext(null);
 
 export function MonthProvider({ children }) {
   const { data } = useStore();
-  const months = useMemo(() => monthsFor(data), [data]);
-  const [month, setMonth] = useState(() => months[months.length - 1]);
+  const months = useMemo(() => monthsFor(data, { lookahead: 3 }), [data]);
+  const [month, setMonth] = useState(() => currentMonth());
 
   // If data changes under us (demo load, reset, new real month), snap into range.
   useEffect(() => {
-    if (!months.includes(month)) setMonth(months[months.length - 1]);
+    if (!months.includes(month)) setMonth(currentMonth());
   }, [months, month]);
 
   const value = useMemo(() => {
@@ -22,6 +22,7 @@ export function MonthProvider({ children }) {
     return {
       month, months,
       isPast: month < currentMonth(),
+      isFuture: month > currentMonth(),
       prevDisabled: idx <= 0,
       nextDisabled: idx >= months.length - 1,
       goPrev: () => idx > 0 && setMonth(months[idx - 1]),

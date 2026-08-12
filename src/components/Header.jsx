@@ -22,7 +22,7 @@ export default function Header() {
   // undo/redo stay wired here only for the global Cmd+Z / Cmd+Y shortcut below;
   // the visible buttons moved to the Transactions list toolbar.
   const { data: S, syncStatus, prefsSaved, undo, redo } = useStore();
-  const { month, isPast, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
+  const { month, isPast, isFuture, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
   const { drawer, openDrawer } = useDrawer();
   const { enabled: lockEnabled, lockNow } = useAppLock();
 
@@ -84,6 +84,7 @@ export default function Header() {
             <button onClick={goNext} disabled={nextDisabled} aria-label="Next month" className="hv-soft" style={{ width: 26, height: 26, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontSize: 14, opacity: nextDisabled ? .4 : 1 }}>›</button>
           </div>
           {isPast && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--info-soft)', color: 'var(--info)' }}>Closed month</span>}
+          {isFuture && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--info-soft)', color: 'var(--info)' }}>Future month</span>}
         </>
       )}
       {showTxNav && <TxMonthNav />}
