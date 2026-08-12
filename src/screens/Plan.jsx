@@ -11,6 +11,7 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { nowIso } from '../lib/dates.js';
+import { useIsPhone } from '../lib/useIsPhone.js';
 import { prevMonth, monthLabel, catRefs } from '../lib/calc.js';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
@@ -828,7 +829,7 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
 // that opens Cover/Move popovers when non-zero. In "progress" view a thin bar
 // + note show spend against (carryIn + assigned); "compact" view drops both.
 function CategoryRow({ cat, row, sectionGroupId, ctx }) {
-  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, onOpenActivity, dnd, cursorId } = ctx;
+  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, onOpenActivity, dnd, cursorId, phone } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
   const [editing, setEditing] = useState(false);
@@ -992,7 +993,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
                 <MovesPopover open={historyOpen} up={historyUp} cat={cat} month={month} S={S} money={money} onClose={closeHistory} />
               </span>
             </div>
-            <OpPopover onPick={insertOp} />
+            {!phone && <OpPopover onPick={insertOp} />}
           </>
         ) : (
           <button
@@ -1027,6 +1028,7 @@ export default function Plan() {
   const { data: S, applyData, prefs, setPrefs, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
   const { month } = useMonth();
   const { money, moneyS } = useMoney();
+  const phone = useIsPhone();
 
   const env = useMemo(() => envelopeFor(S, month, nowIso()), [S, month]);
   const prevRta = useMemo(() => envelopeFor(S, prevMonth(month), nowIso()).rta, [S, month]);
@@ -1250,7 +1252,7 @@ export default function Plan() {
   const hasUnimportedStanding = catBudgets.length > 0 && !catBudgets.some(b => assignedCatsThisMonth.has(b.category));
   const showBanner = !prefs.planBannerDismissed && (noGroups || hasUnimportedStanding);
 
-  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, selectRow, setMany, onOpenActivity: setActivityCat, dnd, cursorId: effectiveCursorId };
+  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, selectRow, setMany, onOpenActivity: setActivityCat, dnd, cursorId: effectiveCursorId, phone };
 
   // Full width (default, like the Transactions screen): drop the max-width cap
   // and page side-padding so the area sits flush against the sidebar and runs
