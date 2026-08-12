@@ -10,6 +10,7 @@ export const SHORTCUT_GROUPS = [
     { id: 'addTx',       keys: ['shift', 'N'],      label: 'Add transaction',              spec: { key: 'n', shift: true } },
     { id: 'toggleTheme', keys: ['ctrl', 'shift', 'L'], label: 'Toggle light / dark mode',  spec: { key: 'l', meta: true, shift: true } },
     { id: 'hideAmounts', keys: ['H'],               label: 'Hide amounts',                 spec: { key: 'h' } },
+    { id: 'lockNow',     keys: ['L'],               label: 'Lock the app now',             spec: { key: 'l' } },
   ] },
   { title: 'Transactions', items: [
     { id: 'toggleCleared', keys: ['C'],               label: 'Toggle cleared state',       spec: { key: 'c' } },
