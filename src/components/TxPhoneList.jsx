@@ -116,7 +116,7 @@ export default function TxPhoneList({
             <span style={{ fontSize: 14.5, fontWeight: 600 }}>Scheduled</span>
             <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{scheduled.length} · {note}</span>
           </button>
-          {schedOpen && scheduled.map((x, i) => {
+          {schedOpen && scheduled.map(x => {
             const key = schedKey(x);
             return (
               <PhoneRow

@@ -1,5 +1,5 @@
 // Transactions list screen — template 268-336, txScreenVals script 1018-1054.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
@@ -20,6 +20,8 @@ import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/sche
 import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
+import RowMenu from '../ui/RowMenu.jsx';
+import { dayGroups } from '../lib/dayGroups.js';
 import PositionStrip from '../components/PositionStrip.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
 import SearchField from '../ui/SearchField.jsx';
@@ -66,6 +68,9 @@ const COLUMNS = [
   // Just a small one-letter badge, so the column is narrow and centred.
   { key: 'status', label: 'STATUS', width: 68, align: 'center' },
 ];
+
+// Types that carry a category; transfers/adjustments never do.
+const CAT_TYPES = ['expense', 'refund', 'income'];
 
 // A sortable column header. The whole cell is the control, so the target is the
 // full header height rather than the width of the label text.
@@ -271,6 +276,7 @@ export default function Transactions() {
   const {
     filters: F, setFilters, sort, setSort, range, setRange,
     schedOpen, setSchedOpen, resetView,
+    phoneSelect, setPhoneSelect,
   } = useTxView();
   // Focus stays on the header after sorting (React keeps the node, since
   // SortableHeader is a stable module-scope type), so the result is announced
@@ -288,6 +294,15 @@ export default function Transactions() {
   // bulk bar is ever up.
   const [schedSel, setSchedSel] = useState(() => new Set());
 
+  // Phone chrome state. phoneSelect lives in TxViewContext (AddTxPill hides on
+  // it); everything else is per-visit.
+  const [phoneQOpen, setPhoneQOpen] = useState(false);   // search row shown?
+  const [phoneMenuOpen, setPhoneMenuOpen] = useState(false); // ⋯ toolbar menu
+  const [phoneMoreOpen, setPhoneMoreOpen] = useState(false); // select-mode ⋯ sheet
+  const [pickerOpen, setPickerOpen] = useState(false);   // category picker sheet
+  // Banner filters are phone-local view state, not TxView filters.
+  const [phoneFilter, setPhoneFilter] = useState('all'); // 'all' | 'uncleared' | 'needsCat'
+
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const reset = () => resetView();
 
@@ -303,6 +318,20 @@ export default function Transactions() {
   const now = nowIso();
   const anyFilter = Object.keys(DEFAULT_FILTERS).some(k => F[k] !== DEFAULT_FILTERS[k]);
   const { scheduled, postedRows, postedTx, overdueCount, hiddenRuleCount } = txGroups(list, S, fmt, now, range, anyFilter, sort, accountId);
+
+  // Phone banner populations, derived from the recorded rows on screen.
+  const needsCat = useMemo(
+    () => new Set(postedTx.filter(t => CAT_TYPES.includes(t.type) && !t.category).map(t => t.id)),
+    [postedTx],
+  );
+  const unclearedIds = useMemo(
+    () => new Set(postedTx.filter(t => t.status === 'pending').map(t => t.id)),
+    [postedTx],
+  );
+  const phoneRows = phoneFilter === 'uncleared' ? postedRows.filter(r => unclearedIds.has(r.id))
+    : phoneFilter === 'needsCat' ? postedRows.filter(r => needsCat.has(r.id))
+    : postedRows;
+  const groups = dayGroups(phoneRows, sort.key, now);
 
   // Hide the ACCOUNT column on a single-account ledger — every row is that
   // account. Header, colgroup, Row cells and the group-heading colSpan all read
@@ -321,6 +350,8 @@ export default function Transactions() {
   const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
   const clearSel = () => setSelected(new Set());
   const clearSched = () => setSchedSel(new Set());
+  const exitSelect = () => { setPhoneSelect(false); setPhoneMoreOpen(false); clearSel(); clearSched(); };
+  useEffect(() => () => setPhoneSelect(false), [setPhoneSelect]); // leave mode on unmount
   const toggleRow = (id, on, e) => {
     setCursorId(id);
     setSchedSel(new Set()); // mutual exclusion with the scheduled selection
@@ -459,6 +490,25 @@ export default function Transactions() {
     'Duplicated ' + sel.length + ' transaction' + (sel.length === 1 ? '' : 's') + '.',
     data => duplicateTransactions(data, { ids: sel }),
   );
+  // Phone select mode: Categorize applies one category to every selected row
+  // that can carry one (the CAT_TYPES pre-filter keeps transfers/adjustments
+  // out of the action; setTransactionsCategory would drop them anyway).
+  const bulkCategorize = categoryId => {
+    const ids = sel.filter(id => { const t = S.transactions.find(x => x.id === id); return t && CAT_TYPES.includes(t.type); });
+    const skipped = sel.length - ids.length;
+    setPickerOpen(false);
+    if (ids.length === 0) { notify('Nothing to categorize — transfers and adjustments have no category.'); return; }
+    afterBulk(
+      'Categorized ' + ids.length + '.' + (skipped ? ' Skipped ' + skipped + ' without a category field.' : ''),
+      data => setTransactionsCategory(data, { ids, categoryId }),
+    );
+  };
+  // The cleared toggle the ⓒ action uses — same rule as the keyboard shortcut.
+  const bulkToggleCleared = () => {
+    const rows = sel.map(id => S.transactions.find(t => t.id === id)).filter(Boolean);
+    const allCleared = rows.length > 0 && rows.every(t => t.status === 'cleared');
+    bulkStatus(allCleared ? 'pending' : 'cleared');
+  };
   // "Make repeating" only makes sense one row at a time — the drawer configures
   // a single schedule. Shown for a lone selection, and it reuses seriesItem so
   // an already-repeating row offers "View rule" instead. Clearing the selection
@@ -608,8 +658,10 @@ export default function Transactions() {
         <PositionStrip compact wide={flush} accountId={accountId} />
 
         {/* One bar at a time: recorded selection wins, else the scheduled one.
-            The two selections are mutually exclusive, so only one has a count. */}
-        {sel.length > 0 ? (
+            The two selections are mutually exclusive, so only one has a count.
+            Desktop-only — the phone Select mode has its own floating chrome. */}
+        {!phone && (
+        sel.length > 0 ? (
           <BulkBar
             count={sel.length}
             total={fmt.moneyS(selectedTotal)}
@@ -628,22 +680,64 @@ export default function Transactions() {
           />
         ) : (
           <BulkBar count={schedSel.size} total={fmt.moneyS(schedSelectedTotal)} onClear={clearSched} actions={[]} more={schedMore()} />
+        )
         )}
 
         {phone && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ flex: 1, minWidth: 0, display: 'flex' }}>
-              <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} collapsed="100%" expanded="100%" height={44}
-                placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
-            </span>
-            <button
-              onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
-              aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}
-              className="hv-accent-fg"
-              style={{ minHeight: 44, border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '0 4px', whiteSpace: 'nowrap', flex: 'none' }}
-            >
-              {sortLabel(sort) + ' ' + (sort.dir === 'asc' ? '↑' : '↓')}
-            </button>
+          <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px 4px' }}>
+              <h1 style={{ margin: 0, flex: 1, fontSize: 24, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {acct ? acct.nickname : 'Spending'}
+              </h1>
+              {phoneSelect ? (
+                <button onClick={exitSelect} aria-label="Exit select mode" className="hv-soft"
+                  style={{ width: 44, height: 44, border: 'none', borderRadius: 999, background: 'var(--elev)', color: 'var(--text)', fontSize: 18, cursor: 'pointer' }}>✕</button>
+              ) : (
+                <>
+                  <button onClick={() => setPhoneSelect(true)} className="hv-soft"
+                    style={{ minHeight: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 999, background: 'var(--elev)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    Select
+                  </button>
+                  <button onClick={() => setPhoneQOpen(o => !o)} aria-pressed={phoneQOpen} aria-label="Search" className="hv-soft"
+                    style={{ width: 44, height: 44, border: 'none', borderRadius: 999, background: phoneQOpen ? 'var(--soft)' : 'none', color: 'var(--text)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg aria-hidden="true" width="17" height="17" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.6"/><path d="M10.5 10.5 14 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+                  </button>
+                  <RowMenu
+                    open={phoneMenuOpen} onToggle={() => setPhoneMenuOpen(o => !o)} onClose={() => setPhoneMenuOpen(false)}
+                    label="More options"
+                    items={[{
+                      label: sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense',
+                      onClick: () => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' })),
+                    }]}
+                  />
+                </>
+              )}
+            </div>
+            {phoneQOpen && !phoneSelect && (
+              <div style={{ padding: '4px 16px 10px', display: 'flex' }}>
+                <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} collapsed="100%" expanded="100%" height={44}
+                  placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
+              </div>
+            )}
+            {!phoneSelect && (needsCat.size > 0 || unclearedIds.size > 0) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '6px 16px 12px' }}>
+                {needsCat.size > 0 && (
+                  <button onClick={() => setPhoneFilter(f => (f === 'needsCat' ? 'all' : 'needsCat'))} aria-pressed={phoneFilter === 'needsCat'} className="hv-elev"
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--elev)', color: 'var(--text)', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
+                    <span style={{ flex: 'none', minWidth: 22, height: 22, borderRadius: 999, background: 'var(--warn-soft)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{needsCat.size}</span>
+                    <span style={{ flex: 1, fontSize: 13.5 }}>{'To categorize'}</span>
+                    <span style={{ color: 'var(--accent)', fontSize: 13.5, fontWeight: 600 }}>{phoneFilter === 'needsCat' ? 'Show all' : 'Review'}</span>
+                  </button>
+                )}
+                {unclearedIds.size > 0 && (
+                  <button onClick={() => setPhoneFilter(f => (f === 'uncleared' ? 'all' : 'uncleared'))} aria-pressed={phoneFilter === 'uncleared'} className="hv-elev"
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--elev)', color: 'var(--text)', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
+                    <span style={{ flex: 1, fontSize: 13.5 }}>{(phoneFilter === 'uncleared' ? 'Showing ' : 'Show ') + unclearedIds.size + ' uncleared transaction' + (unclearedIds.size === 1 ? '' : 's')}</span>
+                    <span aria-hidden="true" style={{ color: 'var(--muted)' }}>{phoneFilter === 'uncleared' ? '✕' : '›'}</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
         {/* Action toolbar — the All-Accounts reference row: Add Transaction on
@@ -762,15 +856,16 @@ export default function Transactions() {
           )}
           {phone && (postedRows.length > 0 || scheduled.length > 0) && (
             <TxPhoneList
-              /* Temporary shim: flat list, no select mode, taps inert. Task 5
-                 wires groups/needsCat/selectMode and the tap handlers. */
-              groups={null} postedRows={postedRows} scheduled={scheduled} schedKey={schedKey}
-              selected={selected} schedSel={schedSel} needsCat={new Set()}
-              selectMode={false} onRowTap={() => {}} onSchedTap={() => {}}
-              onToggleRow={toggleRow} onToggleSched={toggleSched}
+              groups={groups} postedRows={phoneRows}
+              scheduled={scheduled} schedKey={schedKey}
               schedOpen={schedOpen} onToggleSchedOpen={() => setSchedOpen(o => !o)}
               overdueCount={overdueCount} hiddenRuleCount={hiddenRuleCount}
-              hideAccount={!!accountId}
+              hideAccount={!!accountId} needsCat={needsCat}
+              selectMode={phoneSelect} selected={selected} schedSel={schedSel}
+              onToggleRow={(id, on) => toggleRow(id, on)}   /* no event → additive branch, YNAB multi-toggle */
+              onToggleSched={toggleSched}
+              onRowTap={t => openers.editTx(S, t.id, openDrawer)}
+              onSchedTap={x => (x.row.isRule ? navigate('/recurring/' + x.row.ruleId) : openers.editTx(S, x.selId, openDrawer))}
             />
           )}
           {list.length === 0 && monthTx.length > 0 && (
@@ -788,6 +883,65 @@ export default function Transactions() {
             </div>
           )}
         </section>
+
+        {/* Phone Select mode: floating selected-total pill + action bar. The
+            pill sits above the action bar, which clears the bottom tab bar. */}
+        {phone && phoneSelect && (
+          <>
+            {(sel.length > 0 || schedSel.size > 0) && (
+              <div role="status" style={{
+                position: 'fixed', left: '50%', transform: 'translateX(-50%)',
+                bottom: 'calc(140px + env(safe-area-inset-bottom))', zIndex: 41,
+                padding: '10px 18px', borderRadius: 16, textAlign: 'center',
+                background: 'color-mix(in srgb, var(--surface) 88%, transparent)',
+                border: '1px solid var(--border)', boxShadow: 'var(--shadow)',
+                backdropFilter: 'blur(8px)',
+              }}>
+                <div className="tnum" style={{ fontSize: 17, fontWeight: 700 }}>
+                  {fmt.moneyS(sel.length > 0 ? selectedTotal : schedSelectedTotal)}
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                  {(sel.length > 0 ? sel.length : schedSel.size) + ' transaction' + ((sel.length > 0 ? sel.length : schedSel.size) === 1 ? '' : 's') + ' selected'}
+                </div>
+              </div>
+            )}
+            <div style={{
+              position: 'fixed', left: 16, right: 16,
+              bottom: 'calc(76px + env(safe-area-inset-bottom))', zIndex: 39,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+            }}>
+              <button onClick={() => setPickerOpen(true)} disabled={sel.length === 0} className="hv-soft"
+                style={{ minHeight: 48, padding: '0 18px', border: '1px solid var(--border)', borderRadius: 999, background: 'var(--surface)', color: sel.length === 0 ? 'var(--muted)' : 'var(--text)', fontSize: 14, fontWeight: 600, cursor: sel.length === 0 ? 'default' : 'pointer', boxShadow: 'var(--shadow)' }}>
+                Categorize
+              </button>
+              <button onClick={bulkToggleCleared} disabled={sel.length === 0} aria-label="Toggle cleared" className="hv-soft"
+                style={{ width: 48, height: 48, border: '1px solid var(--border)', borderRadius: 999, background: 'var(--surface)', color: sel.length === 0 ? 'var(--muted)' : 'var(--text)', fontSize: 15, fontWeight: 700, cursor: sel.length === 0 ? 'default' : 'pointer', boxShadow: 'var(--shadow)' }}>
+                ⓒ
+              </button>
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setPhoneMoreOpen(o => !o)} disabled={sel.length === 0 && schedSel.size === 0} aria-label="More actions" aria-expanded={phoneMoreOpen} className="hv-soft"
+                  style={{ width: 48, height: 48, border: '1px solid var(--border)', borderRadius: 999, background: 'var(--surface)', color: (sel.length === 0 && schedSel.size === 0) ? 'var(--muted)' : 'var(--text)', fontSize: 18, cursor: 'pointer', boxShadow: 'var(--shadow)' }}>
+                  ⋯
+                </button>
+                {phoneMoreOpen && (
+                  <div role="menu" style={{ position: 'absolute', right: 0, bottom: 56, minWidth: 200, padding: 6, borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column' }}>
+                    {(sel.length > 0
+                      ? [singleEditItem(), { label: 'Duplicate', onClick: bulkDuplicate }, { divider: true }, { label: 'Delete', tone: 'neg', onClick: bulkDelete }]
+                      : schedMore()
+                    ).filter(Boolean).map((it, i) => it.divider
+                      ? <span key={i} aria-hidden="true" style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                      : (
+                        <button key={it.label} role="menuitem" onClick={() => { setPhoneMoreOpen(false); it.onClick(); }} className="hv-soft"
+                          style={{ minHeight: 44, padding: '0 12px', border: 'none', borderRadius: 8, background: 'none', color: it.tone === 'neg' ? 'var(--neg)' : 'var(--text)', font: 'inherit', fontSize: 14, textAlign: 'left', cursor: 'pointer' }}>
+                          {it.label}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
