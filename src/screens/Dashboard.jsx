@@ -322,27 +322,32 @@ export default function Dashboard() {
                 ))}
               </div>
             </section>
-
-            <section aria-label="Largest expenses" className="dash-largest" style={{ ...card, padding: '16px 18px' }}>
-              <h2 style={h2}>Largest expenses</h2>
-              {largestRows.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-                  {largestRows.map((l, i) => (
-                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === largestRows.length - 1 ? 'none' : '1px solid var(--border)' }}>
-                      <span style={{ minWidth: 0, flex: 1 }}>
-                        <span style={{ display: 'block', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.merchant}</span>
-                        <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{l.cat}</span>
-                      </span>
-                      <span className="tnum" style={{ fontSize: 13, fontWeight: 600, flex: 'none', whiteSpace: 'nowrap' }}>{l.amt}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ padding: '16px 0 6px', fontSize: 12.5, color: 'var(--muted)' }}>No expenses recorded yet this month.</div>
-              )}
-            </section>
           </div>
         </div>
+
+        {/* Full-width by design (user request 2026-08-13): this sat in
+            dash-col-side's narrow 1fr track and rendered ~⅓ page width on
+            desktop. As a direct dash-root child it spans the content width at
+            every viewport; on phone the ≤700px block orders it after
+            dash-cols, keeping the old upcoming → daily → largest sequence. */}
+        <section aria-label="Largest expenses" className="dash-largest" style={{ ...card, padding: '16px 18px' }}>
+          <h2 style={h2}>Largest expenses</h2>
+          {largestRows.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
+              {largestRows.map((l, i) => (
+                <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === largestRows.length - 1 ? 'none' : '1px solid var(--border)' }}>
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.merchant}</span>
+                    <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{l.cat}</span>
+                  </span>
+                  <span className="tnum" style={{ fontSize: 13, fontWeight: 600, flex: 'none', whiteSpace: 'nowrap' }}>{l.amt}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '16px 0 6px', fontSize: 12.5, color: 'var(--muted)' }}>No expenses recorded yet this month.</div>
+          )}
+        </section>
 
         <section aria-label="Recent transactions" className="dash-recent" style={{ ...card, padding: '16px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
