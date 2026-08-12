@@ -9,6 +9,7 @@ import { openers } from '../drawers/openers.js';
 import Tooltip from '../ui/Tooltip.jsx';
 import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import TxMonthNav from './TxMonthNav.jsx';
+import MaskToggle from './MaskToggle.jsx';
 
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
@@ -84,6 +85,7 @@ export default function Header() {
       )}
       {showTxNav && <TxMonthNav />}
       <div style={{ flex: 1 }} />
+      <MaskToggle />
       {(syncStatus === 'retrying' || syncStatus === 'error') && (
         <span role="status" title="Changes are kept locally and pushed automatically when the connection recovers" style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
           Not saved — retrying
