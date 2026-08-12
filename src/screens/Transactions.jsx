@@ -297,7 +297,10 @@ export default function Transactions() {
 
   // Phone chrome state. phoneSelect lives in TxViewContext (AddTxPill hides on
   // it); everything else is per-visit.
-  const [phoneQOpen, setPhoneQOpen] = useState(false);   // search row shown?
+  // Search row shown? F.q lives in TxViewContext and survives navigation, so a
+  // query left active must arrive with its row VISIBLE — a collapsed row over a
+  // persisting filter would silently narrow the list with no cue on screen.
+  const [phoneQOpen, setPhoneQOpen] = useState(() => F.q !== '');
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false); // ⋯ toolbar menu
   const [phoneMoreOpen, setPhoneMoreOpen] = useState(false); // select-mode ⋯ sheet
   const [pickerOpen, setPickerOpen] = useState(false);   // category picker sheet
@@ -502,16 +505,23 @@ export default function Transactions() {
     'Duplicated ' + sel.length + ' transaction' + (sel.length === 1 ? '' : 's') + '.',
     data => duplicateTransactions(data, { ids: sel }),
   );
-  // Phone select mode: Categorize applies one category to every selected row
-  // that can carry one (the CAT_TYPES pre-filter keeps transfers/adjustments
-  // out of the action; setTransactionsCategory would drop them anyway).
+  // Categorize applies one category to every selected row the action will
+  // actually accept. The picker lists only EXPENSE categories, and
+  // setTransactionsCategory (actions.js) refuses a type mismatch —
+  // `(t.type === 'income') === (cat.type === 'income')` — so with an expense
+  // category an income row is refused exactly like a transfer or adjustment.
+  // Mirror that rule here: only expense/refund rows go into `ids`, everything
+  // else is counted as skipped, so the toast can never claim a row it left
+  // unchanged. (A row already carrying the picked category still counts as
+  // categorized — it ends in the state the user asked for.)
   const bulkCategorize = categoryId => {
-    const ids = sel.filter(id => { const t = S.transactions.find(x => x.id === id); return t && CAT_TYPES.includes(t.type); });
+    const canTakeExpenseCat = t => t.type === 'expense' || t.type === 'refund';
+    const ids = sel.filter(id => { const t = S.transactions.find(x => x.id === id); return t && canTakeExpenseCat(t); });
     const skipped = sel.length - ids.length;
     setPickerOpen(false);
-    if (ids.length === 0) { notify('Nothing to categorize — transfers and adjustments have no category.'); return; }
+    if (ids.length === 0) { notify('Nothing categorized — none of the selected can take an expense category.'); return; }
     afterBulk(
-      'Categorized ' + ids.length + '.' + (skipped ? ' Skipped ' + skipped + ' without a category field.' : ''),
+      'Categorized ' + ids.length + '.' + (skipped ? ' Skipped ' + skipped + ' that can’t take an expense category.' : ''),
       data => setTransactionsCategory(data, { ids, categoryId }),
     );
   };
@@ -707,11 +717,16 @@ export default function Transactions() {
                   style={{ width: 44, height: 44, border: 'none', borderRadius: 999, background: 'var(--elev)', color: 'var(--text)', fontSize: 18, cursor: 'pointer' }}>✕</button>
               ) : (
                 <>
-                  <button onClick={() => setPhoneSelect(true)} className="hv-soft"
+                  {/* Entering Select mode hides the search row, so a live query
+                      would keep filtering invisibly — clear it (and collapse
+                      the row) so selection always operates on the full list. */}
+                  <button onClick={() => { setF('q', ''); setPhoneQOpen(false); setPhoneSelect(true); }} className="hv-soft"
                     style={{ minHeight: 44, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 999, background: 'var(--elev)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                     Select
                   </button>
-                  <button onClick={() => setPhoneQOpen(o => !o)} aria-pressed={phoneQOpen} aria-label="Search" className="hv-soft"
+                  {/* Collapsing the row also clears the query — the filter must
+                      never outlive its only visible control. */}
+                  <button onClick={() => { if (phoneQOpen) setF('q', ''); setPhoneQOpen(!phoneQOpen); }} aria-pressed={phoneQOpen} aria-label="Search" className="hv-soft"
                     style={{ width: 44, height: 44, border: 'none', borderRadius: 999, background: phoneQOpen ? 'var(--soft)' : 'none', color: 'var(--text)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg aria-hidden="true" width="17" height="17" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.6"/><path d="M10.5 10.5 14 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
                   </button>
