@@ -153,7 +153,7 @@ routes or data model.
   flow (select → categorize via picker → cleared toggle → delete), banners
   filter, scheduled disclosure, safe-area/clearance (last row reachable).
 
-## Acceptance criteria
+## Acceptance criteria (verified live 2026-08-12, iPhone 15 Pro viewport + desktop spot-check)
 
 1. Phone bar shows Home · Plan · Spending · Accounts · Reflect, floating
    pill style, correct active states; no center ＋.
