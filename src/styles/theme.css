@@ -158,6 +158,10 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
     height: calc(60px + env(safe-area-inset-top)) !important;
     padding-left: 16px !important;
     padding-right: 16px !important;
+    /* Gap steps down with the padding: the account-scoped header (title +
+       month nav + eye toggle + edit + Reconcile) is at capacity on a 393pt
+       row, and wider month labels (e.g. "September 2026") need the slack. */
+    gap: 8px !important;
   }
   .app-header h1 { font-size: 19px !important; }
   input:not([type="checkbox"]):not([type="radio"]),

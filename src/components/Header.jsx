@@ -68,7 +68,9 @@ export default function Header() {
       {acct ? (
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.nickname}</h1>
-          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>{acct.type} · {reconLabel}</span>
+          {/* overflow/ellipsis: without them the nowrap subtitle paints past a
+              squeezed title block and smears under the month nav on phone. */}
+          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.type} · {reconLabel}</span>
         </div>
       ) : (
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>{title}</h1>

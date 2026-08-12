@@ -19,7 +19,14 @@ export default function MaskToggle() {
         aria-pressed={prefs.masked}
         aria-label={label}
         className="hv-soft"
-        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: size, height: size, border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+        // Phone: extended-touch-target pattern — the content box stays 44×44
+        // (tap target), but negative margins shrink the LAYOUT footprint to
+        // 20px (the icon's visual width) so the account-scoped header — the
+        // fullest row: title + month nav + edit + Reconcile — doesn't overflow
+        // 393pt. Asymmetric on purpose: the right reach-back (8px) stays inside
+        // the flex gap so the tap area never overlaps the next control's box;
+        // the left one (16px) lands over the empty flex spacer.
+        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: size, height: size, margin: phone ? '0 -8px 0 -16px' : 0, border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
