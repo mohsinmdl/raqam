@@ -74,7 +74,7 @@ gh stack merge <PR#> --yes           # merge everything up to and including PR#
 ```
 
 `gh pr merge` does **not** work on stacked PRs — always land via `gh stack merge`.
-Drafts must be marked ready first (`gh pr ready`).
+Drafts must be marked ready first (`gh pr ready <PR#>` for each PR in the stack).
 
 ## Notes
 
