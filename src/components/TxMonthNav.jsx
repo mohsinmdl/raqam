@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useTxView } from '../store/TxViewContext.jsx';
+import { useIsPhone } from '../lib/useIsPhone.js';
 import { todayStr } from '../lib/dates.js';
 import {
   MONTH_OPTS, RANGE_PRESETS, clampRange, presetOf, rangeFor, rangeLabel, shiftRange, yearOpts,
@@ -30,6 +31,7 @@ export default function TxMonthNav() {
   const { data: S } = useStore();
   const { range, setRange } = useTxView();
   const [open, setOpen] = useState(false);
+  const phone = useIsPhone();
   const rootRef = useRef(null);
 
   // Same dismissal contract as the other popovers in the header.
@@ -88,7 +90,15 @@ export default function TxMonthNav() {
       </div>
 
       {open && (
-        <div role="dialog" aria-label="Date range" style={{ position: 'absolute', top: 38, left: 0, zIndex: 30, width: 800, maxWidth: '92vw', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 14 }}>
+        <div role="dialog" aria-label="Date range" style={{
+          // On the phone shell the trigger sits mid-header, so anchoring to it
+          // pushes a near-viewport-wide panel past the right edge and stretches
+          // the whole page. Pin to the viewport below the 60px header instead.
+          ...(phone
+            ? { position: 'fixed', top: 66, left: 12, right: 12, maxHeight: 'calc(100dvh - 140px)', overflowY: 'auto' }
+            : { position: 'absolute', top: 38, left: 0, width: 800, maxWidth: '92vw' }),
+          zIndex: 30, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow)', padding: 14,
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10 }}>
             <span style={{ fontSize: 14, fontWeight: 700 }}>View Options</span>
             <button onClick={() => setOpen(false)} aria-label="Close" className="hv-soft"
