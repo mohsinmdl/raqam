@@ -29,6 +29,7 @@ import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarActi
 import { matchesQuery } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import TxPhoneList from '../components/TxPhoneList.jsx';
+import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
 
 // Sticky against <main>'s scroll. No overflow is introduced here — the section
 // deliberately has none, because it would clip the per-row ⋯ menu. z-index sits
@@ -684,6 +685,7 @@ export default function Transactions() {
             more={[
               singleEditItem(),
               { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate, keys: SHORTCUT_BY_ID.duplicate.keys },
+              { label: 'Categorize…', onClick: () => setPickerOpen(true) },
               singleRepeatItem(),
               { divider: true },
               { label: 'Delete', icon: 'delete', onClick: bulkDelete, tone: 'neg', keys: SHORTCUT_BY_ID.delete.keys },
@@ -956,6 +958,7 @@ export default function Transactions() {
             </div>
           </>
         )}
+        <CategoryPickerSheet open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={bulkCategorize} />
       </div>
     </div>
   );
