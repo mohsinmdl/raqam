@@ -11,6 +11,7 @@ import { nowIso } from '../lib/dates.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { openers } from '../drawers/openers.js';
+import FocusTrap from '../ui/FocusTrap.jsx';
 
 export default function CategoryPickerSheet({ open, onClose, onPick }) {
   const { data: S } = useStore();
@@ -50,6 +51,10 @@ export default function CategoryPickerSheet({ open, onClose, onPick }) {
     <div role="dialog" aria-modal="true" aria-label="Select category"
       style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
       <div onClick={onClose} aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'var(--scrim)' }} />
+      {/* FocusTrap wraps the PANEL only (not the backdrop) — same contract as
+          DrawerProvider's DrawerShell: aria-modal must actually hold focus, and
+          unmounting restores it to whatever opened the sheet. */}
+      <FocusTrap>
       <div style={{ position: 'relative', maxHeight: '82dvh', display: 'flex', flexDirection: 'column', background: 'var(--bg)', borderRadius: '16px 16px 0 0', border: '1px solid var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
           <button onClick={onClose} aria-label="Close" className="hv-soft"
@@ -87,6 +92,7 @@ export default function CategoryPickerSheet({ open, onClose, onPick }) {
             style={{ width: '100%', boxSizing: 'border-box', height: 46, padding: '0 16px', borderRadius: 999, border: '1px solid var(--border)', background: 'color-mix(in srgb, var(--elev) 92%, transparent)', color: 'var(--text)', font: 'inherit', fontSize: 15, outline: 'none', boxShadow: 'var(--shadow)', backdropFilter: 'blur(8px)' }} />
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }
