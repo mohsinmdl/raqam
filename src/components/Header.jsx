@@ -8,6 +8,7 @@ import { currentMonth, nowIso } from '../lib/dates.js';
 import { openers } from '../drawers/openers.js';
 import Tooltip from '../ui/Tooltip.jsx';
 import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
+import { useAppLock } from '../ui/AppLockContext.jsx';
 import TxMonthNav from './TxMonthNav.jsx';
 
 const TITLES = {
@@ -23,6 +24,7 @@ export default function Header() {
   const { data: S, syncStatus, prefsSaved, undo, redo } = useStore();
   const { month, isPast, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
   const { drawer, openDrawer } = useDrawer();
+  const { enabled: lockEnabled, lockNow } = useAppLock();
 
   useEffect(() => {
     const onKey = e => {
@@ -86,6 +88,12 @@ export default function Header() {
       )}
       {showTxNav && <TxMonthNav />}
       <div style={{ flex: 1 }} />
+      {lockEnabled && (
+        <button onClick={lockNow} aria-label="Lock now" title="Lock now" className="hv-soft"
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+        </button>
+      )}
       {(syncStatus === 'retrying' || syncStatus === 'error') && (
         <span role="status" title="Changes are kept locally and pushed automatically when the connection recovers" style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
           Not saved — retrying

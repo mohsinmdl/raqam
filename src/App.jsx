@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { StoreProvider, useStore } from './store/StoreProvider.jsx';
 import LockScreen from './components/LockScreen.jsx';
+import { AppLockContext } from './ui/AppLockContext.jsx';
 import { shouldLock } from './lib/appLock.js';
 import ImportLegacy from './components/ImportLegacy.jsx';
 import { PrefsProvider } from './store/PrefsProvider.jsx';
@@ -162,6 +163,20 @@ function AppLockGate({ children }) {
   // If the user disables the lock while it's showing (not reachable today, but
   // keeps state honest), drop the overlay.
   useEffect(() => { if (!enabled) setLocked(false); }, [enabled]);
+  // Manual "lock now" (the L keyboard shortcut, dispatched by GlobalShortcuts).
+  // Gated on `enabled` so a disabled app can never be trapped behind a lock
+  // screen it has no credId to unlock.
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const onLockNow = () => setLocked(true);
+    window.addEventListener('raqam:lock-now', onLockNow);
+    return () => window.removeEventListener('raqam:lock-now', onLockNow);
+  }, [enabled]);
+  // Manual "Lock now" from the header icon. Setting locked only shows the
+  // overlay when a lock is configured (the render guard needs `enabled` too),
+  // so this is a no-op when off — and the icon is hidden then anyway.
+  const lockNow = useCallback(() => setLocked(true), []);
+  const lockCtx = useMemo(() => ({ enabled, lockNow }), [enabled, lockNow]);
   const onSignOut = async () => {
     if (signingOut) return;
     setSigningOut(true); // holds the LockScreen up regardless of enabled/locked
@@ -187,7 +202,7 @@ function AppLockGate({ children }) {
       />
     );
   }
-  return children;
+  return <AppLockContext.Provider value={lockCtx}>{children}</AppLockContext.Provider>;
 }
 
 // Auth gate — not a route: the requested #/route survives login untouched.
