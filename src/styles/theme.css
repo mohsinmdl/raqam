@@ -175,16 +175,23 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
   .dash-summary, .dash-cats, .dash-cmp, .dash-accounts { display: none !important; }
   .dash-lts { display: block !important; order: 2; }
   .dash-recent { order: 3; }
-  .dash-cols { order: 4; display: flex; flex-direction: column; gap: 16px; }
+  .dash-cols { order: 4; display: flex; flex-direction: column; gap: 16px; align-items: stretch; }
+  /* Largest expenses is a direct dash-root child (full-width card on every
+     viewport); order slots it right after dash-cols so the phone sequence
+     stays upcoming → daily → largest, ahead of the account rows below. */
+  .dash-largest { order: 5; }
   /* Account rows (App lock, Sign out) close the scroll, away from financial
      content — without explicit order they'd sit mid-page among the order-0
      siblings while ordered sections slot below them. */
   .dash-applock { order: 8; }
   .dash-signout { order: 9; }
-  /* Inside dash-cols: upcoming (main col) then largest (side col); daily
-     spending moves between them via column order. */
+  /* Inside dash-cols only the main column remains visible: upcoming leads,
+     then daily spending. The side column holds just the (hidden) Accounts
+     card now that Largest expenses lives at the dash-root level — hide the
+     wrapper too, or its zero-height box doubles the flex gap after daily.
+     !important: the wrapper carries inline display:flex. */
   .dash-col-main { display: flex; flex-direction: column; gap: 16px; }
-  .dash-col-side { display: flex; flex-direction: column; gap: 16px; }
+  .dash-col-side { display: none !important; }
   .dash-col-main .dash-upcoming { order: -1; }
   /* Position strip: balance leads; the two stat columns collapse. */
   .pos-cols { display: none !important; }
