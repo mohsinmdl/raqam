@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { StoreProvider } from './store/StoreProvider.jsx';
+import { StoreProvider, useStore } from './store/StoreProvider.jsx';
+import LockScreen from './components/LockScreen.jsx';
+import { shouldLock } from './lib/appLock.js';
 import ImportLegacy from './components/ImportLegacy.jsx';
 import { PrefsProvider } from './store/PrefsProvider.jsx';
 import { AuthProvider, useAuth } from './auth/AuthProvider.jsx';
@@ -135,6 +137,37 @@ function Shell() {
   );
 }
 
+// Sits inside StoreProvider (needs prefs) and AuthProvider (needs signOut).
+// Cold launch always locks when enabled; a resume relocks only after >60s hidden.
+function AppLockGate({ children }) {
+  const { prefs, setPrefs } = useStore();
+  const { signOut } = useAuth();
+  const enabled = !!prefs.appLock?.enabled;
+  const [locked, setLocked] = useState(enabled);
+  const hiddenAt = useRef(null);
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt.current = Date.now(); return; }
+      if (enabled && shouldLock(hiddenAt.current, Date.now())) setLocked(true);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [enabled]);
+  // If the user disables the lock while it's showing (not reachable today, but
+  // keeps state honest), drop the overlay.
+  useEffect(() => { if (!enabled) setLocked(false); }, [enabled]);
+  if (enabled && locked) {
+    return (
+      <LockScreen
+        credId={prefs.appLock.credId}
+        onUnlock={() => { hiddenAt.current = null; setLocked(false); }}
+        onSignOut={() => { setPrefs({ appLock: { enabled: false, credId: null } }); signOut(); }}
+      />
+    );
+  }
+  return children;
+}
+
 // Auth gate — not a route: the requested #/route survives login untouched.
 function Gate() {
   const { session, user, authLoading } = useAuth();
@@ -147,8 +180,10 @@ function Gate() {
         <TxViewProvider>
           <UIProvider>
             <DrawerProvider registry={drawerRegistry}>
-              <Shell />
-              <ImportLegacy />
+              <AppLockGate>
+                <Shell />
+                <ImportLegacy />
+              </AppLockGate>
             </DrawerProvider>
           </UIProvider>
         </TxViewProvider>
