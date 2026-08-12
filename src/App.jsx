@@ -139,7 +139,9 @@ function Shell() {
 }
 
 // Sits inside StoreProvider (needs prefs) and AuthProvider (needs signOut).
-// Cold launch always locks when enabled; a resume relocks only after >60s hidden.
+// Cold launch always locks when enabled; and the app relocks THE MOMENT it
+// goes to the background (no inactivity grace) — so a peek at the app switcher
+// or a quick tab-away already re-locks it.
 function AppLockGate({ children }) {
   const { prefs, setPrefs } = useStore();
   const { signOut } = useAuth();
@@ -151,11 +153,12 @@ function AppLockGate({ children }) {
   // Shell — all financial data — would render while signOut() is still
   // draining/revoking (fail-open). Never reset on rejection: fail-closed.
   const [signingOut, setSigningOut] = useState(false);
-  const hiddenAt = useRef(null);
+  // Lock immediately on hide. iOS fires visibilitychange→hidden just before it
+  // freezes the page, so the overlay is already up when the user returns; the
+  // LockScreen re-fires its biometric prompt on becoming visible again.
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState === 'hidden') { hiddenAt.current = Date.now(); return; }
-      if (enabled && shouldLock(hiddenAt.current, Date.now())) setLocked(true);
+      if (enabled && document.visibilityState === 'hidden') setLocked(true);
     };
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
@@ -197,7 +200,7 @@ function AppLockGate({ children }) {
       <LockScreen
         credId={prefs.appLock?.credId}
         signingOut={signingOut}
-        onUnlock={() => { hiddenAt.current = null; setLocked(false); }}
+        onUnlock={() => setLocked(false)}
         onSignOut={onSignOut}
       />
     );
