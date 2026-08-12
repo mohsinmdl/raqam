@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
+import { useAuth } from '../auth/AuthProvider.jsx';
+import { useIsPhone } from '../lib/useIsPhone.js';
 import { useMoney } from '../lib/format.js';
 import * as C from '../lib/calc.js';
 import { nowIso, todayStr } from '../lib/dates.js';
@@ -67,6 +69,8 @@ export default function Dashboard() {
   const { money, moneyS, masked } = fmt;
   const nav = useNavigate();
   const { openDrawer } = useDrawer();
+  const { signOut, user } = useAuth();
+  const phone = useIsPhone();
   const [snapDismissed, setSnapDismissed] = useState(false);
   const now = nowIso();
 
@@ -361,6 +365,25 @@ export default function Dashboard() {
             <div style={{ padding: '22px 0 10px', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>No transactions this month yet. Use “＋ Add transaction” to record the first one.</div>
           )}
         </section>
+
+        {/* Phone has no sidebar, so the sign-out control in the desktop
+            UserMenu is unreachable there — this is the mobile equivalent.
+            Sits at the bottom of the scroll, away from financial content,
+            and stays a quiet bordered row (not accent-filled) so it never
+            competes with the primary add-transaction action. */}
+        {phone && (
+          <button
+            onClick={() => signOut()}
+            className="hv-elev"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 44, padding: '11px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <span aria-hidden="true" style={{ fontSize: 15, flex: 'none' }}>⇥</span>
+            <span style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>Sign out</span>
+              {user?.email && <span style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</span>}
+            </span>
+          </button>
+        )}
       </div>
 
     </div>
