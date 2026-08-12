@@ -43,7 +43,7 @@ export function txRowOf(t, S, fmt, forAccountId) {
   else if (card) acctLabel = card.nickname + ' ••' + card.last4;
   else if (acc) acctLabel = acc.nickname;
   return {
-    id: t.id, dateLabel: dayLabel(t.date), timeLabel: timeLabel(t.date),
+    id: t.id, dateLabel: dayLabel(t.date), dayKey: t.date.slice(0, 10), timeLabel: timeLabel(t.date),
     // Sort keys: the full timestamp (never the truncated display) and a unique
     // id, so the tie-break chain always terminates.
     sortAt: t.date, sortId: t.id,
