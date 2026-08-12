@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import FocusTrap from './FocusTrap.jsx';
 import { useUI } from './UIProvider.jsx';
 import { useIsPhone } from '../lib/useIsPhone.js';
-import { useKeyboardInset } from '../lib/useKeyboardInset.js';
+import { useKeyboardInset, kbGrowGeometry } from '../lib/useKeyboardInset.js';
 
 // Drawer system — chrome ported from the prototype (template 514-528, footer 742-746).
 // Drawer bodies register in src/drawers/index.js as:
@@ -19,17 +19,21 @@ function DrawerShell({ def, state, closeDrawer, requestClose }) {
   // is safe: DrawerShell is keyed by drawer name, so `def` is fixed per mount.
   const danger = def.useDanger ? def.useDanger() : null;
   const phone = useIsPhone();
-  const kb = useKeyboardInset();
+  const { inset: kb, viewportHeight } = useKeyboardInset();
   // While the phone keyboard is up, the bottom sheet GROWS instead of merely
   // sliding: its bottom edge pins to the keyboard's top and its height fills
   // the remaining visual viewport, so the sheet's TOP rises and the form gains
   // the space above the card (feedback on the reverted #100, which lifted the
   // sheet without growing it and only rescued the footer). Inline transform +
   // height are immune to the stylesheet's !important bottom-sheet positioning;
-  // max-height must clear the 90dvh cap or a short keyboard couldn't grow past it.
+  // max-height must clear the 90dvh cap or a short keyboard couldn't grow past
+  // it. Geometry (kbGrowGeometry) is driven by live visualViewport numbers,
+  // never CSS `dvh` — dvh doesn't track the keyboard on iOS Safari and can
+  // drift from the true visible height when Safari's own chrome also resizes
+  // on focus, which left a dead gap above the keyboard and a cramped form on
+  // real devices (see useKeyboardInset.js).
   const kbGrow = phone && kb > 0 ? {
-    transform: `translateY(-${kb}px)`,
-    height: `calc(100dvh - ${kb + 10}px - env(safe-area-inset-top))`,
+    ...kbGrowGeometry(kb, viewportHeight),
     maxHeight: 'none',
     // Only transform is tweened: height must snap with each visualViewport
     // step (iOS fires several during the keyboard's own animation), and a
