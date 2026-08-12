@@ -170,3 +170,26 @@ routes or data model.
    non-category types.
 7. Desktop register renders byte-identically except the added Categorize
    more-menu item.
+
+## Deviations (locked at implementation)
+
+- **Inflow/RTA group deferred to the keypad phase.** The picker's only
+  caller this phase is bulk categorize, whose context can't take inflow;
+  income rows in a bulk selection are skipped with an honest toast
+  ("Skipped N that can't take an expense category"), mirroring
+  `setTransactionsCategory`'s type-match rule.
+- **"Split Between Categories" row moved to the keypad phase** — there is
+  no single-edit picker context this phase to host it.
+- **"+ New Category" opens the category drawer without auto-selecting** the
+  created category (the drawer flow closes the sheet first).
+- **Picker rows show the name only** — the data model has no emoji field.
+- **AddTxPill geometry:** right 16, ~8px above the tab bar (via
+  `--phone-nav-clearance`), rather than a spec-pinned offset.
+- **AddTxPill hides entirely (rather than disables) when there is no active
+  account** — matching the spirit of the desktop rule (no dead affordance
+  on a small screen).
+- **Banner copy** is count-badge + "To categorize"/"Review" rather than the
+  spec's literal string.
+- **Main scroll clearance** now includes the pill's height:
+  `calc(var(--phone-nav-clearance) + 56px)` (48px pill + 8px gap) so the
+  last row clears both the tab bar and the floating pill.
