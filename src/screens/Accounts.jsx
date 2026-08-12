@@ -16,7 +16,9 @@ const gridCols = { display: 'grid', gridTemplateColumns: '2fr 1.1fr 1fr 1.1fr 10
 
 export default function Accounts() {
   const { data: S, applyData } = useStore();
-  const { month } = useMonth();
+  // Balances clamp to the real current month — a future viewed month must
+  // not fabricate zero balances (no opening snapshot exists yet).
+  const { balanceMonth } = useMonth();
   const { money } = useMoney();
   const { openDrawer } = useDrawer();
   const { notify, ask } = useUI();
@@ -30,7 +32,7 @@ export default function Accounts() {
     return {
       // The bank's category IS the account's — no separate per-account flag.
       id: a.id, nick: a.nickname, inst: inst ? inst.name : '—', kind: inst ? kindLabel(inst.kind) : '—', type: a.type,
-      bal: money(accountBalance(a, S, month, now)), asOf: dayLabel(lastActivity(a, S)),
+      bal: money(accountBalance(a, S, balanceMonth, now)), asOf: dayLabel(lastActivity(a, S)),
       dot: f.dot, fresh: f.label, last4: a.last4 ? '•• ' + a.last4 : '—',
     };
   });

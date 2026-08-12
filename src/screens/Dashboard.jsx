@@ -66,7 +66,7 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
 
 export default function Dashboard() {
   const { data: S, prefs, setPrefs } = useStore();
-  const { month, months, isPast } = useMonth();
+  const { month, months, isPast, balanceMonth } = useMonth();
   const fmt = useMoney();
   const { money, moneyS, masked } = fmt;
   const nav = useNavigate();
@@ -144,7 +144,7 @@ export default function Dashboard() {
   // the Accounts screen; "View all" carries the total count.
   const ACCT_CAP = 4;
   const acctAll = v.activeAccts
-    .map(a => { const f = freshInfo(a, S); const raw = C.accountBalance(a, S, month, now); return { id: a.id, nick: a.nickname, inst: instName(S, a.instId), raw, bal: money(raw), dot: f.dot, freshTip: f.tip }; })
+    .map(a => { const f = freshInfo(a, S); const raw = C.accountBalance(a, S, balanceMonth, now); return { id: a.id, nick: a.nickname, inst: instName(S, a.instId), raw, bal: money(raw), dot: f.dot, freshTip: f.tip }; })
     .sort((x, y) => y.raw - x.raw);
   const acctMini = acctAll.slice(0, ACCT_CAP);
   const acctHidden = acctAll.length - acctMini.length;

@@ -25,7 +25,7 @@ const h2 = { fontSize: 15, fontWeight: 600, margin: 0 };
 const shortLabel = month => monthLabel(month).split(' ')[0].slice(0, 3);
 
 export default function NetWorth() {
-  const { month } = useOutletContext();
+  const { month, balanceMonth } = useOutletContext();
   const { data: S } = useStore();
   const { money, moneyS } = useMoney();
 
@@ -40,7 +40,9 @@ export default function NetWorth() {
     return series.length ? series[series.length - 1].value : 0;
   }, [series, month]);
 
-  const metrics = useMemo(() => monthMetrics(S, month, nowIso()), [S, month]);
+  // Assets/Liabilities are balance reads — clamp to balanceMonth so a future
+  // viewed month doesn't fabricate a zero-Assets / stale-Liabilities card.
+  const metrics = useMemo(() => monthMetrics(S, balanceMonth, nowIso()), [S, balanceMonth]);
   const change = series.length ? series[series.length - 1].value - series[0].value : 0;
 
   const chartData = useMemo(() => series.map(x => ({ label: shortLabel(x.month), value: x.value })), [series]);

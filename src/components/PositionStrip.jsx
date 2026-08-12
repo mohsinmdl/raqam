@@ -32,12 +32,16 @@ const statVal = { fontSize: 15, fontWeight: 600, marginTop: 2 };
 // the balances that a ledger cares about.
 export default function PositionStrip({ trailing, compact, wide, accountId }) {
   const { data: S, prefs, setPrefs } = useStore();
-  const { month } = useMonth();
+  // Every figure this strip shows is a balance (bank total, net worth, card
+  // liability, opening, change, cleared/uncleared/working) — none of it is
+  // month-flow (income/expenses), so the whole metrics read clamps to
+  // balanceMonth rather than the viewed month.
+  const { balanceMonth } = useMonth();
   const { money, moneyS } = useMoney();
   const [explain, setExplain] = useState(false);
 
   const now = nowIso();
-  const M = monthMetrics(S, month, now, accountId);
+  const M = monthMetrics(S, balanceMonth, now, accountId);
 
   if (compact) {
     const amtColor = n => (n > 0 ? 'var(--pos)' : n < 0 ? 'var(--neg)' : 'var(--muted)');
@@ -77,7 +81,7 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
   }
 
   const activeAccts = S.accounts.filter(a => a.status === 'active');
-  const confirmed = S.snapshots.some(s => s.month === month && s.status === 'confirmed');
+  const confirmed = S.snapshots.some(s => s.month === balanceMonth && s.status === 'confirmed');
   const snapStatusLabel = activeAccts.length === 0 ? 'no accounts yet' : confirmed ? 'confirmed snapshot' : 'snapshot pending review';
   const posAsOf = 'across ' + activeAccts.length + (activeAccts.length === 1 ? ' account' : ' accounts');
   const changeColor = M.change > 0 ? 'var(--pos)' : M.change < 0 ? 'var(--neg)' : 'var(--muted)';

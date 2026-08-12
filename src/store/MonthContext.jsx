@@ -9,19 +9,27 @@ const Ctx = createContext(null);
 
 export function MonthProvider({ children }) {
   const { data } = useStore();
-  const months = useMemo(() => monthsFor(data), [data]);
-  const [month, setMonth] = useState(() => months[months.length - 1]);
+  const months = useMemo(() => monthsFor(data, { lookahead: 3 }), [data]);
+  const [month, setMonth] = useState(() => currentMonth());
 
   // If data changes under us (demo load, reset, new real month), snap into range.
   useEffect(() => {
-    if (!months.includes(month)) setMonth(months[months.length - 1]);
+    if (!months.includes(month)) setMonth(currentMonth());
   }, [months, month]);
 
   const value = useMemo(() => {
     const idx = months.indexOf(month);
+    const cur = currentMonth();
     return {
       month, months,
-      isPast: month < currentMonth(),
+      isPast: month < cur,
+      isFuture: month > cur,
+      // Balance reads clamp to the present: opening snapshots only exist up to
+      // the real current month, so a future month would fabricate zero
+      // balances. Consumers that read account/card balances (not envelope or
+      // assignment data, which are correctly future-aware) use this instead
+      // of `month`.
+      balanceMonth: month > cur ? cur : month,
       prevDisabled: idx <= 0,
       nextDisabled: idx >= months.length - 1,
       goPrev: () => idx > 0 && setMonth(months[idx - 1]),
