@@ -32,13 +32,13 @@ The lock is a **device-level preference** + a **full-screen overlay** mounted in
 - `PrefsProvider` DEFAULTS gains `appLock: { enabled: false, credId: null }` (localStorage `raqam.prefs.v1`, same tested `writeJson` path as theme/masked). Correct home: the passkey is bound to *this device*, exactly like theme/masking are per-device.
 - `StoreProvider` facade already forwards `theme`/`masked` from `devicePrefs` (StoreProvider.jsx:189) and routes writes by device-key set (setPrefs, :164–178). **Add `appLock` to both**: include it in the `prefs` facade object and in the device-key routing so `setPrefs({ appLock })` lands in `devicePrefs`. Consumers keep using the flat `useStore().prefs` / `setPrefs`.
 
-### 3 · Enrollment toggle — `src/components/UserMenu.jsx`
+### 3 · Enrollment toggle — shared hook `src/lib/useAppLockToggle.js`, consumed by `UserMenu.jsx` (desktop) + `Dashboard.jsx` (phone)
 
-- New "App lock" row using the existing toggle-row idiom (`row` style, `className="hv-elev"`, `aria-pressed`, `rightNote` On/Off), placed with the other two device toggles (Appearance / Hide amounts).
-- Rendered only when a cached capability probe (`probePlatformAuthenticator()`, run once on menu mount into local state; row hidden while probing/false).
-- **Enable:** call `enroll({ userId: user.id, email })` → on success `setPrefs({ appLock: { enabled: true, credId } })` and `notify('App lock on — unlock with Face ID / device biometrics.')`. On failure/cancel → leave off, `notify` a soft error. A one-line muted sub-note states the privacy-not-security scope.
+- The enrollment logic (capability probe + enable/disable handler) lives in a shared hook, `useAppLockToggle({ user, email, prefs, setPrefs, notify })`, because the phone shell has no sidebar/account menu: the desktop toggle sits in `src/components/UserMenu.jsx`, and a capability-gated "App lock" row on the phone `src/screens/Dashboard.jsx` is the mobile equivalent (same pattern as Sign out there). Supporting order rules for the phone row live in `src/styles/theme.css`.
+- Desktop: "App lock" row using the existing toggle-row idiom (`row` style, `className="hv-elev"`, `aria-pressed`, `rightNote` On/Off), placed with the other two device toggles (Appearance / Hide amounts).
+- Rendered only when the cached capability probe passes (`probePlatformAuthenticator()`, run once on mount into hook state; row hidden while probing/false) — on both shells.
+- **Enable:** call `enroll({ userId: user.id, email })` → on success `setPrefs({ appLock: { enabled: true, credId } })` and `notify('App lock on — unlock with Face ID or your device biometrics.')`. On failure/cancel → leave off, `notify` a soft error. A one-line muted sub-note states the privacy-not-security scope.
 - **Disable:** `setPrefs({ appLock: { enabled: false, credId: null } })`. The OS owns the passkey; we don't delete it (best-effort). Reachable only while unlocked, so no auth needed to turn off.
-- `user`/`email` already in scope via `useAuth()` / `useStore()` in this component.
 
 ### 4 · Lock overlay — `src/components/LockScreen.jsx`, mounted in `App.jsx` `Gate`
 
@@ -46,10 +46,11 @@ The lock is a **device-level preference** + a **full-screen overlay** mounted in
 - **State machine** (local to a small `AppLock` wrapper or hook `useAppLockState`):
   - `locked` initial = `prefs.appLock.enabled` (cold launch always locks when enabled).
   - `visibilitychange`: on `hidden` record `hiddenAt = Date.now()`; on `visible`, if `enabled && shouldLock(hiddenAt, Date.now())` → `locked = true`.
-  - While `locked`, render `<LockScreen onUnlock={...} />` over the app (the app tree can stay mounted beneath; overlay is opaque).
+  - While `locked`, `AppLockGate` renders `<LockScreen onUnlock={...} />` **instead of** its children — the app tree is UNMOUNTED while locked. Privacy win: no financial DOM exists beneath the overlay for devtools/screen readers to reach. Trade-off, accepted: transient UI state (open drawers, scroll positions) resets on a >60s relock; store state survives because `StoreProvider` sits above the gate.
 - **`LockScreen` UI:** fixed full-screen overlay, opaque `var(--bg)`, `zIndex ≥ 80` (above drawers 40 / picker sheet 60 / tab bar 40), centered Raqam wordmark + lock glyph (inline 1.8-stroke SVG, app icon idiom), primary **Unlock** button, secondary **Sign out**. Reduced-motion-safe fade.
   - On mount, auto-invoke `unlock(credId)` once (iOS PWAs allow it without a prior gesture); the **Unlock** button re-invokes for platforms that need a user gesture and for retry after cancel. Success → `onUnlock()` clears `locked` and `hiddenAt`.
-  - **Sign out** (escape hatch, prevents permanent lockout if the passkey was deleted in OS settings): clears the lock pref *and* `signOut()` — `setPrefs({ appLock: { enabled: false, credId: null } })` then `useAuth().signOut()`. Password re-entry becomes the recovery path.
+  - **Sign out** (escape hatch, prevents permanent lockout if the passkey was deleted in OS settings): sets a `signingOut` flag, calls `useAuth().signOut()`, then clears the lock pref (`setPrefs({ appLock: { enabled: false, credId: null } })` — cleared so a future login isn't locked with a stale credId). Password re-entry becomes the recovery path.
+  - **Sign-out hardening (fail-closed):** the `signingOut` flag holds the LockScreen mounted regardless of `enabled`/`locked`, so the app content is never revealed between tapping Sign out and the session actually dropping (the tree unmounts when the auth `Gate` swaps to the login screen). If `signOut()` rejects (offline / revoke failure) the overlay stays up — the app is never revealed in a catch. While `signingOut`, both LockScreen buttons are disabled and the Sign out button reads "Signing out…"; both buttons are likewise disabled while a biometric attempt is in flight (`busy`) so a second tap can't race it.
 
 ### Non-goals (this phase)
 
@@ -57,8 +58,8 @@ Server-side WebAuthn/passkey login; app-switcher snapshot blurring; a custom PIN
 
 ## Files
 
-- **Create:** `src/lib/appLock.js`, `src/lib/appLock.test.js`, `src/components/LockScreen.jsx`
-- **Modify:** `src/store/PrefsProvider.jsx` (DEFAULTS), `src/store/StoreProvider.jsx` (facade + device-key routing for `appLock`), `src/components/UserMenu.jsx` (toggle row), `src/App.jsx` (mount lock in Gate)
+- **Create:** `src/lib/appLock.js`, `src/lib/appLock.test.js`, `src/components/LockScreen.jsx`, `src/lib/useAppLockToggle.js` (shared enrollment-toggle hook)
+- **Modify:** `src/store/PrefsProvider.jsx` (DEFAULTS), `src/store/StoreProvider.jsx` (facade + device-key routing for `appLock`), `src/components/UserMenu.jsx` (desktop toggle row via the hook), `src/screens/Dashboard.jsx` (capability-gated phone App lock row via the hook), `src/styles/theme.css` (flex order rules so the phone account rows close the Dashboard scroll), `src/App.jsx` (mount lock in Gate)
 
 ## Testing
 
