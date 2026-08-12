@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { StoreProvider } from './store/StoreProvider.jsx';
+import { StoreProvider, useStore } from './store/StoreProvider.jsx';
+import LockScreen from './components/LockScreen.jsx';
+import { shouldLock } from './lib/appLock.js';
 import ImportLegacy from './components/ImportLegacy.jsx';
 import { PrefsProvider } from './store/PrefsProvider.jsx';
 import { AuthProvider, useAuth } from './auth/AuthProvider.jsx';
@@ -135,6 +137,59 @@ function Shell() {
   );
 }
 
+// Sits inside StoreProvider (needs prefs) and AuthProvider (needs signOut).
+// Cold launch always locks when enabled; a resume relocks only after >60s hidden.
+function AppLockGate({ children }) {
+  const { prefs, setPrefs } = useStore();
+  const { signOut } = useAuth();
+  const enabled = !!prefs.appLock?.enabled;
+  const [locked, setLocked] = useState(enabled);
+  // Holds the LockScreen mounted from the moment Sign out is tapped until the
+  // session actually drops (Gate then swaps to <AuthScreen/> and unmounts this
+  // whole tree). Without it, clearing the pref flips `enabled` false and the
+  // Shell — all financial data — would render while signOut() is still
+  // draining/revoking (fail-open). Never reset on rejection: fail-closed.
+  const [signingOut, setSigningOut] = useState(false);
+  const hiddenAt = useRef(null);
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt.current = Date.now(); return; }
+      if (enabled && shouldLock(hiddenAt.current, Date.now())) setLocked(true);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [enabled]);
+  // If the user disables the lock while it's showing (not reachable today, but
+  // keeps state honest), drop the overlay.
+  useEffect(() => { if (!enabled) setLocked(false); }, [enabled]);
+  const onSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true); // holds the LockScreen up regardless of enabled/locked
+    try {
+      await signOut();
+      // Success only: clear so a re-login isn't locked with a dead credId
+      // (the escape-hatch path — passkey deleted in OS settings — still works
+      // because signOut() is a Supabase op, unaffected by the passkey).
+      setPrefs({ appLock: { enabled: false, credId: null } });
+    } catch {
+      // Fail-closed: the session is still alive and the pref stays enabled.
+      // The overlay remains (signingOut never resets), and because the pref
+      // was NOT cleared, a reload re-locks instead of exposing the session.
+    }
+  };
+  if (signingOut || (enabled && locked)) {
+    return (
+      <LockScreen
+        credId={prefs.appLock?.credId}
+        signingOut={signingOut}
+        onUnlock={() => { hiddenAt.current = null; setLocked(false); }}
+        onSignOut={onSignOut}
+      />
+    );
+  }
+  return children;
+}
+
 // Auth gate — not a route: the requested #/route survives login untouched.
 function Gate() {
   const { session, user, authLoading } = useAuth();
@@ -147,8 +202,10 @@ function Gate() {
         <TxViewProvider>
           <UIProvider>
             <DrawerProvider registry={drawerRegistry}>
-              <Shell />
-              <ImportLegacy />
+              <AppLockGate>
+                <Shell />
+                <ImportLegacy />
+              </AppLockGate>
             </DrawerProvider>
           </UIProvider>
         </TxViewProvider>

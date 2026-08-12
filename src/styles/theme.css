@@ -176,6 +176,11 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
   .dash-lts { display: block !important; order: 2; }
   .dash-recent { order: 3; }
   .dash-cols { order: 4; display: flex; flex-direction: column; gap: 16px; }
+  /* Account rows (App lock, Sign out) close the scroll, away from financial
+     content — without explicit order they'd sit mid-page among the order-0
+     siblings while ordered sections slot below them. */
+  .dash-applock { order: 8; }
+  .dash-signout { order: 9; }
   /* Inside dash-cols: upcoming (main col) then largest (side col); daily
      spending moves between them via column order. */
   .dash-col-main { display: flex; flex-direction: column; gap: 16px; }
