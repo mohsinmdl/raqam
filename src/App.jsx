@@ -92,7 +92,8 @@ function Shell() {
       <HeaderSlotProvider>
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <Header />
-        <main style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <main style={{ flex: 1, overflowY: 'auto', minHeight: 0,
+          paddingBottom: phone ? 'calc(76px + env(safe-area-inset-bottom))' : 0 }}>
           <Routes>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
