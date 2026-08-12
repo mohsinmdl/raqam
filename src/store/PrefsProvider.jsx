@@ -7,7 +7,7 @@ import { readJson, writeJson } from '../lib/prefsStore.js';
 // Persistence goes through the same tested helper (src/lib/prefsStore.js) as
 // the per-user path, so a rejected write here is just as visible.
 const KEY = 'raqam.prefs.v1';
-const DEFAULTS = { theme: 'light', masked: true };
+const DEFAULTS = { theme: 'light', masked: true, appLock: { enabled: false, credId: null } };
 
 const Ctx = createContext(null);
 
