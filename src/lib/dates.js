@@ -31,10 +31,16 @@ export function monthsBetween(fromYm, toYm) {
 }
 export function clampDay(ym, day) { return Math.min(day, daysInMonth(ym)); }
 
-// Contiguous month list from the earliest month with data up to the current month.
-// This is what the header month selector navigates; an empty store yields just the current month.
+// Contiguous month list from the earliest month with data up to the current
+// month, plus an opt-in lookahead of future months tacked on past `cur`.
+// This is what the header month selector navigates. `lookahead` defaults to 0
+// because reports.js's trend series also drive off this list via
+// `.slice(-window)` — a nonzero default would push empty future months into
+// their window and crowd out real history. Callers that want future months
+// (the budget stepper) pass `{ lookahead }` explicitly; reports.js and
+// MonthContext keep calling `monthsFor(store)` unchanged.
 const MAX_MONTHS = 24;
-export function monthsFor(store) {
+export function monthsFor(store, { lookahead = 0 } = {}) {
   const cur = currentMonth();
   let earliest = cur;
   const consider = ym => { if (ym && ym < earliest) earliest = ym; };
@@ -46,5 +52,6 @@ export function monthsFor(store) {
   const span = Math.min(monthsBetween(earliest, cur), MAX_MONTHS - 1);
   const out = [];
   for (let k = span; k >= 0; k--) out.push(addMonths(cur, -k));
+  for (let k = 1; k <= lookahead; k++) out.push(addMonths(cur, k));
   return out;
 }
