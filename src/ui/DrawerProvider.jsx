@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import FocusTrap from './FocusTrap.jsx';
 import { useUI } from './UIProvider.jsx';
+import { useIsPhone } from '../lib/useIsPhone.js';
+import { useKeyboardInset } from '../lib/useKeyboardInset.js';
 
 // Drawer system — chrome ported from the prototype (template 514-528, footer 742-746).
 // Drawer bodies register in src/drawers/index.js as:
@@ -16,10 +18,25 @@ function DrawerShell({ def, state, closeDrawer, requestClose }) {
   // Optional destructive action (e.g. Delete when editing). Conditional hook call
   // is safe: DrawerShell is keyed by drawer name, so `def` is fixed per mount.
   const danger = def.useDanger ? def.useDanger() : null;
+  const phone = useIsPhone();
+  const kb = useKeyboardInset();
+  // While the phone keyboard is up, the bottom sheet GROWS instead of merely
+  // sliding: its bottom edge pins to the keyboard's top and its height fills
+  // the remaining visual viewport, so the sheet's TOP rises and the form gains
+  // the space above the card (feedback on the reverted #100, which lifted the
+  // sheet without growing it and only rescued the footer). Inline transform +
+  // height are immune to the stylesheet's !important bottom-sheet positioning;
+  // max-height must clear the 90dvh cap or a short keyboard couldn't grow past it.
+  const kbGrow = phone && kb > 0 ? {
+    transform: `translateY(-${kb}px)`,
+    height: `calc(100dvh - ${kb + 10}px - env(safe-area-inset-top))`,
+    maxHeight: 'none',
+    transition: 'transform .15s ease, height .15s ease',
+  } : null;
   return (
     <div onClick={requestClose} style={{ position: 'fixed', inset: 0, background: 'var(--scrim)', animation: 'hsFade .18s ease', zIndex: 40 }}>
       <FocusTrap>
-        <aside role="dialog" aria-modal="true" aria-label={def.title(state)} className="drawer-panel" onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, maxWidth: '94vw', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', animation: 'hsSlide .22s ease', color: 'var(--text)' }}>
+        <aside role="dialog" aria-modal="true" aria-label={def.title(state)} className="drawer-panel" onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, maxWidth: '94vw', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', animation: 'hsSlide .22s ease', color: 'var(--text)', ...kbGrow }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 22px', borderBottom: '1px solid var(--border)', flex: 'none' }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{def.title(state)}</div>
