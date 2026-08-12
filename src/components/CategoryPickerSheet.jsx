@@ -21,9 +21,12 @@ export default function CategoryPickerSheet({ open, onClose, onPick }) {
   useEffect(() => { if (open) setQ(''); }, [open]);
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = e => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    // Capture-phase + stopPropagation: Escape closes the sheet before the
+    // screen's document-level Escape clears the whole selection — same
+    // contract as BulkBar's MoreMenu / RowMenu.
+    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
   }, [open, onClose]);
 
   const env = useMemo(() => (open ? envelopeFor(S, month, nowIso()) : null), [open, S, month]);
