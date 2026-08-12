@@ -1,9 +1,8 @@
-// Phone bottom tab bar: Dash · Tx · [+] · Budget · Accounts. The center [+]
-// is the screen's one prominent teal action — it opens the add-transaction
-// sheet (expense default). Active tab = Soft Teal per the nav-item idiom.
+// Phone bottom tab bar — floating pill, YNAB section set: Home · Plan ·
+// Spending · Accounts · Reflect. The add action moved to AddTxPill (floating
+// "+ Transaction" above this bar). Spec:
+// docs/superpowers/specs/2026-08-12-mobile-tabbar-ynab-spending-design.md
 import { NavLink } from 'react-router-dom';
-import { useDrawer } from '../ui/DrawerProvider.jsx';
-import { openers } from '../drawers/openers.js';
 
 const icon = d => (
   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
@@ -13,15 +12,16 @@ const icon = d => (
 );
 // Line icons in the sidebar's 1.8-stroke language.
 const ICONS = {
-  dash: 'M4 13h6V5H4v8zm10 6h6v-8h-6v8zM4 19h6v-4H4v4zm10-10h6V5h-6v4z',
-  tx: 'M4 7h13M13 3l4 4-4 4M20 17H7m4-4l-4 4 4 4',
-  budget: 'M12 3v18M5 8c0-2 14-2 14 0M5 8v8c0 2 14 2 14 0V8',
+  home: 'M3 11l9-8 9 8M5 9.5V20h5v-5h4v5h5V9.5',
+  plan: 'M12 3v18M5 8c0-2 14-2 14 0M5 8v8c0 2 14 2 14 0V8',
+  spending: 'M3 7h18v10H3zM12 9.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5',
   accounts: 'M4 10h16M4 10l8-6 8 6M6 10v8m4-8v8m4-8v8m4-8v8M4 20h16',
+  reflect: 'M4 20v-9m5.33 9V4m5.34 16v-6M20 20V9',
 };
 
 const tabStyle = ({ isActive }) => ({
   flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-  minHeight: 48, justifyContent: 'center', textDecoration: 'none', borderRadius: 10,
+  minHeight: 48, justifyContent: 'center', textDecoration: 'none', borderRadius: 999,
   color: isActive ? 'var(--text)' : 'var(--muted)',
   background: isActive ? 'var(--soft)' : 'transparent',
   fontSize: 10.5, fontWeight: isActive ? 600 : 500,
@@ -38,23 +38,20 @@ const Tab = ({ to, label, d }) => (
 );
 
 export default function MobileTabBar() {
-  const { openDrawer } = useDrawer();
   return (
     <nav aria-label="Primary" style={{
-      display: 'flex', alignItems: 'center', gap: 4, flex: 'none',
-      padding: '6px 10px calc(6px + env(safe-area-inset-bottom))',
-      background: 'var(--surface)', borderTop: '1px solid var(--border)',
+      position: 'fixed', left: 10, right: 10,
+      bottom: 'calc(8px + env(safe-area-inset-bottom))', zIndex: 40,
+      display: 'flex', alignItems: 'center', gap: 4,
+      padding: '6px 8px', background: 'var(--surface)',
+      border: '1px solid var(--border)', borderRadius: 999,
+      boxShadow: 'var(--shadow)',
     }}>
-      <Tab to="/dashboard" label="Dash" d={ICONS.dash} />
-      <Tab to="/transactions" label="Tx" d={ICONS.tx} />
-      <button onClick={() => openers.addTx(openDrawer)} aria-label="Add transaction"
-        style={{
-          width: 52, height: 52, margin: '0 6px', flex: 'none', border: 'none', borderRadius: 999,
-          background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 26, lineHeight: 1,
-          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }} className="hv-accent">＋</button>
-      <Tab to="/budget" label="Budget" d={ICONS.budget} />
+      <Tab to="/dashboard" label="Home" d={ICONS.home} />
+      <Tab to="/budget" label="Plan" d={ICONS.plan} />
+      <Tab to="/transactions" label="Spending" d={ICONS.spending} />
       <Tab to="/accounts" label="Accounts" d={ICONS.accounts} />
+      <Tab to="/reflect" label="Reflect" d={ICONS.reflect} />
     </nav>
   );
 }

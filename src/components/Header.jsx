@@ -9,6 +9,7 @@ import { openers } from '../drawers/openers.js';
 import Tooltip from '../ui/Tooltip.jsx';
 import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import TxMonthNav from './TxMonthNav.jsx';
+import MaskToggle from './MaskToggle.jsx';
 
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
@@ -67,7 +68,9 @@ export default function Header() {
       {acct ? (
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.nickname}</h1>
-          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>{acct.type} · {reconLabel}</span>
+          {/* overflow/ellipsis: without them the nowrap subtitle paints past a
+              squeezed title block and smears under the month nav on phone. */}
+          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.type} · {reconLabel}</span>
         </div>
       ) : (
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>{title}</h1>
@@ -84,6 +87,7 @@ export default function Header() {
       )}
       {showTxNav && <TxMonthNav />}
       <div style={{ flex: 1 }} />
+      <MaskToggle />
       {(syncStatus === 'retrying' || syncStatus === 'error') && (
         <span role="status" title="Changes are kept locally and pushed automatically when the connection recovers" style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
           Not saved — retrying

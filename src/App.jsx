@@ -31,6 +31,7 @@ import AgeOfMoney from './screens/reflect/AgeOfMoney.jsx';
 import { HeaderSlotProvider } from './ui/HeaderSlot.jsx';
 import { useIsPhone } from './lib/useIsPhone.js';
 import MobileTabBar from './components/MobileTabBar.jsx';
+import AddTxPill from './components/AddTxPill.jsx';
 
 // Sidebar width is user-draggable and remembered on the device (like theme).
 const SB_MIN = 208, SB_MAX = 460, SB_DEFAULT = 236, SB_KEY = 'raqam.sidebarW';
@@ -92,7 +93,11 @@ function Shell() {
       <HeaderSlotProvider>
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <Header />
-        <main style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        {/* Phone: clear the fixed tab bar (--phone-nav-clearance) PLUS the
+            floating AddTxPill (48px pill + 8px gap) so the last row is never
+            hidden behind either piece of bottom chrome. */}
+        <main style={{ flex: 1, overflowY: 'auto', minHeight: 0,
+          paddingBottom: phone ? 'calc(var(--phone-nav-clearance) + 56px)' : 0 }}>
           <Routes>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
@@ -122,6 +127,7 @@ function Shell() {
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>
+        {phone && <AddTxPill />}
         {phone && <MobileTabBar />}
       </div>
       </HeaderSlotProvider>
