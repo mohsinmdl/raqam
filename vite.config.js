@@ -15,6 +15,9 @@ export default defineConfig({
           groups: [
             { name: 'react', test: /node_modules[\\/](?:react|react-dom|react-router|react-router-dom|scheduler)[\\/]/ },
             { name: 'supabase', test: /node_modules[\\/]@supabase[\\/]/ },
+            // Base UI (headless primitives) + its Floating-UI positioning core:
+            // its own rarely-changing vendor chunk, like react/supabase above.
+            { name: 'base-ui', test: /node_modules[\\/](?:@base-ui[\\/]|@floating-ui[\\/])/ },
           ],
         },
       },
