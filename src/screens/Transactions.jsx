@@ -13,7 +13,7 @@ import { stepCursor, rangeBetween } from '../lib/rowCursor.js';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
-import { schedNote, txGroups } from '../lib/txRow.js';
+import { instName, schedNote, txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips from '../ui/TxChips.jsx';
 import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
@@ -707,14 +707,33 @@ export default function Transactions() {
         {phone && (
           <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px 4px' }}>
-              <h1 style={{ margin: 0, flex: 1, fontSize: 24, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {acct ? acct.nickname : 'Spending'}
-              </h1>
+              {acct && (
+                <button onClick={() => navigate('/accounts')} aria-label="Back to accounts" className="hv-soft"
+                  style={{ width: 44, height: 44, marginLeft: -12, border: 'none', borderRadius: 999, background: 'none',
+                    color: 'var(--text)', fontSize: 22, cursor: 'pointer', flex: 'none', lineHeight: 1 }}>‹</button>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {acct ? acct.nickname : 'Spending'}
+                </h1>
+                {acct && (
+                  <div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {instName(S, acct.instId)}
+                  </div>
+                )}
+              </div>
               {phoneSelect ? (
                 <button onClick={exitSelect} aria-label="Exit select mode" className="hv-soft"
                   style={{ width: 44, height: 44, border: 'none', borderRadius: 999, background: 'var(--elev)', color: 'var(--text)', fontSize: 18, cursor: 'pointer' }}>✕</button>
               ) : (
                 <>
+                  {acct && (
+                    <button onClick={() => openers.editAccount(S, acct.id, openDrawer)} className="hv-soft"
+                      style={{ minHeight: 44, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 999,
+                        background: 'var(--elev)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      Edit
+                    </button>
+                  )}
                   {/* Entering Select mode hides the search row, so a live query
                       would keep filtering invisibly — clear it (and collapse
                       the row) so selection always operates on the full list. */}
