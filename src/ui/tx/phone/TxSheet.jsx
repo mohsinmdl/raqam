@@ -57,9 +57,12 @@ export default function TxSheet({ def, state, requestClose }) {
   // editing. Only a truly blank add opens with the keypad up.
   const [kp, setKp] = useState(() => (f.amount ? null : ''));
   const [picker, setPicker] = useState(null); // 'category' | 'payWith' | 'account' | 'from' | 'to' | null
-  // Show more: folded away until asked for, unless a note already exists —
-  // mirrors TxForm's noteOpen seed (TxForm.jsx:54) so nothing is ever hidden.
-  const [showMore, setShowMore] = useState(() => !!f.notes);
+  // Show more: folded away until asked for, unless the form already carries
+  // non-default state there — a note, a transfer fee, or Uncleared (money-
+  // visible: excluded from totals) — mirrors TxForm's noteOpen seed
+  // (TxForm.jsx:54) plus Status/Fee always being visible on desktop, so
+  // nothing is ever hidden from an edit.
+  const [showMore, setShowMore] = useState(() => !!f.notes || !!f.fee || !!f.pending);
 
   const current = parseAmt(f.amount) || 0;
   const commitKp = () => {
@@ -254,7 +257,7 @@ export default function TxSheet({ def, state, requestClose }) {
                 for anything this shell doesn't cover (repeat, split, etc). */}
             <div style={{ marginTop: 12 }}>
               {!showMore ? (
-                <button onClick={() => { commitKp(); setShowMore(true); }} className="hv-elev"
+                <button onClick={() => { commitKp(); setShowMore(true); }} className="hv-elev" aria-expanded={false}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', height: 44,
                     border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', color: 'var(--muted)',
                     font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -262,7 +265,7 @@ export default function TxSheet({ def, state, requestClose }) {
                 </button>
               ) : (
                 <div style={card}>
-                  <Row last={false}>
+                  <Row last={false} error={errors.notes}>
                     <div style={{ padding: '10px 14px' }}>
                       <label htmlFor="tx-notes" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 4 }}>Notes</label>
                       <textarea id="tx-notes" rows={2} value={f.notes || ''} onFocus={commitKp} onChange={e => setField('notes', e.target.value)}
@@ -271,7 +274,7 @@ export default function TxSheet({ def, state, requestClose }) {
                     </div>
                   </Row>
                   {fields.transfer && (
-                    <Row last={false}>
+                    <Row last={false} error={errors.fee}>
                       <div style={{ padding: '10px 14px' }}>
                         <label htmlFor="tx-fee" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 4 }}>Transfer fee</label>
                         <input id="tx-fee" inputMode="decimal" placeholder="0" value={f.fee || ''} onFocus={commitKp} onChange={e => setField('fee', e.target.value)}
@@ -325,7 +328,7 @@ export default function TxSheet({ def, state, requestClose }) {
             catType={type === 'income' ? 'income' : 'expense'}
             onPick={id => { setField('category', id); setPicker(null); }} />
           <AccountSheet open={picker === 'payWith' || picker === 'account' || picker === 'from' || picker === 'to'} onClose={() => setPicker(null)}
-            withCards={(picker === 'payWith' && type === 'expense') || picker === 'to'} bankOpts={bankOpts} creditOpts={creditOpts}
+            withCards={(picker === 'payWith' && (type === 'expense' || type === 'refund')) || picker === 'to'} bankOpts={bankOpts} creditOpts={creditOpts}
             onPick={ref => { setField(picker === 'payWith' ? 'payWith' : picker === 'account' ? 'account' : picker, ref); setPicker(null); }} />
         </Dialog.Popup>
       </Dialog.Portal>
