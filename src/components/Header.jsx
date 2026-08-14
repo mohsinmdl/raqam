@@ -10,6 +10,8 @@ import Tooltip from '../ui/Tooltip.jsx';
 import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import { useAppLock } from '../ui/AppLockContext.jsx';
 import TxMonthNav from './TxMonthNav.jsx';
+import MonthGridPopover from './MonthGridPopover.jsx';
+import { useIsPhone } from '../lib/useIsPhone.js';
 
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
@@ -22,9 +24,10 @@ export default function Header() {
   // undo/redo stay wired here only for the global Cmd+Z / Cmd+Y shortcut below;
   // the visible buttons moved to the Transactions list toolbar.
   const { data: S, syncStatus, prefsSaved, undo, redo } = useStore();
-  const { month, isPast, isFuture, prevDisabled, nextDisabled, goPrev, goNext } = useMonth();
+  const { month, isPast, isFuture, prevDisabled, nextDisabled, goPrev, goNext, months, pick } = useMonth();
   const { drawer, openDrawer } = useDrawer();
   const { enabled: lockEnabled, lockNow } = useAppLock();
+  const phoneHdr = useIsPhone();
 
   useEffect(() => {
     const onKey = e => {
@@ -82,7 +85,10 @@ export default function Header() {
             <button onClick={goPrev} disabled={prevDisabled} aria-label="Previous month" className="hv-soft" style={{ width: 26, height: 26, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontSize: 14, opacity: prevDisabled ? .4 : 1 }}>‹</button>
             {/* Stepper shows the month abbreviated to three letters (Aug, Sep …);
                 monthLabel stays full-form for prose and range labels elsewhere. */}
-            <span className="tnum" style={{ fontSize: 13, fontWeight: 600, padding: '0 8px' }}>{monthLabel(month).replace(/^(\w{3})\w*/, '$1')}</span>
+            {phoneHdr
+              ? <MonthGridPopover month={month} months={months} pick={pick}
+                  triggerLabel={monthLabel(month).replace(/^(\w{3})\w*/, '$1')} />
+              : <span className="tnum" style={{ fontSize: 13, fontWeight: 600, padding: '0 8px' }}>{monthLabel(month).replace(/^(\w{3})\w*/, '$1')}</span>}
             <button onClick={goNext} disabled={nextDisabled} aria-label="Next month" className="hv-soft" style={{ width: 26, height: 26, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontSize: 14, opacity: nextDisabled ? .4 : 1 }}>›</button>
           </div>
           {isPast && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--info-soft)', color: 'var(--info)' }}>Closed month</span>}
