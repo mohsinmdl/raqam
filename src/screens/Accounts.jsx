@@ -10,6 +10,8 @@ import { nowIso } from '../lib/dates.js';
 import { freshInfo, instName } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import { deleteAccountPermanently, setAccountStatus } from '../store/actions.js';
+import { useIsPhone } from '../lib/useIsPhone.js';
+import AccountsPhone from '../ui/accounts/phone/AccountsPhone.jsx';
 
 const colHeader = { fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)' };
 const gridCols = { display: 'grid', gridTemplateColumns: '2fr 1.1fr 1fr 1.1fr 100px 128px', gap: 12 };
@@ -24,6 +26,7 @@ export default function Accounts() {
   const { notify, ask } = useUI();
   const nav = useNavigate();
   const now = nowIso();
+  const phone = useIsPhone();
 
   const active = S.accounts.filter(a => a.status === 'active');
   const rows = active.map(a => {
@@ -52,6 +55,8 @@ export default function Accounts() {
     applyData(data => deleteAccountPermanently(data, { id: a.id }));
     notify('“' + a.nickname + '” deleted.');
   };
+
+  if (phone) return <AccountsPhone />;
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
