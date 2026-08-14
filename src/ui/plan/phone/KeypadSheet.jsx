@@ -1,5 +1,4 @@
 import { Dialog } from '@base-ui/react/dialog';
-import { displayOf } from './keypadState.js';
 
 // The YNAB-style on-screen keypad. Deliberately NOT a text input: the draft is
 // plain state rendered as text, so the OS keyboard can never appear (the

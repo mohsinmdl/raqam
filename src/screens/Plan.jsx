@@ -1315,7 +1315,7 @@ export default function Plan() {
           canAutoAssign={suggested != null}
           onKey={onKey}
           onDone={() => { commitKp(); setKp(null); }}
-          onClose={() => setKp(null)}
+          onClose={() => { commitKp(); setKp(null); }}
           onAutoAssign={() => setKp(k => ({ ...k, draft: String(suggested) }))}
           onMoveMoney={() => {}} />
       </>
