@@ -34,6 +34,22 @@ describe('evaluate', () => {
     expect(evaluate(100, '')).toBe(null);
     expect(evaluate(100, '20+')).toBe(null);    // trailing op invalid
   });
+  it('preserves unicode-minus leading-op adjust semantics', () => {
+    expect(evaluate(5000, '+500')).toBe(5500);
+    expect(evaluate(100, '−50')).toBe(50);      // unicode minus stays an operator
+  });
+  it('treats a plain ASCII-hyphen-prefixed numeric draft as a literal, not adjust-current', () => {
+    // String(negative) produces an ASCII '-' prefix; that must NOT be parsed
+    // as a leading-operator adjustment (would wrongly compute current - 50).
+    expect(evaluate(100, '-50')).toBe(-50);     // NOT 50
+    expect(evaluate(100, '50')).toBe(50);
+  });
+  it('is idempotent when re-evaluating a negative result (= then Done)', () => {
+    const first = evaluate(100, '10−60'); // full expression, not a leading op
+    expect(first).toBe(-50);
+    const second = evaluate(100, String(first)); // '-50' — must stay -50, not 100-50
+    expect(second).toBe(-50);
+  });
 });
 
 describe('displayOf', () => {

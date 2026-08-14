@@ -34,6 +34,7 @@ export function MonthProvider({ children }) {
       nextDisabled: idx >= months.length - 1,
       goPrev: () => idx > 0 && setMonth(months[idx - 1]),
       goNext: () => idx < months.length - 1 && setMonth(months[idx + 1]),
+      pick: m => { if (months.includes(m)) setMonth(m); },
     };
   }, [month, months]);
 

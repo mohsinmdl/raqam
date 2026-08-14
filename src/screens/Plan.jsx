@@ -22,9 +22,10 @@ import { hasTarget, targetNeeded } from '../lib/targets.js';
 import { autoAssignAmount } from '../lib/inspector.js';
 import { rangeBetween } from '../lib/rowCursor.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
-import PlanPhone from '../ui/plan/phone/PlanPhone.jsx';
+import PlanPhone, { phoneGroupKeysFor } from '../ui/plan/phone/PlanPhone.jsx';
 import KeypadSheet from '../ui/plan/phone/KeypadSheet.jsx';
 import MoneySheets from '../ui/plan/phone/MoneySheets.jsx';
+import PlanOverflowMenu from '../ui/plan/phone/PlanOverflowMenu.jsx';
 import * as KP from '../ui/plan/phone/keypadState.js';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
@@ -203,21 +204,19 @@ function AdoptionBanner({ noGroups, needsImport, onAdopt, onImport, onDismiss })
 // balances/income/assignments/uncategorized spend, and a derived overspending
 // line so the rows sum to `rta` exactly (see the identity comment below).
 // Zero rows are hidden; the total never is.
-function RtaBreakdown({ env, prevRta, month, money, moneyS, fg, labelColor }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
-  const close = () => setOpen(false);
-  usePopoverDismiss(open, rootRef, close);
-
+// Pure derivation of the RTA breakdown line items — shared by RtaBreakdown
+// (this desktop banner popover) and the phone Assign sheet (AssignSheetBody
+// in MoneySheets.jsx), so the two surfaces can never drift apart. Exact by
+// construction: rearranging rta = prevRta + opening + income - assigned -
+// uncategorized - prevOverspend (envelope.js's own fold) for prevOverspend is
+// what makes the breakdown's rows sum to `rta`. Derived, not read off env:
+// this is the one term envelope.js doesn't hand back directly, and the same
+// fold identity that makes it exact also guarantees it is >= 0 — it only ever
+// subtracts from the displayed total.
+export function rtaBreakdownLines(env, prevRta, month) {
   const monthName = monthLabel(month).split(' ')[0];
-  // Exact by construction: rearranging rta = prevRta + opening + income -
-  // assigned - uncategorized - prevOverspend (envelope.js's own fold) for
-  // prevOverspend is what makes the breakdown's rows sum to `rta`.
-  // Derived, not read off env: this is the one term envelope.js doesn't hand
-  // back directly, and the same fold identity that makes it exact also
-  // guarantees it is >= 0 — it only ever subtracts from the displayed total.
   const overspend = prevRta + env.openingTotal + env.income - env.assignedTotal - env.uncategorized - env.rta;
-  const rows = [
+  return [
     { label: 'Left over from last month', value: prevRta },
     { label: '+ Opening balances', value: env.openingTotal },
     { label: '+ Inflow: income in ' + monthName, value: env.income },
@@ -225,6 +224,15 @@ function RtaBreakdown({ env, prevRta, month, money, moneyS, fg, labelColor }) {
     { label: '− Uncategorized outflows', value: -env.uncategorized },
     { label: '− Last month’s overspending', value: -overspend },
   ].filter(r => r.value !== 0);
+}
+
+function RtaBreakdown({ env, prevRta, month, money, moneyS, fg, labelColor }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const close = () => setOpen(false);
+  usePopoverDismiss(open, rootRef, close);
+
+  const rows = rtaBreakdownLines(env, prevRta, month);
 
   return (
     <div ref={rootRef} style={{ position: 'relative' }}>
@@ -1283,7 +1291,24 @@ export default function Plan() {
         applyData(data => setAssigned(data, { categoryId: kp.catId, month, amount: v }));
       }
     };
-    const openKeypad = (cat) => { commitKp(); setKp({ catId: cat.id, draft: '' }); };
+    const openKeypad = (cat) => {
+      commitKp();
+      setKp({ catId: cat.id, draft: '' });
+      requestAnimationFrame(() => document.querySelector('[data-cat="' + cat.id + '"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    };
+    // Collapse/Expand-all (overflow menu) must operate on the PHONE list's own
+    // group keys — not desktop shownKeys, which is filtered by the desktop-only
+    // view pill and would silently no-op on phone-visible-but-desktop-hidden
+    // groups (or vice versa).
+    // Not memoized: this is inside the phone-only early-return branch, which
+    // runs after every other hook in the component — a useMemo here would be
+    // called conditionally (only when `phone` is true) and violate the Rules
+    // of Hooks if the phone/desktop breakpoint ever flips mid-session.
+    const phoneKeys = phoneGroupKeysFor(S, env, collapsed);
+    const phoneAllCollapsed = phoneKeys.length > 0 && phoneKeys.every(k => collapsed.has(k));
+    const togglePhoneAllGroups = () => setCollapsed(phoneAllCollapsed ? new Set() : new Set(phoneKeys));
+    // Matches ViewToggle's own predicate (line ~368): only 'compact' is "off".
+    const progressOn = prefs.planView !== 'compact';
     const onKey = (action, payload) => setKp(k => {
       if (!k) return k;
       if (action === 'digit') return { ...k, draft: KP.pressDigit(k.draft, payload) };
@@ -1308,12 +1333,29 @@ export default function Plan() {
     const suggested = underNeed > 0 ? kpRow.assigned + underNeed : null;
     return (
       <>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px 0' }}>
+          <PlanOverflowMenu
+            undo={undo} canUndo={canUndo}
+            allCollapsed={phoneAllCollapsed} onToggleAll={togglePhoneAllGroups}
+            progressOn={progressOn}
+            onToggleProgress={() => setPrefs({ planView: progressOn ? 'compact' : 'progress' })}
+            maskedOn={prefs.masked} onToggleMasked={() => setPrefs({ masked: !prefs.masked })}
+          />
+        </div>
         <PlanPhone S={S} env={env} month={month} money={money}
           collapsed={collapsed} toggleGroup={toggleGroup}
           onAssignTap={openKeypad}
-          onPillTap={(cat, row) => setSheet({ kind: row.available < 0 ? 'cover' : 'move', cat, row })}
-          onRtaTap={() => setSheet({ kind: 'assign' })}
-          onCoverTap={() => setSheet({ kind: 'overspent', onPick: (cat, row) => setSheet({ kind: 'cover', cat, row }) })}
+          onPillTap={(cat, row) => {
+            commitKp(); setKp(null);
+            // Read the fresh env row rather than the (possibly stale, e.g.
+            // just-committed-by-keypad) snapshot the row prop carries, so
+            // Cover-vs-Move is decided off the number actually on screen.
+            const fresh = env.rows.get(cat.id) || row;
+            setSheet({ kind: fresh.available < 0 ? 'cover' : 'move', cat, row: fresh });
+          }}
+          onRtaTap={() => { commitKp(); setKp(null); setSheet({ kind: 'assign' }); }}
+          onCoverTap={() => { commitKp(); setKp(null); setSheet({ kind: 'overspent', onPick: (cat, row) => setSheet({ kind: 'cover', cat, row }) }); }}
+          onHiddenTap={() => { commitKp(); setKp(null); setSheet({ kind: 'hidden' }); }}
           assignDraft={kp ? { catId: kp.catId, text: kp.draft ? KP.displayOf(kp.draft) : money(kpRow.assigned) } : null} />
         <KeypadSheet open={!!kp} cat={kpCat}
           hint={need ? { label: 'Assign ' + money(need) + ' more to cover overspending',
@@ -1324,7 +1366,7 @@ export default function Plan() {
           onClose={() => { commitKp(); setKp(null); }}
           onAutoAssign={() => setKp(k => ({ ...k, draft: String(suggested) }))}
           onMoveMoney={() => { commitKp(); setKp(null); setSheet({ kind: 'move', cat: kpCat, row: kpRow }); }} />
-        <MoneySheets sheet={sheet} onClose={() => setSheet(null)} env={env} S={S} month={month} money={money} applyData={applyData} />
+        <MoneySheets sheet={sheet} onClose={() => setSheet(null)} env={env} prevRta={prevRta} S={S} month={month} money={money} moneyS={moneyS} applyData={applyData} />
       </>
     );
   }

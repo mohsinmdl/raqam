@@ -4,18 +4,23 @@ import { useMemo } from 'react';
 // tokens. Read-only skeleton in PR1: taps are wired by the keypad (PR2) and
 // sheets (PR3) layers via the on*Tap props.
 const hair = '1px solid var(--border)';
-const colHead = { fontSize: 11, fontWeight: 600, color: 'var(--muted)', lineHeight: 1.2 };
+const colHead = { fontSize: 11, fontWeight: 600, color: 'var(--text)', lineHeight: 1.2 };
 
-// Derives the flat list the phone screen renders. Groups in sortOrder, their
-// active expense categories, per-group Assigned/Available sums from env.rows.
+// Derives the flat list the phone screen renders. Mirrors desktop `sections`
+// (Plan.jsx sections memo) exactly: groups sorted by (sortOrder || 0) with a
+// name tiebreak, each group's categories sorted the same way, and a dangling
+// groupId (group deleted, or never set) re-bucketed into the same synthetic
+// 'other' key desktop uses — so Collapse-all and other cross-referencing code
+// can compare phone/desktop group keys directly.
 export function phoneRowsFor(S, env, collapsed) {
-  const groups = [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
+  const groups = [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
   const cats = (S.categories || []).filter(c => c.type === 'expense');
   const active = cats.filter(c => c.status === 'active');
   const hiddenCount = cats.filter(c => c.status === 'archived').length;
   const out = [];
   const overspent = [];
-  const bucket = gid => active.filter(c => (c.groupId || null) === gid);
+  const sortCats = list => [...list].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
+  const bucket = gid => sortCats(active.filter(c => (c.groupId || null) === gid));
   const emit = (key, name, members) => {
     if (!members.length) return;
     let assigned = 0, available = 0;
@@ -30,9 +35,16 @@ export function phoneRowsFor(S, env, collapsed) {
   };
   const ids = new Set(groups.map(g => g.id));
   groups.forEach(g => emit(g.id, g.name, bucket(g.id)));
-  const other = active.filter(c => !c.groupId || !ids.has(c.groupId));
-  emit('__other', 'Other', other);
+  const other = sortCats(active.filter(c => !c.groupId || !ids.has(c.groupId)));
+  emit('other', 'Other', other);
   return { list: out, hiddenCount, overspent };
+}
+
+// The distinct group keys the phone list currently renders (in list order),
+// used by the overflow menu's Collapse/Expand-all so it operates on what's
+// actually on screen rather than the desktop view-pill's filtered key set.
+export function phoneGroupKeysFor(S, env, collapsed) {
+  return [...new Set(phoneRowsFor(S, env, collapsed).list.filter(i => i.kind === 'group').map(i => i.key))];
 }
 
 const pillTone = v => v > 0 ? { background: 'var(--pos-soft)', color: 'var(--pos)' }
@@ -42,6 +54,7 @@ const pillTone = v => v > 0 ? { background: 'var(--pos-soft)', color: 'var(--pos
 export default function PlanPhone({
   S, env, month, money, collapsed, toggleGroup,
   onAssignTap = () => {}, onPillTap = () => {}, onRtaTap = null, onCoverTap = null,
+  onHiddenTap = null,
   assignDraft = null, // { catId, text } while the keypad edits a row (PR2)
 }) {
   const { list, hiddenCount, overspent } = useMemo(
@@ -110,15 +123,21 @@ export default function PlanPhone({
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {item.cat.emoji ? item.cat.emoji + ' ' : ''}{item.cat.name}
             </span>
-            <button className="tnum" onClick={() => onAssignTap(item.cat, item.row)}
-              aria-label={'Assigned for ' + item.cat.name}
-              style={{ border: 'none', background: 'transparent', padding: '10px 4px', cursor: 'pointer',
-                fontSize: 14.5, fontWeight: 600,
-                color: assignDraft && assignDraft.catId === item.cat.id ? 'var(--accent)' : 'var(--text)' }}>
-              {assignDraft && assignDraft.catId === item.cat.id ? assignDraft.text : money(item.row.assigned)}
-            </button>
-            <button className="tnum" onClick={() => item.row.available !== 0 && onPillTap(item.cat, item.row)}
-              aria-label={'Available for ' + item.cat.name}
+            {(() => {
+              const isDraft = !!(assignDraft && assignDraft.catId === item.cat.id);
+              return (
+                <button className="tnum" onClick={() => onAssignTap(item.cat, item.row)}
+                  aria-label={'Assigned for ' + item.cat.name + ': ' + (isDraft ? assignDraft.text : money(item.row.assigned))}
+                  style={{ border: 'none', background: 'transparent', padding: '10px 4px', cursor: 'pointer',
+                    fontSize: 14.5, fontWeight: 600,
+                    color: isDraft ? 'var(--accent)' : 'var(--text)' }}>
+                  <span aria-live="polite">{isDraft ? assignDraft.text : money(item.row.assigned)}</span>
+                </button>
+              );
+            })()}
+            <button className="tnum" onClick={() => onPillTap(item.cat, item.row)}
+              disabled={item.row.available === 0}
+              aria-label={'Available for ' + item.cat.name + ': ' + money(item.row.available)}
               style={{ flex: 'none', minWidth: 76, textAlign: 'center', border: 'none', borderRadius: 999,
                 padding: '6px 10px', fontSize: 13.5, fontWeight: 700,
                 cursor: item.row.available !== 0 ? 'pointer' : 'default', ...pillTone(item.row.available) }}>
@@ -127,9 +146,17 @@ export default function PlanPhone({
           </div>
         ))}
         {hiddenCount > 0 && (
-          <div style={{ padding: '12px', fontSize: 13.5, color: 'var(--muted)' }}>
-            {hiddenCount} hidden {hiddenCount === 1 ? 'category' : 'categories'}
-          </div>
+          onHiddenTap ? (
+            <button onClick={onHiddenTap} className="hv-soft"
+              style={{ display: 'block', width: '100%', border: 'none', background: 'transparent',
+                textAlign: 'left', padding: '12px', fontSize: 13.5, color: 'var(--muted)', cursor: 'pointer' }}>
+              <span className="tnum">{hiddenCount}</span> hidden {hiddenCount === 1 ? 'category' : 'categories'} ›
+            </button>
+          ) : (
+            <div style={{ padding: '12px', fontSize: 13.5, color: 'var(--muted)' }}>
+              <span className="tnum">{hiddenCount}</span> hidden {hiddenCount === 1 ? 'category' : 'categories'}
+            </div>
+          )
         )}
       </div>
     </div>
