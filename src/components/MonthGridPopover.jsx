@@ -49,6 +49,8 @@ export default function MonthGridPopover({ month, months, pick, triggerLabel }) 
           {g.cells.map(c => (
             <PopoverClose key={c.ym} disabled={!c.enabled}
               onClick={() => c.enabled && pick(c.ym)}
+              aria-label={c.label + ' ' + year}
+              aria-current={c.ym === month ? 'date' : undefined}
               style={{ height: 40, border: 'none', borderRadius: 999, fontSize: 13, fontWeight: 600,
                 cursor: c.enabled ? 'pointer' : 'default',
                 background: c.ym === month ? 'var(--accent)' : 'transparent',

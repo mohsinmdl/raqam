@@ -11,7 +11,7 @@ const opBtn = { ...keyBtn, background: 'var(--soft)', color: 'var(--accent)' };
 
 export default function KeypadSheet({ open, cat, hint, canAutoAssign, onKey, onDone, onClose, onAutoAssign, onMoveMoney }) {
   return (
-    <Dialog.Root open={open} onOpenChange={o => { if (!o) onClose(); }} modal={false}>
+    <Dialog.Root open={open} onOpenChange={o => { if (!o) onClose(); }} modal={false} disablePointerDismissal>
       <Dialog.Portal>
         <Dialog.Popup aria-label={'Assign to ' + (cat ? cat.name : '')}
           style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 60,

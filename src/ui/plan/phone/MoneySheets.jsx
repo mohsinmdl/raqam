@@ -13,12 +13,15 @@ import { phoneRowsFor } from './PlanPhone.jsx';
 import { moveAssigned } from '../../../store/actions.js';
 import { parseAmt } from '../../../lib/format.js';
 import { useUI } from '../../UIProvider.jsx';
+import { rtaBreakdownLines } from '../../../screens/Plan.jsx';
 
 const label = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', margin: '0 0 4px' };
 const amountInput = { width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', textAlign: 'right',
   border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 14, marginBottom: 12 };
 const okBtn = ok => ({ flex: 1, height: 42, border: 'none', borderRadius: 999, background: 'var(--accent)',
   color: 'var(--on-accent)', fontSize: 14, fontWeight: 700, cursor: ok ? 'pointer' : 'default', opacity: ok ? 1 : .5 });
+
+const breakdownRow = { display: 'flex', justifyContent: 'space-between', gap: 10, padding: '3px 0', fontSize: 12 };
 
 function SheetShell({ open, onClose, title, children }) {
   return (
@@ -112,17 +115,17 @@ function MoveSheetBody({ sheet, onClose, env, S, month, money, applyData }) {
 // Mirrors AssignPopover's "Manually" tab (Plan.jsx:268-340) — the "⚡ Auto"
 // tab is a disabled placeholder there too, so it's dropped here rather than
 // carried onto a sheet with no room for a second tab strip. The RTA
-// breakdown rows (RtaBreakdown, Plan.jsx:205-260) are NOT reproduced here:
-// its data derivation lives inline inside that component (not a standalone,
-// importable function), and copying its math out would duplicate rather than
-// reuse it — out of scope for this task per the brief.
-function AssignSheetBody({ onClose, env, S, month, money, applyData }) {
+// breakdown rows above the amount field reuse rtaBreakdownLines (exported
+// from screens/Plan.jsx), the same pure derivation RtaBreakdown's desktop
+// popover renders from — so the two surfaces can never drift apart.
+function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, applyData }) {
   const { notify } = useUI();
   const [amount, setAmount] = useState(() => String(Math.max(0, env.rta)));
   const [to, setTo] = useState(null);
   const toCat = to && S.categories.find(c => c.id === to);
   const amt = parseAmt(amount);
   const canAssign = !!to && amt > 0;
+  const rows = rtaBreakdownLines(env, prevRta, month);
   const confirm = () => {
     if (!canAssign || to === 'rta') return;
     const name = toCat ? toCat.name : to;
@@ -132,6 +135,16 @@ function AssignSheetBody({ onClose, env, S, month, money, applyData }) {
   };
   return (
     <>
+      {rows.length > 0 && (
+        <div style={{ background: 'var(--elev)', borderRadius: 8, padding: '6px 10px', marginBottom: 12 }}>
+          {rows.map(r => (
+            <div key={r.label} style={breakdownRow}>
+              <span style={{ color: 'var(--muted)' }}>{r.label}</span>
+              <span className="tnum" style={{ color: 'var(--muted)' }}>{moneyS(r.value)}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <span style={label}>Assign</span>
       <input
         className="tnum" value={amount} inputMode="numeric"
@@ -175,15 +188,41 @@ function OverspentSheetBody({ sheet, env, S, money }) {
   );
 }
 
-export default function MoneySheets({ sheet, onClose, env, S, month, money, applyData }) {
-  if (!sheet) return null;
-  const titles = { cover: 'Cover overspending', move: 'Move money', assign: 'Assign money', overspent: 'Overspent Categories' };
+// Read-only list of hidden (archived) expense categories, opened from the
+// phone list's "N hidden categories" row. Unhide stays desktop-only (per
+// spec) — this is display only, no actions.
+function HiddenSheetBody({ S }) {
+  const hidden = (S.categories || []).filter(c => c.type === 'expense' && c.status === 'archived');
+  if (!hidden.length) return <div style={{ fontSize: 13, color: 'var(--muted)' }}>No hidden categories.</div>;
   return (
-    <SheetShell open onClose={onClose} title={titles[sheet.kind]}>
-      {sheet.kind === 'cover' && <CoverSheetBody {...{ sheet, onClose, env, S, month, money, applyData }} />}
-      {sheet.kind === 'move' && <MoveSheetBody {...{ sheet, onClose, env, S, month, money, applyData }} />}
-      {sheet.kind === 'assign' && <AssignSheetBody {...{ onClose, env, S, month, money, applyData }} />}
-      {sheet.kind === 'overspent' && <OverspentSheetBody {...{ sheet, env, S, money }} />}
+    <div>
+      {hidden.map((cat, i) => (
+        <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 2px',
+          borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
+          <span style={{ fontSize: 14.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {cat.emoji ? cat.emoji + ' ' : ''}{cat.name}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function MoneySheets({ sheet, onClose, env, prevRta, S, month, money, moneyS, applyData }) {
+  const titles = { cover: 'Cover overspending', move: 'Move money', assign: 'Assign money', overspent: 'Overspent Categories', hidden: 'Hidden categories' };
+  // Keep the shell (and its last body) mounted through the close animation
+  // instead of unmount-yanking the content the instant `sheet` goes null —
+  // Base UI's Dialog can then animate its own close rather than snapping shut.
+  const [last, setLast] = useState(sheet);
+  if (sheet && sheet !== last) setLast(sheet);
+  const shown = sheet || last;
+  return (
+    <SheetShell open={!!sheet} onClose={onClose} title={shown ? titles[shown.kind] : ''}>
+      {shown && shown.kind === 'cover' && <CoverSheetBody {...{ sheet: shown, onClose, env, S, month, money, applyData }} />}
+      {shown && shown.kind === 'move' && <MoveSheetBody {...{ sheet: shown, onClose, env, S, month, money, applyData }} />}
+      {shown && shown.kind === 'assign' && <AssignSheetBody {...{ onClose, env, prevRta, S, month, money, moneyS, applyData }} />}
+      {shown && shown.kind === 'overspent' && <OverspentSheetBody {...{ sheet: shown, env, S, money }} />}
+      {shown && shown.kind === 'hidden' && <HiddenSheetBody {...{ S }} />}
     </SheetShell>
   );
 }
