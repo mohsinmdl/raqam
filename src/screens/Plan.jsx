@@ -26,7 +26,7 @@ import PlanPhone, { phoneGroupKeysFor } from '../ui/plan/phone/PlanPhone.jsx';
 import KeypadSheet from '../ui/plan/phone/KeypadSheet.jsx';
 import MoneySheets from '../ui/plan/phone/MoneySheets.jsx';
 import PlanOverflowMenu from '../ui/plan/phone/PlanOverflowMenu.jsx';
-import * as KP from '../ui/plan/phone/keypadState.js';
+import * as KP from '../lib/keypadState.js';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
 import ViewEditorModal from '../ui/plan/ViewEditorModal.jsx';
