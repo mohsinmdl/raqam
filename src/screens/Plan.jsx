@@ -24,6 +24,7 @@ import { rangeBetween } from '../lib/rowCursor.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import PlanPhone from '../ui/plan/phone/PlanPhone.jsx';
 import KeypadSheet from '../ui/plan/phone/KeypadSheet.jsx';
+import MoneySheets from '../ui/plan/phone/MoneySheets.jsx';
 import * as KP from '../ui/plan/phone/keypadState.js';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
@@ -1225,6 +1226,8 @@ export default function Plan() {
   // Phone keypad editing state: which category and the raw draft expression.
   // Kept here (not in PlanPhone) so a tap on another row can commit-then-switch.
   const [kp, setKp] = useState(null); // { catId, draft } | null
+  // Phone money-sheet state (Cover/Move/Assign/Overspent) — see MoneySheets.jsx.
+  const [sheet, setSheet] = useState(null);
 
   const saveView = ({ name, categoryIds }) => {
     if (editing === 'new') {
@@ -1308,6 +1311,9 @@ export default function Plan() {
         <PlanPhone S={S} env={env} month={month} money={money}
           collapsed={collapsed} toggleGroup={toggleGroup}
           onAssignTap={openKeypad}
+          onPillTap={(cat, row) => setSheet({ kind: row.available < 0 ? 'cover' : 'move', cat, row })}
+          onRtaTap={() => setSheet({ kind: 'assign' })}
+          onCoverTap={() => setSheet({ kind: 'overspent', onPick: (cat, row) => setSheet({ kind: 'cover', cat, row }) })}
           assignDraft={kp ? { catId: kp.catId, text: kp.draft ? KP.displayOf(kp.draft) : money(kpRow.assigned) } : null} />
         <KeypadSheet open={!!kp} cat={kpCat}
           hint={need ? { label: 'Assign ' + money(need) + ' more to cover overspending',
@@ -1317,7 +1323,8 @@ export default function Plan() {
           onDone={() => { commitKp(); setKp(null); }}
           onClose={() => { commitKp(); setKp(null); }}
           onAutoAssign={() => setKp(k => ({ ...k, draft: String(suggested) }))}
-          onMoveMoney={() => {}} />
+          onMoveMoney={() => { commitKp(); setKp(null); setSheet({ kind: 'move', cat: kpCat, row: kpRow }); }} />
+        <MoneySheets sheet={sheet} onClose={() => setSheet(null)} env={env} S={S} month={month} money={money} applyData={applyData} />
       </>
     );
   }
