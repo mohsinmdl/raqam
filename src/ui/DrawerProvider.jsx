@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import FocusTrap from './FocusTrap.jsx';
 import { useUI } from './UIProvider.jsx';
+import { useIsPhone } from '../lib/useIsPhone.js';
+import TxSheet from './tx/phone/TxSheet.jsx';
 
 // Drawer system — chrome ported from the prototype (template 514-528, footer 742-746).
 // Drawer bodies register in src/drawers/index.js as:
@@ -65,6 +67,7 @@ function DrawerShell({ def, state, closeDrawer, requestClose }) {
 
 export function DrawerProvider({ registry, children }) {
   const { confirmOpen } = useUI();
+  const phone = useIsPhone();
   const [state, setState] = useState(null); // { name, form, errors, errList, dupMsg, dupAck, dirty }
   const stateRef = useRef(null);
   stateRef.current = state; // ref mirror: async handlers need the CURRENT dirty flag
@@ -99,14 +102,24 @@ export function DrawerProvider({ registry, children }) {
     setState(null);
   }, [ask]);
 
+  // Phone renders the addTx drawer as TxSheet (its own Base UI Dialog) instead
+  // of the classic DrawerShell — but only for the types TxSheet supports so
+  // far. A type switch to transfer/refund/adjustment mid-edit falls back to
+  // the classic drawer; Task 7 widens this list to all five types.
+  const phoneTx = phone && state?.name === 'addTx' && !state.form._classic
+    && ['expense', 'income'].includes(state.form.type || 'expense');
+
   // Escape closes the drawer — unless the confirm dialog is stacked above it
-  // (its capture-phase listener already consumed the key).
+  // (its capture-phase listener already consumed the key), or TxSheet is
+  // rendering: its own Base UI Dialog owns Escape there (onOpenChange →
+  // requestClose), and this listener firing too would trigger a second
+  // discard-confirm for the same keypress.
   useEffect(() => {
     if (!state) return;
-    const onKey = e => { if (e.key === 'Escape' && !confirmOpen) requestClose(); };
+    const onKey = e => { if (e.key === 'Escape' && !confirmOpen && !phoneTx) requestClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [state, confirmOpen, requestClose]);
+  }, [state, confirmOpen, phoneTx, requestClose]);
 
   const value = useMemo(
     () => ({ drawer: state, openDrawer, closeDrawer, setForm, setField, fail, setDup }),
@@ -118,7 +131,9 @@ export function DrawerProvider({ registry, children }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      {state && def && <DrawerShell key={state.name} def={def} state={state} closeDrawer={closeDrawer} requestClose={requestClose} />}
+      {state && def && (phoneTx
+        ? <TxSheet key="tx-phone" def={def} state={state} requestClose={requestClose} />
+        : <DrawerShell key={state.name} def={def} state={state} closeDrawer={closeDrawer} requestClose={requestClose} />)}
     </Ctx.Provider>
   );
 }

@@ -29,7 +29,7 @@ const HINTS = {
 };  // adjustment has no hint: the note under its fields already says more
 const CTAS = { expense: 'Record expense', income: 'Record income', transfer: 'Record transfer', refund: 'Record refund', adjustment: 'Record adjustment' };
 
-function useOpts() {
+export function useTxOpts() {
   const { data: S } = useStore();
   const { money } = useMoney();
   const month = currentMonth();
@@ -42,7 +42,7 @@ function useOpts() {
 
 function Body() {
   const { drawer, setForm, setField } = useDrawer();
-  const { S, activeAccts, bankOpts, creditOpts } = useOpts();
+  const { S, activeAccts, bankOpts, creditOpts } = useTxOpts();
   const { money, moneyRaw } = useMoney();
   const month = currentMonth();
   // Envelope drives the available amount shown beside each expense category in

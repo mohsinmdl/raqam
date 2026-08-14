@@ -1,6 +1,6 @@
 // tests/keypad-state.test.js
 import { describe, it, expect } from 'vitest';
-import { pressDigit, pressOp, pressBackspace, pressClear, evaluate, displayOf } from '../src/ui/plan/phone/keypadState.js';
+import { pressDigit, pressOp, pressBackspace, pressClear, evaluate, displayOf } from '../src/lib/keypadState.js';
 
 describe('keypad draft editing', () => {
   it('appends digits', () => {

@@ -1,9 +1,9 @@
-// src/ui/plan/phone/keypadState.js
+// src/lib/keypadState.js
 // Pure draft-string editing for the phone keypad sheet. The draft is a raw
 // calculator expression ('1500+40'); rendering/grouping is displayOf's job and
 // evaluation is applyCalcExpr's (same left-to-right semantics as the desktop
 // ASSIGNED cell).
-import { applyCalcExpr } from '../../../lib/calcExpr.js';
+import { applyCalcExpr } from './calcExpr.js';
 
 const OPS = ['−', '+', '×', '÷'];
 const lastSegment = draft => draft.split(/[−+×÷]/).pop();
