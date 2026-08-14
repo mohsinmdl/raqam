@@ -21,6 +21,7 @@ import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visible
 import { hasTarget, targetNeeded } from '../lib/targets.js';
 import { rangeBetween } from '../lib/rowCursor.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
+import PlanPhone from '../ui/plan/phone/PlanPhone.jsx';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
 import ViewEditorModal from '../ui/plan/ViewEditorModal.jsx';
@@ -1261,6 +1262,14 @@ export default function Plan() {
   // table's own 16px row inset instead of jamming against the sidebar.
   const wide = prefs.planWide !== false;
   const rowInset = wide ? { paddingLeft: 16, paddingRight: 16 } : null;
+
+  if (phone) {
+    return (
+      <PlanPhone S={S} env={env} month={month} money={money}
+        collapsed={collapsed} toggleGroup={toggleGroup} />
+    );
+  }
+
   return (
     <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '16px 0 56px' : '24px 28px 56px' }}>
       <div className="plan-root" style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
