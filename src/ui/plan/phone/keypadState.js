@@ -22,6 +22,11 @@ export function pressBackspace(draft) { return draft.slice(0, -1); }
 export function pressClear() { return ''; }
 export function evaluate(current, draft) {
   if (!draft) return null;
+  // A plain ASCII-hyphen-prefixed numeric draft (only ever produced by
+  // String(negativeNumber), e.g. when re-evaluating a committed result) is a
+  // literal value, not a leading-operator adjustment. The unicode minus '−'
+  // typed via the keypad op button is unaffected and still means adjust-current.
+  if (/^-?\d+(\.\d+)?$/.test(draft)) return Math.round(Number(draft));
   return applyCalcExpr(current, draft);
 }
 export function displayOf(draft) {
