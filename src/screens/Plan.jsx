@@ -25,6 +25,7 @@ import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import PlanPhone from '../ui/plan/phone/PlanPhone.jsx';
 import KeypadSheet from '../ui/plan/phone/KeypadSheet.jsx';
 import MoneySheets from '../ui/plan/phone/MoneySheets.jsx';
+import PlanOverflowMenu from '../ui/plan/phone/PlanOverflowMenu.jsx';
 import * as KP from '../ui/plan/phone/keypadState.js';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
@@ -1308,6 +1309,15 @@ export default function Plan() {
     const suggested = underNeed > 0 ? kpRow.assigned + underNeed : null;
     return (
       <>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px 0' }}>
+          <PlanOverflowMenu
+            undo={undo} canUndo={canUndo}
+            allCollapsed={allCollapsed} onToggleAll={toggleAllGroups}
+            progressOn={prefs.planView === 'progress'}
+            onToggleProgress={() => setPrefs({ planView: prefs.planView === 'progress' ? 'compact' : 'progress' })}
+            maskedOn={prefs.masked} onToggleMasked={() => setPrefs({ masked: !prefs.masked })}
+          />
+        </div>
         <PlanPhone S={S} env={env} month={month} money={money}
           collapsed={collapsed} toggleGroup={toggleGroup}
           onAssignTap={openKeypad}

@@ -57,6 +57,29 @@ function DayGroup({ group }) {
   );
 }
 
+// The reusable list body — day-grouped audit rows, scrollable, with the empty
+// state. Self-contained (reads the store itself) so both the desktop popover
+// below and the phone Recent Moves sheet (PlanOverflowMenu) can mount it with
+// no props beyond an optional filter.
+export function RecentMovesList({ filter = 'all' }) {
+  const { data: S } = useStore();
+  const audit = S.audit || [];
+  const rows = filterMoves(audit, filter);
+  const groups = groupMovesByDay(rows, nowIso());
+  const total = moveCount(audit, 'all');
+  return (
+    <div style={listStyle}>
+      {groups.map(g => <DayGroup key={g.day} group={g} />)}
+
+      {groups.length === 0 && (
+        <div style={{ padding: '28px 8px', textAlign: 'center', color: 'var(--muted)', fontSize: 12.5 }}>
+          {total === 0 ? 'Nothing recorded yet.' : 'No moves match this filter.'}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function RecentMoves() {
   const { data: S } = useStore();
   const [open, setOpen] = useState(false);
@@ -80,9 +103,6 @@ export default function RecentMoves() {
   }, [open]);
 
   const audit = S.audit || [];
-  const rows = filterMoves(audit, filter);
-  const groups = groupMovesByDay(rows, nowIso());
-  const total = moveCount(audit, 'all');
 
   return (
     <div ref={rootRef} style={{ position: 'relative', flex: 'none' }}>
@@ -131,15 +151,7 @@ export default function RecentMoves() {
             </div>
           </div>
 
-          <div style={listStyle}>
-            {groups.map(g => <DayGroup key={g.day} group={g} />)}
-
-            {groups.length === 0 && (
-              <div style={{ padding: '28px 8px', textAlign: 'center', color: 'var(--muted)', fontSize: 12.5 }}>
-                {total === 0 ? 'Nothing recorded yet.' : 'No moves match this filter.'}
-              </div>
-            )}
-          </div>
+          <RecentMovesList filter={filter} />
 
           <div
             style={{
