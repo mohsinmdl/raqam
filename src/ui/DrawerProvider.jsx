@@ -103,11 +103,10 @@ export function DrawerProvider({ registry, children }) {
   }, [ask]);
 
   // Phone renders the addTx drawer as TxSheet (its own Base UI Dialog) instead
-  // of the classic DrawerShell — but only for the types TxSheet supports so
-  // far. A type switch to transfer/refund/adjustment mid-edit falls back to
-  // the classic drawer; Task 7 widens this list to all five types.
-  const phoneTx = phone && state?.name === 'addTx' && !state.form._classic
-    && ['expense', 'income'].includes(state.form.type || 'expense');
+  // of the classic DrawerShell, for all five transaction types. TxSheet's own
+  // "All options" row sets form._classic to hand the SAME form state to this
+  // classic shell (repeat, split, and anything else TxSheet doesn't cover).
+  const phoneTx = phone && state?.name === 'addTx' && !state.form._classic;
 
   // Escape closes the drawer — unless the confirm dialog is stacked above it
   // (its capture-phase listener already consumed the key), or TxSheet is
