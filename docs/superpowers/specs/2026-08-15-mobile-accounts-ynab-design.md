@@ -80,6 +80,20 @@ with `fromRecurring` keep the classic TxForm even on phone, and the phone
 editor covers plain add/edit only. The plan decides after reading the code;
 either way the invariant is "one submission code path per flow".
 
+**Resolved at implementation:** the shipped architecture satisfies the
+invariant above without extracting anything. TxSheet (`src/ui/tx/
+phone/TxSheet.jsx`) is not a second editor that calls into shared logic — it
+is an alternate *presentation* of the same `addTx` drawer. DrawerProvider
+picks TxSheet vs. the classic TxForm shell for the same drawer instance, so
+both consume the identical `drawer.form` state and call the identical
+`def.useSubmit()` / `def.useDanger()` from TxForm.jsx directly — there is
+only ever one submit function object, not two call sites into a shared
+module. This is zero duplication by construction, so the `fromRecurring`
+fallback described above was never needed: recurring occurrences go through
+`useSubmit` regardless of which shell rendered the form. Do not refactor
+this back toward an extracted submit module — that would reintroduce a
+second code path for no benefit.
+
 ## ① Phone Accounts screen
 
 `Accounts.jsx` gates to `<AccountsPhone/>`. Top to bottom:

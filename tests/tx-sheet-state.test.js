@@ -6,6 +6,11 @@ import { fieldsFor, tintFor, merchantLabel, payWithLabel, accountLabel } from '.
 const T = {
   expense:    { merchant: true,  category: true,  payWith: true,  account: false, transfer: false, adjust: false },
   income:     { merchant: true,  category: true,  payWith: false, account: true,  transfer: false, adjust: false },
+  // merchant:true here documents TxForm parity only — it does NOT mean TxSheet
+  // renders a payee row for transfers. The phone editor's two-card from/to
+  // layout intentionally omits fields.merchant for transfers (spec-sanctioned
+  // layout deviation; see the comment at TxSheet.jsx's transfer branch), so
+  // don't read this flag as "false assurance" that a merchant field renders.
   transfer:   { merchant: true,  category: false, payWith: false, account: false, transfer: true,  adjust: false },
   refund:     { merchant: true,  category: true,  payWith: true,  account: false, transfer: false, adjust: false },
   adjustment: { merchant: false, category: false, payWith: false, account: true,  transfer: false, adjust: true },
