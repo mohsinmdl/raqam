@@ -43,7 +43,13 @@ function SheetShell({ open, onClose, title, children }) {
 function CoverSheetBody({ sheet, onClose, env, S, month, money, applyData }) {
   const { notify } = useUI();
   const [from, setFrom] = useState(null);
-  const amount = -sheet.row.available;
+  // sheet.row is a snapshot taken when the sheet was opened — a keypad commit
+  // (Plan.jsx's onMoveMoney) applies its draft and opens this sheet in the
+  // SAME batched update, so env is already fresh on this render while
+  // sheet.row still carries the pre-commit figure. Read the live row off env
+  // (falling back to the snapshot only if the category somehow isn't in it).
+  const row = env.rows.get(sheet.cat.id) || sheet.row;
+  const amount = -row.available;
   const fromCat = from && from !== 'rta' ? S.categories.find(c => c.id === from) : null;
   const fromLabel = from === 'rta' ? 'Ready to Assign' : (fromCat ? fromCat.name : null);
   const confirm = () => {
@@ -68,7 +74,12 @@ function CoverSheetBody({ sheet, onClose, env, S, month, money, applyData }) {
 // but editable, destination excludes the category itself.
 function MoveSheetBody({ sheet, onClose, env, S, month, money, applyData }) {
   const { notify } = useUI();
-  const [amount, setAmount] = useState(() => String(sheet.row.available));
+  // See CoverSheetBody: sheet.row can be a pre-commit snapshot (keypad's
+  // Move Money path commits the draft and opens this sheet in the same
+  // batched update), so this mounts on the post-commit render and must seed
+  // from the live env row, not the snapshot.
+  const row = env.rows.get(sheet.cat.id) || sheet.row;
+  const [amount, setAmount] = useState(() => String(row.available));
   const [to, setTo] = useState(null);
   const toCat = to && to !== 'rta' ? S.categories.find(c => c.id === to) : null;
   const toLabel = to === 'rta' ? 'Ready to Assign' : (toCat ? toCat.name : null);
