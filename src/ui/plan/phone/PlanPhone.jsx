@@ -1,0 +1,137 @@
+import { useMemo } from 'react';
+
+// Phone render path for the Plan screen — YNAB's mobile anatomy in ledger
+// tokens. Read-only skeleton in PR1: taps are wired by the keypad (PR2) and
+// sheets (PR3) layers via the on*Tap props.
+const hair = '1px solid var(--border)';
+const colHead = { fontSize: 11, fontWeight: 600, color: 'var(--muted)', lineHeight: 1.2 };
+
+// Derives the flat list the phone screen renders. Groups in sortOrder, their
+// active expense categories, per-group Assigned/Available sums from env.rows.
+export function phoneRowsFor(S, env, collapsed) {
+  const groups = [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
+  const cats = (S.categories || []).filter(c => c.type === 'expense');
+  const active = cats.filter(c => c.status === 'active');
+  const hiddenCount = cats.filter(c => c.status === 'archived').length;
+  const out = [];
+  const overspent = [];
+  const bucket = gid => active.filter(c => (c.groupId || null) === gid);
+  const emit = (key, name, members) => {
+    if (!members.length) return;
+    let assigned = 0, available = 0;
+    const rows = members.map(cat => {
+      const row = env.rows.get(cat.id) || { assigned: 0, activity: 0, available: 0 };
+      assigned += row.assigned; available += row.available;
+      if (row.available < 0) overspent.push({ cat, row });
+      return { kind: 'cat', cat, row };
+    });
+    out.push({ kind: 'group', key, name, assigned, available, collapsed: collapsed.has(key) });
+    if (!collapsed.has(key)) out.push(...rows);
+  };
+  const ids = new Set(groups.map(g => g.id));
+  groups.forEach(g => emit(g.id, g.name, bucket(g.id)));
+  const other = active.filter(c => !c.groupId || !ids.has(c.groupId));
+  emit('__other', 'Other', other);
+  return { list: out, hiddenCount, overspent };
+}
+
+const pillTone = v => v > 0 ? { background: 'var(--pos-soft)', color: 'var(--pos)' }
+  : v < 0 ? { background: 'var(--neg-soft)', color: 'var(--neg)' }
+  : { background: 'var(--track)', color: 'var(--muted)' };
+
+export default function PlanPhone({
+  S, env, month, money, collapsed, toggleGroup,
+  onAssignTap = () => {}, onPillTap = () => {}, onRtaTap = null, onCoverTap = null,
+  assignDraft = null, // { catId, text } while the keypad edits a row (PR2)
+}) {
+  const { list, hiddenCount, overspent } = useMemo(
+    () => phoneRowsFor(S, env, collapsed), [S, env, collapsed]);
+  const rtaNeg = env.rta < 0;
+  return (
+    <div style={{ padding: '10px 12px 0' }}>
+      {/* RTA banner — tap opens the Assign sheet (PR3). Until wired it is a
+          static region, so render a div, not a dead button. */}
+      {(() => {
+        const Tag = onRtaTap ? 'button' : 'div';
+        return (
+          <Tag onClick={onRtaTap || undefined}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+              width: '100%', border: 'none', borderRadius: 12, padding: '14px 16px', marginBottom: 10,
+              cursor: onRtaTap ? 'pointer' : 'default', textAlign: 'left',
+              background: rtaNeg ? 'var(--neg-soft)' : 'var(--pos-soft)',
+              color: rtaNeg ? 'var(--neg)' : 'var(--pos)' }}>
+            <span className="tnum" style={{ fontSize: 22, fontWeight: 700 }}>{money(env.rta)}</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Ready to Assign{onRtaTap ? ' ›' : ''}</span>
+          </Tag>
+        );
+      })()}
+      {overspent.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, border: hair, borderRadius: 12,
+          padding: '10px 12px', marginBottom: 10, background: 'var(--surface)' }}>
+          <span className="tnum" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 22, height: 22, borderRadius: 999, background: 'var(--neg)', color: 'var(--on-neg)', fontSize: 12, fontWeight: 700 }}>
+            {overspent.length}
+          </span>
+          <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>Overspent categories</span>
+          {onCoverTap && (
+            <button onClick={onCoverTap} className="hv-soft" style={{ border: 'none', borderRadius: 999,
+              padding: '6px 14px', background: 'var(--soft)', color: 'var(--accent)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              Cover
+            </button>
+          )}
+        </div>
+      )}
+      <div style={{ background: 'var(--surface)', border: hair, borderRadius: 12, overflow: 'hidden' }}>
+        {list.map(item => item.kind === 'group' ? (
+          <button key={'g' + item.key} onClick={() => toggleGroup(item.key)}
+            aria-expanded={String(!item.collapsed)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none',
+              borderBottom: hair, textAlign: 'left', padding: '10px 12px', cursor: 'pointer',
+              background: 'var(--track)', color: 'var(--text)' }}>
+            <span aria-hidden="true" style={{ flex: 'none', fontSize: 11, color: 'var(--muted)',
+              transform: item.collapsed ? 'rotate(-90deg)' : 'none' }}>▼</span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 700,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
+            <span style={{ textAlign: 'right' }}>
+              <span style={colHead}>Assigned</span>
+              <span className="tnum" style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>{money(item.assigned)}</span>
+            </span>
+            <span style={{ textAlign: 'right', minWidth: 84 }}>
+              <span style={colHead}>Available</span>
+              <span className="tnum" style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>{money(item.available)}</span>
+            </span>
+          </button>
+        ) : (
+          <div key={item.cat.id} data-cat={item.cat.id}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '4px 12px',
+              borderBottom: hair,
+              background: assignDraft && assignDraft.catId === item.cat.id ? 'var(--soft)' : 'transparent' }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 500,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {item.cat.emoji ? item.cat.emoji + ' ' : ''}{item.cat.name}
+            </span>
+            <button className="tnum" onClick={() => onAssignTap(item.cat, item.row)}
+              aria-label={'Assigned for ' + item.cat.name}
+              style={{ border: 'none', background: 'transparent', padding: '10px 4px', cursor: 'pointer',
+                fontSize: 14.5, fontWeight: 600,
+                color: assignDraft && assignDraft.catId === item.cat.id ? 'var(--accent)' : 'var(--text)' }}>
+              {assignDraft && assignDraft.catId === item.cat.id ? assignDraft.text : money(item.row.assigned)}
+            </button>
+            <button className="tnum" onClick={() => item.row.available !== 0 && onPillTap(item.cat, item.row)}
+              aria-label={'Available for ' + item.cat.name}
+              style={{ flex: 'none', minWidth: 76, textAlign: 'center', border: 'none', borderRadius: 999,
+                padding: '6px 10px', fontSize: 13.5, fontWeight: 700,
+                cursor: item.row.available !== 0 ? 'pointer' : 'default', ...pillTone(item.row.available) }}>
+              {money(item.row.available)}
+            </button>
+          </div>
+        ))}
+        {hiddenCount > 0 && (
+          <div style={{ padding: '12px', fontSize: 13.5, color: 'var(--muted)' }}>
+            {hiddenCount} hidden {hiddenCount === 1 ? 'category' : 'categories'}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
