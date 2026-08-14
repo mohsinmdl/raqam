@@ -96,8 +96,9 @@ function MoveSheetBody({ sheet, onClose, env, S, month, money, applyData }) {
   };
   return (
     <>
-      <span style={label}>Move</span>
+      <label htmlFor="move-amount" style={label}>Move</label>
       <input
+        id="move-amount"
         className="tnum" value={amount} inputMode="numeric"
         onFocus={e => e.target.select()}
         onChange={e => setAmount(e.target.value)}
@@ -145,8 +146,9 @@ function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, apply
           ))}
         </div>
       )}
-      <span style={label}>Assign</span>
+      <label htmlFor="assign-amount" style={label}>Assign</label>
       <input
+        id="assign-amount"
         className="tnum" value={amount} inputMode="numeric"
         onFocus={e => e.target.select()}
         onChange={e => setAmount(e.target.value)}

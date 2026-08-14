@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 // tokens. Read-only skeleton in PR1: taps are wired by the keypad (PR2) and
 // sheets (PR3) layers via the on*Tap props.
 const hair = '1px solid var(--border)';
-const colHead = { fontSize: 11, fontWeight: 600, color: 'var(--muted)', lineHeight: 1.2 };
+const colHead = { fontSize: 11, fontWeight: 600, color: 'var(--text)', opacity: 'none', lineHeight: 1.2 };
 
 // Derives the flat list the phone screen renders. Mirrors desktop `sections`
 // (Plan.jsx sections memo) exactly: groups sorted by (sortOrder || 0) with a
@@ -123,16 +123,21 @@ export default function PlanPhone({
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {item.cat.emoji ? item.cat.emoji + ' ' : ''}{item.cat.name}
             </span>
-            <button className="tnum" onClick={() => onAssignTap(item.cat, item.row)}
-              aria-label={'Assigned for ' + item.cat.name}
-              style={{ border: 'none', background: 'transparent', padding: '10px 4px', cursor: 'pointer',
-                fontSize: 14.5, fontWeight: 600,
-                color: assignDraft && assignDraft.catId === item.cat.id ? 'var(--accent)' : 'var(--text)' }}>
-              {assignDraft && assignDraft.catId === item.cat.id ? assignDraft.text : money(item.row.assigned)}
-            </button>
+            {(() => {
+              const isDraft = !!(assignDraft && assignDraft.catId === item.cat.id);
+              return (
+                <button className="tnum" onClick={() => onAssignTap(item.cat, item.row)}
+                  aria-label={'Assigned for ' + item.cat.name + ': ' + (isDraft ? assignDraft.text : money(item.row.assigned))}
+                  style={{ border: 'none', background: 'transparent', padding: '10px 4px', cursor: 'pointer',
+                    fontSize: 14.5, fontWeight: 600,
+                    color: isDraft ? 'var(--accent)' : 'var(--text)' }}>
+                  <span aria-live="polite">{isDraft ? assignDraft.text : money(item.row.assigned)}</span>
+                </button>
+              );
+            })()}
             <button className="tnum" onClick={() => onPillTap(item.cat, item.row)}
               disabled={item.row.available === 0}
-              aria-label={'Available for ' + item.cat.name}
+              aria-label={'Available for ' + item.cat.name + ': ' + money(item.row.available)}
               style={{ flex: 'none', minWidth: 76, textAlign: 'center', border: 'none', borderRadius: 999,
                 padding: '6px 10px', fontSize: 13.5, fontWeight: 700,
                 cursor: item.row.available !== 0 ? 'pointer' : 'default', ...pillTone(item.row.available) }}>

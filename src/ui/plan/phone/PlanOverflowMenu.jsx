@@ -20,9 +20,9 @@ export default function PlanOverflowMenu({
           }}
         >⋯</MenuTrigger>
         <MenuPanel aria-label="Plan menu">
-          <MenuItem onClick={() => setMovesOpen(true)}>🕘 Recent Moves</MenuItem>
-          <MenuItem onClick={undo} disabled={!canUndo} style={{ opacity: canUndo ? 1 : .45 }}>↩ Undo last move</MenuItem>
-          <MenuItem onClick={onToggleAll}>{allCollapsed ? '⌄ Expand all groups' : '⌃ Collapse all groups'}</MenuItem>
+          <MenuItem onClick={() => setMovesOpen(true)}><span aria-hidden="true">🕘</span> Recent Moves</MenuItem>
+          <MenuItem onClick={undo} disabled={!canUndo} style={{ opacity: canUndo ? 1 : .45 }}><span aria-hidden="true">↩</span> Undo last move</MenuItem>
+          <MenuItem onClick={onToggleAll}>{allCollapsed ? <><span aria-hidden="true">⌄</span> Expand all groups</> : <><span aria-hidden="true">⌃</span> Collapse all groups</>}</MenuItem>
           <MenuItem onClick={onToggleProgress}>{progressOn ? 'Hide progress bars' : 'Show progress bars'}</MenuItem>
           <MenuItem onClick={onToggleMasked}>{maskedOn ? 'Show amounts' : 'Hide amounts'}</MenuItem>
         </MenuPanel>

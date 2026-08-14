@@ -34,7 +34,7 @@ export default function MonthGridPopover({ month, months, pick, triggerLabel }) 
     <Popover open={open} onOpenChange={o => { if (o) setYear(Number(month.slice(0, 4))); setOpen(o); }}>
       <PopoverTrigger className="tnum"
         style={{ border: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13,
-          fontWeight: 600, padding: '0 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          fontWeight: 600, padding: '0 8px', minHeight: 26, cursor: 'pointer', whiteSpace: 'nowrap' }}>
         {triggerLabel} ▾
       </PopoverTrigger>
       <PopoverPanel width={300} aria-label="Month picker" side="bottom" align="center">
