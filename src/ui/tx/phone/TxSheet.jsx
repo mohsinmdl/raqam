@@ -1,6 +1,8 @@
 // src/ui/tx/phone/TxSheet.jsx
 // Phone-native rendering of the SAME addTx drawer: same form state, same
-// useSubmit/useDanger — DrawerProvider chooses this shell on phone. Spec:
+// submission path (useSubmit) — DrawerProvider chooses this shell on phone.
+// Edit-mode extras (Delete via def.useDanger) arrive with the full five-type
+// support (Task 7); this task covers add-only expense/income. Spec:
 // docs/superpowers/specs/2026-08-15-mobile-accounts-ynab-design.md §3
 import { useState } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
@@ -39,8 +41,12 @@ export default function TxSheet({ def, state, requestClose }) {
   const f = drawer.form, errors = drawer.errors;
   const type = f.type || 'expense';
   const fields = fieldsFor(type);
-  // Keypad draft: null = closed. New transactions open with an empty draft.
-  const [kp, setKp] = useState(() => (f.editId ? null : ''));
+  // Keypad draft: null = closed. Seed on whether the form ALREADY carries an
+  // amount, not on edit mode — a prefilled add (e.g. openers.recordRule,
+  // src/drawers/openers.js:171-182, prefills f.amount with editId still null)
+  // must open showing that real amount with the keypad closed, same as
+  // editing. Only a truly blank add opens with the keypad up.
+  const [kp, setKp] = useState(() => (f.amount ? null : ''));
   const [picker, setPicker] = useState(null); // 'category' | 'payWith' | 'account' | null
 
   const current = parseAmt(f.amount) || 0;
@@ -118,7 +124,7 @@ export default function TxSheet({ def, state, requestClose }) {
 
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
               {fields.merchant && (
-                <Row last={false}>
+                <Row last={false} error={errors.merchant}>
                   <label style={{ ...rowInner, cursor: 'text' }}>
                     <span style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{merchantLabel(type)}</span>
