@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 // tokens. Read-only skeleton in PR1: taps are wired by the keypad (PR2) and
 // sheets (PR3) layers via the on*Tap props.
 const hair = '1px solid var(--border)';
-const colHead = { fontSize: 11, fontWeight: 600, color: 'var(--text)', opacity: 'none', lineHeight: 1.2 };
+const colHead = { fontSize: 11, fontWeight: 600, color: 'var(--text)', lineHeight: 1.2 };
 
 // Derives the flat list the phone screen renders. Mirrors desktop `sections`
 // (Plan.jsx sections memo) exactly: groups sorted by (sortOrder || 0) with a
