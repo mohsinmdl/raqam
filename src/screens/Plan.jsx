@@ -19,9 +19,12 @@ import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
 import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visibleSections, normalizeBuiltins, reorderBuiltins, toggleBuiltinHidden, orderedBuiltinViews, builtinRows, isHiddenBuiltin } from '../lib/planViews.js';
 import { hasTarget, targetNeeded } from '../lib/targets.js';
+import { autoAssignAmount } from '../lib/inspector.js';
 import { rangeBetween } from '../lib/rowCursor.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
 import PlanPhone from '../ui/plan/phone/PlanPhone.jsx';
+import KeypadSheet from '../ui/plan/phone/KeypadSheet.jsx';
+import * as KP from '../ui/plan/phone/keypadState.js';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
 import ViewEditorModal from '../ui/plan/ViewEditorModal.jsx';
@@ -1219,6 +1222,10 @@ export default function Plan() {
   // instance for the whole screen — not one per row.
   const [activityCat, setActivityCat] = useState(null);
 
+  // Phone keypad editing state: which category and the raw draft expression.
+  // Kept here (not in PlanPhone) so a tap on another row can commit-then-switch.
+  const [kp, setKp] = useState(null); // { catId, draft } | null
+
   const saveView = ({ name, categoryIds }) => {
     if (editing === 'new') {
       const v = newView(name, categoryIds, views);
@@ -1264,9 +1271,54 @@ export default function Plan() {
   const rowInset = wide ? { paddingLeft: 16, paddingRight: 16 } : null;
 
   if (phone) {
+    const kpCat = kp ? S.categories.find(c => c.id === kp.catId) : null;
+    const kpRow = kp ? (env.rows.get(kp.catId) || { assigned: 0, available: 0 }) : null;
+    const commitKp = () => {
+      if (!kp) return;
+      const v = KP.evaluate(kpRow.assigned, kp.draft);
+      if (v !== null && v !== kpRow.assigned) {
+        applyData(data => setAssigned(data, { categoryId: kp.catId, month, amount: v }));
+      }
+    };
+    const openKeypad = (cat) => { commitKp(); setKp({ catId: cat.id, draft: '' }); };
+    const onKey = (action, payload) => setKp(k => {
+      if (!k) return k;
+      if (action === 'digit') return { ...k, draft: KP.pressDigit(k.draft, payload) };
+      if (action === 'op') return { ...k, draft: KP.pressOp(k.draft, payload) };
+      if (action === 'backspace') return { ...k, draft: KP.pressBackspace(k.draft) };
+      if (action === 'clear') return { ...k, draft: KP.pressClear() };
+      if (action === 'equals') {
+        const v = KP.evaluate(kpRow.assigned, k.draft);
+        return v === null ? k : { ...k, draft: String(v) };
+      }
+      return k;
+    });
+    const need = kpCat && kpRow.available < 0 ? -kpRow.available : null;
+    // Auto-Assign: reuse the same 'underfunded' figure the desktop Inspector
+    // shows first (src/lib/inspector.js AutoAssignRows, mirrored from
+    // Inspector.jsx:59-84) — funds the category's target shortfall, or covers
+    // overspending when it has no target. autoAssignAmount('underfunded', ...)
+    // returns the NEED (a delta, unlike the other five kinds which return an
+    // absolute figure), so the draft we fill is assigned + need — the
+    // resulting absolute total, matching what autoAssignPlan would apply.
+    const underNeed = kpCat ? autoAssignAmount('underfunded', [kp.catId], { S, month, env, envAt }) : 0;
+    const suggested = underNeed > 0 ? kpRow.assigned + underNeed : null;
     return (
-      <PlanPhone S={S} env={env} month={month} money={money}
-        collapsed={collapsed} toggleGroup={toggleGroup} />
+      <>
+        <PlanPhone S={S} env={env} month={month} money={money}
+          collapsed={collapsed} toggleGroup={toggleGroup}
+          onAssignTap={openKeypad}
+          assignDraft={kp ? { catId: kp.catId, text: kp.draft ? KP.displayOf(kp.draft) : money(kpRow.assigned) } : null} />
+        <KeypadSheet open={!!kp} cat={kpCat}
+          hint={need ? { label: 'Assign ' + money(need) + ' more to cover overspending',
+            onFill: () => setKp(k => ({ ...k, draft: String(kpRow.assigned + need) })) } : null}
+          canAutoAssign={suggested != null}
+          onKey={onKey}
+          onDone={() => { commitKp(); setKp(null); }}
+          onClose={() => setKp(null)}
+          onAutoAssign={() => setKp(k => ({ ...k, draft: String(suggested) }))}
+          onMoveMoney={() => {}} />
+      </>
     );
   }
 
