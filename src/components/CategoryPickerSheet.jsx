@@ -13,7 +13,7 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { openers } from '../drawers/openers.js';
 import FocusTrap from '../ui/FocusTrap.jsx';
 
-export default function CategoryPickerSheet({ open, onClose, onPick }) {
+export default function CategoryPickerSheet({ open, onClose, onPick, catType = 'expense', allowCreate = true }) {
   const { data: S } = useStore();
   const { month } = useMonth();
   const { money } = useMoney();
@@ -30,11 +30,19 @@ export default function CategoryPickerSheet({ open, onClose, onPick }) {
     return () => document.removeEventListener('keydown', onKey, true);
   }, [open, onClose]);
 
-  const env = useMemo(() => (open ? envelopeFor(S, month, nowIso()) : null), [open, S, month]);
+  // Available amounts (per-envelope) only apply to expense categories — income
+  // categories have no envelope. Mirrors TxForm's showAmounts rule
+  // (catType === 'expense'); skip the envelopeFor() computation for income too.
+  const showAmounts = catType === 'expense';
+  const env = useMemo(() => (open && showAmounts ? envelopeFor(S, month, nowIso()) : null), [open, showAmounts, S, month]);
   const sections = useMemo(() => {
     if (!open) return [];
     const ql = q.trim().toLowerCase();
-    const cats = (S.categories || []).filter(c => c.type === 'expense' && c.status === 'active'
+    // S.categories never contains a "Ready to Assign" entry — RTA is a
+    // pseudo-row PlanCategoryPicker synthesizes on the fly (see its `flat`
+    // builder), not a real category — so filtering S.categories by type here
+    // already excludes it, same as TxForm's `excludeRta` picker.
+    const cats = (S.categories || []).filter(c => c.type === catType && c.status === 'active'
       && (!ql || c.name.toLowerCase().includes(ql)));
     const groups = [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
     const ids = new Set(groups.map(g => g.id));
@@ -43,7 +51,7 @@ export default function CategoryPickerSheet({ open, onClose, onPick }) {
     return [...groups.map(g => ({ id: g.id, name: g.name, cats: byGroup(g.id) })),
       { id: 'other', name: 'Other', cats: byGroup('other') }]
       .filter(s => s.cats.length > 0);
-  }, [open, S.categories, S.categoryGroups, q]);
+  }, [open, S.categories, S.categoryGroups, q, catType]);
 
   if (!open) return null;
   const availColor = n => (n > 0 ? 'var(--pos)' : n < 0 ? 'var(--neg)' : 'var(--muted)');
@@ -62,21 +70,23 @@ export default function CategoryPickerSheet({ open, onClose, onPick }) {
           <span style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: 700, marginRight: 44 }}>Select Category</span>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 76px' }}>
-          <button onClick={() => { onClose(); openers.addCategory(openDrawer); }} className="hv-elev"
-            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', color: 'var(--accent)', font: 'inherit', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
-            ＋ New Category
-          </button>
+          {allowCreate && (
+            <button onClick={() => { onClose(); openers.addCategory(openDrawer); }} className="hv-elev"
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', color: 'var(--accent)', font: 'inherit', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
+              ＋ New Category
+            </button>
+          )}
           {sections.map(sec => (
             <section key={sec.id} aria-label={sec.name}>
               <h3 style={{ margin: '18px 2px 8px', fontSize: 13.5, fontWeight: 700 }}>{sec.name}</h3>
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
                 {sec.cats.map((c, i) => {
-                  const avail = env.rows.get(c.id)?.available ?? 0;
+                  const avail = showAmounts ? (env.rows.get(c.id)?.available ?? 0) : 0;
                   return (
                     <button key={c.id} onClick={() => onPick(c.id)} className="hv-elev"
                       style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48, padding: '8px 14px', border: 'none', borderBottom: i === sec.cats.length - 1 ? 'none' : '1px solid var(--border)', background: 'none', color: 'var(--text)', font: 'inherit', fontSize: 14, cursor: 'pointer', textAlign: 'left' }}>
                       <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-                      <span className="tnum" style={{ flex: 'none', fontSize: 13.5, fontWeight: 600, color: availColor(avail) }}>{money(avail)}</span>
+                      {showAmounts && <span className="tnum" style={{ flex: 'none', fontSize: 13.5, fontWeight: 600, color: availColor(avail) }}>{money(avail)}</span>}
                     </button>
                   );
                 })}
