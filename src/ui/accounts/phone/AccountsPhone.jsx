@@ -22,7 +22,10 @@ export default function AccountsPhone() {
   const { money } = useMoney();
   const { openDrawer } = useDrawer();
   const nav = useNavigate();
-  const now = nowIso();
+  // Pinned once per mount, not recomputed each render: nowIso() returns a
+  // fresh string every call, and it sits in the useMemo deps below — a
+  // render-time call there defeats the memo on every single render.
+  const [now] = useState(nowIso);
   const [collapsed, setCollapsed] = useState(() => new Set()); // phone-local, not persisted
   const [archOpen, setArchOpen] = useState(false);
 

@@ -21,7 +21,9 @@ import { formatAmountInput } from '../lib/amountInput.js';
 import { Label, FieldError, Hint, AmountField, TextField, SelectField, TextAreaField, Pill, grid2, noteBox } from './fields.jsx';
 
 const TYPES = ['expense', 'income', 'transfer', 'refund', 'adjustment'];
-const HINTS = {
+// Exported so TxSheet's phone type menu can show the same one-line hints
+// (see TxSheet.jsx's MenuItem — no other change needed to share this map).
+export const HINTS = {
   expense: 'Money spent from an account or card.',
   income: 'Money received into an account.',
   transfer: 'Between your own accounts — never counted as income or an expense.',

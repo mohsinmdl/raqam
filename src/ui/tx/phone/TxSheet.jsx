@@ -14,7 +14,7 @@ import { relTime } from '../../../lib/calc.js';
 import { pressDigit, pressOp, pressBackspace, pressClear, evaluate, displayOf } from '../../../lib/keypadState.js';
 import Keypad from '../../phone/Keypad.jsx';
 import { fieldsFor, tintFor, merchantLabel, payWithLabel, accountLabel } from './txSheetState.js';
-import { useTxOpts } from '../../../drawers/TxForm.jsx';
+import { useTxOpts, HINTS } from '../../../drawers/TxForm.jsx';
 import { Pill } from '../../../drawers/fields.jsx';
 import CategoryPickerSheet from '../../../components/CategoryPickerSheet.jsx';
 import { Menu, MenuTrigger, MenuPanel, MenuItem } from '../../primitives/Menu.jsx';
@@ -126,8 +126,13 @@ export default function TxSheet({ def, state, requestClose }) {
                 </MenuTrigger>
                 <MenuPanel side="bottom" align="center">
                   {Object.entries(TYPE_LABELS).map(([id, label]) => (
-                    <MenuItem key={id} onClick={() => setForm({ type: id, category: '', splitOn: false, splits: undefined })}>
-                      <span style={{ width: 16, flex: 'none' }}>{type === id ? '✓' : ''}</span>{label}
+                    <MenuItem key={id} onClick={() => setForm({ type: id, category: '', splitOn: false, splits: undefined })}
+                      style={{ alignItems: 'flex-start' }}>
+                      <span style={{ width: 16, flex: 'none' }}>{type === id ? '✓' : ''}</span>
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ display: 'block' }}>{label}</span>
+                        {HINTS[id] && <span style={{ display: 'block', fontSize: 11.5, fontWeight: 400, color: 'var(--muted)', marginTop: 2 }}>{HINTS[id]}</span>}
+                      </span>
                     </MenuItem>
                   ))}
                 </MenuPanel>
@@ -157,6 +162,15 @@ export default function TxSheet({ def, state, requestClose }) {
             )}
 
             {fields.transfer ? (
+              // Deviation from fieldsFor: fieldsFor(type).merchant is true for
+              // transfer too (it mirrors TxForm's fx* truth table verbatim —
+              // see txSheetState.js), but this two-card from/to layout
+              // deliberately renders NO payee row for transfers (spec-
+              // sanctioned; a transfer moves money between your own accounts,
+              // there's no payee to name). An existing f.merchant value on a
+              // transfer being edited is preserved untouched by buildTx even
+              // though nothing here lets it be changed; desktop's TxForm still
+              // offers the field for transfers if it's ever needed.
               <>
                 <div style={card}>
                   <Row last>
@@ -224,6 +238,12 @@ export default function TxSheet({ def, state, requestClose }) {
                       <span aria-hidden="true" style={{ color: 'var(--muted)' }}>›</span>
                     </button>
                   </Row>
+                )}
+                {type === 'expense' && String(f.payWith || '').startsWith('card:') && (
+                  <div style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text)', margin: '10px 14px', padding: '8px 10px', background: 'var(--info-soft)', borderRadius: 8 }}>
+                    <span style={{ fontWeight: 700, color: 'var(--info)', flex: 'none' }}>Card purchase</span>
+                    <span style={{ opacity: .85 }}>Adds to the card’s outstanding amount. Your bank balance is unchanged until you pay the bill.</span>
+                  </div>
                 )}
                 {fields.adjust && (
                   <>
