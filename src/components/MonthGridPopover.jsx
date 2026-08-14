@@ -22,12 +22,17 @@ export function monthGridFor(months, year) {
 // (full history + the 3-month lookahead).
 export default function MonthGridPopover({ month, months, pick, triggerLabel }) {
   const [year, setYear] = useState(() => Number(month.slice(0, 4)));
+  // Base UI keeps the Popover root mounted across open/close, so `year` state
+  // survives a close. Without re-syncing on open, paging to another year,
+  // closing, and reopening would show the stale year instead of jumping back
+  // to the currently-selected month.
+  const [open, setOpen] = useState(false);
   const g = monthGridFor(months, year);
   const yrBtn = on => ({ width: 28, height: 28, border: 'none', borderRadius: 6, background: 'transparent',
     color: 'var(--text)', cursor: on ? 'pointer' : 'default', opacity: on ? 1 : .35, fontSize: 14 });
   return (
-    <Popover>
-      <PopoverTrigger className="tnum" aria-label="Choose month"
+    <Popover open={open} onOpenChange={o => { if (o) setYear(Number(month.slice(0, 4))); setOpen(o); }}>
+      <PopoverTrigger className="tnum"
         style={{ border: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13,
           fontWeight: 600, padding: '0 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
         {triggerLabel} ▾
