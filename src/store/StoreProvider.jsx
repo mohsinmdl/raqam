@@ -164,7 +164,7 @@ export function StoreProvider({ userId, children }) {
   const setPrefs = useCallback(patch => {
     const device = {}, user = {};
     Object.entries(patch).forEach(([k, v]) => {
-      (k === 'theme' || k === 'masked' || k === 'appLock' ? device : user)[k] = v;
+      (k === 'theme' || k === 'masked' || k === 'maskedPosition' || k === 'decimals' || k === 'appLock' ? device : user)[k] = v;
     });
     if (Object.keys(device).length) setDevicePrefs(device);
     if (Object.keys(user).length) {
@@ -186,7 +186,7 @@ export function StoreProvider({ userId, children }) {
     // through sync.
     prefsSaved: userPrefsSaved && deviceSaved,
     // Facade: consumers (Header, format.js, Dashboard) see one flat prefs object.
-    prefs: { ...userPrefs, theme: devicePrefs.theme, masked: devicePrefs.masked, appLock: devicePrefs.appLock },
+    prefs: { ...userPrefs, theme: devicePrefs.theme, masked: devicePrefs.masked, maskedPosition: devicePrefs.maskedPosition, decimals: devicePrefs.decimals, appLock: devicePrefs.appLock },
     setPrefs,
     // apply a pure action: applyData(store => newStore)
     applyData: fn => dispatch({ type: 'data', fn }),

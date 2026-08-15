@@ -37,7 +37,9 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
   // month-flow (income/expenses), so the whole metrics read clamps to
   // balanceMonth rather than the viewed month.
   const { balanceMonth } = useMonth();
-  const { money, moneyS } = useMoney();
+  // Compact mode (Transactions) uses money/moneyS (overall `masked`); the full
+  // Dashboard card uses the position-scoped moneyPos/moneySPos (the eye icon).
+  const { money, moneyPos, moneySPos } = useMoney();
   const [explain, setExplain] = useState(false);
 
   const now = nowIso();
@@ -86,7 +88,7 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
   const posAsOf = 'across ' + activeAccts.length + (activeAccts.length === 1 ? ' account' : ' accounts');
   const changeColor = M.change > 0 ? 'var(--pos)' : M.change < 0 ? 'var(--neg)' : 'var(--muted)';
   const pendingNote = M.pendingCount > 0
-    ? M.pendingCount + ' uncleared transaction' + (M.pendingCount === 1 ? '' : 's') + ' (' + money(M.pendingTotal) + ') excluded until cleared'
+    ? M.pendingCount + ' uncleared transaction' + (M.pendingCount === 1 ? '' : 's') + ' (' + moneyPos(M.pendingTotal) + ') excluded until cleared'
     : null;
 
   return (
@@ -101,41 +103,41 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
               <span style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>Total bank balance</span>
               {/* Amount masking lives beside the number it protects (also the only
                   reachable toggle on phones, where the sidebar account menu is absent). */}
-              <button onClick={() => setPrefs({ masked: !prefs.masked })} className="hv-soft"
-                aria-pressed={String(prefs.masked)} aria-label={prefs.masked ? 'Show amounts' : 'Hide amounts'}
-                title={prefs.masked ? 'Show amounts' : 'Hide amounts'}
+              <button onClick={() => setPrefs({ maskedPosition: !prefs.maskedPosition })} className="hv-soft"
+                aria-pressed={String(prefs.maskedPosition)} aria-label={prefs.maskedPosition ? 'Show amounts' : 'Hide amounts'}
+                title={prefs.maskedPosition ? 'Show amounts' : 'Hide amounts'}
                 style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  {prefs.masked
+                  {prefs.maskedPosition
                     ? <><path d="M17.94 17.94A10.4 10.4 0 0 1 12 19.5C5.5 19.5 2 12 2 12a19.8 19.8 0 0 1 4.87-5.62M9.9 4.75A9.9 9.9 0 0 1 12 4.5c6.5 0 10 7.5 10 7.5a19.9 19.9 0 0 1-2.24 3.31M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M2 2l20 20" /></>
                     : <><path d="M2 12s3.5-7.5 10-7.5S22 12 22 12s-3.5 7.5-10 7.5S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>}
                 </svg>
               </button>
             </div>
-            <div className="tnum" style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1.02 }}>{money(M.totalBank)}</div>
+            <div className="tnum" style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1.02 }}>{moneyPos(M.totalBank)}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{posAsOf}</div>
           </div>
           <div className="pos-cols" style={colBase}>
             <div>
               <div style={statLabel}>Net worth</div>
-              <div className="tnum" style={statVal}>{money(M.netWorth)}</div>
+              <div className="tnum" style={statVal}>{moneyPos(M.netWorth)}</div>
               <div style={statSub}>bank minus card debt</div>
             </div>
             <div>
               <div style={statLabel}>Card liability</div>
-              <div className="tnum" style={{ ...statVal, color: M.cardLiability > 0 ? 'var(--neg)' : 'var(--muted)' }}>{money(M.cardLiability)}</div>
+              <div className="tnum" style={{ ...statVal, color: M.cardLiability > 0 ? 'var(--neg)' : 'var(--muted)' }}>{moneyPos(M.cardLiability)}</div>
               <div style={statSub}>{M.cardLiability > 0 ? 'outstanding on cards' : 'no card debt'}</div>
             </div>
           </div>
           <div className="pos-cols" style={colBase}>
             <div>
               <div style={statLabel}>Start of month</div>
-              <div className="tnum" style={statVal}>{money(M.opening)}</div>
+              <div className="tnum" style={statVal}>{moneyPos(M.opening)}</div>
               <div style={statSub}>{snapStatusLabel}</div>
             </div>
             <div>
               <div style={statLabel}>Change since start</div>
-              <div className="tnum" style={{ ...statVal, color: changeColor }}>{moneyS(M.change)}</div>
+              <div className="tnum" style={{ ...statVal, color: changeColor }}>{moneySPos(M.change)}</div>
               <div style={statSub}>vs opening</div>
             </div>
           </div>

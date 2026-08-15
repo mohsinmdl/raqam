@@ -18,9 +18,14 @@ export { parseAmt, uid } from './util.js';
  * ─────────────────────────────────────────────────────────────────────────────
  */
 export function useMoney() {
-  const { masked } = usePrefs();
-  const money = useCallback(n => fmtPKR(n, masked), [masked]);
-  const moneyS = useCallback(n => fmtSigned(n, masked), [masked]);
-  const moneyRaw = useCallback(n => fmtPKR(n, false), []); // ← contribution site
-  return { money, moneyS, moneyRaw, masked };
+  const { masked, maskedPosition, decimals } = usePrefs();
+  const money = useCallback(n => fmtPKR(n, masked, decimals), [masked, decimals]);
+  const moneyS = useCallback(n => fmtSigned(n, masked, decimals), [masked, decimals]);
+  // Position-scoped formatters honor `maskedPosition` (the Dashboard eye icon)
+  // instead of the overall `masked`. Used only by the full "Current position"
+  // card; every other surface uses money/moneyS.
+  const moneyPos = useCallback(n => fmtPKR(n, maskedPosition, decimals), [maskedPosition, decimals]);
+  const moneySPos = useCallback(n => fmtSigned(n, maskedPosition, decimals), [maskedPosition, decimals]);
+  const moneyRaw = useCallback(n => fmtPKR(n, false, decimals), [decimals]); // ← contribution site
+  return { money, moneyS, moneyPos, moneySPos, moneyRaw, masked, maskedPosition };
 }

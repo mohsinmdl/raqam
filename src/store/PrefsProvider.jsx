@@ -7,7 +7,12 @@ import { readJson, writeJson } from '../lib/prefsStore.js';
 // Persistence goes through the same tested helper (src/lib/prefsStore.js) as
 // the per-user path, so a rejected write here is just as visible.
 const KEY = 'raqam.prefs.v1';
-const DEFAULTS = { theme: 'light', masked: true, appLock: { enabled: false, credId: null } };
+// `masked` = the overall privacy toggle (profile menu, `H`, Plan/phone menu) —
+// hides every amount EXCEPT the Dashboard "Current position" card.
+// `maskedPosition` = the eye icon beside the hero balance — hides only that
+// card's figures. The two are independent; both default hidden to match the
+// pre-split first-load look.
+const DEFAULTS = { theme: 'light', masked: true, maskedPosition: true, decimals: false, appLock: { enabled: false, credId: null } };
 
 const Ctx = createContext(null);
 
