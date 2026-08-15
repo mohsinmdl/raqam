@@ -108,11 +108,14 @@ describe('validate.transaction skipCategory', () => {
     categories: [], transactions: [],
   };
   const f = { type: 'expense', amount: '5000', payWith: 'acc:a1', date: '2026-08-11', category: '' };
-  it('still requires category by default', () => {
-    expect(validate.transaction(S3, f, {}).category).toBeTruthy();
+  // Category became optional (2026-08-16): an empty pick is valid by default,
+  // so skipCategory's distinct job is skipping validation of a NON-empty pick
+  // (split legs carry their own categories; the parent field may hold junk).
+  it('a bad non-empty category errors by default', () => {
+    expect(validate.transaction(S3, { ...f, category: 'gone' }, {}).category).toBeTruthy();
   });
   it('skips only the category check with skipCategory', () => {
-    const errs = validate.transaction(S3, f, { skipCategory: true });
+    const errs = validate.transaction(S3, { ...f, category: 'gone' }, { skipCategory: true });
     expect(errs.category).toBeUndefined();
     expect(Object.keys(errs)).toHaveLength(0);
     // other checks still run:

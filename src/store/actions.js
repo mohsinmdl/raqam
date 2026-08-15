@@ -40,10 +40,13 @@ export function buildTx(f, type, amt, fee, catId, id) {
   const date = (f.date || todayStr()) + 'T' + (f.time || '12:00');
   const status = f.pending ? 'pending' : 'cleared';
   const t = { id: id || uid(), date, status, notes: f.notes || '', merchant: f.merchant || '' };
+  // Category is optional: '' must become undefined, not persist — sync's toRow
+  // maps `r.category ?? null`, so an empty string would reach Supabase as
+  // category_id '' (an FK violation) instead of SQL null.
   if (type === 'expense' || type === 'refund') {
-    t.type = type; t.amount = amt; t.category = catId;
+    t.type = type; t.amount = amt; t.category = catId || undefined;
     if (String(f.payWith).startsWith('card:')) t.cardId = f.payWith.slice(5); else t.accountId = f.payWith.slice(4);
-  } else if (type === 'income') { t.type = 'income'; t.amount = amt; t.category = catId; t.accountId = f.account.slice(4); }
+  } else if (type === 'income') { t.type = 'income'; t.amount = amt; t.category = catId || undefined; t.accountId = f.account.slice(4); }
   else if (type === 'transfer') {
     t.type = 'transfer'; t.amount = amt; t.accountId = f.from.slice(4);
     // Destination may be a bank account or a credit card (bill payment).

@@ -127,7 +127,7 @@ function Body() {
       {fxCategory && !splitOn && (
         <div>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <Label required>Category</Label>
+            <Label optional>Category</Label>
             {canSplit && (
               <button type="button" className="hv-soft"
                 onClick={() => setForm({ splitOn: true, splits: [{ ...blankLine(), category: f.category === '__new' ? '' : (f.category || '') }, blankLine()], newCat: '', newCatGroup: '' })}
