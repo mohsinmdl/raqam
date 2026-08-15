@@ -13,15 +13,34 @@ const chip = (bg, fg) => ({
 // The warm "categorize me" pill shown in a category cell when a categorizable
 // transaction has none (txRowOf.needsCategory). One component so the desktop
 // table, phone rows and dashboard recents render the identical pill.
-export function NeedsCategoryPill({ fontSize = 12 }) {
+// With `onClick` it renders as a real button (the CTA: open the category
+// picker for this row); without, a plain pill for hosts that wire the tap
+// elsewhere (the phone row chip). stopPropagation lives here so hosts whose
+// rows are themselves click targets (select-toggle, edit) don't also fire.
+export function NeedsCategoryPill({ fontSize = 12, onClick }) {
+  const look = { ...chip('var(--warn-soft)', 'var(--text)'), fontSize, fontWeight: 500 };
+  if (!onClick) {
+    return (
+      <span
+        title="Assign a category to this transaction so you'll know what you spent your money on."
+        aria-label="This needs a category. Assign a category to this transaction so you'll know what you spent your money on."
+        style={look}
+      >
+        This needs a category
+      </span>
+    );
+  }
   return (
-    <span
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); onClick(); }}
       title="Assign a category to this transaction so you'll know what you spent your money on."
-      aria-label="This needs a category. Assign a category to this transaction so you'll know what you spent your money on."
-      style={{ ...chip('var(--warn-soft)', 'var(--text)'), fontSize, fontWeight: 500 }}
+      aria-label="This needs a category — assign one now"
+      className="hv-soft"
+      style={{ ...look, cursor: 'pointer', font: 'inherit' }}
     >
       This needs a category
-    </span>
+    </button>
   );
 }
 

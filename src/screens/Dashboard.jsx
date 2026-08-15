@@ -15,6 +15,8 @@ import PositionStrip from '../components/PositionStrip.jsx';
 import FirstUse from './FirstUse.jsx';
 import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
+import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
+import { setTransactionsCategory } from '../store/actions.js';
 import { effectiveNextDate, overdueRules, upcomingRules } from '../lib/schedule.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { leftToSpend } from '../lib/leftToSpend.js';
@@ -65,7 +67,7 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
 }
 
 export default function Dashboard() {
-  const { data: S, prefs, setPrefs } = useStore();
+  const { data: S, prefs, setPrefs, applyData } = useStore();
   const { month, months, isPast, balanceMonth } = useMonth();
   const fmt = useMoney();
   const { money, moneyS, masked } = fmt;
@@ -79,6 +81,16 @@ export default function Dashboard() {
   const appLockToggle = useAppLockToggle({ user, email: user?.email, prefs, setPrefs, notify });
   const phone = useIsPhone();
   const [snapDismissed, setSnapDismissed] = useState(false);
+  // Single-row categorize from the recent-transactions pill (same CTA the
+  // register rows carry): holds the target tx id while the picker sheet is up.
+  const [catTarget, setCatTarget] = useState(null);
+  const categorizeOne = categoryId => {
+    const id = catTarget;
+    setCatTarget(null);
+    if (!id) return;
+    applyData(data => setTransactionsCategory(data, { ids: [id], categoryId }));
+    notify('Categorized — balances and envelopes updated.');
+  };
   const now = nowIso();
 
   const setup = setupState(S);
@@ -364,7 +376,7 @@ export default function Dashboard() {
                     <TxChips row={t} />
                   </div>
                   <div className="tx-cell-cat" style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                    {t.needsCategory ? <NeedsCategoryPill fontSize={11} /> : (
+                    {t.needsCategory ? <NeedsCategoryPill fontSize={11} onClick={() => setCatTarget(t.id)} /> : (
                       <>
                         <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
                         <span style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
@@ -395,6 +407,13 @@ export default function Dashboard() {
             sidebar account menu, which has no phone equivalent. Same quiet
             bordered-row idiom as Sign out below; hidden (like the menu row)
             when no platform authenticator exists. */}
+        <CategoryPickerSheet
+          open={!!catTarget}
+          onClose={() => setCatTarget(null)}
+          catType={catTarget && S.transactions.find(x => x.id === catTarget)?.type === 'income' ? 'income' : 'expense'}
+          onPick={categorizeOne}
+        />
+
         {phone && appLockToggle.canLock && (
           <button
             onClick={appLockToggle.onToggleLock}

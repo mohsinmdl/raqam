@@ -28,10 +28,18 @@ function Circle({ on }) {
   );
 }
 
-function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, hideAccount, last, needsCat }) {
+function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, hideAccount, last, needsCat, onCategorize }) {
   const payee = t.merchant || 'No Payee Set';
+  // Pointer-only shortcut on the chip (a nested <button> inside the row button
+  // would be invalid): tap opens the category picker directly. Keyboard users
+  // reach the same assignment through the row itself (editor → Category row).
   const catChip = needsCat
-    ? <span style={chipStyle('var(--warn-soft)', 'var(--text)')}>This needs a category</span>
+    ? (
+      <span
+        onClick={onCategorize && !selectMode ? e => { e.stopPropagation(); onCategorize(t.id); } : undefined}
+        style={chipStyle('var(--warn-soft)', 'var(--text)')}
+      >This needs a category</span>
+    )
     : t.catName
       ? <span style={chipStyle('var(--soft)', 'var(--text)')}>{t.catName}</span>
       : null;
@@ -96,6 +104,7 @@ export default function TxPhoneList({
   groups, postedRows, scheduled, schedKey, schedOpen, onToggleSchedOpen,
   overdueCount, hiddenRuleCount, hideAccount, needsCat,
   selectMode, selected, schedSel, onToggleRow, onToggleSched, onRowTap, onSchedTap,
+  onCategorize,
 }) {
   const note = schedNote(overdueCount, hiddenRuleCount);
   const rowProps = t => ({
@@ -103,6 +112,7 @@ export default function TxPhoneList({
     needsCat: needsCat.has(t.id),
     checked: selected.has(t.id), onToggle: onToggleRow,
     onTap: () => onRowTap(t),
+    onCategorize,
   });
   return (
     <div>
