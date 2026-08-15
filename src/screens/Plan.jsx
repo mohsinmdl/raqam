@@ -11,6 +11,7 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { nowIso } from '../lib/dates.js';
+import { sortGroups, byOrderThenName } from '../lib/categoryOrder.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { prevMonth, monthLabel, catRefs } from '../lib/calc.js';
 import { useUI } from '../ui/UIProvider.jsx';
@@ -1101,7 +1102,7 @@ export default function Plan() {
   }, [activeCatIds]);
 
   const groupsSorted = useMemo(
-    () => [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name)),
+    () => sortGroups(S.categoryGroups),
     [S.categoryGroups],
   );
   const groupIds = useMemo(() => new Set(groupsSorted.map(g => g.id)), [groupsSorted]);
@@ -1120,7 +1121,7 @@ export default function Plan() {
       if (!byGroup.has(key)) byGroup.set(key, []);
       byGroup.get(key).push(c);
     });
-    byGroup.forEach(list => list.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name)));
+    byGroup.forEach(list => list.sort(byOrderThenName));
     const totalsFor = cats => cats.reduce((acc, c) => {
       const r = env.rows.get(c.id) || { assigned: 0, activity: 0, available: 0 };
       acc.assigned += r.assigned; acc.activity += r.activity; acc.available += r.available;
