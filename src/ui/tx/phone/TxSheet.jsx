@@ -233,18 +233,8 @@ export default function TxSheet({ def, state, requestClose }) {
                     </label>
                   </Row>
                 )}
-                {fields.category && (
-                  <Row last={false} error={errors.category} errorId="tx-err-category">
-                    <button onClick={() => openRow('category')} style={rowInner}
-                      aria-invalid={errors.category ? 'true' : undefined} aria-describedby={errors.category ? 'tx-err-category' : undefined}>
-                      <span style={{ minWidth: 0, flex: 1 }}>
-                        <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>Category</span>
-                        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 500 }}>{catName || 'Choose…'}</span>
-                      </span>
-                      <span aria-hidden="true" style={{ color: 'var(--muted)' }}>›</span>
-                    </button>
-                  </Row>
-                )}
+                {/* Payment source sits ABOVE Category: it is required while
+                    Category is optional, so the must-fill field comes first. */}
                 {(fields.payWith || fields.account) && (
                   <Row last={false} error={fields.payWith ? errors.payWith : errors.account} errorId={fields.payWith ? 'tx-err-paywith' : 'tx-err-account'}>
                     <button onClick={() => openRow(fields.payWith ? 'payWith' : 'account')} style={rowInner}
@@ -263,6 +253,18 @@ export default function TxSheet({ def, state, requestClose }) {
                     <span style={{ fontWeight: 700, color: 'var(--info)', flex: 'none' }}>Card purchase</span>
                     <span style={{ opacity: .85 }}>Adds to the card’s outstanding amount. Your bank balance is unchanged until you pay the bill.</span>
                   </div>
+                )}
+                {fields.category && (
+                  <Row last={false} error={errors.category} errorId="tx-err-category">
+                    <button onClick={() => openRow('category')} style={rowInner}
+                      aria-invalid={errors.category ? 'true' : undefined} aria-describedby={errors.category ? 'tx-err-category' : undefined}>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>Category</span>
+                        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 500 }}>{catName || 'Choose…'}</span>
+                      </span>
+                      <span aria-hidden="true" style={{ color: 'var(--muted)' }}>›</span>
+                    </button>
+                  </Row>
                 )}
                 {fields.adjust && (
                   <>

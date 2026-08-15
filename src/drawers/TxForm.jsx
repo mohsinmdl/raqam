@@ -124,36 +124,8 @@ function Body() {
         </div>
       )}
 
-      {fxCategory && !splitOn && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <Label optional>Category</Label>
-            {canSplit && (
-              <button type="button" className="hv-soft"
-                onClick={() => setForm({ splitOn: true, splits: [{ ...blankLine(), category: f.category === '__new' ? '' : (f.category || '') }, blankLine()], newCat: '', newCatGroup: '' })}
-                style={{ border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
-              >Split across categories</button>
-            )}
-          </div>
-          <PlanCategoryPicker
-            env={env} S={S} month={month} money={money}
-            catType={catType} showAmounts={catType === 'expense'} excludeRta heading={null}
-            allowCreate showSelected
-            onCreate={({ name, groupId }) => setForm({ category: '__new', newCat: name, newCatGroup: groupId || '' })}
-            value={f.category} onChange={id => setField('category', id)}
-          />
-          {f.category === '__new' && f.newCat && (
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-              New category “{f.newCat}” will be created when you save.
-            </div>
-          )}
-          <FieldError msg={errors.category} />
-        </div>
-      )}
-      {fxCategory && splitOn && (
-        <SplitLines f={f} setForm={setForm} env={env} S={S} month={month} money={money} errors={errors} />
-      )}
-
+      {/* Payment source sits ABOVE Category: it is required while Category is
+          optional, so the must-fill field comes first. */}
       {fxPayWith && (
         <div>
           <Label htmlFor="f-paywith" required>{type === 'refund' ? 'Refund to' : 'Paid with'}</Label>
@@ -187,6 +159,36 @@ function Body() {
           </SelectField>
           <FieldError msg={errors.account} />
         </div>
+      )}
+
+      {fxCategory && !splitOn && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <Label optional>Category</Label>
+            {canSplit && (
+              <button type="button" className="hv-soft"
+                onClick={() => setForm({ splitOn: true, splits: [{ ...blankLine(), category: f.category === '__new' ? '' : (f.category || '') }, blankLine()], newCat: '', newCatGroup: '' })}
+                style={{ border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+              >Split across categories</button>
+            )}
+          </div>
+          <PlanCategoryPicker
+            env={env} S={S} month={month} money={money}
+            catType={catType} showAmounts={catType === 'expense'} excludeRta heading={null}
+            allowCreate showSelected
+            onCreate={({ name, groupId }) => setForm({ category: '__new', newCat: name, newCatGroup: groupId || '' })}
+            value={f.category} onChange={id => setField('category', id)}
+          />
+          {f.category === '__new' && f.newCat && (
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
+              New category “{f.newCat}” will be created when you save.
+            </div>
+          )}
+          <FieldError msg={errors.category} />
+        </div>
+      )}
+      {fxCategory && splitOn && (
+        <SplitLines f={f} setForm={setForm} env={env} S={S} month={month} money={money} errors={errors} />
       )}
 
       {fxTransfer && (
