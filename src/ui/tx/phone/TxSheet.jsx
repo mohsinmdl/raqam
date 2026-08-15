@@ -28,11 +28,14 @@ const card = { background: 'var(--surface)', border: '1px solid var(--border)', 
 // Wraps one field row: the interactive control (button/label) plus an
 // optional per-field error hint, both inside a single bordered "row" so the
 // hairline separates ROWS (not the control from its own error message).
-function Row({ last, error, children }) {
+// `errorId` — when given, the caller can point its control's aria-describedby
+// at this same id (and set aria-invalid) so the error is programmatically
+// associated with the control, not just visually adjacent (WCAG 3.3.1/4.1.2).
+function Row({ last, error, errorId, children }) {
   return (
     <div style={{ borderBottom: last ? 'none' : '1px solid var(--border)' }}>
       {children}
-      {error && <div role="alert" style={{ fontSize: 12, color: 'var(--neg)', padding: '0 14px 8px' }}>{error}</div>}
+      {error && <div id={errorId} role="alert" style={{ fontSize: 12, color: 'var(--neg)', padding: '0 14px 8px' }}>{error}</div>}
     </div>
   );
 }
@@ -87,11 +90,12 @@ export default function TxSheet({ def, state, requestClose }) {
   const prev = f.editId ? S.transactions.find(t => t.id === f.editId) : null;
 
   const dateRow = (
-    <Row last error={errors.date}>
+    <Row last error={errors.date} errorId="tx-err-date">
       <label style={{ ...rowInner, cursor: 'pointer' }}>
         <span style={{ minWidth: 0, flex: 1 }}>
           <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>Date</span>
           <input type="date" value={f.date} onFocus={commitKp} onChange={e => setField('date', e.target.value)}
+            aria-invalid={errors.date ? 'true' : undefined} aria-describedby={errors.date ? 'tx-err-date' : undefined}
             style={{ border: 'none', background: 'none', color: 'var(--text)', font: 'inherit', fontSize: 14.5, fontWeight: 500, outline: 'none', padding: 0 }} />
         </span>
       </label>
@@ -113,6 +117,16 @@ export default function TxSheet({ def, state, requestClose }) {
                 fontSize: 40, fontWeight: 700, textAlign: 'center', cursor: 'pointer', padding: '6px 0 0' }}>
               {amountText}
             </button>
+            {/* Keypad digits update amountText silently otherwise — focus stays
+                on the digit keys, not the amount button, so nothing gets
+                re-announced per keystroke. Mirrors the visually-hidden
+                aria-live precedent in Transactions.jsx (sort/row-count status)
+                and the plain aria-live span PlanPhone.jsx uses for its assign
+                draft: same formatted display string the button already shows,
+                nothing extra, so this doesn't spam beyond the running total. */}
+            <span role="status" aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
+              {amountText}
+            </span>
             {errors.amount && (
               <div role="alert" style={{ textAlign: 'center', fontSize: 12, color: 'var(--neg)', marginTop: 2 }}>{errors.amount}</div>
             )}
@@ -185,8 +199,9 @@ export default function TxSheet({ def, state, requestClose }) {
                 </div>
                 <div aria-hidden="true" style={{ textAlign: 'center', color: 'var(--muted)', padding: '6px 0', fontSize: 18 }}>↓</div>
                 <div style={card}>
-                  <Row last error={errors.transfer}>
-                    <button onClick={() => openRow('to')} style={rowInner}>
+                  <Row last error={errors.transfer} errorId="tx-err-transfer">
+                    <button onClick={() => openRow('to')} style={rowInner}
+                      aria-invalid={errors.transfer ? 'true' : undefined} aria-describedby={errors.transfer ? 'tx-err-transfer' : undefined}>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>Transferred to</span>
                         <span style={{ display: 'block', fontSize: 14.5, fontWeight: 500 }}>{optLabel(f.to) || 'Choose…'}</span>
@@ -206,20 +221,22 @@ export default function TxSheet({ def, state, requestClose }) {
             ) : (
               <div style={card}>
                 {fields.merchant && (
-                  <Row last={false} error={errors.merchant}>
+                  <Row last={false} error={errors.merchant} errorId="tx-err-merchant">
                     <label style={{ ...rowInner, cursor: 'text' }}>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{merchantLabel(type)}</span>
                         <input value={f.merchant} onFocus={commitKp} onChange={e => setField('merchant', e.target.value)}
                           placeholder="e.g. Imtiaz Super Market"
+                          aria-invalid={errors.merchant ? 'true' : undefined} aria-describedby={errors.merchant ? 'tx-err-merchant' : undefined}
                           style={{ width: '100%', border: 'none', background: 'none', color: 'var(--text)', font: 'inherit', fontSize: 14.5, fontWeight: 500, outline: 'none', padding: 0 }} />
                       </span>
                     </label>
                   </Row>
                 )}
                 {fields.category && (
-                  <Row last={false} error={errors.category}>
-                    <button onClick={() => openRow('category')} style={rowInner}>
+                  <Row last={false} error={errors.category} errorId="tx-err-category">
+                    <button onClick={() => openRow('category')} style={rowInner}
+                      aria-invalid={errors.category ? 'true' : undefined} aria-describedby={errors.category ? 'tx-err-category' : undefined}>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>Category</span>
                         <span style={{ display: 'block', fontSize: 14.5, fontWeight: 500 }}>{catName || 'Choose…'}</span>
@@ -229,8 +246,10 @@ export default function TxSheet({ def, state, requestClose }) {
                   </Row>
                 )}
                 {(fields.payWith || fields.account) && (
-                  <Row last={false} error={fields.payWith ? errors.payWith : errors.account}>
-                    <button onClick={() => openRow(fields.payWith ? 'payWith' : 'account')} style={rowInner}>
+                  <Row last={false} error={fields.payWith ? errors.payWith : errors.account} errorId={fields.payWith ? 'tx-err-paywith' : 'tx-err-account'}>
+                    <button onClick={() => openRow(fields.payWith ? 'payWith' : 'account')} style={rowInner}
+                      aria-invalid={(fields.payWith ? errors.payWith : errors.account) ? 'true' : undefined}
+                      aria-describedby={(fields.payWith ? errors.payWith : errors.account) ? (fields.payWith ? 'tx-err-paywith' : 'tx-err-account') : undefined}>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{fields.payWith ? payWithLabel(type) : accountLabel(type)}</span>
                         <span style={{ display: 'block', fontSize: 14.5, fontWeight: 500 }}>{optLabel(fields.payWith ? f.payWith : f.account) || 'Choose…'}</span>
@@ -256,12 +275,13 @@ export default function TxSheet({ def, state, requestClose }) {
                         </div>
                       </div>
                     </Row>
-                    <Row last={false} error={errors.reason}>
+                    <Row last={false} error={errors.reason} errorId="tx-err-reason">
                       <label style={{ ...rowInner, cursor: 'text' }}>
                         <span style={{ minWidth: 0, flex: 1 }}>
                           <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>Reason <span style={{ color: 'var(--neg)' }}>*</span></span>
                           <input value={f.reason || ''} onFocus={commitKp} onChange={e => setField('reason', e.target.value)}
                             placeholder="e.g. Bank charges correction"
+                            aria-invalid={errors.reason ? 'true' : undefined} aria-describedby={errors.reason ? 'tx-err-reason' : undefined}
                             style={{ width: '100%', border: 'none', background: 'none', color: 'var(--text)', font: 'inherit', fontSize: 14.5, fontWeight: 500, outline: 'none', padding: 0 }} />
                         </span>
                       </label>
@@ -274,30 +294,40 @@ export default function TxSheet({ def, state, requestClose }) {
 
             {/* Show more: folded to keep the sheet short — notes, transfer fee,
                 clear/uncleared status, and the escape hatch to the classic drawer
-                for anything this shell doesn't cover (repeat, split, etc). */}
+                for anything this shell doesn't cover (repeat, split, etc). The
+                toggle button stays mounted across both states (a real
+                disclosure, not a one-way reveal) so keyboard/AT focus never
+                gets dropped to a generic wrapper on expand — it just stays put
+                on the button while aria-expanded/aria-controls track the
+                revealed region. Collapsing only hides #tx-more-region; the
+                notes/fee/status values themselves live in the form (f.notes /
+                f.fee / f.pending), so nothing entered is lost. */}
             <div style={{ marginTop: 12 }}>
-              {!showMore ? (
-                <button onClick={() => { commitKp(); setShowMore(true); }} className="hv-elev" aria-expanded={false}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', height: 44,
-                    border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', color: 'var(--muted)',
-                    font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  Show more <span aria-hidden="true">⌄</span>
-                </button>
-              ) : (
-                <div style={card}>
-                  <Row last={false} error={errors.notes}>
+              <button onClick={() => { commitKp(); setShowMore(v => !v); }} className="hv-elev"
+                aria-expanded={showMore} aria-controls="tx-more-region"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', height: 44,
+                  border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', color: 'var(--muted)',
+                  font: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                {showMore ? 'Show less' : 'Show more'}
+                <span aria-hidden="true" style={{ display: 'inline-block', transform: showMore ? 'rotate(180deg)' : 'none' }}>⌄</span>
+              </button>
+              {showMore && (
+                <div id="tx-more-region" style={{ ...card, marginTop: 8 }}>
+                  <Row last={false} error={errors.notes} errorId="tx-err-notes">
                     <div style={{ padding: '10px 14px' }}>
                       <label htmlFor="tx-notes" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 4 }}>Notes</label>
                       <textarea id="tx-notes" rows={2} value={f.notes || ''} onFocus={commitKp} onChange={e => setField('notes', e.target.value)}
+                        aria-invalid={errors.notes ? 'true' : undefined} aria-describedby={errors.notes ? 'tx-err-notes' : undefined}
                         style={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--elev)',
                           color: 'var(--text)', font: 'inherit', fontSize: 14, padding: '8px 10px', resize: 'vertical', outline: 'none' }} />
                     </div>
                   </Row>
                   {fields.transfer && (
-                    <Row last={false} error={errors.fee}>
+                    <Row last={false} error={errors.fee} errorId="tx-err-fee">
                       <div style={{ padding: '10px 14px' }}>
                         <label htmlFor="tx-fee" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 4 }}>Transfer fee</label>
                         <input id="tx-fee" inputMode="decimal" placeholder="0" value={f.fee || ''} onFocus={commitKp} onChange={e => setField('fee', e.target.value)}
+                          aria-invalid={errors.fee ? 'true' : undefined} aria-describedby={errors.fee ? 'tx-err-fee' : undefined}
                           className="tnum" style={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--elev)',
                             color: 'var(--text)', font: 'inherit', fontSize: 14, padding: '8px 10px', outline: 'none' }} />
                         <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4 }}>A fee is recorded separately as a Bank fees expense.</div>

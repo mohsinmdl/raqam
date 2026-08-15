@@ -71,7 +71,19 @@ export default function Header() {
     <header className="app-header" style={{ height: 60, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
       {acct ? (
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.nickname}</h1>
+          {/* On phone, Transactions.jsx renders its OWN <h1> with this same
+              nickname in the register header block below (the account name
+              is the page title there) — a second <h1> here would give
+              heading-navigation AT two identically-named top-level headings
+              with no way to tell "page title" from "top bar echo" apart
+              (WCAG 1.3.1/2.4.6). So on phone this is a plain (non-heading)
+              label; desktop has no such duplicate, so it stays the sole <h1>.
+              `title` covers the visual "Ba…" truncation for sighted/zoom users. */}
+          {phoneHdr ? (
+            <div title={acct.nickname} style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.nickname}</div>
+          ) : (
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.nickname}</h1>
+          )}
           {/* overflow/ellipsis: without them the nowrap subtitle paints past a
               squeezed title block and smears under the month nav on phone. */}
           <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.type} · {reconLabel}</span>
