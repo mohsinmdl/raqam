@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { sortGroups, sortCats } from '../lib/categoryOrder.js';
 
 // One-field category combobox (YNAB-style): the field IS the search input.
 // Closed, it shows the picked name (or a placeholder); focusing it opens the
@@ -42,7 +43,7 @@ export default function PlanCategoryPicker({
   const inputRef = useRef(null);
   const activeRowRef = useRef(null); // the highlighted row, scrolled into view on arrow-key nav
 
-  const groups = useMemo(() => [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99)), [S.categoryGroups]);
+  const groups = useMemo(() => sortGroups(S.categoryGroups), [S.categoryGroups]);
   const nameOf = v => (v === 'rta' ? 'Ready to Assign'
     : v === '__new' ? (pendingName || '＋ New category')
     : v ? ((S.categories.find(c => c.id === v) || {}).name || '') : '');
@@ -61,10 +62,10 @@ export default function PlanCategoryPicker({
     // category groups below — rendered as an indented row, not a flat one.
     if (!excludeRta && (!q || 'ready to assign'.includes(norm(q)))) { out.push({ kind: 'head', name: 'Inflow' }); out.push({ kind: 'rta' }); }
     groups.forEach(g => {
-      const members = cats.filter(c => c.groupId === g.id);
+      const members = sortCats(cats.filter(c => c.groupId === g.id));
       if (members.length) { out.push({ kind: 'head', name: g.name }); members.forEach(c => out.push({ kind: 'cat', cat: c })); }
     });
-    const other = cats.filter(c => !c.groupId || !ids.has(c.groupId));
+    const other = sortCats(cats.filter(c => !c.groupId || !ids.has(c.groupId)));
     if (other.length) { out.push({ kind: 'head', name: 'Other' }); other.forEach(c => out.push({ kind: 'cat', cat: c })); }
     return out;
   }, [S, q, excludeRta, excludeSet, catType, groups]);

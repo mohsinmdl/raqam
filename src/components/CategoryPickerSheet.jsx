@@ -4,6 +4,7 @@
 // Select-mode Categorize (desktop reuses it from the bulk more-menu). Spec:
 // docs/superpowers/specs/2026-08-12-mobile-tabbar-ynab-spending-design.md
 import { useEffect, useMemo, useState } from 'react';
+import { sortGroups, byOrderThenName } from '../lib/categoryOrder.js';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney } from '../lib/format.js';
@@ -44,10 +45,10 @@ export default function CategoryPickerSheet({ open, onClose, onPick, catType = '
     // already excludes it, same as TxForm's `excludeRta` picker.
     const cats = (S.categories || []).filter(c => c.type === catType && c.status === 'active'
       && (!ql || c.name.toLowerCase().includes(ql)));
-    const groups = [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
+    const groups = sortGroups(S.categoryGroups);
     const ids = new Set(groups.map(g => g.id));
     const byGroup = key => cats.filter(c => ((c.groupId && ids.has(c.groupId)) ? c.groupId : 'other') === key)
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
+      .sort(byOrderThenName);
     return [...groups.map(g => ({ id: g.id, name: g.name, cats: byGroup(g.id) })),
       { id: 'other', name: 'Other', cats: byGroup('other') }]
       .filter(s => s.cats.length > 0);

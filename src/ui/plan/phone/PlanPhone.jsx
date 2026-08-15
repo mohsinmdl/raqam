@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { sortGroups, sortCats } from '../../../lib/categoryOrder.js';
 
 // Phone render path for the Plan screen — YNAB's mobile anatomy in ledger
 // tokens. Read-only skeleton in PR1: taps are wired by the keypad (PR2) and
@@ -13,13 +14,12 @@ const colHead = { fontSize: 11, fontWeight: 600, color: 'var(--text)', lineHeigh
 // 'other' key desktop uses — so Collapse-all and other cross-referencing code
 // can compare phone/desktop group keys directly.
 export function phoneRowsFor(S, env, collapsed) {
-  const groups = [...(S.categoryGroups || [])].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
+  const groups = sortGroups(S.categoryGroups);
   const cats = (S.categories || []).filter(c => c.type === 'expense');
   const active = cats.filter(c => c.status === 'active');
   const hiddenCount = cats.filter(c => c.status === 'archived').length;
   const out = [];
   const overspent = [];
-  const sortCats = list => [...list].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
   const bucket = gid => sortCats(active.filter(c => (c.groupId || null) === gid));
   const emit = (key, name, members) => {
     if (!members.length) return;
