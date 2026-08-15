@@ -31,7 +31,7 @@ function Circle({ on }) {
 function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, hideAccount, last, needsCat }) {
   const payee = t.merchant || 'No Payee Set';
   const catChip = needsCat
-    ? <span style={chipStyle('var(--warn-soft)', 'var(--text)')}>Category Needed</span>
+    ? <span style={chipStyle('var(--warn-soft)', 'var(--text)')}>This needs a category</span>
     : t.catName
       ? <span style={chipStyle('var(--soft)', 'var(--text)')}>{t.catName}</span>
       : null;

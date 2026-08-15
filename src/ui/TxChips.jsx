@@ -10,6 +10,21 @@ const chip = (bg, fg) => ({
   display: 'inline-flex', alignItems: 'center', gap: 4,
 });
 
+// The warm "categorize me" pill shown in a category cell when a categorizable
+// transaction has none (txRowOf.needsCategory). One component so the desktop
+// table, phone rows and dashboard recents render the identical pill.
+export function NeedsCategoryPill({ fontSize = 12 }) {
+  return (
+    <span
+      title="Assign a category to this transaction so you'll know what you spent your money on."
+      aria-label="This needs a category. Assign a category to this transaction so you'll know what you spent your money on."
+      style={{ ...chip('var(--warn-soft)', 'var(--text)'), fontSize, fontWeight: 500 }}
+    >
+      This needs a category
+    </span>
+  );
+}
+
 export default function TxChips({ row, meta }) {
   const t = row;
   return (

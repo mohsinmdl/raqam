@@ -15,7 +15,7 @@ import { nowIso } from '../lib/dates.js';
 import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
 import { instName, schedNote, txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
-import TxChips from '../ui/TxChips.jsx';
+import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
 import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import Checkbox from '../ui/Checkbox.jsx';
@@ -185,7 +185,9 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused }
         </div>
       </td>
       <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: 'middle' }}>
-        <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
+        {t.needsCategory
+          ? <NeedsCategoryPill />
+          : <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>}
       </td>
       {/* Memo: adjustment reason and/or free-text note, truncated with an ellipsis and the full value on hover. */}
       <td style={{ ...td, ...dim, maxWidth: 200, padding: pad, verticalAlign: 'middle' }}>
@@ -303,7 +305,7 @@ export default function Transactions() {
   const [phoneMoreOpen, setPhoneMoreOpen] = useState(false); // select-mode ⋯ sheet
   const [pickerOpen, setPickerOpen] = useState(false);   // category picker sheet
   // Banner filters are phone-local view state, not TxView filters.
-  const [phoneFilter, setPhoneFilter] = useState('all'); // 'all' | 'uncleared' | 'needsCat'
+  const [listFilter, setListFilter] = useState('all'); // 'all' | 'uncleared' | 'needsCat' — phone banners + the desktop needs-category banner share it
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const reset = () => resetView();
@@ -330,17 +332,17 @@ export default function Transactions() {
     () => new Set(postedTx.filter(t => t.status === 'pending').map(t => t.id)),
     [postedTx],
   );
-  const phoneRows = phoneFilter === 'uncleared' ? postedRows.filter(r => unclearedIds.has(r.id))
-    : phoneFilter === 'needsCat' ? postedRows.filter(r => needsCat.has(r.id))
+  const shownRows = listFilter === 'uncleared' ? postedRows.filter(r => unclearedIds.has(r.id))
+    : listFilter === 'needsCat' ? postedRows.filter(r => needsCat.has(r.id))
     : postedRows;
-  const groups = dayGroups(phoneRows, sort.key, now);
+  const groups = dayGroups(shownRows, sort.key, now);
   // A banner filter whose population empties (everything cleared/categorized)
   // would strand an empty list with no reset control — the banner is the only
   // way back to 'all' and it disappears with the population. Fall back here.
   useEffect(() => {
-    if ((phoneFilter === 'uncleared' && unclearedIds.size === 0)
-      || (phoneFilter === 'needsCat' && needsCat.size === 0)) setPhoneFilter('all');
-  }, [phoneFilter, unclearedIds, needsCat]);
+    if ((listFilter === 'uncleared' && unclearedIds.size === 0)
+      || (listFilter === 'needsCat' && needsCat.size === 0)) setListFilter('all');
+  }, [listFilter, unclearedIds, needsCat]);
 
   // Hide the ACCOUNT column on a single-account ledger — every row is that
   // account. Header, colgroup, Row cells and the group-heading colSpan all read
@@ -354,7 +356,9 @@ export default function Transactions() {
   // recorded heading to collapse them under (the scheduled band separates the
   // two on its own), so every recorded id is selectable.
   const grouped = scheduled.length > 0;
-  const visibleIds = postedTx.map(t => t.id);
+  // Filtered view: ranges, select-all and the keyboard cursor must only ever
+  // touch rows that are actually rendered.
+  const visibleIds = shownRows.map(r => r.id);
   const sel = visibleIds.filter(id => selected.has(id));
   const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
   const clearSel = () => setSelected(new Set());
@@ -364,7 +368,7 @@ export default function Transactions() {
   // Switching ledgers reuses this mounted component (only :accountId changes),
   // so account A's banner filter and Select mode would carry onto account B.
   // Running on first mount too is a harmless no-op.
-  useEffect(() => { setPhoneFilter('all'); exitSelect(); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setListFilter('all'); exitSelect(); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleRow = (id, on, e) => {
     setCursorId(id);
     setSchedSel(new Set()); // mutual exclusion with the scheduled selection
@@ -759,22 +763,43 @@ export default function Transactions() {
             {!phoneSelect && (needsCat.size > 0 || unclearedIds.size > 0) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '6px 16px 12px' }}>
                 {needsCat.size > 0 && (
-                  <button onClick={() => setPhoneFilter(f => (f === 'needsCat' ? 'all' : 'needsCat'))} aria-pressed={phoneFilter === 'needsCat'} className="hv-elev"
+                  <button onClick={() => setListFilter(f => (f === 'needsCat' ? 'all' : 'needsCat'))} aria-pressed={listFilter === 'needsCat'} className="hv-elev"
                     style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--elev)', color: 'var(--text)', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
                     <span style={{ flex: 'none', minWidth: 22, height: 22, borderRadius: 999, background: 'var(--warn-soft)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{needsCat.size}</span>
                     <span style={{ flex: 1, fontSize: 13.5 }}>{'To categorize'}</span>
-                    <span style={{ color: 'var(--accent)', fontSize: 13.5, fontWeight: 600 }}>{phoneFilter === 'needsCat' ? 'Show all' : 'Review'}</span>
+                    <span style={{ color: 'var(--accent)', fontSize: 13.5, fontWeight: 600 }}>{listFilter === 'needsCat' ? 'Show all' : 'Review'}</span>
                   </button>
                 )}
                 {unclearedIds.size > 0 && (
-                  <button onClick={() => setPhoneFilter(f => (f === 'uncleared' ? 'all' : 'uncleared'))} aria-pressed={phoneFilter === 'uncleared'} className="hv-elev"
+                  <button onClick={() => setListFilter(f => (f === 'uncleared' ? 'all' : 'uncleared'))} aria-pressed={listFilter === 'uncleared'} className="hv-elev"
                     style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--elev)', color: 'var(--text)', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
-                    <span style={{ flex: 1, fontSize: 13.5 }}>{(phoneFilter === 'uncleared' ? 'Showing ' : 'Show ') + unclearedIds.size + ' uncleared transaction' + (unclearedIds.size === 1 ? '' : 's')}</span>
-                    <span aria-hidden="true" style={{ color: 'var(--muted)' }}>{phoneFilter === 'uncleared' ? '✕' : '›'}</span>
+                    <span style={{ flex: 1, fontSize: 13.5 }}>{(listFilter === 'uncleared' ? 'Showing ' : 'Show ') + unclearedIds.size + ' uncleared transaction' + (unclearedIds.size === 1 ? '' : 's')}</span>
+                    <span aria-hidden="true" style={{ color: 'var(--muted)' }}>{listFilter === 'uncleared' ? '✕' : '›'}</span>
                   </button>
                 )}
               </div>
             )}
+          </div>
+        )}
+        {/* Needs-a-category banner (desktop; the phone list has its own inline
+            review banners). View flips the shared listFilter, and the auto-reset
+            effect dissolves banner + filter once the last row is categorized. */}
+        {!phone && needsCat.size > 0 && (
+          <div role="region" aria-label="Transactions needing a category" style={{
+            display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
+            background: 'var(--soft)', borderRadius: flush ? 0 : 12,
+            ...(flush ? { borderBottom: '1px solid var(--border)' } : { border: '1px solid var(--border)' }),
+          }}>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>
+              {needsCat.size === 1 ? '1 transaction needs a category.' : needsCat.size + ' transactions need a category.'}
+            </span>
+            <button
+              onClick={() => { clearSel(); setListFilter(f => (f === 'needsCat' ? 'all' : 'needsCat')); }}
+              aria-pressed={listFilter === 'needsCat'}
+              className="hv-accent"
+              style={{ height: 30, padding: '0 16px', border: 'none', borderRadius: 999,
+                background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}
+            >{listFilter === 'needsCat' ? 'Show all' : 'View'}</button>
           </div>
         )}
         {/* Action toolbar — the All-Accounts reference row: Add Transaction on
@@ -882,7 +907,7 @@ export default function Transactions() {
                   </tr>
                 )}
                 {/* Recorded rows act through the bulk bar once selected — no ⋯. */}
-                {postedRows.map(t => (
+                {shownRows.map(t => (
                   <Row
                     key={t.id} t={t} selId={t.id} hideAccount={!!accountId}
                     checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
@@ -893,7 +918,7 @@ export default function Transactions() {
           )}
           {phone && (postedRows.length > 0 || scheduled.length > 0) && (
             <TxPhoneList
-              groups={groups} postedRows={phoneRows}
+              groups={groups} postedRows={shownRows}
               scheduled={scheduled} schedKey={schedKey}
               schedOpen={schedOpen} onToggleSchedOpen={() => setSchedOpen(o => !o)}
               overdueCount={overdueCount} hiddenRuleCount={hiddenRuleCount}

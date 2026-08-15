@@ -64,6 +64,9 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // Belongs to a recurring rule — including the transaction that seeded it.
     isRepeating: !!ruleFromTx(S, t.id),
     catName: cat ? cat.name : (t.type === 'transfer' ? 'Transfer' : '—'), catColor: cat ? cat.color : 'var(--border)',
+    // Category is optional at entry; categorizable types without one surface a
+    // "This needs a category" pill wherever the category cell renders.
+    needsCategory: !cat && (t.type === 'expense' || t.type === 'income' || t.type === 'refund'),
     acctLabel, amtLabel, amtColor, amtValue,
     // Status shows as a one-letter badge (see the Transactions Row): a filled
     // green C when cleared, an outlined C when not — the same pair the balance
