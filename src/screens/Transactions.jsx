@@ -122,7 +122,7 @@ function SortableHeader({ col, sort, onSort, last }) {
 }
 
 
-function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused }) {
+function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused, onCategorize }) {
   // Fixed 2.25rem (36px) row height, YNAB-style — so the vertical padding is
   // zero and content is centred by the cells' middle alignment; horizontal
   // padding is all that remains.
@@ -186,7 +186,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused }
       </td>
       <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: 'middle' }}>
         {t.needsCategory
-          ? <NeedsCategoryPill />
+          ? <NeedsCategoryPill onClick={onCategorize ? () => onCategorize(t.id) : undefined} />
           : <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>}
       </td>
       {/* Memo: adjustment reason and/or free-text note, truncated with an ellipsis and the full value on hover. */}
@@ -303,7 +303,10 @@ export default function Transactions() {
   // persisting filter would silently narrow the list with no cue on screen.
   const [phoneQOpen, setPhoneQOpen] = useState(() => F.q !== '');
   const [phoneMoreOpen, setPhoneMoreOpen] = useState(false); // select-mode ⋯ sheet
-  const [pickerOpen, setPickerOpen] = useState(false);   // category picker sheet
+  const [pickerOpen, setPickerOpen] = useState(false);   // category picker sheet (bulk Categorize…)
+  // Single-row categorize: the row pill's CTA. Holds the tx id; shares the
+  // mounted CategoryPickerSheet with the bulk flow (bulk wins if both somehow set).
+  const [catTarget, setCatTarget] = useState(null);
   // Banner filters are phone-local view state, not TxView filters.
   const [listFilter, setListFilter] = useState('all'); // 'all' | 'uncleared' | 'needsCat' — phone banners + the desktop needs-category banner share it
 
@@ -516,6 +519,15 @@ export default function Transactions() {
   // else is counted as skipped, so the toast can never claim a row it left
   // unchanged. (A row already carrying the picked category still counts as
   // categorized — it ends in the state the user asked for.)
+  // The row pill's CTA: assign the picked category to that one transaction.
+  const categorizeOne = categoryId => {
+    const id = catTarget;
+    setCatTarget(null);
+    if (!id) return;
+    applyData(data => setTransactionsCategory(data, { ids: [id], categoryId }));
+    notify('Categorized — balances and envelopes updated.');
+  };
+
   const bulkCategorize = categoryId => {
     const canTakeExpenseCat = t => t.type === 'expense' || t.type === 'refund';
     const ids = sel.filter(id => { const t = S.transactions.find(x => x.id === id); return t && canTakeExpenseCat(t); });
@@ -911,6 +923,7 @@ export default function Transactions() {
                   <Row
                     key={t.id} t={t} selId={t.id} hideAccount={!!accountId}
                     checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
+                    onCategorize={setCatTarget}
                   />
                 ))}
               </tbody>
@@ -927,6 +940,7 @@ export default function Transactions() {
               onToggleRow={(id, on) => toggleRow(id, on)}   /* no event → additive branch, YNAB multi-toggle */
               onToggleSched={toggleSched}
               onRowTap={t => openers.editTx(S, t.id, openDrawer)}
+              onCategorize={setCatTarget}
               onSchedTap={x => (x.row.isRule ? navigate('/recurring/' + x.row.ruleId) : openers.editTx(S, x.selId, openDrawer))}
             />
           )}
@@ -1007,7 +1021,15 @@ export default function Transactions() {
             </div>
           </>
         )}
-        <CategoryPickerSheet open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={bulkCategorize} />
+        <CategoryPickerSheet
+          open={pickerOpen || !!catTarget}
+          onClose={() => { setPickerOpen(false); setCatTarget(null); }}
+          // Income rows need the income list; the bulk flow stays expense-only
+          // (its own guard filters the selection), so only the single-target
+          // path switches type.
+          catType={!pickerOpen && catTarget && S.transactions.find(x => x.id === catTarget)?.type === 'income' ? 'income' : 'expense'}
+          onPick={pickerOpen ? bulkCategorize : categorizeOne}
+        />
       </div>
     </div>
   );
