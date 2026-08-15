@@ -90,12 +90,14 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
       : card;
     return (
       <section aria-label="Current position" style={{ ...compactCard, padding: '11px 18px', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-        <div style={{ marginRight: 8, display: 'inline-flex', flex: 'none' }}>{eyeToggle}</div>
         {cell(M.totalBank, 'Cleared Balance', cBadge(true))}
         {op('+')}
         {cell(M.uncleared, 'Uncleared Balance', cBadge(false))}
         {op('=')}
         {cell(M.working, 'Working Balance', null)}
+        {/* Eye sits just right of the totals it protects; the search slot below
+            still pushes to the far right via marginLeft:auto. */}
+        <div style={{ marginLeft: 8, display: 'inline-flex', flex: 'none' }}>{eyeToggle}</div>
         {trailing && <div style={{ marginLeft: 'auto', flex: 'none' }}>{trailing}</div>}
       </section>
     );
