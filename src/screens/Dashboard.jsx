@@ -14,7 +14,7 @@ import { txRowOf, freshInfo, instName, setupState } from '../lib/txRow.js';
 import PositionStrip from '../components/PositionStrip.jsx';
 import FirstUse from './FirstUse.jsx';
 import { openers } from '../drawers/openers.js';
-import TxChips from '../ui/TxChips.jsx';
+import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import { effectiveNextDate, overdueRules, upcomingRules } from '../lib/schedule.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { leftToSpend } from '../lib/leftToSpend.js';
@@ -364,8 +364,12 @@ export default function Dashboard() {
                     <TxChips row={t} />
                   </div>
                   <div className="tx-cell-cat" style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
-                    <span style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
+                    {t.needsCategory ? <NeedsCategoryPill fontSize={11} /> : (
+                      <>
+                        <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
+                        <span style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
+                      </>
+                    )}
                   </div>
                   <div className="tx-cell-acct" style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</div>
                   <div className="tnum tx-cell-amt" style={{ fontSize: 13.5, fontWeight: 600, textAlign: 'right', color: t.amtColor }}>{t.amtLabel}</div>
