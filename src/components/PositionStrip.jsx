@@ -37,10 +37,28 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
   // month-flow (income/expenses), so the whole metrics read clamps to
   // balanceMonth rather than the viewed month.
   const { balanceMonth } = useMonth();
-  // Compact mode (Transactions) uses money/moneyS (overall `masked`); the full
-  // Dashboard card uses the position-scoped moneyPos/moneySPos (the eye icon).
-  const { money, moneyPos, moneySPos } = useMoney();
+  // Both the full Dashboard card and the compact Transactions strip use the
+  // position-scoped moneyPos/moneySPos — driven by `maskedPosition` (the eye
+  // icon), shared across both surfaces. Everything else app-wide stays on
+  // `masked` (the profile "Hide amounts" toggle).
+  const { moneyPos, moneySPos } = useMoney();
   const [explain, setExplain] = useState(false);
+
+  // One eye toggle, rendered in both modes (Dashboard card + Transactions
+  // strip). Every instance flips the same `maskedPosition`, so the two eyes
+  // stay in lockstep — masking only these "bigger number" position figures.
+  const eyeToggle = (
+    <button onClick={() => setPrefs({ maskedPosition: !prefs.maskedPosition })} className="hv-soft"
+      aria-pressed={String(prefs.maskedPosition)} aria-label={prefs.maskedPosition ? 'Show amounts' : 'Hide amounts'}
+      title={prefs.maskedPosition ? 'Show amounts' : 'Hide amounts'}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {prefs.maskedPosition
+          ? <><path d="M17.94 17.94A10.4 10.4 0 0 1 12 19.5C5.5 19.5 2 12 2 12a19.8 19.8 0 0 1 4.87-5.62M9.9 4.75A9.9 9.9 0 0 1 12 4.5c6.5 0 10 7.5 10 7.5a19.9 19.9 0 0 1-2.24 3.31M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M2 2l20 20" /></>
+          : <><path d="M2 12s3.5-7.5 10-7.5S22 12 22 12s-3.5 7.5-10 7.5S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>}
+      </svg>
+    </button>
+  );
 
   const now = nowIso();
   const M = monthMetrics(S, balanceMonth, now, accountId);
@@ -60,7 +78,7 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
     );
     const cell = (amount, label, badge) => (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-        <span className="tnum" style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.005em', color: amtColor(amount), whiteSpace: 'nowrap' }}>{money(amount)}</span>
+        <span className="tnum" style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.005em', color: amtColor(amount), whiteSpace: 'nowrap' }}>{moneyPos(amount)}</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>{badge}{label}</span>
       </div>
     );
@@ -72,6 +90,7 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
       : card;
     return (
       <section aria-label="Current position" style={{ ...compactCard, padding: '11px 18px', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <div style={{ marginRight: 8, display: 'inline-flex', flex: 'none' }}>{eyeToggle}</div>
         {cell(M.totalBank, 'Cleared Balance', cBadge(true))}
         {op('+')}
         {cell(M.uncleared, 'Uncleared Balance', cBadge(false))}
@@ -101,18 +120,10 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
           <div className="pos-lead" style={{ flex: 1.4, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 500 }}>Total bank balance</span>
-              {/* Amount masking lives beside the number it protects (also the only
-                  reachable toggle on phones, where the sidebar account menu is absent). */}
-              <button onClick={() => setPrefs({ maskedPosition: !prefs.maskedPosition })} className="hv-soft"
-                aria-pressed={String(prefs.maskedPosition)} aria-label={prefs.maskedPosition ? 'Show amounts' : 'Hide amounts'}
-                title={prefs.maskedPosition ? 'Show amounts' : 'Hide amounts'}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  {prefs.maskedPosition
-                    ? <><path d="M17.94 17.94A10.4 10.4 0 0 1 12 19.5C5.5 19.5 2 12 2 12a19.8 19.8 0 0 1 4.87-5.62M9.9 4.75A9.9 9.9 0 0 1 12 4.5c6.5 0 10 7.5 10 7.5a19.9 19.9 0 0 1-2.24 3.31M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M2 2l20 20" /></>
-                    : <><path d="M2 12s3.5-7.5 10-7.5S22 12 22 12s-3.5 7.5-10 7.5S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>}
-                </svg>
-              </button>
+              {/* Amount masking lives beside the number it protects; a matching
+                  eye also sits on the Transactions strip, both driving the same
+                  `maskedPosition` (and reachable on phones, no sidebar needed). */}
+              {eyeToggle}
             </div>
             <div className="tnum" style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1.02 }}>{moneyPos(M.totalBank)}</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{posAsOf}</div>
