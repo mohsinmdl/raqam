@@ -44,9 +44,11 @@ export const validate = {
       else if (!ownsAcc(f.account)) e.account = 'That account is not available.';
       if (!req(f.reason)) e.reason = 'Add a short reason — adjustments are labelled in history.';
     }
-    if (!o.skipCategory && (type === 'expense' || type === 'income' || type === 'refund')) {
-      if (!req(f.category)) e.category = 'Choose a category.';
-      else if (f.category === '__new' && !req(f.newCat)) e.category = 'Name the new category.';
+    // Category is optional — an empty pick records as uncategorized and lands
+    // in the register's "To categorize" review flow. A NON-empty pick is still
+    // fully validated below.
+    if (!o.skipCategory && (type === 'expense' || type === 'income' || type === 'refund') && req(f.category)) {
+      if (f.category === '__new' && !req(f.newCat)) e.category = 'Name the new category.';
       else if (f.category !== '__new') {
         const cat = catById(store, f.category);
         if (!cat) e.category = 'That category no longer exists.';
