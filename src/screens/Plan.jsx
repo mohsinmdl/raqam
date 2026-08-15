@@ -39,6 +39,7 @@ import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarActi
 import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import EditNamePopover from '../ui/plan/EditNamePopover.jsx';
+import { Popover, PopoverTrigger, PopoverPanel } from '../ui/primitives/Popover.jsx';
 import { askDeleteCategory } from '../ui/categoryActions.js';
 import { openers } from '../drawers/openers.js';
 import {
@@ -228,44 +229,41 @@ export function rtaBreakdownLines(env, prevRta, month) {
 }
 
 function RtaBreakdown({ env, prevRta, month, money, moneyS, fg, labelColor }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
-  const close = () => setOpen(false);
-  usePopoverDismiss(open, rootRef, close);
-
+  // Base UI Popover: it owns open/close state, anchored positioning (Floating
+  // UI collision-shift keeps it inside the narrow inspector column), body
+  // portal, Escape / outside-click dismissal, focus return, and ARIA — the
+  // concerns this popover used to hand-roll via usePopoverDismiss + absolute
+  // popCard. Same "Trusted Ledger" surface, now from the shared primitive.
   const rows = rtaBreakdownLines(env, prevRta, month);
 
   return (
-    <div ref={rootRef} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen(o => !o)} aria-haspopup="dialog" aria-expanded={String(open)}
+    <Popover>
+      <PopoverTrigger
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, padding: '8px 6px 12px 0', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}
       >
         <span style={{ fontSize: 14, fontWeight: 400, color: labelColor }}>Ready to Assign</span>
         <span className="tnum" style={{ fontSize: 21, fontWeight: 700, color: fg }}>{money(env.rta)}</span>
-      </button>
-      {open && (
-        <div role="dialog" aria-label="Ready to Assign breakdown" style={{ ...popCard, top: 58, left: 0, width: 320 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Ready to Assign Breakdown</div>
-          <div style={{ background: 'var(--elev)', borderRadius: 8, padding: '8px 10px' }}>
-            {rows.map(r => (
-              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '4px 0', fontSize: 12.5 }}>
-                <span style={{ color: 'var(--muted)' }}>{r.label}</span>
-                <span className="tnum">{moneyS(r.value)}</span>
-              </div>
-            ))}
-            <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '4px 0', fontSize: 13, fontWeight: 700 }}>
-              <span>Total Ready to Assign</span>
-              <span className="tnum" style={{ color: env.rta > 0 ? 'var(--pos)' : 'inherit' }}>{money(env.rta)}</span>
+      </PopoverTrigger>
+      <PopoverPanel width={320} aria-label="Ready to Assign breakdown">
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Ready to Assign Breakdown</div>
+        <div style={{ background: 'var(--elev)', borderRadius: 8, padding: '8px 10px' }}>
+          {rows.map(r => (
+            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '4px 0', fontSize: 12.5 }}>
+              <span style={{ color: 'var(--muted)' }}>{r.label}</span>
+              <span className="tnum">{moneyS(r.value)}</span>
             </div>
-          </div>
-          <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 10 }}>
-            Ready to Assign is money that hasn’t been given a job yet. Assign it to one or more categories.
+          ))}
+          <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '4px 0', fontSize: 13, fontWeight: 700 }}>
+            <span>Total Ready to Assign</span>
+            <span className="tnum" style={{ color: env.rta > 0 ? 'var(--pos)' : 'inherit' }}>{money(env.rta)}</span>
           </div>
         </div>
-      )}
-    </div>
+        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 10 }}>
+          Ready to Assign is money that hasn’t been given a job yet. Assign it to one or more categories.
+        </div>
+      </PopoverPanel>
+    </Popover>
   );
 }
 
