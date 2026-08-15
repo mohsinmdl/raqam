@@ -1,14 +1,20 @@
 // Raqam shared calculation + formatting utilities. All money in integer PKR.
 // Ported verbatim from the Hisaab design prototype's calc.js — the financial correctness core.
 const nf = new Intl.NumberFormat('en-PK', { maximumFractionDigits: 0 });
-export function fmtNum(n) { return nf.format(Math.round(Math.abs(n))); }
-export function fmtPKR(n, masked) {
-  if (masked) return 'Rs ••••••';
-  return (n < 0 ? '−' : '') + 'Rs ' + fmtNum(n);
+// Money is stored as integer PKR, so decimals are cosmetic (.00) today, but we
+// format the raw magnitude without rounding so any fractional value renders true.
+const nf2 = new Intl.NumberFormat('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export function fmtNum(n, decimals) {
+  const a = Math.abs(n);
+  return decimals ? nf2.format(a) : nf.format(Math.round(a));
 }
-export function fmtSigned(n, masked) {
+export function fmtPKR(n, masked, decimals) {
   if (masked) return 'Rs ••••••';
-  return (n > 0 ? '+' : n < 0 ? '−' : '') + 'Rs ' + fmtNum(n);
+  return (n < 0 ? '−' : '') + 'Rs ' + fmtNum(n, decimals);
+}
+export function fmtSigned(n, masked, decimals) {
+  if (masked) return 'Rs ••••••';
+  return (n > 0 ? '+' : n < 0 ? '−' : '') + 'Rs ' + fmtNum(n, decimals);
 }
 export function fmtPct(x) { return x == null ? '—' : Math.round(x * 100) + '%'; }
 export const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];

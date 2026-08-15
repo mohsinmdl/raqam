@@ -52,6 +52,9 @@ export default function UserMenu({ name, email, onClose }) {
       <button role="menuitem" className="hv-elev" style={row} aria-pressed={String(prefs.masked)} onClick={() => setPrefs({ masked: !prefs.masked })}>
         <span aria-hidden="true">◔</span> Hide amounts <span style={rightNote}>{prefs.masked ? 'On' : 'Off'}</span>
       </button>
+      <button role="menuitem" className="hv-elev" style={row} aria-pressed={String(prefs.decimals)} onClick={() => setPrefs({ decimals: !prefs.decimals })}>
+        <span aria-hidden="true">·</span> Show decimals <span style={rightNote}>{prefs.decimals ? 'On' : 'Off'}</span>
+      </button>
       {canLock && (
         <button role="menuitem" className="hv-elev" style={{ ...row, flexWrap: 'wrap' }} aria-pressed={String(appLock.enabled)} onClick={onToggleLock}>
           <span aria-hidden="true">⚿</span> App lock <span style={rightNote}>{appLock.enabled ? 'On' : 'Off'}</span>
