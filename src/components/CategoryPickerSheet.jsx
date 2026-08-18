@@ -4,7 +4,7 @@
 // Select-mode Categorize (desktop reuses it from the bulk more-menu). Spec:
 // docs/superpowers/specs/2026-08-12-mobile-tabbar-ynab-spending-design.md
 import { useEffect, useMemo, useState } from 'react';
-import { sortGroups, byOrderThenName } from '../lib/categoryOrder.js';
+import { categoryPickerSections } from '../lib/categoryPicker.js';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney } from '../lib/format.js';
@@ -36,23 +36,8 @@ export default function CategoryPickerSheet({ open, onClose, onPick, catType = '
   // (catType === 'expense'); skip the envelopeFor() computation for income too.
   const showAmounts = catType === 'expense';
   const env = useMemo(() => (open && showAmounts ? envelopeFor(S, month, nowIso()) : null), [open, showAmounts, S, month]);
-  const sections = useMemo(() => {
-    if (!open) return [];
-    const ql = q.trim().toLowerCase();
-    // S.categories never contains a "Ready to Assign" entry — RTA is a
-    // pseudo-row PlanCategoryPicker synthesizes on the fly (see its `flat`
-    // builder), not a real category — so filtering S.categories by type here
-    // already excludes it, same as TxForm's `excludeRta` picker.
-    const cats = (S.categories || []).filter(c => c.type === catType && c.status === 'active'
-      && (!ql || c.name.toLowerCase().includes(ql)));
-    const groups = sortGroups(S.categoryGroups);
-    const ids = new Set(groups.map(g => g.id));
-    const byGroup = key => cats.filter(c => ((c.groupId && ids.has(c.groupId)) ? c.groupId : 'other') === key)
-      .sort(byOrderThenName);
-    return [...groups.map(g => ({ id: g.id, name: g.name, cats: byGroup(g.id) })),
-      { id: 'other', name: 'Other', cats: byGroup('other') }]
-      .filter(s => s.cats.length > 0);
-  }, [open, S.categories, S.categoryGroups, q, catType]);
+  const sections = useMemo(() => (open ? categoryPickerSections(S, catType, q) : []),
+    [open, S.categories, S.categoryGroups, q, catType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null;
   const availColor = n => (n > 0 ? 'var(--pos)' : n < 0 ? 'var(--neg)' : 'var(--muted)');
