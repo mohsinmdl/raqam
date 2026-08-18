@@ -566,11 +566,10 @@ export default function Transactions() {
     );
   };
   // The cleared toggle the ⓒ action uses — same rule as the keyboard shortcut.
-  const bulkToggleCleared = () => {
-    const rows = sel.map(id => S.transactions.find(t => t.id === id)).filter(Boolean);
-    const allCleared = rows.length > 0 && rows.every(t => t.status === 'cleared');
-    bulkStatus(allCleared ? 'pending' : 'cleared');
-  };
+  // Adaptive so the action is never pointless: on an all-cleared selection it
+  // unclears; otherwise it clears.
+  const allSelCleared = sel.length > 0 && sel.every(id => S.transactions.find(t => t.id === id)?.status === 'cleared');
+  const bulkToggleCleared = () => bulkStatus(allSelCleared ? 'pending' : 'cleared');
   // "Make repeating" only makes sense one row at a time — the drawer configures
   // a single schedule. Shown for a lone selection, and it reuses seriesItem so
   // an already-repeating row offers "View rule" instead. Clearing the selection
@@ -731,13 +730,13 @@ export default function Transactions() {
             actions={[
               // Visible bar: Categorize, Edit (only for a lone selection — Edit is
               // a one-row action, so singleEditItem() is null on a multi-select and
-              // BulkBar drops it), and Clear. Mark-uncleared moved to the ⋯ menu.
+              // BulkBar drops it), and the cleared toggle (Clear ⇄ Unclear by
+              // selection state — one adaptive action, so it's never a no-op).
               { label: 'Categorize', icon: 'categorize', onClick: e => { setCatBulkAnchor(e.currentTarget); setCatBulkOpen(true); } },
               singleEditItem(),
-              { label: 'Clear', icon: 'cleared', onClick: () => bulkStatus('cleared'), keys: SHORTCUT_BY_ID.toggleCleared.keys },
+              { label: allSelCleared ? 'Unclear' : 'Clear', icon: allSelCleared ? 'uncleared' : 'cleared', onClick: bulkToggleCleared, keys: SHORTCUT_BY_ID.toggleCleared.keys },
             ]}
             more={[
-              { label: 'Mark uncleared', icon: 'uncleared', onClick: () => bulkStatus('pending'), keys: SHORTCUT_BY_ID.toggleCleared.keys },
               { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate, keys: SHORTCUT_BY_ID.duplicate.keys },
               singleRepeatItem(),
               { divider: true },
