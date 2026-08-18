@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { Popover, PopoverTrigger, PopoverPanel, PopoverClose } from '../primitives/Popover.jsx';
 import { categoryActivityRowsFor } from '../../lib/envelope.js';
 import { activityDrillTarget } from '../../lib/activityDrill.js';
-import { monthLabel, dayLabel } from '../../lib/calc.js';
+import { monthLabel, dayLabel, fmtPKRCompact } from '../../lib/calc.js';
 import { nowIso } from '../../lib/dates.js';
 
 // Sticky header so the column labels stay put while the rows scroll; the
@@ -29,6 +29,18 @@ const th = { position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface)'
 // Vertical divider between header cells: a third inset shadow on the right edge.
 const thDiv = { ...th, boxShadow: th.boxShadow + ', inset -1px 0 0 var(--border)' };
 const td = { padding: '8px', borderBottom: '1px solid var(--border)', fontSize: 13, verticalAlign: 'top' };
+
+// Amounts at or above a million are abbreviated (Rs 1M / Rs 1.25M) so million-
+// rupee rows stay on one line instead of wrapping; smaller amounts keep their
+// exact grouped value. We delegate to the prefs-bound `money` for the full string
+// (respecting the decimals pref) and for the privacy-masked case — `money` returns
+// 'Rs ••••••' when masked, which we detect rather than re-thread the mask pref.
+const AMOUNT_COMPACT_MIN = 1_000_000;
+function amountCell(n, money) {
+  const full = money(n);
+  if (Math.abs(n) < AMOUNT_COMPACT_MIN || full.includes('•')) return { shown: full };
+  return { shown: fmtPKRCompact(n), title: full }; // full value on hover — compacting hides precision
+}
 
 export default function ActivityPopover({ title, catIds, month, S, money, triggerClassName, triggerStyle, triggerLabel, children }) {
   const navigate = useNavigate();
@@ -88,6 +100,7 @@ export default function ActivityPopover({ title, catIds, month, S, money, trigge
                 {rows.map(row => {
                   const t = row.t;
                   const account = (S.accounts || []).find(a => a.id === t.accountId);
+                  const amt = amountCell(row.impact, money);
                   return (
                     <tr key={t.id}
                       onClick={() => drill(t)}
@@ -100,7 +113,7 @@ export default function ActivityPopover({ title, catIds, month, S, money, trigge
                       <td style={{ ...td, whiteSpace: 'nowrap' }} className="tnum">{dayLabel(t.date)}</td>
                       <td style={td}>{t.merchant || '—'}</td>
                       <td style={{ ...td, color: 'var(--muted)' }}>{t.notes || ''}</td>
-                      <td style={{ ...td, textAlign: 'right', color: row.impact < 0 ? 'var(--neg)' : row.impact > 0 ? 'var(--pos)' : undefined }} className="tnum">{money(row.impact)}</td>
+                      <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap', color: row.impact < 0 ? 'var(--neg)' : row.impact > 0 ? 'var(--pos)' : undefined }} className="tnum" title={amt.title}>{amt.shown}</td>
                     </tr>
                   );
                 })}
