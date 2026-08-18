@@ -124,7 +124,7 @@ function SortableHeader({ col, sort, onSort, last }) {
 }
 
 
-function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused, onCategorize }) {
+function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused, onCategorize, flash }) {
   // Fixed 2.25rem (36px) row height, YNAB-style — so the vertical padding is
   // zero and content is centred by the cells' middle alignment; horizontal
   // padding is all that remains.
@@ -150,7 +150,8 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused, 
       // hv-elev's hover background is !important, so it beat the inline
       // --soft when checked — the selection highlight only appeared once the
       // cursor left. Dropping hv-elev while checked lets --soft show at once.
-      className={checked ? undefined : 'hv-elev'}
+      // row-flash is additive: a just-touched row blinks whatever its state.
+      className={[checked ? null : 'hv-elev', flash ? 'row-flash' : null].filter(Boolean).join(' ') || undefined}
       // Scheduled rows sit on a SUBTLE warm wash — the full --warn-soft (used on
       // the group heading) is too heavy per row, so blend it down into the
       // surface. Theme-adaptive, and a checked row's --soft still wins.
@@ -264,7 +265,7 @@ export default function Transactions() {
   // Phone always uses the flush, full-width layout — the boxed 1180px card
   // frame is a desktop choice; the wide pref stays desktop-only.
   const flush = wide || phone;
-  const { ask, notify, confirmOpen, shortcutsOpen } = useUI();
+  const { ask, notify, confirmOpen, shortcutsOpen, flashRows, flashIds } = useUI();
   const fmt = useMoney();
   const { openDrawer, drawer } = useDrawer();
   const navigate = useNavigate();
@@ -508,7 +509,7 @@ export default function Transactions() {
     });
     if (!ok) return;
     applyData(data => deleteTransaction(data, { id: row.id }));
-    notify('Transaction deleted.');
+    notify('Deleted.');
   };
 
   // A transaction's relationship to a series, as one menu item. Either it can
@@ -556,7 +557,7 @@ export default function Transactions() {
     setCatTarget(null);
     if (!id) return;
     applyData(data => setTransactionsCategory(data, { ids: [id], categoryId }));
-    notify('Categorized — balances and envelopes updated.');
+    flashRows([id]);
   };
 
   const bulkCategorize = categoryId => {
@@ -565,10 +566,12 @@ export default function Transactions() {
     const skipped = sel.length - ids.length;
     setPickerOpen(false);
     if (ids.length === 0) { notify('Nothing categorized — none of the selected can take an expense category.'); return; }
-    afterBulk(
-      'Categorized ' + ids.length + '.' + (skipped ? ' Skipped ' + skipped + ' that can’t take an expense category.' : ''),
-      data => setTransactionsCategory(data, { ids, categoryId }),
-    );
+    // Blink the categorized rows instead of a "Categorized N" toast. A partial
+    // skip is still a warning worth surfacing, so that keeps a (minimal) toast.
+    applyData(data => setTransactionsCategory(data, { ids, categoryId }));
+    clearSel();
+    flashRows(ids);
+    if (skipped) notify('Skipped ' + skipped + ' that can’t take an expense category.');
   };
   // The cleared toggle the ⓒ action uses — same rule as the keyboard shortcut.
   // Adaptive so the action is never pointless: on an all-cleared selection it
@@ -956,7 +959,7 @@ export default function Transactions() {
                   <Row
                     key={t.id} t={t} selId={t.id} hideAccount={!!accountId}
                     checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
-                    onCategorize={openRowCategorize}
+                    onCategorize={openRowCategorize} flash={flashIds.has(t.id)}
                   />
                 ))}
               </tbody>
@@ -968,7 +971,7 @@ export default function Transactions() {
               scheduled={scheduled} schedKey={schedKey}
               schedOpen={schedOpen} onToggleSchedOpen={() => setSchedOpen(o => !o)}
               overdueCount={overdueCount} hiddenRuleCount={hiddenRuleCount}
-              hideAccount={!!accountId} needsCat={needsCat}
+              hideAccount={!!accountId} needsCat={needsCat} flashIds={flashIds}
               selectMode={phoneSelect} selected={selected} schedSel={schedSel}
               onToggleRow={(id, on) => toggleRow(id, on)}   /* no event → additive branch, YNAB multi-toggle */
               onToggleSched={toggleSched}

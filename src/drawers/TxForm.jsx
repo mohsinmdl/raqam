@@ -11,6 +11,7 @@ import { useMoney, parseAmt } from '../lib/format.js';
 import { accountBalance, cardOutstanding, dayLabel, findDuplicate, monthLabel, relTime } from '../lib/calc.js';
 import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { addTransaction, updateTransaction, deleteTransaction, addSplitTransaction } from '../store/actions.js';
+import { uid } from '../lib/util.js';
 import { validate } from '../lib/validate.js';
 import { PRESETS, ruleFromTx } from '../lib/schedule.js';
 import WhenField from './WhenField.jsx';
@@ -383,7 +384,7 @@ const TYPE_CHANGE_NOTES = {
 function useSubmit() {
   const { drawer, closeDrawer, fail, setDup } = useDrawer();
   const { data: S, applyData } = useStore();
-  const { notify, ask } = useUI();
+  const { notify, ask, flashRows } = useUI();
   const { moneyRaw } = useMoney();
 
   return async () => {
@@ -423,26 +424,22 @@ function useSubmit() {
     const payload = { form: f, type, amt, fee: parseAmt(f.fee) };
     const repeated = f.repeat && f.repeat !== 'never' && !f.fromRecurring
       && (type === 'expense' || type === 'income') && !ruleFromTx(S, f.editId);
+    // Quiet confirmation: the drawer closes and the new/edited row blinks in the
+    // list, so a "recorded"/"updated" toast is redundant. The one exception is a
+    // recurring rule being created — an off-row side effect the blink can't show,
+    // so that still gets a toast (a "rule action", which the user asked to keep).
     if (splitting) {
-      applyData(data => addSplitTransaction(data, { form: f, legs: f.splits, amt }));
+      const ids = f.splits.map(() => uid());
+      applyData(data => addSplitTransaction(data, { form: f, legs: f.splits, amt, ids }));
       closeDrawer();
-      notify('Split expense recorded — ' + f.splits.length + ' categories updated.');
+      flashRows(ids);
       return;
     }
-    applyData(data => (f.editId ? updateTransaction(data, payload) : addTransaction(data, payload)));
+    const rowId = f.editId || uid();
+    applyData(data => (f.editId ? updateTransaction(data, payload) : addTransaction(data, { ...payload, id: rowId })));
     closeDrawer();
-    if (f.editId) {
-      notify('Transaction updated — balances recalculated.' + (repeated ? ' It repeats from now on.' : ''));
-      return;
-    }
-    const msgs = {
-      expense: 'Expense recorded — balances updated.',
-      income: 'Income recorded — balances updated.',
-      transfer: 'Transfer recorded — both sides updated, excluded from income and expenses.',
-      refund: 'Refund recorded — it offsets the original category.',
-      adjustment: 'Balance adjustment recorded and labelled.',
-    };
-    notify(msgs[type] + (repeated ? ' A recurring rule was created too.' : ''));
+    flashRows(rowId);
+    if (repeated) notify('Recurring rule created.');
   };
 }
 
@@ -464,7 +461,8 @@ function useDanger() {
       if (!ok) return;
       applyData(data => deleteTransaction(data, { id: editId }));
       closeDrawer();
-      notify('Transaction deleted — balances recalculated.');
+      // Delete keeps a minimal toast — the row is gone, so there is nothing to blink.
+      notify('Deleted.');
     },
   };
 }
