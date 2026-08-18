@@ -217,11 +217,13 @@ function AdoptionBanner({ noGroups, needsImport, onAdopt, onImport, onDismiss })
 // subtracts from the displayed total.
 export function rtaBreakdownLines(env, prevRta, month) {
   const monthName = monthLabel(month).split(' ')[0];
-  const overspend = prevRta + env.openingTotal + env.income - env.assignedTotal - env.uncategorized - env.rta;
+  const adj = env.adjustments || 0; // signed: reconciles + account-close zeroing (+found / −lost)
+  const overspend = prevRta + env.openingTotal + env.income + adj - env.assignedTotal - env.uncategorized - env.rta;
   return [
     { label: 'Left over from last month', value: prevRta },
     { label: '+ Opening balances', value: env.openingTotal },
     { label: '+ Inflow: income in ' + monthName, value: env.income },
+    { label: '± Balance adjustments', value: adj },
     { label: '− Assigned in ' + monthName, value: -env.assignedTotal },
     { label: '− Uncategorized outflows', value: -env.uncategorized },
     { label: '− Last month’s overspending', value: -overspend },

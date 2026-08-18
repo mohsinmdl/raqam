@@ -127,15 +127,17 @@ export function envelopeFor(store, month, now) {
     return !!seed && seed > m;
   };
 
-  // Bucket by month once: per-category activity, income total, and the two
-  // kinds of outflow that never had an envelope to absorb them at all —
-  // uncategorized/unknown-category expenses and transfer fees. Both come
-  // straight off Ready to Assign rather than through a category's activity.
-  // cardAdjustment is deliberately excluded from all three buckets: it moves
-  // card liability, not cash, so it never touches envelope money or RTA.
+  // Bucket by month once: per-category activity, income total, the two kinds of
+  // outflow that never had an envelope to absorb them at all (uncategorized/
+  // unknown-category expenses and transfer fees), and signed cash adjustments.
+  // All three of the latter come straight off (or onto) Ready to Assign rather
+  // than through a category's activity. cardAdjustment is deliberately excluded
+  // from every bucket: it moves card liability, not cash, so it never touches
+  // envelope money or RTA.
   const activityByMonth = new Map();      // month -> Map(cat -> signed activity)
   const incomeByMonth = new Map();
   const uncategorizedByMonth = new Map(); // month -> amount that reduces RTA directly
+  const adjustmentByMonth = new Map();    // month -> signed cash adjustment that moves RTA (+found / −lost)
   (store.transactions || []).forEach(t => {
     if (t.status === 'pending') return;
     const m = monthOf(t);
@@ -153,7 +155,19 @@ export function envelopeFor(store, month, now) {
       if (fee) uncategorizedByMonth.set(m, (uncategorizedByMonth.get(m) || 0) + fee);
       return;
     }
-    if (t.type !== 'expense' && t.type !== 'refund') return; // adjustment/cardAdjustment: not envelope money
+    if (t.type === 'adjustment') {
+      // A cash balance adjustment moves real money into or out of an account with
+      // no envelope to absorb it, so it comes straight off (or onto) Ready to
+      // Assign — exactly like income (+) or an uncategorized outflow (−). amount is
+      // signed: +found money raises RTA, −lost/closed money lowers it. This is what
+      // keeps RTA tied to the real bank balance through reconciles and account
+      // closes; without it a closed account's opening lingered in RTA as phantom.
+      // (cardAdjustment is NOT cash — it moves card liability — and is excluded below.)
+      if (seededAfter(t.accountId, m)) return; // already inside the opening balance
+      adjustmentByMonth.set(m, (adjustmentByMonth.get(m) || 0) + t.amount); // signed: +raises RTA, −lowers it
+      return;
+    }
+    if (t.type !== 'expense' && t.type !== 'refund') return; // cardAdjustment etc.: not cash/envelope money
     // Card-funded rows carry cardId, not accountId — seededAfter(undefined, m)
     // is always false, so they are never skipped here.
     if (seededAfter(t.accountId, m)) return;
@@ -191,7 +205,7 @@ export function envelopeFor(store, month, now) {
   let rta = 0;
   let prevOverspend = 0;
   let rows = new Map();
-  let income = 0, assignedTotal = 0, uncategorized = 0, openingTotal = 0;
+  let income = 0, assignedTotal = 0, uncategorized = 0, openingTotal = 0, adjustments = 0;
   let m = earliestMonth(store, month, openingSnapshots);
   let reached = false;
   const MAX_STEPS = 601; // the clamp in earliestMonth guarantees this is always enough
@@ -215,10 +229,12 @@ export function envelopeFor(store, month, now) {
     const monthIncome = incomeByMonth.get(m) || 0;
     const monthOpening = openingByMonth.get(m) || 0;
     const monthUncategorized = uncategorizedByMonth.get(m) || 0;
-    rta = rta + monthIncome + monthOpening - monthAssigned - monthUncategorized - prevOverspend;
+    const monthAdjustment = adjustmentByMonth.get(m) || 0;
+    rta = rta + monthIncome + monthOpening + monthAdjustment - monthAssigned - monthUncategorized - prevOverspend;
     if (m === month) {
       income = monthIncome; assignedTotal = monthAssigned;
       uncategorized = monthUncategorized; openingTotal = monthOpening;
+      adjustments = monthAdjustment;
       reached = true;
       break;
     }
@@ -238,5 +254,5 @@ export function envelopeFor(store, month, now) {
     g.assigned += r.assigned; g.activity += r.activity; g.available += r.available;
     groupTotals.set(key, g);
   });
-  return { rows, groupTotals, rta, income, assignedTotal, uncategorized, openingTotal };
+  return { rows, groupTotals, rta, income, assignedTotal, uncategorized, openingTotal, adjustments };
 }
