@@ -30,6 +30,7 @@ import { matchesQuery } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import TxPhoneList from '../components/TxPhoneList.jsx';
 import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
+import CategoryPickerPopover from '../components/CategoryPickerPopover.jsx';
 
 // Sticky against <main>'s scroll. No overflow is introduced here — the section
 // deliberately has none, because it would clip the per-row ⋯ menu. z-index sits
@@ -305,7 +306,11 @@ export default function Transactions() {
   // persisting filter would silently narrow the list with no cue on screen.
   const [phoneQOpen, setPhoneQOpen] = useState(() => F.q !== '');
   const [phoneMoreOpen, setPhoneMoreOpen] = useState(false); // select-mode ⋯ sheet
-  const [pickerOpen, setPickerOpen] = useState(false);   // category picker sheet (bulk Categorize…)
+  const [pickerOpen, setPickerOpen] = useState(false);   // category picker sheet (phone bulk Categorize…)
+  // Desktop bulk Categorize opens an anchored popover instead of the sheet; the
+  // anchor is the Categorize button the click came from.
+  const [catBulkOpen, setCatBulkOpen] = useState(false);
+  const [catBulkAnchor, setCatBulkAnchor] = useState(null);
   // Single-row categorize: the row pill's CTA. Holds the tx id; shares the
   // mounted CategoryPickerSheet with the bulk flow (bulk wins if both somehow set).
   const [catTarget, setCatTarget] = useState(null);
@@ -368,7 +373,7 @@ export default function Transactions() {
   const allVisibleSelected = sel.length > 0 && sel.length === visibleIds.length;
   const clearSel = () => setSelected(new Set());
   const clearSched = () => setSchedSel(new Set());
-  const exitSelect = () => { setPhoneSelect(false); setPhoneMoreOpen(false); setPickerOpen(false); clearSel(); clearSched(); };
+  const exitSelect = () => { setPhoneSelect(false); setPhoneMoreOpen(false); setPickerOpen(false); setCatBulkOpen(false); clearSel(); clearSched(); };
   useEffect(() => () => setPhoneSelect(false), [setPhoneSelect]); // leave mode on unmount
   // Switching ledgers reuses this mounted component (only :accountId changes),
   // so account A's banner filter and Select mode would carry onto account B.
@@ -727,7 +732,7 @@ export default function Transactions() {
               // Visible bar: Categorize, Edit (only for a lone selection — Edit is
               // a one-row action, so singleEditItem() is null on a multi-select and
               // BulkBar drops it), and Clear. Mark-uncleared moved to the ⋯ menu.
-              { label: 'Categorize', icon: 'categorize', onClick: () => setPickerOpen(true) },
+              { label: 'Categorize', icon: 'categorize', onClick: e => { setCatBulkAnchor(e.currentTarget); setCatBulkOpen(true); } },
               singleEditItem(),
               { label: 'Clear', icon: 'cleared', onClick: () => bulkStatus('cleared'), keys: SHORTCUT_BY_ID.toggleCleared.keys },
             ]}
@@ -1053,6 +1058,12 @@ export default function Transactions() {
           // path switches type.
           catType={!pickerOpen && catTarget && S.transactions.find(x => x.id === catTarget)?.type === 'income' ? 'income' : 'expense'}
           onPick={pickerOpen ? bulkCategorize : categorizeOne}
+        />
+        {/* Desktop bulk Categorize: an anchored popover (the sheet above still
+            serves phone bulk + single-row). bulkCategorize is expense-only. */}
+        <CategoryPickerPopover
+          open={catBulkOpen} onOpenChange={setCatBulkOpen} anchor={catBulkAnchor}
+          catType="expense" onPick={bulkCategorize}
         />
       </div>
     </div>
