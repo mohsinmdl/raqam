@@ -7,7 +7,7 @@
 //
 // Rows drill into the register with that transaction pre-selected — navigating
 // there unmounts the Budget screen, which closes the popover.
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Popover, PopoverTrigger, PopoverPanel, PopoverClose } from '../primitives/Popover.jsx';
 import { categoryActivityRowsFor } from '../../lib/envelope.js';
@@ -25,13 +25,19 @@ const td = { padding: '8px', borderBottom: '1px solid var(--border)', fontSize: 
 export default function ActivityPopover({ title, catIds, month, S, money, triggerClassName, triggerStyle, triggerLabel, children }) {
   const navigate = useNavigate();
   const drill = t => { if (!t?.id) return; navigate(activityDrillTarget(t)); };
-  // catIds joins to a stable dep — the array is a fresh literal each render, but
-  // the popup body only mounts while open, so this recomputes rarely anyway.
+  // This component renders on EVERY category and group row, so compute the rows
+  // only while THIS popover is open — otherwise every row would re-scan all
+  // transactions on each store edit (the old modal computed exactly one, lazily).
+  // catIds is a fresh array each render, so key the memo on the joined string.
+  const [open, setOpen] = useState(false);
   const key = catIds.join(',');
-  const { rows } = useMemo(() => categoryActivityRowsFor(S, catIds, month, nowIso()), [S, key, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { rows } = useMemo(
+    () => (open ? categoryActivityRowsFor(S, catIds, month, nowIso()) : { rows: [] }),
+    [open, S, key, month], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className={triggerClassName}
         style={triggerStyle}

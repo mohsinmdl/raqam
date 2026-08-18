@@ -456,7 +456,7 @@ function AddGroupButton({ onAdd }) {
 
 // Group (master) row: collapse chevron, name, a hover "+" that opens an inline
 // add-category popover, and the group's totals per column.
-function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, firstCatId, ctx }) {
+function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, beforeGroupId, firstCatId, ctx }) {
   const { S, month, applyData, money, selected, setMany, dnd } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
@@ -578,9 +578,9 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, fir
       </div>
       <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600 }}>{money(t.assigned)}</div>
       <div className="tnum" style={{ textAlign: 'right' }}>
-        {cats.length > 0 ? (
+        {groupCatIds.length > 0 ? (
           <ActivityPopover
-            title={group.name} catIds={cats.map(c => c.id)} month={month} S={S} money={money}
+            title={group.name} catIds={groupCatIds} month={month} S={S} money={money}
             triggerClassName="tnum hv-soft"
             triggerLabel={'Activity for ' + group.name}
             triggerStyle={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}
@@ -1137,10 +1137,13 @@ export default function Plan() {
     }, { assigned: 0, activity: 0, available: 0 });
     const out = groupsSorted.map(g => {
       const cats = byGroup.get(g.id) || [];
-      return { group: g, key: g.id, cats, totals: totalsFor(cats) };
+      // groupCatIds is the FULL group set that `totals` sums over; a view filters
+      // `cats` (rows) but never `totals`, so the group's Activity popover must
+      // drill the full set to match the figure shown.
+      return { group: g, key: g.id, cats, totals: totalsFor(cats), groupCatIds: cats.map(c => c.id) };
     });
     const other = byGroup.get('other') || [];
-    if (other.length) out.push({ group: OTHER, key: 'other', cats: other, totals: totalsFor(other) });
+    if (other.length) out.push({ group: OTHER, key: 'other', cats: other, totals: totalsFor(other), groupCatIds: other.map(c => c.id) });
     return out;
   }, [S.categories, groupsSorted, groupIds, env]);
 
@@ -1235,9 +1238,6 @@ export default function Plan() {
   const [manageOpen, setManageOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const writeViews = next => setPrefs({ planViews: next });
-
-  // The category whose Activity drill-down modal is open, or null. One modal
-  // instance for the whole screen — not one per row.
 
   // Phone keypad editing state: which category and the raw draft expression.
   // Kept here (not in PlanPhone) so a tap on another row can commit-then-switch.
@@ -1443,11 +1443,11 @@ export default function Plan() {
               <span style={{ ...HEAD, textAlign: 'right', paddingRight: NUM_INSET }}>ACTIVITY</span>
               <span style={{ ...HEAD, textAlign: 'right', paddingRight: NUM_INSET }}>AVAILABLE</span>
             </div>
-            {shownSections.map(({ group, key, cats, totals }) => {
+            {shownSections.map(({ group, key, cats, totals, groupCatIds }) => {
               const isCollapsed = collapsed.has(key);
               return (
                 <div key={key ?? 'other'}>
-                  <GroupRow group={group} totals={totals} cats={cats} collapsed={isCollapsed} beforeGroupId={group.id} firstCatId={cats[0]?.id ?? null} onToggle={() => toggleGroup(key)} ctx={ctx} />
+                  <GroupRow group={group} totals={totals} cats={cats} groupCatIds={groupCatIds} collapsed={isCollapsed} beforeGroupId={group.id} firstCatId={cats[0]?.id ?? null} onToggle={() => toggleGroup(key)} ctx={ctx} />
                   {!isCollapsed && cats.map(cat => (
                     <CategoryRow key={cat.id} cat={cat} row={env.rows.get(cat.id)} sectionGroupId={group.id} ctx={ctx} />
                   ))}
