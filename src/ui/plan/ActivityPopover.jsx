@@ -16,10 +16,18 @@ import { monthLabel, dayLabel } from '../../lib/calc.js';
 import { nowIso } from '../../lib/dates.js';
 
 // Sticky header so the column labels stay put while the rows scroll; the
-// --surface background hides rows sliding underneath. Vertical dividers between
-// header cells (right border on every cell but the last).
-const th = { position: 'sticky', top: 0, background: 'var(--surface)', textAlign: 'left', fontSize: 12, fontWeight: 600, letterSpacing: '.4px', color: 'var(--muted)', padding: '8px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' };
-const thDiv = { ...th, borderRight: '1px solid var(--border)' };
+// --surface background hides rows sliding underneath, and zIndex keeps any row
+// content from ever painting over the header band.
+//
+// The hairlines are inset box-shadows on the cell, NOT borders, and the table
+// below uses border-collapse: separate. Under `collapse`, collapsed borders
+// paint on the TABLE box rather than the cell, so when the th sticks its
+// top/bottom/divider lines stay behind and scroll away with the rows — the
+// header's rules visibly break and rows peek through above the band. Shadows
+// (and per-cell borders under `separate`) travel with the sticky cell.
+const th = { position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface)', textAlign: 'left', fontSize: 12, fontWeight: 600, letterSpacing: '.4px', color: 'var(--muted)', padding: '8px', boxShadow: 'inset 0 1px 0 var(--border), inset 0 -1px 0 var(--border)' };
+// Vertical divider between header cells: a third inset shadow on the right edge.
+const thDiv = { ...th, boxShadow: th.boxShadow + ', inset -1px 0 0 var(--border)' };
 const td = { padding: '8px', borderBottom: '1px solid var(--border)', fontSize: 13, verticalAlign: 'top' };
 
 export default function ActivityPopover({ title, catIds, month, S, money, triggerClassName, triggerStyle, triggerLabel, children }) {
@@ -66,7 +74,7 @@ export default function ActivityPopover({ title, catIds, month, S, money, trigge
               No transactions in {title} for {monthLabel(month)}.
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
               <thead>
                 <tr>
                   <th style={thDiv}>Account</th>
