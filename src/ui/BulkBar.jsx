@@ -29,6 +29,11 @@ const MENU_ICONS = {
   duplicate: svg(<><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></>),
   repeat: svg(<><path d="M17 2l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></>),
   delete: svg(<><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" /><path d="M10 11v6M14 11v6" /></>),
+  // Category: a tag with its hole. Clear: the register's circled-C, drawn as an
+  // outer ring with an open "C" arc inside. Uncleared: the same ring, empty.
+  categorize: svg(<><path d="M20.59 13.41 12 22 3 13V4a1 1 0 0 1 1-1h9l7.59 7.59a2 2 0 0 1 0 2.82Z" /><circle cx="7.5" cy="7.5" r="1.3" /></>),
+  cleared: svg(<><circle cx="12" cy="12" r="9" /><path d="M14.8 9.3a3.8 3.8 0 1 0 0 5.4" /></>),
+  uncleared: svg(<circle cx="12" cy="12" r="9" />),
 };
 
 // The overflow ("More") menu. It opens UPWARD — the bar is pinned to the bottom
@@ -187,6 +192,7 @@ export default function BulkBar({ count, total, actions, more, onClear }) {
           key={a.label} onClick={a.onClick} disabled={a.disabled} title={a.title}
           style={{ ...btn, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: a.disabled ? 0.4 : 1, cursor: a.disabled ? 'default' : 'pointer', color: a.tone === 'neg' ? 'var(--neg)' : 'var(--bg)' }}
         >
+          {a.icon && (MENU_ICONS[a.icon] || null)}
           <span>{a.label}</span>
           {a.keys && a.keys.length > 0 && (
             <span style={{ display: 'inline-flex', gap: 3 }}>{a.keys.map((k, n) => <Kbd key={n} onDark>{k}</Kbd>)}</span>
