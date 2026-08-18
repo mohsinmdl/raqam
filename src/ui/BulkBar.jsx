@@ -194,9 +194,6 @@ export default function BulkBar({ count, total, actions, more, onClear }) {
         >
           {a.icon && (MENU_ICONS[a.icon] || null)}
           <span>{a.label}</span>
-          {a.keys && a.keys.length > 0 && (
-            <span style={{ display: 'inline-flex', gap: 3 }}>{a.keys.map((k, n) => <Kbd key={n} onDark>{k}</Kbd>)}</span>
-          )}
         </button>
       ))}
       {moreItems.length > 0 && (
