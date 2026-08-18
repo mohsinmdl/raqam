@@ -3,6 +3,7 @@
 // chrome follows Raqam tokens, not YNAB's.
 import { useMemo, useState, useRef } from 'react';
 import { monthLabel } from '../../lib/calc.js';
+import { currentMonth } from '../../lib/dates.js';
 import {
   selectionSummary, autoAssignPlan, autoAssignAmount, AUTO_ASSIGN_KINDS,
 } from '../../lib/inspector.js';
@@ -209,7 +210,7 @@ function TargetCard({ cat, row, money, applyData }) {
 // Single-select header: category name + a pencil that opens a compact YNAB-style
 // quick-edit popover (rename input + Hide / Delete / Cancel / OK). Hide archives
 // the category; Delete runs the shared deletePolicy flow (reassign when referenced).
-function CategoryHeader({ cat, S, applyData, row, money }) {
+function CategoryHeader({ cat, S, applyData, row, money, month }) {
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
   return (
@@ -220,7 +221,7 @@ function CategoryHeader({ cat, S, applyData, row, money }) {
         triggerClassName="hv-soft"
         triggerStyle={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer' }}
         onRename={nm => { applyData(d => renameCategory(d, { id: cat.id, name: nm })); notify('Renamed to “' + nm + '”.'); }}
-        onHide={() => { const back = row && row.available > 0 ? row.available : 0; applyData(d => archiveCategory(d, { id: cat.id })); notify('“' + cat.name + '” hidden.' + (back ? ' ' + money(back) + ' returned to Ready to Assign.' : '')); }}
+        onHide={() => { const back = (month === currentMonth() && row && row.available > 0) ? row.available : 0; applyData(d => archiveCategory(d, { id: cat.id })); notify('“' + cat.name + '” hidden.' + (back ? ' ' + money(back) + ' returned to Ready to Assign.' : '')); }}
         onDelete={() => askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer })}
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
@@ -307,7 +308,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
     return (
       <div className="plan-inspector">
         {rtaBanner}
-        <CategoryHeader cat={cat} S={S} applyData={applyData} row={row} money={money} />
+        <CategoryHeader cat={cat} S={S} applyData={applyData} row={row} money={money} month={month} />
         <ExcludeToggle ids={[cat.id]} S={S} applyData={applyData} />
         <AvailableCard row={row} money={money} />
         <TargetCard key={'target-' + cat.id} cat={cat} row={row} money={money} applyData={applyData} />

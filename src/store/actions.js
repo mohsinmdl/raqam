@@ -963,13 +963,16 @@ export function setCategoryNote(data, { id, note }) {
 export function archiveCategory(data, { id }) {
   const cat = data.categories.find(c => c.id === id);
   if (!cat) return data;
-  // Return any unspent envelope balance to Ready to Assign BEFORE hiding the
-  // category. Otherwise its assigned money stays subtracted from RTA while the
+  // Return this month's unspent envelope balance to Ready to Assign BEFORE hiding
+  // the category. Otherwise its assigned money stays subtracted from RTA while the
   // category disappears from the Plan grid — invisible yet still suppressing RTA
-  // (the same family of leak as closing an account with a balance). Only a
-  // POSITIVE available is returned; an overspent category keeps its negative,
-  // which the envelope fold already carries into next month's RTA. moveAssigned
-  // writes its own "moved … to Ready to Assign" audit row (one undo step overall).
+  // (the same family of leak as closing an account with a balance). Scope is the
+  // CURRENT month only: current-month available already folds in all prior carry-
+  // over, but a positive balance parked in a FUTURE month is not reclaimed here.
+  // Only a POSITIVE available is returned; an overspent category keeps its
+  // negative, which the fold aggregates as overspend against next month's RTA.
+  // moveAssigned writes its own "Moved … to Ready to Assign" audit row; the whole
+  // archive is still ONE undo step (undo is snapshot-based, not audit-based).
   const month = currentMonth();
   const available = envelopeFor(data, month, nowIso()).rows.get(id)?.available ?? 0;
   const returned = available > 0 ? Math.round(available) : 0;
