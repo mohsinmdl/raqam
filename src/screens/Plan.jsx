@@ -10,7 +10,7 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { envelopeFor } from '../lib/envelope.js';
-import { nowIso } from '../lib/dates.js';
+import { currentMonth, nowIso } from '../lib/dates.js';
 import { sortGroups, byOrderThenName } from '../lib/categoryOrder.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { prevMonth, monthLabel, catRefs } from '../lib/calc.js';
@@ -984,7 +984,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
           triggerClassName="hv-text"
           triggerStyle={{ display: 'block', maxWidth: '100%', border: 'none', background: 'transparent', padding: 0, font: 'inherit', fontSize: 16, fontWeight: 500, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}
           onRename={nm => { applyData(d => renameCategory(d, { id: cat.id, name: nm })); notify('Renamed to “' + nm + '”.'); }}
-          onHide={() => { const back = r.available > 0 ? r.available : 0; applyData(d => archiveCategory(d, { id: cat.id })); notify('“' + cat.name + '” hidden.' + (back ? ' ' + money(back) + ' returned to Ready to Assign.' : '')); }}
+          onHide={() => { const back = (month === currentMonth() && r.available > 0) ? r.available : 0; applyData(d => archiveCategory(d, { id: cat.id })); notify('“' + cat.name + '” hidden.' + (back ? ' ' + money(back) + ' returned to Ready to Assign.' : '')); }}
           onDelete={() => askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer })}
         >{cat.name}</EditNamePopover>
         {view !== 'compact' && (
