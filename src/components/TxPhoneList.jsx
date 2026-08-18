@@ -28,7 +28,7 @@ function Circle({ on }) {
   );
 }
 
-function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, hideAccount, last, needsCat, onCategorize }) {
+function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, hideAccount, last, needsCat, onCategorize, flash }) {
   const payee = t.merchant || 'No Payee Set';
   // Pointer-only shortcut on the chip (a nested <button> inside the row button
   // would be invalid): tap opens the category picker directly. Keyboard users
@@ -48,7 +48,7 @@ function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, h
       onClick={() => (selectMode ? onToggle(selId, !checked) : onTap && onTap())}
       aria-pressed={selectMode ? checked : undefined}
       aria-label={(selectMode ? 'Select ' : 'Edit ') + payee + ' on ' + t.dateLabel + ', ' + t.amtLabel}
-      className={checked ? undefined : 'hv-elev'}
+      className={[checked ? null : 'hv-elev', flash ? 'row-flash' : null].filter(Boolean).join(' ') || undefined}
       style={{
         display: 'flex', alignItems: 'center', gap: 12, width: '100%', minHeight: 56,
         padding: '8px 16px', border: 'none', textAlign: 'left', cursor: 'pointer',
@@ -104,7 +104,7 @@ export default function TxPhoneList({
   groups, postedRows, scheduled, schedKey, schedOpen, onToggleSchedOpen,
   overdueCount, hiddenRuleCount, hideAccount, needsCat,
   selectMode, selected, schedSel, onToggleRow, onToggleSched, onRowTap, onSchedTap,
-  onCategorize,
+  onCategorize, flashIds,
 }) {
   const note = schedNote(overdueCount, hiddenRuleCount);
   const rowProps = t => ({
@@ -113,6 +113,7 @@ export default function TxPhoneList({
     checked: selected.has(t.id), onToggle: onToggleRow,
     onTap: () => onRowTap(t),
     onCategorize,
+    flash: !!flashIds && flashIds.has(t.id),
   });
   return (
     <div>

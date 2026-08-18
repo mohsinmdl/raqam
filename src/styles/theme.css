@@ -73,7 +73,21 @@ textarea:focus {
 @keyframes hsSlide { from { transform: translateX(28px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes hsUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes hsPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+/* Row "blink": a newly added / edited / categorized row washes to a soft accent
+   tint and fades back once, in place of a confirmation toast. The animation
+   overrides the row's inline background for its ~1s, then hands it back. */
+@keyframes hsRowFlash {
+  from { background-color: color-mix(in srgb, var(--accent) 20%, transparent); }
+  to { background-color: transparent; }
+}
+.row-flash { animation: hsRowFlash 1.1s ease-out; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+/* Reduced motion: the rule above kills the blink, so give those users a brief
+   static accent hold instead — the flash class is removed after ~1.3s, so the
+   hold clears itself. !important beats the row's inline background. */
+@media (prefers-reduced-motion: reduce) {
+  .row-flash { background-color: color-mix(in srgb, var(--accent) 16%, transparent) !important; }
+}
 
 /* Hover utilities replacing the prototype's style-hover attributes. */
 .hv-elev:hover { background: var(--elev) !important; }

@@ -14,12 +14,28 @@ export function UIProvider({ children }) {
   // True while a bottom-pinned bar (the bulk-actions bar) is showing. The toast
   // lifts above it rather than landing on top of it — see useBottomBar / Toast.
   const [bottomBar, setBottomBar] = useState(false);
+  // Ids of rows to "blink" once — the quiet stand-in for a confirmation toast
+  // after add / edit / categorize. A Set so a bulk action can flash many rows
+  // at once; consumed by row components via flashIds.has(id).
+  const [flashIds, setFlashIds] = useState(() => new Set());
   const toastTimer = useRef(null);
+  const flashTimer = useRef(null);
 
   const notify = useCallback(msg => {
     clearTimeout(toastTimer.current);
     setToast(msg);
     toastTimer.current = setTimeout(() => setToast(null), 3800);
+  }, []);
+
+  // Briefly highlight one or more rows. Accepts a single id or an array of ids;
+  // the row's hsRowFlash animation runs once (see theme.css), and we clear the
+  // set after the animation window so a later remount can't re-trigger it.
+  const flashRows = useCallback(ids => {
+    const list = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
+    if (!list.length) return;
+    clearTimeout(flashTimer.current);
+    setFlashIds(new Set(list));
+    flashTimer.current = setTimeout(() => setFlashIds(new Set()), 1300);
   }, []);
 
   // ask({ title, body, action }) → resolves true on confirm, false on cancel.
@@ -43,7 +59,8 @@ export function UIProvider({ children }) {
   const value = useMemo(() => ({
     notify, ask, closeTopOverlay, confirmOpen: !!confirm, setBottomBar,
     shortcutsOpen, openShortcuts, closeShortcuts,
-  }), [notify, ask, closeTopOverlay, confirm, shortcutsOpen, openShortcuts, closeShortcuts]);
+    flashRows, flashIds,
+  }), [notify, ask, closeTopOverlay, confirm, shortcutsOpen, openShortcuts, closeShortcuts, flashRows, flashIds]);
 
   return (
     <Ctx.Provider value={value}>

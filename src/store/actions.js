@@ -75,11 +75,13 @@ function resolveCategory(next, f, type) {
   return catId;
 }
 
-// payload: validated addTx form + { amt, fee } parsed amounts.
-export function addTransaction(data, { form: f, type, amt, fee }) {
+// payload: validated addTx form + { amt, fee } parsed amounts. `id` is optional:
+// the caller may inject it so it can flash the new row immediately (see TxForm);
+// omitted, buildTx mints one.
+export function addTransaction(data, { form: f, type, amt, fee, id }) {
   const next = { ...data, transactions: [...data.transactions], recurring: data.recurring.map(r => ({ ...r })) };
   const catId = resolveCategory(next, f, type);
-  const t = buildTx(f, type, amt, fee, catId);
+  const t = buildTx(f, type, amt, fee, catId, id);
   next.transactions = [t, ...next.transactions];
   next.audit = [makeAudit({ entityType: 'transaction', entityId: t.id, action: 'create', summary: 'Recorded ' + t.type, after: { type: t.type, amount: t.amount, date: t.date } }), ...(next.audit || [])];
   if (f.fromRecurring) markOccurrenceRecorded(next, f, t, amt);
@@ -92,12 +94,13 @@ export function addTransaction(data, { form: f, type, amt, fee }) {
 // buildTx so every cross-type rule stays in one place; the budget/balance
 // engine never reads splitId (only display code does). No repeat/recurring
 // integration by design (split mode hides Repeat).
-export function addSplitTransaction(data, { form: f, legs, amt }) {
+export function addSplitTransaction(data, { form: f, legs, amt, ids }) {
   const next = { ...data, transactions: [...data.transactions] };
   const splitId = uid();
-  const made = legs.map(leg => {
+  const made = legs.map((leg, i) => {
     const catId = resolveCategory(next, { category: leg.category, newCat: leg.newCat, newCatGroup: leg.newCatGroup }, 'expense');
-    const t = buildTx(f, 'expense', parseAmt(leg.amount), 0, catId);
+    // ids (optional) let the caller flash the new legs; falls back to a fresh uid.
+    const t = buildTx(f, 'expense', parseAmt(leg.amount), 0, catId, ids && ids[i]);
     t.splitId = splitId;
     return t;
   });

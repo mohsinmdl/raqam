@@ -75,7 +75,7 @@ export default function Dashboard() {
   const nav = useNavigate();
   const { openDrawer } = useDrawer();
   const { signOut, user } = useAuth();
-  const { notify } = useUI();
+  const { notify, flashRows, flashIds } = useUI();
   // Phone-only App lock enrollment row (the desktop account menu is
   // unreachable without a sidebar). Hook runs unconditionally — before the
   // first-use early return — per the Rules of Hooks.
@@ -94,7 +94,7 @@ export default function Dashboard() {
     setCatTarget(null);
     if (!id) return;
     applyData(data => setTransactionsCategory(data, { ids: [id], categoryId }));
-    notify('Categorized — balances and envelopes updated.');
+    flashRows([id]);
   };
   const now = nowIso();
 
@@ -374,7 +374,7 @@ export default function Dashboard() {
           {recentRows.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
               {recentRows.map((t, i) => (
-                <div key={t.id} className="tx-row-grid" style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: i === recentRows.length - 1 ? 'none' : '1px solid var(--border)', opacity: t.rowOpacity }}>
+                <div key={t.id} className={'tx-row-grid' + (flashIds.has(t.id) ? ' row-flash' : '')} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 110px 52px', gap: 12, alignItems: 'center', padding: '9px 2px', borderBottom: i === recentRows.length - 1 ? 'none' : '1px solid var(--border)', opacity: t.rowOpacity }}>
                   <div className="tnum tx-cell-date" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t.dateLabel}</div>
                   <div className="tx-cell-merchant" style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
