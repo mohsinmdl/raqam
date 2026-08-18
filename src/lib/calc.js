@@ -16,6 +16,16 @@ export function fmtSigned(n, masked, decimals) {
   if (masked) return 'Rs ••••••';
   return (n > 0 ? '+' : n < 0 ? '−' : '') + 'Rs ' + fmtNum(n, decimals);
 }
+// Compact PKR for the large tail: Rs 1M, Rs 1.25M, Rs 1.2B. Intl compact notation
+// trims trailing zeros (1_000_000 → "1M", not "1.00M") and, on en-PK, uses the
+// western M/B/K scale (not lakh/crore). Callers apply this only above a magnitude
+// threshold; below it, full grouped formatting (fmtPKR) reads fine and stays exact.
+// Sign is the U+2212 minus to match fmtPKR/fmtSigned. Masking is left to callers,
+// which fall back to fmtPKR (→ 'Rs ••••••') before reaching this.
+const nfCompact = new Intl.NumberFormat('en-PK', { notation: 'compact', maximumFractionDigits: 2 });
+export function fmtPKRCompact(n) {
+  return (n < 0 ? '−' : '') + 'Rs ' + nfCompact.format(Math.abs(n));
+}
 export function fmtPct(x) { return x == null ? '—' : Math.round(x * 100) + '%'; }
 export const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export function monthLabel(ym) { const [y, m] = ym.split('-'); return MN[+m - 1] + ' ' + y; }
