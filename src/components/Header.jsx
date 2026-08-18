@@ -66,6 +66,12 @@ export default function Header() {
   // not a single month, so it cannot share the stepper below.
   const showMonthSel = seg === 'dashboard' || pathname === '/budget' || seg === 'reflect';
   const showTxNav = seg === 'transactions';
+  // The four sidebar pages (Sidebar.jsx NAV) name themselves in the highlighted
+  // nav item, so a big matching <h1> here just repeats it. Keep the heading for
+  // the document outline / screen readers, but hide it visually. Content-specific
+  // titles (scoped account nickname, recurring rule name) and non-sidebar pages
+  // (Accounts, Settings) stay visible — they aren't duplicated by any nav label.
+  const titleRedundant = seg === 'dashboard' || seg === 'reflect' || seg === 'transactions' || seg === 'budget';
 
   return (
     <header className="app-header" style={{ height: 60, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
@@ -88,6 +94,11 @@ export default function Header() {
               squeezed title block and smears under the month nav on phone. */}
           <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.type} · {reconLabel}</span>
         </div>
+      ) : titleRedundant ? (
+        // Redundant with the highlighted sidebar/tab item: keep the heading in
+        // the a11y tree (visually-hidden, same precedent as TxSheet's status
+        // span) but out of view, so the month control aligns to the left edge.
+        <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', margin: 0 }}>{title}</h1>
       ) : (
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>{title}</h1>
       )}
