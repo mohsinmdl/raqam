@@ -188,7 +188,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused, 
       </td>
       <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: 'middle' }}>
         {t.needsCategory
-          ? <NeedsCategoryPill onClick={onCategorize ? () => onCategorize(t.id) : undefined} />
+          ? <NeedsCategoryPill onClick={onCategorize ? e => onCategorize(t.id, e?.currentTarget) : undefined} />
           : <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>}
       </td>
       {/* Memo: adjustment reason and/or free-text note, truncated with an ellipsis and the full value on hover. */}
@@ -314,6 +314,11 @@ export default function Transactions() {
   // Single-row categorize: the row pill's CTA. Holds the tx id; shares the
   // mounted CategoryPickerSheet with the bulk flow (bulk wins if both somehow set).
   const [catTarget, setCatTarget] = useState(null);
+  // The element the needs-category pill click came from. With an anchor the
+  // single-row pick renders as a popover on it (web); without one (phone list
+  // passes no element) it falls back to the sheet.
+  const [catAnchor, setCatAnchor] = useState(null);
+  const openRowCategorize = (id, el) => { setCatTarget(id); setCatAnchor(el || null); };
   // Banner filters are phone-local view state, not TxView filters.
   const [listFilter, setListFilter] = useState('all'); // 'all' | 'uncleared' | 'needsCat' — phone banners + the desktop needs-category banner share it
 
@@ -951,7 +956,7 @@ export default function Transactions() {
                   <Row
                     key={t.id} t={t} selId={t.id} hideAccount={!!accountId}
                     checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
-                    onCategorize={setCatTarget}
+                    onCategorize={openRowCategorize}
                   />
                 ))}
               </tbody>
@@ -1050,7 +1055,7 @@ export default function Transactions() {
           </>
         )}
         <CategoryPickerSheet
-          open={pickerOpen || !!catTarget}
+          open={pickerOpen || (!!catTarget && !catAnchor)}
           onClose={() => { setPickerOpen(false); setCatTarget(null); }}
           // Income rows need the income list; the bulk flow stays expense-only
           // (its own guard filters the selection), so only the single-target
@@ -1059,10 +1064,19 @@ export default function Transactions() {
           onPick={pickerOpen ? bulkCategorize : categorizeOne}
         />
         {/* Desktop bulk Categorize: an anchored popover (the sheet above still
-            serves phone bulk + single-row). bulkCategorize is expense-only. */}
+            serves phone bulk + anchor-less single-row). bulkCategorize is expense-only. */}
         <CategoryPickerPopover
           open={catBulkOpen} onOpenChange={setCatBulkOpen} anchor={catBulkAnchor}
           catType="expense" onPick={bulkCategorize}
+        />
+        {/* Web single-row categorize: the needs-category pill anchors the same
+            popover to itself; the phone list sends no anchor and keeps the sheet. */}
+        <CategoryPickerPopover
+          open={!!catTarget && !!catAnchor}
+          onOpenChange={o => { if (!o) { setCatTarget(null); setCatAnchor(null); } }}
+          anchor={catAnchor}
+          catType={catTarget && S.transactions.find(x => x.id === catTarget)?.type === 'income' ? 'income' : 'expense'}
+          onPick={categorizeOne}
         />
       </div>
     </div>
