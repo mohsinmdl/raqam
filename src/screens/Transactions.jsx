@@ -1,6 +1,6 @@
 // Transactions list screen — template 268-336, txScreenVals script 1018-1054.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
 import { DEFAULT_SORT, nextSortState, sortLabel } from '../lib/sortRows.js';
@@ -266,6 +266,7 @@ export default function Transactions() {
   const fmt = useMoney();
   const { openDrawer, drawer } = useDrawer();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchRef = useRef(null);
   // Optional per-account scope: /transactions/:accountId shows one account's
   // ledger. An unknown id falls back to the whole All-Accounts view.
@@ -372,6 +373,23 @@ export default function Transactions() {
   // so account A's banner filter and Select mode would carry onto account B.
   // Running on first mount too is a harmless no-op.
   useEffect(() => { setListFilter('all'); exitSelect(); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Deep-link from the Activity modal (and anywhere else): ?sel=<txId> lands here
+  // to check that one row, scroll to it, and raise the bulk bar — YNAB's "open the
+  // register on this transaction". One-shot: consume the param and clear it so a
+  // reload starts clean and a later deselect is not undone on the next render.
+  const selParam = searchParams.get('sel');
+  useEffect(() => {
+    if (!selParam) return;
+    const t = S.transactions.find(x => x.id === selParam);
+    setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('sel'); return p; }, { replace: true });
+    if (!t) return;
+    // The register keeps its own date range; a target outside it would not render,
+    // so pull the range onto the txn's month before selecting it.
+    if (!inRange(t, range.from, range.to)) { const m = t.date.slice(0, 7); setRange({ from: m, to: m }); }
+    setSchedSel(new Set());     // recorded/scheduled selections are mutually exclusive
+    setSelected(new Set([t.id]));
+    setCursorId(t.id);          // reuses the cursor's scrollIntoView to bring it on screen
+  }, [selParam]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleRow = (id, on, e) => {
     setCursorId(id);
     setSchedSel(new Set()); // mutual exclusion with the scheduled selection

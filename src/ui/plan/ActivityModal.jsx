@@ -3,8 +3,10 @@
 // (src/lib/envelope.js) so the list can never disagree with the ACTIVITY
 // cell that opened it. Modal shell copied from ShortcutHelpModal.jsx.
 import { useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import FocusTrap from '../FocusTrap.jsx';
 import { categoryActivityRows } from '../../lib/envelope.js';
+import { activityDrillTarget } from '../../lib/activityDrill.js';
 import { monthLabel, dayLabel } from '../../lib/calc.js';
 import { nowIso } from '../../lib/dates.js';
 
@@ -15,6 +17,12 @@ const thDiv = { ...th, borderRight: '1px solid var(--border)' };
 const td = { padding: '8px', borderBottom: '1px solid var(--border)', fontSize: 13, verticalAlign: 'top' };
 
 export default function ActivityModal({ open, cat, month, S, money, onClose }) {
+  const navigate = useNavigate();
+  // Row click drills into the register on that transaction (checked + scrolled
+  // into view), then closes the modal — the register route change unmounts it
+  // anyway, but closing keeps the state tidy.
+  const drill = t => { navigate(activityDrillTarget(t)); onClose(); };
+
   useEffect(() => {
     if (!open) return undefined;
     const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
@@ -64,7 +72,14 @@ export default function ActivityModal({ open, cat, month, S, money, onClose }) {
                     const t = row.t;
                     const account = (S.accounts || []).find(a => a.id === t.accountId);
                     return (
-                      <tr key={t.id}>
+                      <tr key={t.id}
+                        onClick={() => drill(t)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drill(t); } }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={'Open ' + (t.merchant || 'transaction') + ' in ' + (account?.nickname || 'the') + ' register'}
+                        className="hv-soft"
+                        style={{ cursor: 'pointer' }}>
                         <td style={td}>{account?.nickname || '—'}</td>
                         <td style={{ ...td, whiteSpace: 'nowrap' }} className="tnum">{dayLabel(t.date)}</td>
                         <td style={td}>{t.merchant || '—'}</td>
