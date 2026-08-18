@@ -3,6 +3,7 @@
 // ?sel= effect does once it lands (found? widen the range to reveal the row?).
 import { describe, it, expect } from 'vitest';
 import { activityDrillTarget, selectionForSel } from '../src/lib/activityDrill.js';
+import { inRange } from '../src/lib/dateRange.js';
 
 describe('activityDrillTarget', () => {
   it('sends a bank-account txn to that account ledger, txn as ?sel=', () => {
@@ -35,6 +36,8 @@ describe('selectionForSel', () => {
     { id: 'below', date: '2026-07-05', accountId: 'a' },
     { id: 'above', date: '2026-09-20', accountId: 'a' },
     { id: 'dateless', accountId: 'a' },
+    { id: 'sameLate', date: '2026-08-28', accountId: 'a' },
+    { id: 'sameEarly', date: '2026-08-02', accountId: 'a' },
   ];
 
   it('returns null when there is no target param', () => {
@@ -72,5 +75,26 @@ describe('selectionForSel', () => {
     // date missing -> inRange treats it as out-of-range, but the month guard
     // stops t.date.slice(...) from throwing or widening to an all-dates window.
     expect(selectionForSel(txns, 'dateless', AUG)).toEqual({ found: true, id: 'dateless', range: null });
+  });
+
+  // A day-precise range (the Today/Yesterday presets) must still reveal a target
+  // on a different day of the same month — a bare month is lexicographically
+  // *less* than any day in it, so raw string compare would leave the row hidden.
+  const TODAY = { from: '2026-08-18', to: '2026-08-18' };
+  it('reveals a later-same-month target under a day-precise range', () => {
+    const { range } = selectionForSel(txns, 'sameLate', TODAY);
+    expect(range).toEqual({ from: '2026-08', to: '2026-08' });
+    expect(inRange({ date: '2026-08-28' }, range.from, range.to)).toBe(true);
+  });
+  it('reveals an earlier-same-month target under a day-precise range', () => {
+    const { range } = selectionForSel(txns, 'sameEarly', TODAY);
+    expect(range).toEqual({ from: '2026-08', to: '2026-08' });
+    expect(inRange({ date: '2026-08-02' }, range.from, range.to)).toBe(true);
+  });
+
+  it('keeps an unbounded end unbounded when extending down', () => {
+    expect(selectionForSel(txns, 'below', { from: '2026-08', to: '' })).toEqual({
+      found: true, id: 'below', range: { from: '2026-07', to: '' },
+    });
   });
 });
