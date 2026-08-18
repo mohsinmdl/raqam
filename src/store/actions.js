@@ -3,6 +3,7 @@
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
 import { accountBalance, accountDeletePolicy, cardOutstanding, INST_KINDS } from '../lib/calc.js';
 import { addMonths, currentMonth, nowIso, todayStr } from '../lib/dates.js';
+import { envelopeFor } from '../lib/envelope.js';
 import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
 import { uid } from '../lib/util.js';
 import { parseAmt } from '../lib/format.js';
@@ -962,10 +963,21 @@ export function setCategoryNote(data, { id, note }) {
 export function archiveCategory(data, { id }) {
   const cat = data.categories.find(c => c.id === id);
   if (!cat) return data;
+  // Return any unspent envelope balance to Ready to Assign BEFORE hiding the
+  // category. Otherwise its assigned money stays subtracted from RTA while the
+  // category disappears from the Plan grid — invisible yet still suppressing RTA
+  // (the same family of leak as closing an account with a balance). Only a
+  // POSITIVE available is returned; an overspent category keeps its negative,
+  // which the envelope fold already carries into next month's RTA. moveAssigned
+  // writes its own "moved … to Ready to Assign" audit row (one undo step overall).
+  const month = currentMonth();
+  const available = envelopeFor(data, month, nowIso()).rows.get(id)?.available ?? 0;
+  const returned = available > 0 ? Math.round(available) : 0;
+  const funded = returned ? moveAssigned(data, { from: id, to: 'rta', month, amount: returned }) : data;
   return {
-    ...data,
-    categories: data.categories.map(c => (c.id === id ? stampUpdate({ ...c, status: 'archived', archivedAt: nowIso() }) : c)),
-    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'archive', summary: 'Archived category ' + cat.name, before: { status: cat.status }, after: { status: 'archived' } }), ...(data.audit || [])],
+    ...funded,
+    categories: funded.categories.map(c => (c.id === id ? stampUpdate({ ...c, status: 'archived', archivedAt: nowIso() }) : c)),
+    audit: [makeAudit({ entityType: 'category', entityId: id, action: 'archive', summary: 'Archived category ' + cat.name + (returned ? ' (returned ' + returned + ' to Ready to Assign)' : ''), before: { status: cat.status }, after: { status: 'archived' } }), ...(funded.audit || [])],
   };
 }
 
