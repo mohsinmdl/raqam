@@ -13,6 +13,7 @@ import { stepCursor, rangeBetween } from '../lib/rowCursor.js';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
+import { selectionForSel } from '../lib/activityDrill.js';
 import { instName, schedNote, txGroups } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
@@ -374,21 +375,22 @@ export default function Transactions() {
   // Running on first mount too is a harmless no-op.
   useEffect(() => { setListFilter('all'); exitSelect(); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
   // Deep-link from the Activity modal (and anywhere else): ?sel=<txId> lands here
-  // to check that one row, scroll to it, and raise the bulk bar — YNAB's "open the
-  // register on this transaction". One-shot: consume the param and clear it so a
-  // reload starts clean and a later deselect is not undone on the next render.
+  // to check that one row, scroll to it, and raise the desktop bulk bar — YNAB's
+  // "open the register on this transaction". One-shot: consume the param and clear
+  // it so a reload starts clean and a later deselect is not undone on re-render.
+  // selectionForSel does the pure decision (found? widen the range?); a missing id
+  // (deleted/stale link) is a deliberate silent no-op.
   const selParam = searchParams.get('sel');
   useEffect(() => {
-    if (!selParam) return;
-    const t = S.transactions.find(x => x.id === selParam);
+    const target = selectionForSel(S.transactions, selParam, range);
+    if (!target) return;
     setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('sel'); return p; }, { replace: true });
-    if (!t) return;
-    // The register keeps its own date range; a target outside it would not render,
-    // so pull the range onto the txn's month before selecting it.
-    if (!inRange(t, range.from, range.to)) { const m = t.date.slice(0, 7); setRange({ from: m, to: m }); }
+    if (!target.found) return;
+    if (target.range) setRange(target.range);  // widen the date window to reveal the row
+    setFilters(f => (f.q ? { ...f, q: '' } : f)); // a stale search would filter the target out
     setSchedSel(new Set());     // recorded/scheduled selections are mutually exclusive
-    setSelected(new Set([t.id]));
-    setCursorId(t.id);          // reuses the cursor's scrollIntoView to bring it on screen
+    setSelected(new Set([target.id]));
+    setCursorId(target.id);     // reuses the cursor's scrollIntoView to bring it on screen
   }, [selParam]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleRow = (id, on, e) => {
     setCursorId(id);

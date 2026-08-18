@@ -20,8 +20,9 @@ export default function ActivityModal({ open, cat, month, S, money, onClose }) {
   const navigate = useNavigate();
   // Row click drills into the register on that transaction (checked + scrolled
   // into view), then closes the modal — the register route change unmounts it
-  // anyway, but closing keeps the state tidy.
-  const drill = t => { navigate(activityDrillTarget(t)); onClose(); };
+  // anyway, but closing keeps the state tidy. Guard on id so a malformed row
+  // can never navigate to ?sel=undefined.
+  const drill = t => { if (!t?.id) return; navigate(activityDrillTarget(t)); onClose(); };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -76,7 +77,6 @@ export default function ActivityModal({ open, cat, month, S, money, onClose }) {
                         onClick={() => drill(t)}
                         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drill(t); } }}
                         tabIndex={0}
-                        role="button"
                         aria-label={'Open ' + (t.merchant || 'transaction') + ' in ' + (account?.nickname || 'the') + ' register'}
                         className="hv-soft"
                         style={{ cursor: 'pointer' }}>
