@@ -13,7 +13,7 @@ import { phoneRowsFor } from './PlanPhone.jsx';
 import { moveAssigned } from '../../../store/actions.js';
 import { parseAmt } from '../../../lib/format.js';
 import { useUI } from '../../UIProvider.jsx';
-import { rtaBreakdownLines } from '../../../screens/Plan.jsx';
+import { rtaBreakdownLines } from '../../../lib/rtaBreakdown.js';
 
 const label = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', margin: '0 0 4px' };
 const amountInput = { width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', textAlign: 'right',
@@ -116,8 +116,8 @@ function MoveSheetBody({ sheet, onClose, env, S, month, money, applyData }) {
 // Mirrors AssignPopover's "Manually" tab (Plan.jsx:268-340) — the "⚡ Auto"
 // tab is a disabled placeholder there too, so it's dropped here rather than
 // carried onto a sheet with no room for a second tab strip. The RTA
-// breakdown rows above the amount field reuse rtaBreakdownLines (exported
-// from screens/Plan.jsx), the same pure derivation RtaBreakdown's desktop
+// breakdown rows above the amount field reuse rtaBreakdownLines (from
+// lib/rtaBreakdown.js), the same pure derivation RtaBreakdown's desktop
 // popover renders from — so the two surfaces can never drift apart.
 function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, applyData }) {
   const { notify } = useUI();

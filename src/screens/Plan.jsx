@@ -13,11 +13,12 @@ import { envelopeFor } from '../lib/envelope.js';
 import { nowIso } from '../lib/dates.js';
 import { sortGroups, byOrderThenName } from '../lib/categoryOrder.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
-import { prevMonth, monthLabel, catRefs } from '../lib/calc.js';
+import { prevMonth, catRefs } from '../lib/calc.js';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
+import { rtaBreakdownLines } from '../lib/rtaBreakdown.js';
 import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visibleSections, normalizeBuiltins, reorderBuiltins, toggleBuiltinHidden, orderedBuiltinViews, builtinRows, isHiddenBuiltin } from '../lib/planViews.js';
 import { hasTarget, targetNeeded } from '../lib/targets.js';
 import { autoAssignAmount } from '../lib/inspector.js';
@@ -199,35 +200,6 @@ function AdoptionBanner({ noGroups, needsImport, onAdopt, onImport, onDismiss })
       </div>
     </div>
   );
-}
-
-// RTA breakdown popover — opened by clicking the banner's label/amount.
-// Itemizes how `rta` was reached: last month's leftover, this month's opening
-// balances/income/assignments/uncategorized spend, and a derived overspending
-// line so the rows sum to `rta` exactly (see the identity comment below).
-// Zero rows are hidden; the total never is.
-// Pure derivation of the RTA breakdown line items — shared by RtaBreakdown
-// (this desktop banner popover) and the phone Assign sheet (AssignSheetBody
-// in MoneySheets.jsx), so the two surfaces can never drift apart. Exact by
-// construction: rearranging rta = prevRta + opening + income - assigned -
-// uncategorized - prevOverspend (envelope.js's own fold) for prevOverspend is
-// what makes the breakdown's rows sum to `rta`. Derived, not read off env:
-// this is the one term envelope.js doesn't hand back directly, and the same
-// fold identity that makes it exact also guarantees it is >= 0 — it only ever
-// subtracts from the displayed total.
-export function rtaBreakdownLines(env, prevRta, month) {
-  const monthName = monthLabel(month).split(' ')[0];
-  const adj = env.adjustments || 0; // signed: reconciles + account-close zeroing (+found / −lost)
-  const overspend = prevRta + env.openingTotal + env.income + adj - env.assignedTotal - env.uncategorized - env.rta;
-  return [
-    { label: 'Left over from last month', value: prevRta },
-    { label: '+ Opening balances', value: env.openingTotal },
-    { label: '+ Inflow: income in ' + monthName, value: env.income },
-    { label: '± Balance adjustments', value: adj },
-    { label: '− Assigned in ' + monthName, value: -env.assignedTotal },
-    { label: '− Uncategorized outflows', value: -env.uncategorized },
-    { label: '− Last month’s overspending', value: -overspend },
-  ].filter(r => r.value !== 0);
 }
 
 function RtaBreakdown({ env, prevRta, month, money, moneyS, fg, labelColor }) {
