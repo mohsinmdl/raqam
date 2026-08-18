@@ -143,9 +143,9 @@ describe('categoryActivityRows', () => {
 describe('categoryActivityRowsFor (group of categories)', () => {
   const groupStore = () => ({
     categories: [
-      { id: 'rent', name: 'Rent', type: 'expense', status: 'active' },
-      { id: 'phone', name: 'Phone', type: 'expense', status: 'active' },
-      { id: 'groc', name: 'Groceries', type: 'expense', status: 'active' }, // outside the group
+      { id: 'rent', name: 'Rent', type: 'expense', status: 'active', groupId: 'g-house' },
+      { id: 'phone', name: 'Phone', type: 'expense', status: 'active', groupId: 'g-house' },
+      { id: 'groc', name: 'Groceries', type: 'expense', status: 'active', groupId: 'g-food' }, // outside the group
       { id: 'salary', name: 'Salary', type: 'income', status: 'active' },
     ],
     categoryGroups: [], assignments: [],
@@ -187,5 +187,13 @@ describe('categoryActivityRowsFor (group of categories)', () => {
     const S = groupStore();
     expect(categoryActivityRows(S, 'phone', '2026-08', NOW))
       .toEqual(categoryActivityRowsFor(S, ['phone'], '2026-08', NOW));
+  });
+
+  it("total equals the group ACTIVITY figure the cell displays (envelopeFor.groupTotals)", () => {
+    // The GroupRow renders money(groupTotals.get(groupId).activity) and hands the
+    // popover the same group's category ids — this pins them to the same number.
+    const S = groupStore();
+    const shown = envelopeFor(S, '2026-08', NOW).groupTotals.get('g-house').activity;
+    expect(categoryActivityRowsFor(S, ['rent', 'phone'], '2026-08', NOW).total).toBe(shown);
   });
 });

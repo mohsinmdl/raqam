@@ -70,7 +70,7 @@ function earliestMonth(store, viewed, openingSnapshots) {
 
 // The transactions that make up ONE category's activity for a month, and their
 // signed total (negative = spending). Same predicate as the fold below, so the
-// Activity modal (Phase 4) can never disagree with the ACTIVITY cell: not
+// Activity popover can never disagree with the ACTIVITY cell: not
 // pending, occurred, expense/refund, category match, and NOT dated before the
 // account's opening-snapshot seed month. Amount is txBudgetImpact, not t.amount.
 export function categoryActivityRows(store, catId, month, now) {
