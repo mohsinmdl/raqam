@@ -230,3 +230,23 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
   .toast { bottom: var(--phone-nav-clearance) !important; }
   .toast-raised { bottom: calc(var(--phone-nav-clearance) + 62px) !important; }
 }
+
+/* YNAB-style popover caret — Base UI Popover.Arrow, opt-in via PopoverPanel's
+   `arrow`. Base UI centers the arrow box on the anchor and stamps data-side
+   with the popup's side (top/bottom here, since Activity flips only up/down);
+   we draw a solid --surface triangle pointing at the anchor and overlap the
+   popup edge by 1px so its hairline seam is hidden. */
+.rq-pop-arrow { width: 16px; height: 8px; }
+.rq-pop-arrow::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0;
+  width: 0; height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  filter: drop-shadow(0 0 0.5px var(--border));
+}
+.rq-pop-arrow[data-side="bottom"] { top: -7px; }              /* popup below anchor → point up */
+.rq-pop-arrow[data-side="bottom"]::before { border-bottom: 8px solid var(--surface); }
+.rq-pop-arrow[data-side="top"] { bottom: -7px; }              /* popup above anchor → point down */
+.rq-pop-arrow[data-side="top"]::before { border-top: 8px solid var(--surface); }

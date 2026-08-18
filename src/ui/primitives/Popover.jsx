@@ -26,12 +26,20 @@ export const PopoverTrigger = BasePopover.Trigger;
 export const PopoverClose = BasePopover.Close;
 
 // The portalled, positioned surface. `side`/`align`/`sideOffset` anchor it to
-// the trigger; collisionAvoidance:'shift' keeps it on-screen near edges (this
-// is what structurally prevents the old "panel stretches the header" bug — the
-// content lives in a body portal, not the header cell).
+// the trigger; collisionAvoidance keeps it on-screen near edges (this is what
+// structurally prevents the old "panel stretches the header" bug — the content
+// lives in a body portal, not the header cell).
+//
+// Two opt-in props, defaulted so existing consumers are unaffected:
+//   collisionAvoidance — override the default 'shift'. A caller that wants the
+//     YNAB behaviour (open downward, flip UP when the anchor is near the bottom)
+//     passes { side: 'flip', align: 'shift' }.
+//   arrow — render a caret pointing at the anchor (styled in theme.css by the
+//     Base UI data-side attribute). Off by default; no consumer had one before.
 export function PopoverPanel({
-  children, style, width,
-  side = 'bottom', align = 'start', sideOffset = 6, ...rest
+  children, style, width, arrow = false,
+  side = 'bottom', align = 'start', sideOffset = 6,
+  collisionAvoidance = { side: 'shift', align: 'shift' }, ...rest
 }) {
   return (
     <BasePopover.Portal>
@@ -39,11 +47,12 @@ export function PopoverPanel({
         side={side}
         align={align}
         sideOffset={sideOffset}
-        collisionAvoidance={{ side: 'shift', align: 'shift' }}
+        collisionAvoidance={collisionAvoidance}
         // Transactions' existing dropdown/popover band.
         style={{ zIndex: 30 }}
       >
         <BasePopover.Popup style={{ ...popupStyle, ...(width ? { width } : null), ...style }} {...rest}>
+          {arrow ? <BasePopover.Arrow className="rq-pop-arrow" /> : null}
           {children}
         </BasePopover.Popup>
       </BasePopover.Positioner>

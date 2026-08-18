@@ -74,13 +74,21 @@ function earliestMonth(store, viewed, openingSnapshots) {
 // pending, occurred, expense/refund, category match, and NOT dated before the
 // account's opening-snapshot seed month. Amount is txBudgetImpact, not t.amount.
 export function categoryActivityRows(store, catId, month, now) {
-  // Match the fold's category set exactly (envelopeFor's `cats`, above): every
-  // expense category, no status filter. A non-expense or dangling catId never
-  // gets a fold row (its transactions are routed to uncategorized instead), so
-  // this must return empty rather than real rows/total that the fold disagrees
-  // with.
-  const isExpenseCat = (store.categories || []).some(c => c.id === catId && c.type === 'expense');
-  if (!isExpenseCat) return { rows: [], total: 0 };
+  // The single-category case — the drill-down behind one ACTIVITY cell.
+  return categoryActivityRowsFor(store, [catId], month, now);
+}
+
+// The transactions behind one OR MORE categories' activity for a month (a single
+// category cell, or a group total's whole category set), newest first, with their
+// signed total. Same predicate as categoryActivityRows above, applied to the set:
+// only expense categories fold into activity, so any non-expense or dangling id
+// is dropped — the rows/total then match the ACTIVITY figure that opened the
+// popover (a group total is the sum of its categories' activity).
+export function categoryActivityRowsFor(store, catIds, month, now) {
+  const wanted = new Set(catIds);
+  const expense = new Set((store.categories || [])
+    .filter(c => c.type === 'expense' && wanted.has(c.id)).map(c => c.id));
+  if (expense.size === 0) return { rows: [], total: 0 };
   const seed = earliestOpeningSnapshots(store); // accountId -> earliest confirmed snapshot
   const seededAfter = (accountId, m) => { const s = seed.get(accountId); return !!s && s.month > m; };
   const out = [];
@@ -90,7 +98,7 @@ export function categoryActivityRows(store, catId, month, now) {
     if (monthOf(t) !== month) return;
     if (!hasOccurred(t, now)) return;
     if (t.type !== 'expense' && t.type !== 'refund') return;
-    if (t.category !== catId) return;
+    if (!expense.has(t.category)) return;
     if (seededAfter(t.accountId, month)) return;
     const impact = txBudgetImpact(store, t, { includeExcluded: true });
     if (!impact) return;

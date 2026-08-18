@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { envelopeFor, categoryActivityRows } from '../src/lib/envelope.js';
+import { envelopeFor, categoryActivityRows, categoryActivityRowsFor } from '../src/lib/envelope.js';
 
 const NOW = '2026-08-20T12:00:00.000Z';
 const store = () => ({
@@ -136,5 +136,56 @@ describe('categoryActivityRows', () => {
     expect(rows).toEqual([]);
     expect(total).toBe(0);
     expect(total).toBe(envelopeFor(S, '2026-07', NOW).rows.get('groc').activity);
+  });
+});
+
+// The group-total drill-down: one popover over several categories' activity.
+describe('categoryActivityRowsFor (group of categories)', () => {
+  const groupStore = () => ({
+    categories: [
+      { id: 'rent', name: 'Rent', type: 'expense', status: 'active' },
+      { id: 'phone', name: 'Phone', type: 'expense', status: 'active' },
+      { id: 'groc', name: 'Groceries', type: 'expense', status: 'active' }, // outside the group
+      { id: 'salary', name: 'Salary', type: 'income', status: 'active' },
+    ],
+    categoryGroups: [], assignments: [],
+    accounts: [{ id: 'acc', nickname: 'Cash', type: 'Current', status: 'active', instId: 'i1' }],
+    snapshots: [{ id: 's', accountId: 'acc', month: '2026-07', balance: 0, amount: 0, status: 'confirmed' }],
+    transactions: [
+      { id: 'r1', type: 'expense', category: 'rent', amount: 35000, date: '2026-08-03', status: 'confirmed', accountId: 'acc', payee: 'Landlord' },
+      { id: 'p1', type: 'expense', category: 'phone', amount: 2700, date: '2026-08-04', status: 'confirmed', accountId: 'acc', payee: 'StormFiber' },
+      { id: 'p2', type: 'expense', category: 'phone', amount: 6000, date: '2026-08-04', status: 'confirmed', accountId: 'acc', payee: 'StormFiber' },
+      { id: 'g1', type: 'expense', category: 'groc', amount: 999, date: '2026-08-05', status: 'confirmed', accountId: 'acc' }, // NOT in the group
+    ],
+    budgets: [], cards: [], recurring: [], audit: [],
+  });
+
+  it("unions the group's categories, newest first, and totals to the sum of their activity", () => {
+    const S = groupStore();
+    const { rows, total } = categoryActivityRowsFor(S, ['rent', 'phone'], '2026-08', NOW);
+    expect(rows.map(r => r.t.id)).toEqual(['p1', 'p2', 'r1']); // 08-04 pair (stable) before 08-03
+    // Total equals the two categories' folds added — the group's ACTIVITY figure.
+    const rentT = categoryActivityRows(S, 'rent', '2026-08', NOW).total;
+    const phoneT = categoryActivityRows(S, 'phone', '2026-08', NOW).total;
+    expect(total).toBe(rentT + phoneT);
+    expect(total).toBe(-(35000 + 2700 + 6000));
+  });
+
+  it('excludes transactions from categories outside the group', () => {
+    const S = groupStore();
+    const { rows } = categoryActivityRowsFor(S, ['rent', 'phone'], '2026-08', NOW);
+    expect(rows.some(r => r.t.category === 'groc')).toBe(false);
+  });
+
+  it('drops non-expense and dangling ids, and is empty when none qualify', () => {
+    const S = groupStore();
+    expect(categoryActivityRowsFor(S, ['salary', 'no-such'], '2026-08', NOW)).toEqual({ rows: [], total: 0 });
+    expect(categoryActivityRowsFor(S, [], '2026-08', NOW)).toEqual({ rows: [], total: 0 });
+  });
+
+  it('single-id categoryActivityRows delegates to the same result', () => {
+    const S = groupStore();
+    expect(categoryActivityRows(S, 'phone', '2026-08', NOW))
+      .toEqual(categoryActivityRowsFor(S, ['phone'], '2026-08', NOW));
   });
 });
