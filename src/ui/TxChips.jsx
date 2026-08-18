@@ -33,7 +33,7 @@ export function NeedsCategoryPill({ fontSize = 12, onClick }) {
   return (
     <button
       type="button"
-      onClick={e => { e.stopPropagation(); onClick(); }}
+      onClick={e => { e.stopPropagation(); onClick(e); }}
       title="Assign a category to this transaction so you'll know what you spent your money on."
       aria-label="This needs a category — assign one now"
       className="hv-soft"
