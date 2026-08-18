@@ -15,8 +15,9 @@
 // snapshot was taken. Bucketing those same pre-snapshot transactions as flows
 // too would double-count them (once as the flow, once embedded in the balance),
 // so any transaction dated before its account's seed month is skipped entirely
-// — not folded into a category's activity, not folded into RTA/uncategorized —
-// consistently, wherever an accountId is available. Card-funded rows (cardId,
+// — not folded into a category's activity, not folded into RTA (as uncategorized
+// or as an adjustment) — consistently, wherever an accountId is available.
+// Card-funded rows (cardId,
 // no accountId) have no seed month to compare against and are never skipped.
 // Accounts with no confirmed snapshot are never skipped either.
 import { hasOccurred, txBudgetImpact } from './calc.js';

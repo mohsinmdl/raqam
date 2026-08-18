@@ -5,7 +5,7 @@ import { envelopeFor } from './envelope.js';
 // to absorb it, so — like income or an uncategorized outflow — it comes straight
 // off (or onto) Ready to Assign. Before this behaviour, adjustments were excluded
 // from RTA, which let a closed account's opening snapshot linger in RTA after its
-// balance was zeroed (the Splitwise leak) and let every reconcile drift RTA from
+// balance was zeroed (the closed-account leak) and let every reconcile drift RTA from
 // the real bank balance.
 const NOW = '2026-08-31T23:59';
 const MONTH = '2026-08';
@@ -67,5 +67,34 @@ describe('cash adjustments flow into Ready to Assign', () => {
     expect(env.adjustments).toBe(200);
     // Breakdown identity holds: opening + adjustments (no income/assigned/uncat here) === rta
     expect(env.openingTotal + env.adjustments).toBe(env.rta);
+  });
+
+  it('an adjustment in a prior month carries forward into the viewed month (via prevRta)', () => {
+    const s = {
+      categories: [{ id: 'c1', type: 'expense', name: 'Food' }],
+      snapshots: [{ accountId: 'a1', month: '2026-07', amount: 1000, status: 'confirmed' }],
+      transactions: [tx({ type: 'adjustment', amount: 500, date: '2026-07-10T10:00' })],
+      assignments: [],
+    };
+    // July: opening 1000 + adjustment 500 = 1500; nothing in August, so it carries.
+    expect(envelopeFor(s, '2026-08', NOW).rta).toBe(1500);
+  });
+
+  it('a pending adjustment does not move RTA until it clears', () => {
+    const s = base();
+    s.transactions = [tx({ type: 'adjustment', amount: -400, status: 'pending' })];
+    expect(rtaOf(s)).toBe(1000);
+  });
+
+  it('a future-dated adjustment (not yet occurred) is excluded even within the viewed month', () => {
+    const s = base();
+    s.transactions = [tx({ type: 'adjustment', amount: -400, date: '2026-08-20T10:00' })];
+    expect(envelopeFor(s, MONTH, '2026-08-15T00:00').rta).toBe(1000); // now is before the 20th
+  });
+
+  it('an adjustment on an account with no confirmed snapshot still counts', () => {
+    const s = base(); // a1 is snapshotted; a2 is not — seededAfter returns false for a2
+    s.transactions = [{ id: 't1', accountId: 'a2', date: '2026-08-10T10:00', status: 'cleared', type: 'adjustment', amount: 250 }];
+    expect(rtaOf(s)).toBe(1250);
   });
 });
