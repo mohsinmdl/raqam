@@ -32,7 +32,7 @@ import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
 import ViewEditorModal from '../ui/plan/ViewEditorModal.jsx';
 import ManageViewsModal from '../ui/plan/ManageViewsModal.jsx';
-import ActivityModal from '../ui/plan/ActivityModal.jsx';
+import ActivityPopover from '../ui/plan/ActivityPopover.jsx';
 import usePlanDnd from '../ui/plan/usePlanDnd.js';
 import RecentMoves from '../components/RecentMoves.jsx';
 import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarAction.jsx';
@@ -457,7 +457,7 @@ function AddGroupButton({ onAdd }) {
 // Group (master) row: collapse chevron, name, a hover "+" that opens an inline
 // add-category popover, and the group's totals per column.
 function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, firstCatId, ctx }) {
-  const { S, applyData, money, selected, setMany, dnd } = ctx;
+  const { S, month, applyData, money, selected, setMany, dnd } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
   // The synthetic "Other" (id null) is never draggable, but a group dropped on
@@ -577,7 +577,18 @@ function GroupRow({ group, totals, cats, collapsed, onToggle, beforeGroupId, fir
         )}
       </div>
       <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600 }}>{money(t.assigned)}</div>
-      <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>{money(t.activity)}</div>
+      <div className="tnum" style={{ textAlign: 'right' }}>
+        {cats.length > 0 ? (
+          <ActivityPopover
+            title={group.name} catIds={cats.map(c => c.id)} month={month} S={S} money={money}
+            triggerClassName="tnum hv-soft"
+            triggerLabel={'Activity for ' + group.name}
+            triggerStyle={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}
+          >{money(t.activity)}</ActivityPopover>
+        ) : (
+          <span className="tnum" style={{ paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>{money(t.activity)}</span>
+        )}
+      </div>
       <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600 }}>{money(t.available)}</div>
     </div>
   );
@@ -841,7 +852,7 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
 // that opens Cover/Move popovers when non-zero. In "progress" view a thin bar
 // + note show spend against (carryIn + assigned); "compact" view drops both.
 function CategoryRow({ cat, row, sectionGroupId, ctx }) {
-  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, onOpenActivity, dnd, cursorId, phone } = ctx;
+  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, dnd, cursorId, phone } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
   const [editing, setEditing] = useState(false);
@@ -1015,13 +1026,12 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
         )}
       </div>
       <div data-noselect style={{ textAlign: 'right' }}>
-        <button
-          onClick={() => onOpenActivity(cat)} className="tnum hv-soft"
-          aria-label={'Activity for ' + cat.name}
-          style={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}
-          onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline'; }}
-          onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none'; }}
-        >{moneyS(r.activity)}</button>
+        <ActivityPopover
+          title={cat.name} catIds={[cat.id]} month={month} S={S} money={money}
+          triggerClassName="tnum hv-soft"
+          triggerLabel={'Activity for ' + cat.name}
+          triggerStyle={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}
+        >{moneyS(r.activity)}</ActivityPopover>
       </div>
       <div style={{ textAlign: 'right' }}>
         {r.available === 0 ? (
@@ -1228,7 +1238,6 @@ export default function Plan() {
 
   // The category whose Activity drill-down modal is open, or null. One modal
   // instance for the whole screen — not one per row.
-  const [activityCat, setActivityCat] = useState(null);
 
   // Phone keypad editing state: which category and the raw draft expression.
   // Kept here (not in PlanPhone) so a tap on another row can commit-then-switch.
@@ -1270,7 +1279,7 @@ export default function Plan() {
   const hasUnimportedStanding = catBudgets.length > 0 && !catBudgets.some(b => assignedCatsThisMonth.has(b.category));
   const showBanner = !prefs.planBannerDismissed && (noGroups || hasUnimportedStanding);
 
-  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, selectRow, setMany, onOpenActivity: setActivityCat, dnd, cursorId: effectiveCursorId, phone };
+  const ctx = { S, month, applyData, money, moneyS, view: prefs.planView, env, selected, toggleSelect, selectRow, setMany, dnd, cursorId: effectiveCursorId, phone };
 
   // Full width (default, like the Transactions screen): drop the max-width cap
   // and page side-padding so the area sits flush against the sidebar and runs
@@ -1500,14 +1509,6 @@ export default function Plan() {
         onNew={() => { setManageOpen(false); setEditing('new'); }}
         onEdit={v => { setManageOpen(false); setEditing(v); }}
         onClose={() => setManageOpen(false)}
-      />
-      <ActivityModal
-        open={activityCat !== null}
-        cat={activityCat}
-        month={month}
-        S={S}
-        money={money}
-        onClose={() => setActivityCat(null)}
       />
     </div>
   );
