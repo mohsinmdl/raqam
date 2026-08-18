@@ -42,7 +42,7 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   const hasRec = M.recoverable !== 0;
   v.sumCards = [
     { label: 'Income', val: money(M.income), color: 'var(--text)', sub: C.monthLabel(month) },
-    { label: 'Expenses', val: money(M.spending), color: 'var(--text)', sub: 'incl. transfer fees' },
+    { label: 'Expenses', val: money(M.spending), color: 'var(--text)', sub: hasRec ? 'excl. recoverable advances' : 'incl. transfer fees' },
     ...(hasRec ? [{ label: 'Recoverable', val: moneyS(M.recoverable), color: 'var(--text)', sub: 'advances, net this month' }] : []),
     { label: 'Net cash flow', val: moneyS(M.net), color: netColor, sub: hasRec ? 'income − expenses − recoverable' : 'income − expenses' },
     { label: 'Savings', val: money(M.savings), color: 'var(--text)', sub: M.net < 0 ? 'overspent this month' : 'set aside so far' },
