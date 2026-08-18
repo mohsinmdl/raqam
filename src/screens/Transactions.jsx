@@ -723,13 +723,16 @@ export default function Transactions() {
             total={fmt.moneyS(selectedTotal)}
             onClear={clearSel}
             actions={[
-              { label: 'Mark cleared', onClick: () => bulkStatus('cleared'), keys: SHORTCUT_BY_ID.toggleCleared.keys },
-              { label: 'Mark uncleared', onClick: () => bulkStatus('pending'), keys: SHORTCUT_BY_ID.toggleCleared.keys },
+              // Visible bar: Categorize, Edit (only for a lone selection — Edit is
+              // a one-row action, so singleEditItem() is null on a multi-select and
+              // BulkBar drops it), and Clear. Mark-uncleared moved to the ⋯ menu.
+              { label: 'Categorize', icon: 'categorize', onClick: () => setPickerOpen(true) },
+              singleEditItem(),
+              { label: 'Clear', icon: 'cleared', onClick: () => bulkStatus('cleared'), keys: SHORTCUT_BY_ID.toggleCleared.keys },
             ]}
             more={[
-              singleEditItem(),
+              { label: 'Mark uncleared', icon: 'uncleared', onClick: () => bulkStatus('pending'), keys: SHORTCUT_BY_ID.toggleCleared.keys },
               { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate, keys: SHORTCUT_BY_ID.duplicate.keys },
-              { label: 'Categorize…', onClick: () => setPickerOpen(true) },
               singleRepeatItem(),
               { divider: true },
               { label: 'Delete', icon: 'delete', onClick: bulkDelete, tone: 'neg', keys: SHORTCUT_BY_ID.delete.keys },
