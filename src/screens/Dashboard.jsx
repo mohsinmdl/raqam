@@ -16,6 +16,7 @@ import FirstUse from './FirstUse.jsx';
 import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
+import CategoryPickerPopover from '../components/CategoryPickerPopover.jsx';
 import { setTransactionsCategory } from '../store/actions.js';
 import { effectiveNextDate, overdueRules, upcomingRules } from '../lib/schedule.js';
 import { envelopeFor } from '../lib/envelope.js';
@@ -82,8 +83,12 @@ export default function Dashboard() {
   const phone = useIsPhone();
   const [snapDismissed, setSnapDismissed] = useState(false);
   // Single-row categorize from the recent-transactions pill (same CTA the
-  // register rows carry): holds the target tx id while the picker sheet is up.
+  // register rows carry): holds the target tx id while the picker is up. With
+  // an anchor element the pick renders as a popover on the pill (web); without
+  // one it falls back to the sheet — same split as the register.
   const [catTarget, setCatTarget] = useState(null);
+  const [catAnchor, setCatAnchor] = useState(null);
+  const openRowCategorize = (id, el) => { setCatTarget(id); setCatAnchor(el || null); };
   const categorizeOne = categoryId => {
     const id = catTarget;
     setCatTarget(null);
@@ -376,7 +381,7 @@ export default function Dashboard() {
                     <TxChips row={t} />
                   </div>
                   <div className="tx-cell-cat" style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                    {t.needsCategory ? <NeedsCategoryPill fontSize={11} onClick={() => setCatTarget(t.id)} /> : (
+                    {t.needsCategory ? <NeedsCategoryPill fontSize={11} onClick={e => openRowCategorize(t.id, e?.currentTarget)} /> : (
                       <>
                         <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
                         <span style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
@@ -408,8 +413,17 @@ export default function Dashboard() {
             bordered-row idiom as Sign out below; hidden (like the menu row)
             when no platform authenticator exists. */}
         <CategoryPickerSheet
-          open={!!catTarget}
+          open={!!catTarget && !catAnchor}
           onClose={() => setCatTarget(null)}
+          catType={catTarget && S.transactions.find(x => x.id === catTarget)?.type === 'income' ? 'income' : 'expense'}
+          onPick={categorizeOne}
+        />
+        {/* Web: the pill anchors the category popover to itself; an anchor-less
+            open (none today on this screen) would fall back to the sheet. */}
+        <CategoryPickerPopover
+          open={!!catTarget && !!catAnchor}
+          onOpenChange={o => { if (!o) { setCatTarget(null); setCatAnchor(null); } }}
+          anchor={catAnchor}
           catType={catTarget && S.transactions.find(x => x.id === catTarget)?.type === 'income' ? 'income' : 'expense'}
           onPick={categorizeOne}
         />
