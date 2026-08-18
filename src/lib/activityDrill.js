@@ -18,17 +18,21 @@ export function activityDrillTarget(t) {
   return { pathname, search: '?sel=' + encodeURIComponent(t.id) };
 }
 
-// A trustworthy YYYY-MM month, or null when the date can't be parsed — guards a
-// stale/hand-crafted ?sel= target from widening the register to a garbage range.
+// A trustworthy YYYY-MM month, or null when the transaction's stored `date`
+// field can't be parsed (missing / non-string / wrong shape) — guards a corrupt
+// date from widening the register to a garbage all-dates range. (A bogus ?sel=
+// id can't reach here; selectionForSel returns {found:false} before this.)
 function monthOf(date) {
   const m = typeof date === 'string' ? date.slice(0, 7) : '';
   return /^\d{4}-\d{2}$/.test(m) ? m : null;
 }
 // Range bounds treat a falsy value as unbounded (see inRange). Extend the window
-// to include month m rather than replacing it, so a deliberate multi-month range
-// is never silently collapsed to one month. An unbounded side stays unbounded.
-function minBound(from, m) { return from ? (m < from ? m : from) : from; }
-function maxBound(to, m) { return to ? (m > to ? m : to) : to; }
+// to include the target's month rather than replacing it, so a deliberate
+// multi-month range is never collapsed. Comparison is at month granularity, so a
+// day-precise bound (the Today/Yesterday presets) still reveals a target on a
+// different day of the same month. An unbounded side stays unbounded.
+function minBound(from, m) { return from ? (m <= from.slice(0, 7) ? m : from) : from; }
+function maxBound(to, m) { return to ? (m >= to.slice(0, 7) ? m : to) : to; }
 
 // What the register's ?sel= effect should do for a target id and the register's
 // current date range. Pure, so the branch logic is unit-tested without a DOM.

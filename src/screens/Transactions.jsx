@@ -388,6 +388,7 @@ export default function Transactions() {
     if (!target.found) return;
     if (target.range) setRange(target.range);  // widen the date window to reveal the row
     setFilters(f => (f.q ? { ...f, q: '' } : f)); // a stale search would filter the target out
+    setListFilter('all');       // clear any banner (uncleared/needsCat) that could hide the target
     setSchedSel(new Set());     // recorded/scheduled selections are mutually exclusive
     setSelected(new Set([target.id]));
     setCursorId(target.id);     // reuses the cursor's scrollIntoView to bring it on screen
