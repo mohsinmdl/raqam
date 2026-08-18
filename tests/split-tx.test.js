@@ -1,8 +1,26 @@
 // Pure split math/validation (src/lib/splitTx.js)
 import { describe, it, expect } from 'vitest';
-import { blankLine, fillRemainderIndex, splitRemainder, validateSplit } from '../src/lib/splitTx.js';
+import { blankLine, fillRemainderIndex, splitHalves, splitRemainder, validateSplit } from '../src/lib/splitTx.js';
 
 const line = (category, amount, over) => ({ category, amount, newCat: '', newCatGroup: '', ...(over || {}) });
+
+describe('splitHalves', () => {
+  it('halves an even total', () => {
+    expect(splitHalves('5000')).toEqual([2500, 2500]);
+  });
+  it('gives the extra rupee to the first half on odd totals (sum stays exact)', () => {
+    expect(splitHalves('5001')).toEqual([2501, 2500]);
+    expect(splitHalves('1')).toEqual([1, 0]);
+  });
+  it('parses formatted totals', () => {
+    expect(splitHalves('5,000')).toEqual([2500, 2500]);
+  });
+  it('is null when there is no positive total yet', () => {
+    expect(splitHalves('')).toBeNull();
+    expect(splitHalves('0')).toBeNull();
+    expect(splitHalves('abc')).toBeNull();
+  });
+});
 
 describe('splitRemainder', () => {
   it('is total minus the sum of line amounts', () => {
