@@ -178,17 +178,22 @@ export default function SpendingBreakdown() {
   const leftCard = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
       <section aria-label="Total spending" style={{ ...card, padding: '18px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* flexWrap + a non-wrapping amount: on a phone the toggle drops to its
+            own line rather than squeezing "Rs 464,180" onto two lines. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Total Spending</div>
-            <div className="tnum" style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{money(total)}</div>
+            <div className="tnum" style={{ fontSize: 22, fontWeight: 700, marginTop: 2, whiteSpace: 'nowrap' }}>{money(total)}</div>
           </div>
           <span style={{ flex: 1 }} />
           <ViewToggle view={lens} onChange={changeLens} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
           {total === 0 ? emptyNote : (
-            <SpendingDonut slices={slices} total={total} money={money} onSliceClick={openFocus} />
+            <SpendingDonut
+              slices={slices} total={total} money={money} onSliceClick={openFocus}
+              labels={!isPhone} size={isPhone ? 280 : 380}
+            />
           )}
         </div>
       </section>
