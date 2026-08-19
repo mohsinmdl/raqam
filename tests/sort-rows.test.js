@@ -17,8 +17,8 @@ const desc = k => ({ key: k, dir: 'desc' });
 
 describe('sort model', () => {
   it('defaults to newest-first by date', () => expect(DEFAULT_SORT).toEqual({ key: 'date', dir: 'desc' }));
-  it('sorts the six data columns, amount in two modes', () =>
-    expect(Object.keys(SORT_COLUMNS)).toEqual(['date', 'details', 'category', 'account', 'notes', 'status', 'size', 'signed']));
+  it('sorts the six data columns, amount in two modes, plus outflow and inflow', () =>
+    expect(Object.keys(SORT_COLUMNS)).toEqual(['date', 'details', 'category', 'account', 'notes', 'status', 'size', 'signed', 'outflow', 'inflow']));
   it('rejects columns that are not sortable', () => {
     expect(isSortable('select')).toBe(false);
     expect(isSortable('actions')).toBe(false);
@@ -308,6 +308,27 @@ describe('groups sort independently', () => {
   });
 });
 
+describe('outflow and inflow', () => {
+  it('outflow sorts by outflow magnitude, blanks (inflow rows) at the bottom both ways', () => {
+    const rows = [
+      row({ sortId: 'a', outflowValue: 100, inflowValue: null, sortAt: '2026-08-01T12:00' }),
+      row({ sortId: 'b', outflowValue: null, inflowValue: 900, sortAt: '2026-08-02T12:00' }),
+      row({ sortId: 'c', outflowValue: 300, inflowValue: null, sortAt: '2026-08-03T12:00' }),
+    ];
+    expect(ids(sortRows(rows, desc('outflow')))).toEqual(['c', 'a', 'b']);
+    expect(ids(sortRows(rows, asc('outflow')))).toEqual(['a', 'c', 'b']);
+  });
+  it('inflow sorts by inflow magnitude, blanks (outflow rows) at the bottom both ways', () => {
+    const rows = [
+      row({ sortId: 'a', outflowValue: 100, inflowValue: null, sortAt: '2026-08-01T12:00' }),
+      row({ sortId: 'b', outflowValue: null, inflowValue: 900, sortAt: '2026-08-02T12:00' }),
+      row({ sortId: 'c', outflowValue: null, inflowValue: 300, sortAt: '2026-08-03T12:00' }),
+    ];
+    expect(ids(sortRows(rows, desc('inflow')))).toEqual(['b', 'c', 'a']);
+    expect(ids(sortRows(rows, asc('inflow')))).toEqual(['c', 'b', 'a']);
+  });
+});
+
 describe('sortLabel', () => {
   it('names every column and direction', () => {
     for (const k of Object.keys(SORT_COLUMNS)) {
@@ -320,6 +341,10 @@ describe('sortLabel', () => {
     expect(sortLabel(asc('signed'))).toBe('Biggest expense first');
     expect(sortLabel(desc('signed'))).toBe('Biggest income first');
     expect(sortLabel(asc('status'))).toBe('Needs action first');
+  });
+  it('names the outflow and inflow columns', () => {
+    expect(sortLabel({ key: 'outflow', dir: 'desc' })).toBe('Biggest outflow first');
+    expect(sortLabel({ key: 'inflow', dir: 'desc' })).toBe('Biggest inflow first');
   });
 });
 
@@ -430,16 +455,19 @@ describe('every sort has exactly one route', () => {
     }
   });
 
-  it('leaves signed as the only sort no header can produce', () => {
+  it('leaves signed, outflow, and inflow as the only sorts no header can produce', () => {
     // Which is why the list header keeps one button for it — clicking a column
     // gives size (how big), never signed (which way the balance moved).
+    // Outflow and inflow are also not header-reachable; they sort the split columns.
     const reachable = new Set();
     for (const k of HEADER_KEYS) {
       let s = DEFAULT_SORT;
       for (let i = 0; i < 4; i++) { s = nextSortState(s, k); reachable.add(s.key); }
     }
     expect(reachable.has('signed')).toBe(false);
-    expect(Object.keys(SORT_COLUMNS).filter(k => !reachable.has(k))).toEqual(['signed']);
+    expect(reachable.has('outflow')).toBe(false);
+    expect(reachable.has('inflow')).toBe(false);
+    expect(Object.keys(SORT_COLUMNS).filter(k => !reachable.has(k))).toEqual(['signed', 'outflow', 'inflow']);
   });
 
   it('the toggle round-trips between the default and lowest-first', () => {
