@@ -1,0 +1,249 @@
+// Reflect data-layer — tests the pure Spending Breakdown report engine
+// (range-aware sibling of reports.js), mirroring the fixture/testing pattern
+// in tests/reports.test.js.
+import { describe, it, expect } from 'vitest';
+import {
+  PALETTE, reportTxns, breakdownByCategory, breakdownByGroup,
+  rangeMonths, breakdownStats, categoryTxRows,
+} from '../src/lib/spendingReport.js';
+import { daysInMonth } from '../src/lib/calc.js';
+import { addMonths, currentMonth } from '../src/lib/dates.js';
+
+// Months are anchored to the REAL current month, never hardcoded literals.
+const CUR = currentMonth();
+const PREV = addMonths(CUR, -1);
+const PREV2 = addMonths(CUR, -2);
+
+// Minimal store, same shape as tests/reports.test.js: Rent/Groceries (normal,
+// grouped), Household advance (excluded, grouped), Legacy (expense, no
+// groupId -> folds to Other).
+function makeStore(transactions, overrides) {
+  return {
+    categories: [
+      { id: 'rent', name: 'Rent', icon: 'square', color: '#64748B', type: 'expense', status: 'active', groupId: 'housing' },
+      { id: 'groc', name: 'Groceries', icon: 'circle', color: '#0F766E', type: 'expense', status: 'active', groupId: 'living' },
+      { id: 'adv', name: 'Household advance', icon: 'diamond', color: '#B7791F', type: 'expense', status: 'active', excludeFromBudget: true, groupId: 'living' },
+      { id: 'legacy', name: 'Legacy cat', icon: 'triangle', color: '#2563EB', type: 'expense', status: 'active' },
+      { id: 'salary', name: 'Salary', icon: 'square', color: '#15803D', type: 'income', status: 'active' },
+    ],
+    categoryGroups: [
+      { id: 'housing', name: 'Housing', sortOrder: 1 },
+      { id: 'living', name: 'Living', sortOrder: 2 },
+    ],
+    budgets: [],
+    accounts: [{ id: 'a1', nickname: 'Main', status: 'active' }],
+    cards: [{ id: 'c1', nickname: 'Card', type: 'credit', status: 'active', openingOutstanding: { [CUR]: 0 } }],
+    snapshots: [{ accountId: 'a1', month: CUR, amount: 100000, status: 'confirmed' }],
+    recurring: [],
+    audit: [],
+    transactions,
+    ...(overrides || {}),
+  };
+}
+const tx = (over) => ({ id: '.', status: 'cleared', date: CUR + '-10T12:00', accountId: 'a1', ...over });
+
+describe('reportTxns', () => {
+  it('month-range inclusion: from:PREV,to:CUR picks both months, drops older', () => {
+    const S = makeStore([
+      tx({ id: 't0', type: 'expense', amount: 1000, category: 'rent', date: PREV2 + '-10T12:00' }),
+      tx({ id: 't1', type: 'expense', amount: 2000, category: 'rent', date: PREV + '-10T12:00' }),
+      tx({ id: 't2', type: 'expense', amount: 3000, category: 'rent', date: CUR + '-10T12:00' }),
+    ]);
+    const rows = reportTxns(S, { from: PREV, to: CUR });
+    expect(rows.map(r => r.id).sort()).toEqual(['t1', 't2']);
+  });
+
+  it('excludes pending and future-dated transactions', () => {
+    const now = CUR + '-15T12:00';
+    const future = CUR + '-20T12:00';
+    const S = makeStore([
+      tx({ id: 'p1', type: 'expense', amount: 1000, category: 'rent', status: 'pending' }),
+      tx({ id: 'f1', type: 'expense', amount: 1000, category: 'rent', date: future }),
+      tx({ id: 'ok', type: 'expense', amount: 1000, category: 'rent', date: CUR + '-05T12:00' }),
+    ]);
+    const rows = reportTxns(S, { now });
+    expect(rows.map(r => r.id)).toEqual(['ok']);
+  });
+
+  it('catIds: new Set(["uncategorized"]) matches only null-category txns', () => {
+    const S = makeStore([
+      tx({ id: 'u1', type: 'expense', amount: 1000, category: null }),
+      tx({ id: 'c1', type: 'expense', amount: 1000, category: 'rent' }),
+    ]);
+    const rows = reportTxns(S, { catIds: new Set(['uncategorized']) });
+    expect(rows.map(r => r.id)).toEqual(['u1']);
+  });
+
+  it('acctIds filters transactions to the given accounts', () => {
+    const S = makeStore([
+      tx({ id: 'a1tx', type: 'expense', amount: 1000, category: 'rent', accountId: 'a1' }),
+      tx({ id: 'a2tx', type: 'expense', amount: 1000, category: 'rent', accountId: 'a2' }),
+    ], { accounts: [{ id: 'a1', nickname: 'Main', status: 'active' }, { id: 'a2', nickname: 'Side', status: 'active' }] });
+    const rows = reportTxns(S, { acctIds: new Set(['a1']) });
+    expect(rows.map(r => r.id)).toEqual(['a1tx']);
+  });
+});
+
+describe('breakdownByCategory', () => {
+  it('sums across months, nets refunds, floors at 0, keeps zero rows, rebases pct, counts txns, resolves colors, passes groupId', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 8000, category: 'groc', date: PREV + '-10T12:00' }),
+      tx({ id: 't2', type: 'expense', amount: 5000, category: 'groc', date: CUR + '-10T12:00' }),
+      tx({ id: 't3', type: 'expense', amount: 35000, category: 'rent', date: CUR + '-10T12:00' }),
+      tx({ id: 't4', type: 'refund', amount: 20000, category: 'rent', date: CUR + '-12T12:00' }), // nets rent down
+      tx({ id: 't5', type: 'refund', amount: 9000, category: 'legacy', date: CUR + '-12T12:00' }), // no offsetting expense -> floors at 0
+    ]);
+    const rows = breakdownByCategory(S, { from: PREV, to: CUR });
+    const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+
+    expect(byId.groc.amt).toBe(13000); // 8000 + 5000, multi-month sum
+    expect(byId.groc.txCount).toBe(2);
+    expect(byId.rent.amt).toBe(15000); // refund netting: 35000 - 20000
+    expect(byId.legacy).toMatchObject({ amt: 0, txCount: 1 }); // floored at 0, still counted
+    expect(byId.adv).toMatchObject({ amt: 0, txCount: 0 }); // zero row present, no activity
+    expect(byId.uncategorized).toMatchObject({ amt: 0, txCount: 0 }); // zero row present
+
+    const total = rows.reduce((s, r) => s + r.amt, 0);
+    expect(total).toBe(13000 + 15000);
+    rows.forEach(r => expect(r.pct).toBeCloseTo(r.amt / total, 10));
+
+    // colors: category color kept
+    expect(byId.rent.color).toBe('#64748B');
+    expect(byId.groc.color).toBe('#0F766E');
+    // Uncategorized has no category color -> falls back to a PALETTE entry
+    expect(byId.uncategorized.color).not.toBeNull();
+    expect(PALETTE).toContain(byId.uncategorized.color);
+
+    // groupId passthrough
+    expect(byId.rent.groupId).toBe('housing');
+    expect(byId.groc.groupId).toBe('living');
+    expect(byId.legacy.groupId).toBeNull();
+    expect(byId.uncategorized.groupId).toBeNull();
+
+    // sorted amt desc then name
+    expect(rows.map(r => r.id)).toEqual(['rent', 'groc', 'adv', 'legacy', 'uncategorized']);
+  });
+});
+
+describe('breakdownByGroup', () => {
+  it('folds by group, keeps Uncategorized separate, missing group -> Other, lists member catIds, colors by sorted index', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 8000, category: 'groc' }), // living
+      tx({ id: 't2', type: 'expense', amount: 35000, category: 'rent' }), // housing
+      tx({ id: 't3', type: 'expense', amount: 700, category: 'legacy' }), // no groupId -> Other
+      tx({ id: 't4', type: 'expense', amount: 5000, category: null }), // uncategorized
+    ]);
+    const rows = breakdownByGroup(S, {});
+    const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+
+    expect(byId.living.amt).toBe(8000); // groc(8000) + adv(0, zero row)
+    expect(byId.living.catIds).toEqual(expect.arrayContaining(['groc', 'adv']));
+    expect(byId.housing).toMatchObject({ amt: 35000, catIds: ['rent'] });
+    expect(byId.other).toMatchObject({ name: 'Other', amt: 700, catIds: ['legacy'] });
+    expect(byId.uncategorized).toMatchObject({ name: 'Uncategorized', amt: 5000, catIds: ['uncategorized'] });
+
+    const total = rows.reduce((s, r) => s + r.amt, 0);
+    expect(total).toBe(8000 + 35000 + 700 + 5000);
+
+    // colors assigned PALETTE[index] after sorting desc by amt
+    const sorted = [...rows].sort((a, b) => b.amt - a.amt);
+    sorted.forEach((r, i) => expect(r.color).toBe(PALETTE[i % PALETTE.length]));
+  });
+});
+
+describe('rangeMonths', () => {
+  it('returns the inclusive contiguous month list between explicit bounds', () => {
+    const S = makeStore([]);
+    const from = addMonths(CUR, -2), to = CUR;
+    expect(rangeMonths(S, from, to)).toEqual([from, addMonths(CUR, -1), CUR]);
+  });
+
+  it('from:null resolves to the earliest transaction month', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 1000, category: 'rent', date: PREV2 + '-05T12:00' }),
+      tx({ id: 't2', type: 'expense', amount: 1000, category: 'rent', date: CUR + '-05T12:00' }),
+    ]);
+    expect(rangeMonths(S, null, CUR)).toEqual([PREV2, PREV, CUR]);
+  });
+
+  it('to:null resolves to the current month', () => {
+    const S = makeStore([]);
+    expect(rangeMonths(S, PREV, null)).toEqual([PREV, CUR]);
+  });
+
+  it('a store with no transactions and no bounds resolves to just [currentMonth()]', () => {
+    const S = makeStore([]);
+    expect(rangeMonths(S, null, null)).toEqual([currentMonth()]);
+  });
+});
+
+describe('breakdownStats', () => {
+  it('avgMonthly = total/months.length; avgDaily = total/Σ daysInMonth(months)', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 8000, category: 'groc', date: PREV + '-10T12:00' }),
+      tx({ id: 't2', type: 'expense', amount: 35000, category: 'rent', date: CUR + '-10T12:00' }),
+    ]);
+    const stats = breakdownStats(S, { from: PREV, to: CUR });
+    const months = [PREV, CUR];
+    const days = months.reduce((s, m) => s + daysInMonth(m), 0);
+    expect(stats.total).toBe(43000);
+    expect(stats.avgMonthly).toBe(43000 / 2);
+    expect(stats.avgDaily).toBe(43000 / days);
+  });
+
+  it('a single-month (This-Month) range divides avgDaily by that month\'s own day count', () => {
+    const S = makeStore([tx({ id: 't1', type: 'expense', amount: 3100, category: 'rent' })]);
+    const stats = breakdownStats(S, { from: CUR, to: CUR });
+    expect(stats.avgDaily).toBe(3100 / daysInMonth(CUR));
+  });
+
+  it('mostFrequent is the highest-txCount row, including Uncategorized', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 100, category: null }),
+      tx({ id: 't2', type: 'expense', amount: 100, category: null }),
+      tx({ id: 't3', type: 'expense', amount: 100, category: null }),
+      tx({ id: 't4', type: 'expense', amount: 100, category: 'rent' }),
+    ]);
+    expect(breakdownStats(S, {}).mostFrequent).toEqual({ name: 'Uncategorized', count: 3 });
+  });
+
+  it('largestOutflow is the single largest expense, as {merchant, amt}', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 8000, category: 'groc', merchant: 'Metro' }),
+      tx({ id: 't2', type: 'expense', amount: 35000, category: 'rent', merchant: 'Landlord' }),
+      tx({ id: 't3', type: 'refund', amount: 90000, category: 'rent', merchant: 'BigRefund' }), // refund, not an expense
+    ]);
+    expect(breakdownStats(S, {}).largestOutflow).toEqual({ merchant: 'Landlord', amt: 35000 });
+  });
+
+  it('an empty range yields total 0 and null mostFrequent/largestOutflow', () => {
+    const S = makeStore([]);
+    const stats = breakdownStats(S, {});
+    expect(stats.total).toBe(0);
+    expect(stats.mostFrequent).toBeNull();
+    expect(stats.largestOutflow).toBeNull();
+  });
+});
+
+describe('categoryTxRows', () => {
+  it('maps account nickname, date to YYYY-MM-DD, payee/memo, signed amt, date-desc order', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 8000, category: 'groc', merchant: 'Metro', notes: 'weekly', date: CUR + '-05T09:30', accountId: 'a1' }),
+      tx({ id: 't2', type: 'refund', amount: 2000, category: 'groc', merchant: 'Metro', notes: 'return', date: CUR + '-10T09:30', accountId: 'a1' }),
+    ]);
+    const rows = categoryTxRows(S, 'groc', {});
+    expect(rows.map(r => r.id)).toEqual(['t2', 't1']); // date desc
+    expect(rows[1]).toEqual({ id: 't1', account: 'Main', date: CUR + '-05', payee: 'Metro', memo: 'weekly', amt: -8000 });
+    expect(rows[0]).toMatchObject({ amt: 2000 }); // refund is positive (YNAB-style sign convention)
+  });
+
+  it('accepts an array of catIds, e.g. a group form including "uncategorized"', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 8000, category: 'groc', date: CUR + '-05T09:30' }),
+      tx({ id: 't2', type: 'expense', amount: 1000, category: null, date: CUR + '-08T09:30' }),
+      tx({ id: 't3', type: 'expense', amount: 1000, category: 'rent', date: CUR + '-09T09:30' }), // excluded from the group
+    ]);
+    const rows = categoryTxRows(S, ['groc', 'uncategorized'], {});
+    expect(rows.map(r => r.id).sort()).toEqual(['t1', 't2']);
+  });
+});
