@@ -167,8 +167,10 @@ export default function Dashboard() {
   const acctHidden = acctAll.length - acctMini.length;
 
   return (
-    <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
-      <div className="dash-root" style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'hsFade .25s ease' }}>
+    // Rendered inside the Reflect shell's Outlet as the "Overview" tab; the
+    // shell already provides the max-width/padding container, so this root is
+    // just the section stack (matching the other Reflect report tabs).
+    <div className="dash-root" style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'hsFade .25s ease' }}>
 
         {v.snapshotPending && (
           <div role="region" aria-label="Monthly opening reminder" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--soft)' }}>
@@ -456,8 +458,6 @@ export default function Dashboard() {
             </span>
           </button>
         )}
-      </div>
-
     </div>
   );
 }

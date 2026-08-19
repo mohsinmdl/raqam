@@ -3,7 +3,8 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { openers } from '../drawers/openers.js';
 
 // First-use guided setup — ported from the prototype (template 233-267, firstUseVals
-// script 1000-1017). Shown on /dashboard until setup completes or is skipped.
+// script 1000-1017). Shown on the Reflect Overview tab (the app's landing
+// surface) until setup completes or is skipped.
 export default function FirstUse({ setup, onSkip }) {
   const { data: S } = useStore();
   const { openDrawer } = useDrawer();
