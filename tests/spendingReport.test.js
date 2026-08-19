@@ -87,6 +87,21 @@ describe('reportTxns', () => {
   // which means "no filter, everything passes". The screens rely on that
   // distinction (a filter pill that has deselected every item must show an
   // empty report, not the unfiltered one).
+  // 'deleted' is a reserved key like 'uncategorized': the filter pill offers
+  // it, so a Set containing it has to select the dangling-id transactions —
+  // otherwise the row is visible on the page but impossible to filter to.
+  it('catIds: new Set(["deleted"]) matches transactions whose category id has no record', () => {
+    const S = makeStore([
+      tx({ id: 'g1', type: 'expense', amount: 1000, category: 'ghost' }),
+      tx({ id: 'g2', type: 'refund', amount: 200, category: 'phantom' }),
+      tx({ id: 'c1', type: 'expense', amount: 1000, category: 'rent' }),
+      tx({ id: 'u1', type: 'expense', amount: 1000, category: null }),
+    ]);
+    expect(reportTxns(S, { catIds: new Set(['deleted']) }).map(r => r.id).sort()).toEqual(['g1', 'g2']);
+    // and a real-category Set still excludes them
+    expect(reportTxns(S, { catIds: new Set(['rent']) }).map(r => r.id)).toEqual(['c1']);
+  });
+
   it('an empty catIds/acctIds Set selects nothing (not everything)', () => {
     const S = makeStore([
       tx({ id: 't1', type: 'expense', amount: 1000, category: 'rent' }),
@@ -198,6 +213,26 @@ describe('breakdownByCategory', () => {
     });
     expect(PALETTE).toContain(byId.deleted.color); // no category color to inherit
     expect(rows.reduce((s, r) => s + r.amt, 0)).toBe(9000 + 3500); // counted in the Total
+  });
+
+  // spentIds in the filter bar is transaction-based, so an archived category
+  // whose refunds exactly cancel its expenses appears in the Categories pill.
+  // Keying the row set off activity (not off a nonzero net) keeps the page
+  // and the filter list describing the same set of categories.
+  it('keeps an archived category whose in-range spend nets to exactly zero', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 4000, category: 'oldcat' }),
+      tx({ id: 't2', type: 'refund', amount: 4000, category: 'oldcat' }),
+    ], {
+      categories: [
+        { id: 'rent', name: 'Rent', icon: 'square', color: '#64748B', type: 'expense', status: 'active', groupId: 'housing' },
+        { id: 'oldcat', name: 'Old Category', icon: 'diamond', color: '#DB2777', type: 'expense', status: 'archived', groupId: 'housing' },
+        { id: 'oldzero', name: 'Old Zero', icon: 'diamond', color: '#8B5CF6', type: 'expense', status: 'archived', groupId: 'housing' },
+      ],
+    });
+    const byId = Object.fromEntries(breakdownByCategory(S, {}).map(r => [r.id, r]));
+    expect(byId.oldcat).toMatchObject({ amt: 0, txCount: 2 }); // present, floored, still counted
+    expect(byId.oldzero).toBeUndefined();                      // genuinely no activity -> still out
   });
 
   it('no "Deleted category" row when every transaction resolves to a real category', () => {
@@ -321,6 +356,20 @@ describe('breakdownStats', () => {
     expect(breakdownStats(S, {}).largestOutflow).toEqual({ merchant: 'Landlord', amt: 35000 });
   });
 
+  // Drilling the Deleted category group narrows stats to catIds
+  // Set(['deleted']); if that Set matched nothing the page would show a real
+  // amount in the list beside a zero total (and export empty CSVs).
+  it('scopes to the Deleted category bucket when catIds is Set(["deleted"])', () => {
+    const S = makeStore([
+      tx({ id: 'g1', type: 'expense', amount: 2500, category: 'ghost', merchant: 'Gone' }),
+      tx({ id: 'c1', type: 'expense', amount: 9000, category: 'rent', merchant: 'Landlord' }),
+    ]);
+    const stats = breakdownStats(S, { catIds: new Set(['deleted']) });
+    expect(stats.total).toBe(2500);
+    expect(stats.mostFrequent).toEqual({ name: 'Deleted category', count: 1 });
+    expect(stats.largestOutflow).toEqual({ merchant: 'Gone', amt: 2500 });
+  });
+
   it('an empty range yields total 0 and null mostFrequent/largestOutflow', () => {
     const S = makeStore([]);
     const stats = breakdownStats(S, {});
@@ -340,6 +389,20 @@ describe('categoryTxRows', () => {
     expect(rows.map(r => r.id)).toEqual(['t2', 't1']); // date desc
     expect(rows[1]).toEqual({ id: 't1', account: 'Main', date: CUR + '-05', payee: 'Metro', memo: 'weekly', amt: -8000 });
     expect(rows[0]).toMatchObject({ amt: 2000 }); // refund is positive (YNAB-style sign convention)
+  });
+
+  // Clicking the Deleted category row opens the popover with this call. The
+  // row's id is the synthetic 'deleted', which no transaction carries — so
+  // the lookup has to resolve through the same key function the rows do.
+  it('resolves the synthetic "deleted" id to the dangling-id transactions', () => {
+    const S = makeStore([
+      tx({ id: 'g1', type: 'expense', amount: 2500, category: 'ghost', merchant: 'Gone', date: CUR + '-05T09:30' }),
+      tx({ id: 'g2', type: 'expense', amount: 700, category: 'phantom', merchant: 'Also gone', date: CUR + '-08T09:30' }),
+      tx({ id: 'c1', type: 'expense', amount: 9000, category: 'rent', date: CUR + '-09T09:30' }),
+    ]);
+    const rows = categoryTxRows(S, 'deleted', {});
+    expect(rows.map(r => r.id)).toEqual(['g2', 'g1']); // date desc, both dangling ids
+    expect(rows[1]).toMatchObject({ payee: 'Gone', amt: -2500 });
   });
 
   it('accepts an array of catIds, e.g. a group form including "uncategorized"', () => {

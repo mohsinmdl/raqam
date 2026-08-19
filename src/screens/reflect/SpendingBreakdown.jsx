@@ -154,8 +154,9 @@ export default function SpendingBreakdown() {
     { label: 'Average Monthly Spending', value: money(stats.avgMonthly), sub: '' },
     { label: 'Average Daily Spending', value: money(stats.avgDaily), sub: '' },
     { label: 'Most Frequent Category', value: stats.mostFrequent ? stats.mostFrequent.name : '—', sub: stats.mostFrequent ? plural(stats.mostFrequent.count, 'transaction') : '' },
-    // A payee-less transaction has an empty merchant — show the em dash rather
-    // than a blank value with an amount hanging under it.
+    // A payee-less transaction has an empty merchant; the dash marks the
+    // missing NAME (the amount below still renders), matching how the other
+    // stat blocks show an absent value.
     { label: 'Largest Outflow', value: stats.largestOutflow?.merchant || '—', sub: stats.largestOutflow ? money(stats.largestOutflow.amt) : '' },
   ];
 

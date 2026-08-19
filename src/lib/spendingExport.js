@@ -3,7 +3,7 @@
 import { MN } from './calc.js';
 import { downloadCsv, toCsv } from './csv.js';
 import { todayStr } from './dates.js';
-import { breakdownByCategory, rangeMonths, reportTxns } from './spendingReport.js';
+import { breakdownByCategory, catKeyFn, rangeMonths, reportTxns } from './spendingReport.js';
 
 const monthCol = ym => MN[Number(ym.slice(5, 7)) - 1].slice(0, 3) + '-' + ym.slice(2, 4);
 const ddmmyyyy = d => { const [y, m, day] = d.slice(0, 10).split('-'); return day + '/' + m + '/' + y; };
@@ -17,7 +17,6 @@ export function buildSummaryCsv(store, opts = {}) {
   // deleted category fold into one 'Deleted category' row — both per
   // breakdownByCategory, which owns the row set.
   const rows = breakdownByCategory(store, opts);
-  const known = new Set(store.categories.map(c => c.id));
   // The synthetic rows carry no group, same as Uncategorized.
   const groupName = r => {
     if (r.id === 'uncategorized' || r.id === 'deleted') return '';
@@ -27,17 +26,20 @@ export function buildSummaryCsv(store, opts = {}) {
   // Per-month sums, netting refunds, keyed cat|month. NOT floored at 0, unlike
   // the page's per-category amounts (see spendingReport.js): this file is a net
   // accounting matrix, so a month whose refunds exceed its expenses is meant to
-  // read as a positive, money-back cell. Ids with no category record collapse
-  // into the same 'deleted' key breakdownByCategory uses for their row.
+  // read as a positive, money-back cell. Keyed through catKeyFn so the cells
+  // land under the very id breakdownByCategory gave the row — in particular
+  // every dangling id collapses onto the one 'deleted' key.
+  const catKey = catKeyFn(store);
   const cell = {};
   for (const t of reportTxns(store, opts)) {
-    const id = t.category == null ? 'uncategorized' : (known.has(t.category) ? t.category : 'deleted');
-    const k = id + '|' + String(t.date).slice(0, 7);
+    const k = catKey(t) + '|' + String(t.date).slice(0, 7);
     cell[k] = (cell[k] || 0) + (t.type === 'expense' ? t.amount : -t.amount);
   }
   const order = r => {
     if (r.id === 'uncategorized') return [-1, -1];
-    if (r.id === 'deleted') return [-1, 0]; // right after Uncategorized, ahead of every real group
+    // Right after Uncategorized, ahead of every real group (which use
+    // non-negative sortOrder).
+    if (r.id === 'deleted') return [-1, 0];
 
     const g = r.groupId && store.categoryGroups.find(x => x.id === r.groupId);
     const cat = store.categories.find(c => c.id === r.id);

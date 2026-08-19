@@ -144,6 +144,19 @@ describe('buildSummaryCsv', () => {
     expect(lines[1].split(',').slice(2)).toEqual(['-2500', '-2500', '-2500']);
   });
 
+  // Exporting while drilled into the Deleted category passes catIds
+  // Set(['deleted']). If that Set matched no transactions the user would get
+  // header-only CSVs with no error at all.
+  it('a catIds Set(["deleted"]) exports just the Deleted category row, with its cells', () => {
+    const S = makeStore([
+      tx({ id: 'g1', type: 'expense', amount: 2500, category: 'ghost', date: CUR + '-10T12:00' }),
+      tx({ id: 'g2', type: 'expense', amount: 500, category: 'phantom', date: CUR + '-11T12:00' }),
+      tx({ id: 'c1', type: 'expense', amount: 9000, category: 'rent', date: CUR + '-10T12:00' }),
+    ]);
+    const lines = buildSummaryCsv(S, { from: CUR, to: CUR, catIds: new Set(['deleted']) }).csv.split('\r\n').slice(1);
+    expect(lines.map(l => l.split(','))).toEqual([['', 'Deleted category', '-3000', '-3000', '-3000']]);
+  });
+
   it('filename: raqam-reflect-spending-breakdown-<todayStr()>.csv', () => {
     const S = makeStore([]);
     const { filename } = buildSummaryCsv(S, {});
@@ -224,6 +237,15 @@ describe('buildTransactionsCsv', () => {
     ]);
     const row = buildTransactionsCsv(S, {}).csv.split('\r\n')[1].split(',');
     expect(row.slice(4, 7)).toEqual(['Deleted category', '', 'Deleted category']);
+  });
+
+  it('a catIds Set(["deleted"]) narrows the detail file to the dangling-id transactions', () => {
+    const S = makeStore([
+      tx({ id: 'g1', type: 'expense', amount: 400, category: 'ghost', merchant: 'Shop', date: CUR + '-06T12:00' }),
+      tx({ id: 'c1', type: 'expense', amount: 900, category: 'rent', merchant: 'Landlord', date: CUR + '-07T12:00' }),
+    ]);
+    const rows = buildTransactionsCsv(S, { catIds: new Set(['deleted']) }).csv.split('\r\n').slice(1);
+    expect(rows.map(r => r.split(',')[3])).toEqual(['Shop']); // the summary's row and this file agree
   });
 
   it('filename: raqam-reflect-spending-breakdown-<todayStr()>-transactions.csv', () => {

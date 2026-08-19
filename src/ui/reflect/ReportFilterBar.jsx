@@ -10,7 +10,7 @@ import { monthsBetween } from '../../lib/dates.js';
 import {
   REPORT_PRESETS, presetOf, rangeFor, rangeLabel, shiftRange,
 } from '../../lib/dateRange.js';
-import { reportTxns } from '../../lib/spendingReport.js';
+import { catKeyFn, reportTxns } from '../../lib/spendingReport.js';
 import { Menu, MenuTrigger, MenuPanel, MenuItem } from '../primitives/Menu.jsx';
 import { BottomSheet, BottomSheetTrigger, BottomSheetPanel, BottomSheetClose } from '../primitives/BottomSheet.jsx';
 import FilterMultiSelect from './FilterMultiSelect.jsx';
@@ -50,6 +50,11 @@ function CalendarGlyph() {
 // reads every account's transactions regardless of status — so `spentIds`
 // (the ids with in-range activity) re-admits exactly those.
 //
+// The same principle covers the synthetic 'deleted' bucket: it shows up as a
+// row, so it needs a checkbox, and it gets one next to Uncategorized whenever
+// the range actually contains dangling ids. Both reserved keys then behave
+// identically — an explicit Set can include or exclude either.
+//
 // Root section is the 'Uncategorized Transactions' row; then each category
 // group (sortOrder order) with its expense-category members (active first by
 // sortOrder, then any archived-with-spend ones); then ungrouped active
@@ -57,7 +62,9 @@ function CalendarGlyph() {
 // group to sit in, under a final 'Archived'. Empty sections are omitted, so a
 // range with no archived spend looks exactly as it did before.
 function categorySections(store, spentIds) {
-  const root = { id: null, name: '', items: [{ id: 'uncategorized', name: 'Uncategorized Transactions' }] };
+  const rootItems = [{ id: 'uncategorized', name: 'Uncategorized Transactions' }];
+  if (spentIds.has('deleted')) rootItems.push({ id: 'deleted', name: 'Deleted category' });
+  const root = { id: null, name: '', items: rootItems };
   const cats = (store.categories || []).filter(c => c.type === 'expense'
     && (c.status === 'active' || spentIds.has(c.id)));
   const byOrder = (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0);
@@ -135,9 +142,11 @@ export default function ReportFilterBar({ store, range, onRangeChange, catSel, o
   // Deliberately range-only (no catIds/acctIds): narrowing one pill must not
   // shrink the other pill's list, nor its own.
   const spent = useMemo(() => {
+    const catKey = catKeyFn(store); // raw ids would miss the 'deleted' bucket entirely
     const cats = new Set(), accts = new Set();
     for (const t of reportTxns(store, { from: range.from, to: range.to })) {
-      if (t.category != null) cats.add(t.category);
+      const k = catKey(t);
+      if (k !== 'uncategorized') cats.add(k); // Uncategorized is always offered
       accts.add(t.accountId);
     }
     return { cats, accts };
