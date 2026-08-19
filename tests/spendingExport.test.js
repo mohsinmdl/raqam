@@ -254,3 +254,48 @@ describe('buildTransactionsCsv', () => {
     expect(filename).toBe('raqam-reflect-spending-breakdown-' + todayStr() + '-transactions.csv');
   });
 });
+
+// Category/group names carry user-typed emoji for on-screen identity (the
+// in-name emoji IS the chip now); the exported sheets stay plain text.
+describe('icon-free exports (plainName strips category/group emoji)', () => {
+  it('an emoji category name and an emoji group name become plain names in both CSVs', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 5000, category: 'rentcat', date: CUR + '-10T12:00', merchant: 'Landlord' }),
+    ], {
+      categories: [
+        { id: 'rentcat', name: '🏠 Rent/Mortgage', icon: 'square', color: '#64748B', type: 'expense', status: 'active', groupId: 'bills' },
+      ],
+      categoryGroups: [
+        { id: 'bills', name: '⚡️ Bills', sortOrder: 1 },
+      ],
+    });
+    const summaryLine = buildSummaryCsv(S, { from: CUR, to: CUR }).csv.split('\r\n').slice(1)
+      .find(l => l.includes('Rent')).split(',');
+    expect(summaryLine.slice(0, 2)).toEqual(['Bills', 'Rent/Mortgage']);
+
+    const txRow = buildTransactionsCsv(S, {}).csv.split('\r\n').slice(1)
+      .find(l => l.includes('Rent')).split(',');
+    expect(txRow.slice(4, 7)).toEqual(['Bills: Rent/Mortgage', 'Bills', 'Rent/Mortgage']);
+  });
+
+  it('an emoji embedded mid-name collapses to a single space', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 1000, category: 'fooddel', date: CUR + '-10T12:00', merchant: 'Vendor' }),
+    ], {
+      categories: [
+        { id: 'fooddel', name: 'Food 🍔 Delivery', icon: 'square', color: '#64748B', type: 'expense', status: 'active' },
+      ],
+    });
+    const summaryLine = buildSummaryCsv(S, { from: CUR, to: CUR }).csv.split('\r\n').slice(1)
+      .find(l => l.includes('Delivery')).split(',');
+    expect(summaryLine[1]).toBe('Food Delivery');
+  });
+
+  it('an emoji merchant name stays verbatim in the Payee column (scope boundary: merchant is untouched)', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 1000, category: 'rent', date: CUR + '-10T12:00', merchant: '🍕 Pizza Place' }),
+    ]);
+    const row = buildTransactionsCsv(S, {}).csv.split('\r\n')[1].split(',');
+    expect(row[3]).toBe('🍕 Pizza Place');
+  });
+});
