@@ -158,11 +158,13 @@ export default function SpendingBreakdown() {
   // src/components/Header.jsx:74-81's one-h1-per-page rule) — this is a
   // section heading, so both branches use <h2>.
   const header = drill ? (
-    <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontSize: 15, fontWeight: 700, margin: 0 }}>
+    // Same 18/700 as the undrilled title below — the breadcrumb REPLACES it,
+    // so a smaller size just made the whole page shift up on drill-in.
+    <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontSize: 18, fontWeight: 700, margin: 0 }}>
       <button type="button" onClick={() => setDrillGroupId(null)}
-        style={{ border: 'none', background: 'none', padding: 0, color: 'var(--accent)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+        style={{ border: 'none', background: 'none', padding: 0, color: 'var(--accent)', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}
       >All Groups</button>
-      <span style={{ color: 'var(--muted)', fontSize: 15, fontWeight: 400 }}>›</span>
+      <span style={{ color: 'var(--muted)', fontSize: 18, fontWeight: 400 }}>›</span>
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drill.name}</span>
     </h2>
   ) : (
