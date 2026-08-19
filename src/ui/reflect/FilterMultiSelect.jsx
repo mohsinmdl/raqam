@@ -29,6 +29,9 @@ const pillStyle = {
 const textBtnStyle = {
   border: 'none', background: 'none', padding: 0, color: 'var(--accent)',
   fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+  // Without these the flex footer shrinks them until "Select None" breaks
+  // across two lines next to the Cancel/Done pills.
+  whiteSpace: 'nowrap', flex: 'none',
 };
 
 const softPillStyle = {
@@ -141,7 +144,7 @@ export default function FilterMultiSelect({ pillLabel, searchPlaceholder, sectio
 
   const footer = (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 14, padding: 10,
+      display: 'flex', alignItems: 'center', gap: 10, padding: 10,
       borderTop: '1px solid var(--border)', background: 'var(--surface)',
       ...(phone ? { position: 'sticky', bottom: 0 } : {}),
     }}>
@@ -180,7 +183,9 @@ export default function FilterMultiSelect({ pillLabel, searchPlaceholder, sectio
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger className="hv-soft" style={pillStyle}>{trigger}</PopoverTrigger>
-      <PopoverPanel width={340} style={{ padding: 0, overflow: 'hidden' }} aria-label={pillLabel}>
+      {/* 380, not 340: the footer's four controls (Select All · Select None,
+          Cancel, Done) do not fit on one line at 340. */}
+      <PopoverPanel width={380} style={{ padding: 0, overflow: 'hidden' }} aria-label={pillLabel}>
         {body}
       </PopoverPanel>
     </Popover>
