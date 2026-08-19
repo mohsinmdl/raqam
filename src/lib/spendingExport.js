@@ -9,6 +9,14 @@ const monthCol = ym => MN[Number(ym.slice(5, 7)) - 1].slice(0, 3) + '-' + ym.sli
 const ddmmyyyy = d => { const [y, m, day] = d.slice(0, 10).split('-'); return day + '/' + m + '/' + y; };
 const base = () => 'raqam-reflect-spending-breakdown-' + todayStr();
 
+// Category/group names carry user-typed emoji for on-screen identity (the
+// in-name emoji doubles as the row's icon there); these exported sheets stay
+// plain text. Merchant/memo/account nickname are untouched — out of scope.
+const plainName = s => String(s)
+  .replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{20E3}]/gu, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
 export function buildSummaryCsv(store, opts = {}) {
   const months = rangeMonths(store, opts.from || null, opts.to || null, opts.now);
   // Zero rows stay: YNAB's summary lists every category, so an ACTIVE category
@@ -21,7 +29,7 @@ export function buildSummaryCsv(store, opts = {}) {
   const groupName = r => {
     if (r.id === 'uncategorized' || r.id === 'deleted') return '';
     const g = r.groupId && store.categoryGroups.find(x => x.id === r.groupId);
-    return g ? g.name : 'Other';
+    return g ? plainName(g.name) : 'Other';
   };
   // Per-month sums, netting refunds, keyed cat|month. NOT floored at 0, unlike
   // the page's per-category amounts (see spendingReport.js): this file is a net
@@ -54,7 +62,7 @@ export function buildSummaryCsv(store, opts = {}) {
     const total = cells.reduce((s, v) => s + v, 0);
     // Rounded: money is whole-PKR everywhere else in the app, and an unrounded
     // mean writes cells like -4633.333333333333 into the CSV.
-    return [groupName(r), r.name, ...cells, Math.round(total / months.length), total];
+    return [groupName(r), plainName(r.name), ...cells, Math.round(total / months.length), total];
   });
   return {
     filename: base() + '.csv',
@@ -69,12 +77,12 @@ export function buildTransactionsCsv(store, opts = {}) {
   const catName = id => {
     if (id == null) return null;
     const c = store.categories.find(x => x.id === id);
-    return c ? c.name : 'Deleted category';
+    return c ? plainName(c.name) : 'Deleted category';
   };
   const groupOf = id => {
     const c = store.categories.find(x => x.id === id);
     const g = c && c.groupId && store.categoryGroups.find(x => x.id === c.groupId);
-    return g ? g.name : (c ? 'Other' : '');
+    return g ? plainName(g.name) : (c ? 'Other' : '');
   };
   const acct = id => { const a = store.accounts.find(x => x.id === id); return a ? a.nickname : id; };
   const body = reportTxns(store, opts)
