@@ -233,7 +233,6 @@ export default function SpendingBreakdown() {
                   display: 'flex', flexDirection: 'column', gap: 6, width: '100%', textAlign: 'left',
                   border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer',
                   background: focused ? 'var(--soft)' : 'transparent',
-                  outline: focused ? '2px solid var(--accent)' : 'none',
                 }}
                 className="hv-soft"
               >
