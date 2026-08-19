@@ -18,6 +18,10 @@ const transfer = over => ({
   id: 't1', type: 'transfer', date: '2026-08-06T12:00', status: 'cleared',
   amount: 5500, accountId: 'a1', toAccountId: 'a2', merchant: '', notes: '', ...(over || {}),
 });
+const tx = over => ({
+  id: 't2', type: 'expense', date: '2026-08-06T12:00', status: 'cleared',
+  amount: 500, accountId: 'a1', category: 'rent', merchant: '', notes: '', ...(over || {}),
+});
 
 describe('transferOther', () => {
   it('names the destination when viewed from the source', () => {
@@ -73,5 +77,32 @@ describe('chipIcon', () => {
     const row = txRowOf(refund, S, fmt);
     expect(row.chipIcon).toBe(null);
     expect(row.chip).toBe('Refund');
+  });
+});
+
+describe('outflow/inflow split', () => {
+  it('expense → outflow side only', () => {
+    const r = txRowOf(tx({ type: 'expense', amount: 500 }), S, fmt);
+    expect(r.outflowValue).toBe(500);
+    expect(r.inflowValue).toBe(null);
+    expect(r.outflowLabel).toBe(fmt.money(500));
+    expect(r.inflowLabel).toBe('');
+  });
+  it('income and refund → inflow side', () => {
+    expect(txRowOf(tx({ type: 'income', amount: 700 }), S, fmt).inflowValue).toBe(700);
+    expect(txRowOf(tx({ type: 'refund', amount: 80 }), S, fmt).inflowValue).toBe(80);
+  });
+  it('transfer (all-accounts view) → outflow side, money left the source', () => {
+    const r = txRowOf(transfer({ amount: 900 }), S, fmt);
+    expect(r.outflowValue).toBe(900);
+    expect(r.inflowValue).toBe(null);
+  });
+  it('adjustment splits by its stored sign', () => {
+    expect(txRowOf(tx({ type: 'adjustment', amount: -45 }), S, fmt).outflowValue).toBe(45);
+    expect(txRowOf(tx({ type: 'adjustment', amount: 45 }), S, fmt).inflowValue).toBe(45);
+  });
+  it('account-perspective view splits by the delta sign', () => {
+    const r = txRowOf(transfer({ amount: 900 }), S, fmt, 'a2');
+    expect(r.inflowValue).toBe(900); // receiving account sees an inflow
   });
 });

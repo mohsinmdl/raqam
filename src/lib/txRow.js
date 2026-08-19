@@ -38,6 +38,17 @@ export function txRowOf(t, S, fmt, forAccountId) {
   else if (t.type === 'income' || t.type === 'refund') { amtLabel = fmt.moneyS(t.amount); amtColor = 'var(--pos)'; amtValue = t.amount; }
   else if (t.type === 'transfer') { amtLabel = fmt.money(t.amount); amtColor = 'var(--muted)'; amtValue = t.amount; }
   else { amtLabel = fmt.moneyS(t.amount); amtColor = t.amount >= 0 ? 'var(--pos)' : 'var(--text)'; amtValue = t.amount; }
+  // Outflow/Inflow pair (YNAB columns). Derived from the SAME branch results
+  // as amtValue so the two presentations can never disagree: money leaving is
+  // outflow, money arriving is inflow, and a transfer in the all-accounts view
+  // sits on the outflow side (it left the source account; acctLabel already
+  // names the destination). Unpopulated side is null so sorting sinks blanks.
+  let outflowValue = null, inflowValue = null;
+  if (forAccountId) {
+    if (amtValue < 0) outflowValue = -amtValue; else if (amtValue > 0) inflowValue = amtValue;
+  } else if (t.type === 'transfer') outflowValue = t.amount;
+  else if (amtValue < 0) outflowValue = -amtValue;
+  else inflowValue = amtValue;
   let acctLabel = '—';
   if (t.type === 'transfer') acctLabel = (acc ? acc.nickname : '?') + ' → ' + (toCard ? toCard.nickname + ' ••' + toCard.last4 : toAcc ? toAcc.nickname : '?');
   else if (card) acctLabel = card.nickname + ' ••' + card.last4;
@@ -68,6 +79,9 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // "This needs a category" pill wherever the category cell renders.
     needsCategory: !cat && (t.type === 'expense' || t.type === 'income' || t.type === 'refund'),
     acctLabel, amtLabel, amtColor, amtValue,
+    outflowValue, inflowValue,
+    outflowLabel: outflowValue != null ? fmt.money(outflowValue) : '',
+    inflowLabel: inflowValue != null ? fmt.money(inflowValue) : '',
     // Status shows as a one-letter badge (see the Transactions Row): a filled
     // green C when cleared, an outlined C when not — the same pair the balance
     // strip uses. The stored value stays 'pending'; only the wording is
@@ -169,6 +183,10 @@ export function ruleRowOf(r, S, fmt, now) {
     amtLabel: (r.estimated ? '~' : '') + fmt.money(r.type === 'income' ? r.amount : -r.amount),
     amtValue: r.type === 'income' ? r.amount : -r.amount,
     amtColor: r.type === 'income' ? 'var(--pos)' : 'var(--text)',
+    outflowValue: r.type === 'income' ? null : r.amount,
+    inflowValue: r.type === 'income' ? r.amount : null,
+    outflowLabel: r.type === 'income' ? '' : (r.estimated ? '~' : '') + fmt.money(r.amount),
+    inflowLabel: r.type === 'income' ? (r.estimated ? '~' : '') + fmt.money(r.amount) : '',
     stLabel: overdue ? 'Overdue' : 'Scheduled',
     stGlyph: overdue ? '!' : 'S',
     stColor: overdue ? 'var(--neg)' : 'var(--info)',
