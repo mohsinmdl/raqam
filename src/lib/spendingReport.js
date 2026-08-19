@@ -8,12 +8,27 @@ import { addMonths, currentMonth, monthsBetween, nowIso } from './dates.js';
 
 export const PALETTE = ['#0F766E', '#B7791F', '#2563EB', '#C2413B', '#8B5CF6', '#0891B2', '#DB2777', '#65A30D'];
 
-const catKey = t => (t.category == null ? 'uncategorized' : t.category);
+// The bucket a transaction belongs to, which is NOT always its raw category
+// id. Two reserved keys stand in for the cases with no category record behind
+// them: 'uncategorized' (category is null) and 'deleted' (an id no category
+// record has any more). Store-aware because only the category list can tell
+// the second case from a live id.
+//
+// Every consumer must key through this — the ids it invents are the ones the
+// rows, the filter pill, the drill-down and both CSVs all address each other
+// by, so a raw-id lookup anywhere would be a dead end for the deleted bucket.
+// Returns a closure so the known-id Set is built once per call, not per
+// transaction.
+export function catKeyFn(store) {
+  const known = new Set(store.categories.map(c => c.id));
+  return t => (t.category == null ? 'uncategorized' : (known.has(t.category) ? t.category : 'deleted'));
+}
 const signed = t => (t.type === 'expense' ? t.amount : -t.amount);
 
 export function reportTxns(store, opts = {}) {
   const { from = null, to = null, acctIds = null, catIds = null } = opts;
   const now = opts.now || nowIso();
+  const catKey = catIds ? catKeyFn(store) : null; // only needed to answer the filter
   return store.transactions.filter(t =>
     (t.type === 'expense' || t.type === 'refund')
     && t.status !== 'pending' && hasOccurred(t, now)
@@ -24,22 +39,26 @@ export function reportTxns(store, opts = {}) {
 
 export function breakdownByCategory(store, opts = {}) {
   const txns = reportTxns(store, opts);
+  const catKey = catKeyFn(store);
   const sums = {}, counts = {};
   for (const t of txns) {
-    const k = catKey(t);
+    const k = catKey(t); // dangling ids land under 'deleted' here, not on their own
     sums[k] = (sums[k] || 0) + signed(t);
     counts[k] = (counts[k] || 0) + 1;
   }
   const catIds = opts.catIds || null;
   // Base row set is active expense categories. Non-active (e.g. archived)
-  // expense categories are ADDITIONALLY included when they have nonzero
-  // in-range spend, so a transaction whose category was later archived
-  // stays visible everywhere downstream (donut/list/Total/CSVs/stats)
-  // instead of only surviving in the transactions CSV. Zero-activity
-  // archived categories are left out to avoid clutter.
+  // expense categories are ADDITIONALLY included when they have in-range
+  // ACTIVITY, so a transaction whose category was later archived stays
+  // visible everywhere downstream (donut/list/Total/CSVs/stats) instead of
+  // only surviving in the transactions CSV. Keyed on activity rather than on
+  // a nonzero net so that a category whose refunds exactly cancel its
+  // expenses still gets its (zero) row — the filter pill lists it either way,
+  // and the two must describe the same set. Categories with no in-range
+  // transactions at all are left out to avoid clutter.
   const cats = store.categories.filter(c => c.type === 'expense'
     && (!catIds || catIds.has(c.id))
-    && (c.status === 'active' || sums[c.id]));
+    && (c.status === 'active' || counts[c.id]));
   // Floored at 0 on purpose, and only here: this is what the PAGE reports —
   // spending — and a category whose in-range refunds outweigh its expenses has
   // no spending to draw, no share of the total, and no meaningful percent. The
@@ -57,22 +76,17 @@ export function breakdownByCategory(store, opts = {}) {
       amt: Math.max(0, sums.uncategorized || 0), txCount: counts.uncategorized || 0,
     });
   }
-  // A transaction can outlive the category record it points at. Its spend
-  // would otherwise land in a bucket that gets no row — invisible on the page
-  // and in the summary CSV, yet still listed in the transactions CSV, so the
-  // two files stop reconciling. Every such id folds into one synthetic row.
-  // 'deleted' is a reserved id, like 'uncategorized'.
-  const known = new Set(store.categories.map(c => c.id));
-  let dAmt = 0, dCount = 0;
-  for (const k of Object.keys(counts)) {
-    if (k === 'uncategorized' || known.has(k)) continue;
-    dAmt += sums[k];
-    dCount += counts[k];
-  }
-  if (dCount) {
+  // A transaction can outlive the category record it points at. catKey has
+  // already folded every such id into the one 'deleted' bucket; without a row
+  // for it that spend would be invisible on the page and in the summary CSV
+  // yet still listed in the transactions CSV, so the two files stop
+  // reconciling. Unlike Uncategorized this row appears only when something is
+  // actually in the bucket — a plan with no deleted categories should not
+  // grow a permanent row advertising the concept.
+  if (counts.deleted) {
     rows.push({
       id: 'deleted', name: 'Deleted category', icon: null, color: null, groupId: null,
-      amt: Math.max(0, dAmt), txCount: dCount,
+      amt: Math.max(0, sums.deleted), txCount: counts.deleted,
     });
   }
   const total = rows.reduce((s, r) => s + r.amt, 0);
@@ -138,6 +152,9 @@ export function breakdownStats(store, opts = {}) {
 
 export function categoryTxRows(store, catIdOrIds, opts = {}) {
   const wanted = new Set(Array.isArray(catIdOrIds) ? catIdOrIds : [catIdOrIds]);
+  // Through catKey, so a row's id always finds its transactions — including
+  // the synthetic 'deleted', which no transaction carries literally.
+  const catKey = catKeyFn(store);
   const name = id => {
     const a = store.accounts.find(x => x.id === id);
     return a ? a.nickname : id;
