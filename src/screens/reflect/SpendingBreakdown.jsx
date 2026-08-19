@@ -1,48 +1,45 @@
-// Reflect — Spending Breakdown tab: donut + stats + a Categories|Groups list,
-// all driven by the shared month from Reflect.jsx's outlet context. Data
-// comes from src/lib/reports.js (untouched here); charting from
-// src/ui/charts/Donut.jsx (untouched here).
+// Reflect — Spending Breakdown tab: YNAB-parity report page. Composes Tasks
+// 1–8's building blocks: spendingReport.js/spendingExport.js (range-aware
+// data + CSV export), ReportFilterBar (date range + category/account
+// multi-select), SpendingDonut (ECharts interactive ring), TransactionPopover
+// (drill into a row/slice's transactions), ExportModal (confirm-once export).
 //
-// Filters: accountId scopes every figure on the tab — it's passed
-// straight into spendingByCategory/spendingByGroup/spendingStats via
-// opts.accountId, so the donut, list, and stat blocks (avg/day, most
-// frequent, largest outflow) all agree on the same account scope.
-// categoryId narrows only the *displayed* rows (donut slices + list) to that
-// one category — it does not re-scope spendingStats, so the stat blocks keep
-// reporting the full (account-scoped) picture per the brief.
-import { useMemo, useState } from 'react';
+// Local state only — the shell's month (via outlet context) merely seeds the
+// initial range; every filter/lens/drill/focus/export choice on this page
+// lives here, independent of the other four tabs and independent of the
+// shell's own (now-hidden-on-this-route) FilterRow.
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';
 import { useMoney } from '../../lib/format.js';
-import { monthLabel } from '../../lib/calc.js';
-import { spendingByCategory, spendingByGroup, spendingStats } from '../../lib/reports.js';
-import { toCsv, downloadCsv } from '../../lib/csv.js';
-import Donut from '../../ui/charts/Donut.jsx';
+import { useIsPhone } from '../../lib/useIsPhone.js';
+import { iconStyle } from '../../lib/catIcon.js';
+import { clampRange } from '../../lib/dateRange.js';
+import { breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows } from '../../lib/spendingReport.js';
+import { exportSpendingReport } from '../../lib/spendingExport.js';
+import ReportFilterBar from '../../ui/reflect/ReportFilterBar.jsx';
+import SpendingDonut from '../../ui/reflect/SpendingDonut.jsx';
+import TransactionPopover from '../../ui/reflect/TransactionPopover.jsx';
+import ExportModal from '../../ui/reflect/ExportModal.jsx';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
-const h2 = { fontSize: 15, fontWeight: 600, margin: 0 };
 
-// Fallback swatches for rows with no color of their own (group rows, and the
-// Uncategorized row) — the accent color plus a handful of standard,
-// mutually-distinct chart hues (teal, amber, blue, red, violet, cyan, pink,
-// olive). Cycled by row index within the (already amt-descending) row list.
-// Violet is lightened from the usual #7C3AED — that hue sits right at ~3:1
-// against the dark-theme surface (#161D1A), too close to the line; #8B5CF6
-// keeps comfortable contrast on both surfaces.
-const PALETTE = ['#0F766E', '#B7791F', '#2563EB', '#C2413B', '#8B5CF6', '#0891B2', '#DB2777', '#65A30D'];
+const SKIP_KEY = 'raqam.reflect.exportConfirmSkip';
 
 // "1 transactions" reads wrong — pluralize the count-driven noun.
 const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
-// pct display rule (brief): round to whole percent, but never show 0% for a
-// genuinely nonzero (if tiny) share, and never show >0% for an exact zero.
+// pct display rule (kept from the prior page): round to whole percent, but
+// never show 0% for a genuinely nonzero (if tiny) share, and never show >0%
+// for an exact zero.
 function pctLabel(pct) {
   if (pct === 0) return '0%';
   if (pct < 0.005) return '<1%';
   return Math.round(pct * 100) + '%';
 }
 
-// Same pill-toggle idiom as Plan.jsx's ViewToggle (~304-324).
+// Same pill-toggle idiom as Plan.jsx's ViewToggle (~304-324) and the prior
+// version of this page.
 function ViewToggle({ view, onChange }) {
   const seg = (key, label) => (
     <button
@@ -63,128 +60,197 @@ function ViewToggle({ view, onChange }) {
 }
 
 export default function SpendingBreakdown() {
-  const { month, categoryId, accountId } = useOutletContext();
+  const { month } = useOutletContext();
   const { data: S } = useStore();
   const { money } = useMoney();
+  const isPhone = useIsPhone();
+
+  const [range, setRange] = useState(() => ({ from: month, to: month }));
+  const [catSel, setCatSel] = useState(null);   // null | Set
+  const [acctSel, setAcctSel] = useState(null); // null | Set
   const [lens, setLens] = useState('categories');
+  const [drillGroupId, setDrillGroupId] = useState(null);
+  const [focus, setFocus] = useState(null);     // { id, anchor } | null
+  const [exportOpen, setExportOpen] = useState(false);
 
-  // Unfiltered rows for the current lens, scoped to the selected account.
-  const baseRows = useMemo(
-    () => (lens === 'groups' ? spendingByGroup(S, month, { accountId }) : spendingByCategory(S, month, { accountId })),
-    [S, month, lens, accountId]
-  );
+  const opts = { from: range.from, to: range.to, acctIds: acctSel, catIds: catSel };
+  const catRows = useMemo(() => breakdownByCategory(S, opts), [S, range, catSel, acctSel]);
+  const groupRows = useMemo(() => breakdownByGroup(S, opts), [S, range, catSel, acctSel]);
+  const drill = drillGroupId ? groupRows.find(g => g.id === drillGroupId) : null;
 
-  // categoryId narrows the displayed set to that one category — or, in
-  // Groups view, to the single group it belongs to (an "Other" fallback for
-  // ungrouped categories, matching spendingByGroup's own fallback bucket).
-  const narrowedRows = useMemo(() => {
-    if (!categoryId) return baseRows;
-    if (lens === 'categories') return baseRows.filter(r => r.id === categoryId);
-    const cat = S.categories.find(c => c.id === categoryId);
-    const groupId = cat && cat.groupId ? cat.groupId : 'other';
-    return baseRows.filter(r => r.id === groupId);
-  }, [baseRows, lens, categoryId, S]);
+  // Visible rows: categories lens → catRows (zero rows hidden below); groups
+  // lens → groupRows (zero rows hidden below); drilled → catRows subset
+  // re-based so pct is within the group (YNAB: 82%/13%/5% inside Needs), all
+  // members shown including zeros.
+  const rows = useMemo(() => {
+    if (lens === 'categories') return catRows;
+    if (!drill) return groupRows;
+    const member = catRows.filter(r => drill.catIds.includes(r.id));
+    const t = member.reduce((s, r) => s + r.amt, 0);
+    return member.map(r => ({ ...r, pct: t ? r.amt / t : 0 }));
+  }, [lens, drill, catRows, groupRows]);
+  const total = rows.reduce((s, r) => s + r.amt, 0);
+  const slices = rows.filter(r => r.amt > 0);
+  const stats = useMemo(() => breakdownStats(S, drill
+    ? { ...opts, catIds: new Set(drill.catIds.filter(id => !catSel || catSel.has(id))) }
+    : opts), [S, range, catSel, acctSel, drill]);
 
-  // Percentages are re-based to the displayed subset's own total, so a single
-  // filtered row reads as 100% (and the donut ring fills) rather than showing
-  // its share of the unfiltered total.
-  const total = useMemo(() => narrowedRows.reduce((s, r) => s + r.amt, 0), [narrowedRows]);
-  const rows = useMemo(
-    () => narrowedRows.map(r => ({ ...r, pct: total ? r.amt / total : 0 })),
-    [narrowedRows, total]
-  );
+  // Displayed list: top-level lenses hide zero-amount rows; the drilled group
+  // list shows every member category, zeros included (rendered without a bar).
+  const visibleRows = drill ? rows : rows.filter(r => r.amt > 0);
 
-  // The stat blocks below (avg/day, most frequent, largest outflow) stay
-  // scoped to the account filter only — categoryId never touches them.
-  const stats = useMemo(() => spendingStats(S, month, { accountId }), [S, month, accountId]);
-  const empty = total === 0;
+  // Clear the open popover whenever anything upstream of the row set changes
+  // — its anchor/id may no longer refer to a visible row.
+  useEffect(() => { setFocus(null); }, [range, catSel, acctSel, lens, drillGroupId]);
+  // If the drilled group disappears from the (filter-scoped) group list, back
+  // out of drill rather than pointing at nothing.
+  useEffect(() => {
+    if (drillGroupId && !groupRows.some(g => g.id === drillGroupId)) setDrillGroupId(null);
+  }, [drillGroupId, groupRows]);
 
-  const slices = useMemo(
-    () => rows.filter(r => r.amt > 0).map((r, i) => ({ label: r.name, value: r.amt, pct: r.pct, color: r.color || PALETTE[i % PALETTE.length] })),
-    [rows]
-  );
+  const openFocus = useCallback((id, anchor) => {
+    const g = lens === 'groups' && !drill ? groupRows.find(x => x.id === id) : null;
+    if (g) { setDrillGroupId(id); return; } // donut slice click in groups lens drills too
+    setFocus({ id, anchor });
+  }, [lens, drill, groupRows]);
 
-  const doExport = () => {
-    const header = lens === 'groups' ? 'Group' : 'Category';
-    const csv = toCsv([header, 'Amount', 'Percent'], rows.map(r => [r.name, r.amt, Math.round(r.pct * 100) + '%']));
-    const filename = lens === 'groups' ? 'spending-by-group-' + month + '.csv' : 'spending-breakdown-' + month + '.csv';
-    downloadCsv(filename, csv);
+  const rowClick = (r, e) => {
+    if (lens === 'groups' && !drill) { setDrillGroupId(r.id); return; }
+    openFocus(r.id, e.currentTarget);
   };
+
+  const changeLens = key => { setLens(key); setDrillGroupId(null); setFocus(null); };
+
+  const focusRow = focus ? rows.find(r => r.id === focus.id) : null;
+
+  const exportNow = () => exportSpendingReport(S, opts);
+  const onExportClick = () => (localStorage.getItem(SKIP_KEY) ? exportNow() : setExportOpen(true));
+  const onExportConfirm = skip => { if (skip) localStorage.setItem(SKIP_KEY, '1'); setExportOpen(false); exportNow(); };
+
+  const exportDisabled = total === 0 && !slices.length;
 
   const statBlocks = [
     { label: 'Average Monthly Spending', value: money(stats.avgMonthly), sub: '' },
     { label: 'Average Daily Spending', value: money(stats.avgDaily), sub: '' },
-    { label: 'Most Frequent Category', value: stats.mostFrequent ? stats.mostFrequent.cat.name : '—', sub: stats.mostFrequent ? plural(stats.mostFrequent.count, 'transaction') : '' },
+    { label: 'Most Frequent Category', value: stats.mostFrequent ? stats.mostFrequent.name : '—', sub: stats.mostFrequent ? plural(stats.mostFrequent.count, 'transaction') : '' },
     { label: 'Largest Outflow', value: stats.largestOutflow ? stats.largestOutflow.merchant : '—', sub: stats.largestOutflow ? money(stats.largestOutflow.amt) : '' },
   ];
 
-  const emptyNote = <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>No spending recorded for {monthLabel(month)}.</div>;
+  const emptyNote = <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>No spending recorded for this period.</div>;
 
-  return (
-    <div className="plan-grid">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+  const header = drill ? (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      <button type="button" onClick={() => setDrillGroupId(null)}
+        style={{ border: 'none', background: 'none', padding: 0, color: 'var(--accent)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+      >All Groups</button>
+      <span style={{ color: 'var(--muted)', fontSize: 15 }}>›</span>
+      <span style={{ fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drill.name}</span>
+    </div>
+  ) : (
+    <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Spending Breakdown</h1>
+  );
 
-        <section aria-label="Total spending" style={{ ...card, padding: '18px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Total Spending</div>
-              <div className="tnum" style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{money(total)}</div>
-            </div>
-            <span style={{ flex: 1 }} />
-            <ViewToggle view={lens} onChange={setLens} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
-            {empty ? emptyNote : (
-              <Donut slices={slices} size={240} thickness={34} centerTop="Total Spending" centerBottom={money(total)} />
-            )}
-          </div>
-        </section>
+  const exportBtn = (
+    <button onClick={onExportClick} disabled={exportDisabled} aria-label="Export spending report as CSV"
+      style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: exportDisabled ? 'default' : 'pointer', opacity: exportDisabled ? 0.5 : 1, padding: 0 }}
+    >Export</button>
+  );
 
-        <section aria-label="Spending stats" style={{ ...card, padding: '18px 20px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            {statBlocks.map(s => (
-              <div key={s.label}>
-                <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>{s.label}</div>
-                <div className="tnum" style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{s.value}</div>
-                {s.sub && <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{s.sub}</div>}
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <section aria-label={lens === 'groups' ? 'Spending by group' : 'Spending by category'} style={{ ...card, padding: '18px 20px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+  const leftCard = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+      <section aria-label="Total spending" style={{ ...card, padding: '18px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <h2 style={h2}>{lens === 'groups' ? 'Groups' : 'Categories'}</h2>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Total Spending</div>
+            <div className="tnum" style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{money(total)}</div>
+          </div>
           <span style={{ flex: 1 }} />
-          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Total Spending</span>
-          <button onClick={doExport} disabled={empty} aria-label={`Export ${lens === 'groups' ? 'spending by group' : 'spending by category'} as CSV`}
-            style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: empty ? 'default' : 'pointer', opacity: empty ? 0.5 : 1, padding: 0 }}
-          >Export</button>
+          <ViewToggle view={lens} onChange={changeLens} />
         </div>
-        {empty ? emptyNote : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14, maxHeight: 380, overflowY: 'auto' }}>
-            {rows.map((r, i) => {
-              const color = r.color || PALETTE[i % PALETTE.length];
-              return (
-                <div key={r.id}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
+          {total === 0 ? emptyNote : (
+            <SpendingDonut slices={slices} total={total} money={money} onSliceClick={openFocus} />
+          )}
+        </div>
+      </section>
+
+      <section aria-label="Spending stats" style={{ ...card, padding: '18px 20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          {statBlocks.map(s => (
+            <div key={s.label}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>{s.label}</div>
+              <div className="tnum" style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{s.value}</div>
+              {s.sub && <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{s.sub}</div>}
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+
+  const rightCard = (
+    <section aria-label={lens === 'groups' && !drill ? 'Spending by group' : 'Spending by category'} style={{ ...card, padding: '18px 20px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      {visibleRows.length === 0 ? emptyNote : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 460, overflowY: 'auto' }}>
+          {visibleRows.map(r => {
+            const focused = focus?.id === r.id;
+            return (
+              <button key={r.id} type="button" onClick={e => rowClick(r, e)}
+                style={{
+                  display: 'flex', flexDirection: 'column', gap: 6, width: '100%', textAlign: 'left',
+                  border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer',
+                  background: focused ? 'var(--soft)' : 'transparent',
+                  outline: focused ? '2px solid var(--accent)' : 'none',
+                }}
+                className="hv-soft"
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span aria-hidden="true" style={iconStyle(r.icon, r.color, 12)} />
+                  <span style={{ fontSize: 13, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
+                  <span className="tnum" style={{ fontSize: 13, fontWeight: 600, flex: 'none' }}>{money(r.amt)}</span>
+                </div>
+                {r.amt > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 3, background: color, flex: 'none' }} />
-                    <span style={{ fontSize: 13, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
-                    <span className="tnum" style={{ fontSize: 13, fontWeight: 600, flex: 'none' }}>{money(r.amt)}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
                     <div style={{ flex: 1, height: 6, background: 'var(--track)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ width: `${r.pct * 100}%`, height: '100%', background: color, borderRadius: 3 }} />
+                      <div style={{ width: `${r.pct * 100}%`, height: '100%', background: r.color, borderRadius: 3 }} />
                     </div>
                     <span className="tnum" style={{ fontSize: 11.5, color: 'var(--muted)', flex: 'none', width: 30, textAlign: 'right' }}>{pctLabel(r.pct)}</span>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {header}
+        <span style={{ flex: 1 }} />
+        {exportBtn}
+      </div>
+      <ReportFilterBar
+        store={S} range={range} onRangeChange={r => setRange(clampRange(r.from, r.to))}
+        catSel={catSel} onCatSel={setCatSel} acctSel={acctSel} onAcctSel={setAcctSel}
+      />
+      <div style={isPhone
+        ? { display: 'flex', flexDirection: 'column', gap: 16 }
+        : { display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16, alignItems: 'start' }}
+      >
+        {leftCard}
+        {rightCard}
+      </div>
+
+      <TransactionPopover
+        open={!!focus} anchor={focus?.anchor} onClose={() => setFocus(null)}
+        title={focusRow || { name: '', icon: null, color: null }}
+        rows={focus ? categoryTxRows(S, focus.id, opts) : []}
+        money={money}
+      />
+      <ExportModal open={exportOpen} onCancel={() => setExportOpen(false)} onExport={onExportConfirm} />
     </div>
   );
 }
