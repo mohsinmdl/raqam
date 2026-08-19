@@ -82,6 +82,19 @@ describe('reportTxns', () => {
     const rows = reportTxns(S, { acctIds: new Set(['a1']) });
     expect(rows.map(r => r.id)).toEqual(['a1tx']);
   });
+
+  // An EMPTY Set is a real filter selecting nothing — distinct from `null`,
+  // which means "no filter, everything passes". The screens rely on that
+  // distinction (a filter pill that has deselected every item must show an
+  // empty report, not the unfiltered one).
+  it('an empty catIds/acctIds Set selects nothing (not everything)', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 1000, category: 'rent' }),
+      tx({ id: 't2', type: 'expense', amount: 1000, category: null }),
+    ]);
+    expect(reportTxns(S, { catIds: new Set() })).toEqual([]);
+    expect(reportTxns(S, { acctIds: new Set() })).toEqual([]);
+  });
 });
 
 describe('breakdownByCategory', () => {
@@ -160,6 +173,40 @@ describe('breakdownByCategory', () => {
     const rows = breakdownByCategory(S, { catIds: new Set(['rent']) });
     expect(rows.map(r => r.id)).not.toContain('oldcat');
   });
+
+  it('an empty catIds Set yields no rows at all — not even the Uncategorized one', () => {
+    const S = makeStore([tx({ id: 't1', type: 'expense', amount: 1000, category: 'rent' })]);
+    expect(breakdownByCategory(S, { catIds: new Set() })).toEqual([]);
+  });
+
+  // A transaction can outlive the category record it points at. Without the
+  // synthetic row its spend vanishes from the page and the summary CSV while
+  // still appearing in the transactions CSV — the two files stop reconciling.
+  it('folds transactions whose category id matches no category record into one "Deleted category" row', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 3000, category: 'ghost' }),
+      tx({ id: 't2', type: 'expense', amount: 1000, category: 'phantom' }), // a second dangling id folds into the SAME row
+      tx({ id: 't3', type: 'refund', amount: 500, category: 'ghost' }),     // nets like any other category
+      tx({ id: 't4', type: 'expense', amount: 9000, category: 'rent' }),
+    ]);
+    const rows = breakdownByCategory(S, {});
+    const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+
+    expect(byId.deleted).toMatchObject({
+      name: 'Deleted category', icon: null, groupId: null,
+      amt: 3000 + 1000 - 500, txCount: 3,
+    });
+    expect(PALETTE).toContain(byId.deleted.color); // no category color to inherit
+    expect(rows.reduce((s, r) => s + r.amt, 0)).toBe(9000 + 3500); // counted in the Total
+  });
+
+  it('no "Deleted category" row when every transaction resolves to a real category', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 1000, category: 'rent' }),
+      tx({ id: 't2', type: 'expense', amount: 1000, category: null }),
+    ]);
+    expect(breakdownByCategory(S, {}).map(r => r.id)).not.toContain('deleted');
+  });
 });
 
 describe('breakdownByGroup', () => {
@@ -178,6 +225,7 @@ describe('breakdownByGroup', () => {
     expect(byId.housing).toMatchObject({ amt: 35000, catIds: ['rent'] });
     expect(byId.other).toMatchObject({ name: 'Other', amt: 700, catIds: ['legacy'] });
     expect(byId.uncategorized).toMatchObject({ name: 'Uncategorized', amt: 5000, catIds: ['uncategorized'] });
+    expect(byId.deleted).toBeUndefined(); // nothing dangling in this fixture
 
     const total = rows.reduce((s, r) => s + r.amt, 0);
     expect(total).toBe(8000 + 35000 + 700 + 5000);
@@ -185,6 +233,16 @@ describe('breakdownByGroup', () => {
     // colors assigned PALETTE[index] after sorting desc by amt
     const sorted = [...rows].sort((a, b) => b.amt - a.amt);
     sorted.forEach((r, i) => expect(r.color).toBe(PALETTE[i % PALETTE.length]));
+  });
+
+  it('the Deleted category row gets its own bucket, like Uncategorized', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 35000, category: 'rent' }), // housing
+      tx({ id: 't2', type: 'expense', amount: 2000, category: 'ghost' }), // no category record
+    ]);
+    const byId = Object.fromEntries(breakdownByGroup(S, {}).map(r => [r.id, r]));
+    expect(byId.deleted).toMatchObject({ name: 'Deleted category', amt: 2000, catIds: ['deleted'] });
+    expect(byId.other.catIds).not.toContain('deleted'); // NOT folded in with the ungrouped categories
   });
 });
 
@@ -215,7 +273,10 @@ describe('rangeMonths', () => {
 });
 
 describe('breakdownStats', () => {
-  it('avgMonthly = total/months.length; avgDaily = total/Σ daysInMonth(months)', () => {
+  // Rounded to whole PKR, like the CSV's Average column and reports.js: money
+  // is integer everywhere in this app, and money() would render an unrounded
+  // mean as a long fraction.
+  it('avgMonthly = round(total/months.length); avgDaily = round(total/Σ daysInMonth(months))', () => {
     const S = makeStore([
       tx({ id: 't1', type: 'expense', amount: 8000, category: 'groc', date: PREV + '-10T12:00' }),
       tx({ id: 't2', type: 'expense', amount: 35000, category: 'rent', date: CUR + '-10T12:00' }),
@@ -224,14 +285,21 @@ describe('breakdownStats', () => {
     const months = [PREV, CUR];
     const days = months.reduce((s, m) => s + daysInMonth(m), 0);
     expect(stats.total).toBe(43000);
-    expect(stats.avgMonthly).toBe(43000 / 2);
-    expect(stats.avgDaily).toBe(43000 / days);
+    expect(stats.avgMonthly).toBe(Math.round(43000 / 2));
+    expect(stats.avgDaily).toBe(Math.round(43000 / days));
+  });
+
+  it('a non-divisible total rounds rather than emitting a fraction', () => {
+    const S = makeStore([tx({ id: 't1', type: 'expense', amount: 10000, category: 'rent', date: PREV2 + '-10T12:00' })]);
+    const stats = breakdownStats(S, { from: PREV2, to: CUR }); // 3 months
+    expect(stats.avgMonthly).toBe(3333); // 10000/3 = 3333.33…
+    expect(Number.isInteger(stats.avgDaily)).toBe(true);
   });
 
   it('a single-month (This-Month) range divides avgDaily by that month\'s own day count', () => {
     const S = makeStore([tx({ id: 't1', type: 'expense', amount: 3100, category: 'rent' })]);
     const stats = breakdownStats(S, { from: CUR, to: CUR });
-    expect(stats.avgDaily).toBe(3100 / daysInMonth(CUR));
+    expect(stats.avgDaily).toBe(Math.round(3100 / daysInMonth(CUR)));
   });
 
   it('mostFrequent is the highest-txCount row, including Uncategorized', () => {

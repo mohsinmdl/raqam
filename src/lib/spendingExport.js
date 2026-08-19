@@ -11,21 +11,34 @@ const base = () => 'raqam-reflect-spending-breakdown-' + todayStr();
 
 export function buildSummaryCsv(store, opts = {}) {
   const months = rangeMonths(store, opts.from || null, opts.to || null, opts.now);
-  // Zero rows stay: YNAB's summary lists every category in the plan.
+  // Zero rows stay: YNAB's summary lists every category, so an ACTIVE category
+  // with no in-range spend still gets its all-zero row. Archived categories
+  // appear only when they have in-range spend, and transactions pointing at a
+  // deleted category fold into one 'Deleted category' row — both per
+  // breakdownByCategory, which owns the row set.
   const rows = breakdownByCategory(store, opts);
+  const known = new Set(store.categories.map(c => c.id));
+  // The synthetic rows carry no group, same as Uncategorized.
   const groupName = r => {
-    if (r.id === 'uncategorized') return '';
+    if (r.id === 'uncategorized' || r.id === 'deleted') return '';
     const g = r.groupId && store.categoryGroups.find(x => x.id === r.groupId);
     return g ? g.name : 'Other';
   };
-  // Per-month sums, netting refunds, keyed cat|month.
+  // Per-month sums, netting refunds, keyed cat|month. NOT floored at 0, unlike
+  // the page's per-category amounts (see spendingReport.js): this file is a net
+  // accounting matrix, so a month whose refunds exceed its expenses is meant to
+  // read as a positive, money-back cell. Ids with no category record collapse
+  // into the same 'deleted' key breakdownByCategory uses for their row.
   const cell = {};
   for (const t of reportTxns(store, opts)) {
-    const k = (t.category == null ? 'uncategorized' : t.category) + '|' + String(t.date).slice(0, 7);
+    const id = t.category == null ? 'uncategorized' : (known.has(t.category) ? t.category : 'deleted');
+    const k = id + '|' + String(t.date).slice(0, 7);
     cell[k] = (cell[k] || 0) + (t.type === 'expense' ? t.amount : -t.amount);
   }
   const order = r => {
     if (r.id === 'uncategorized') return [-1, -1];
+    if (r.id === 'deleted') return [-1, 0]; // right after Uncategorized, ahead of every real group
+
     const g = r.groupId && store.categoryGroups.find(x => x.id === r.groupId);
     const cat = store.categories.find(c => c.id === r.id);
     return [g ? (g.sortOrder ?? 0) : 1e9, cat ? (cat.sortOrder ?? 0) : 0];
@@ -48,10 +61,13 @@ export function buildSummaryCsv(store, opts = {}) {
 }
 
 export function buildTransactionsCsv(store, opts = {}) {
+  // An id with no category record is a deleted category. Naming it as such
+  // beats leaking the raw id into a file a human opens, and matches the row
+  // breakdownByCategory folds those transactions into.
   const catName = id => {
     if (id == null) return null;
     const c = store.categories.find(x => x.id === id);
-    return c ? c.name : id;
+    return c ? c.name : 'Deleted category';
   };
   const groupOf = id => {
     const c = store.categories.find(x => x.id === id);
