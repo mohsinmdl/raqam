@@ -50,6 +50,10 @@ export const SORT_COLUMNS = {
   // never reachable by clicking; nextSortState only ever produces `size`.
   size: { defaultDir: 'desc', type: 'number', get: r => (Number.isFinite(r.amtValue) ? Math.abs(r.amtValue) : null) },
   signed: { defaultDir: 'desc', type: 'number', get: r => r.amtValue },
+  // The OUTFLOW / INFLOW headers. Each ranks only the rows populated on its
+  // side; the other side's rows are blanks and sink in both directions.
+  outflow: { defaultDir: 'desc', type: 'number', get: r => (Number.isFinite(r.outflowValue) ? r.outflowValue : null) },
+  inflow: { defaultDir: 'desc', type: 'number', get: r => (Number.isFinite(r.inflowValue) ? r.inflowValue : null) },
 };
 
 export const isSortable = key => Object.prototype.hasOwnProperty.call(SORT_COLUMNS, key);
@@ -147,5 +151,7 @@ export function sortLabel(sort) {
     // Named for what you are looking for, not the arithmetic: ascending puts
     // the most negative row on top, which is the biggest expense.
     signed: { asc: 'Biggest expense first', desc: 'Biggest income first' },
+    outflow: { asc: 'Smallest outflow first', desc: 'Biggest outflow first' },
+    inflow: { asc: 'Smallest inflow first', desc: 'Biggest inflow first' },
   }[s.key][s.dir];
 }
