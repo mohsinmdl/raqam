@@ -1220,7 +1220,9 @@ git add src/ui/tx/inline/DateCell.jsx src/ui/tx/inline/AmountCell.jsx src/ui/tx/
 git commit -m "Inline editor cells: date+repeat popover, amount+calc pad, category with Split footer"
 ```
 
----### Task 10: TxEditorRow + inline shell wiring + Save and add another
+---
+
+### Task 10: TxEditorRow + inline shell wiring + Save and add another
 
 The integration task: DrawerProvider stops rendering the desktop drawer for `addTx`, the register renders the editor row instead, and `useSubmit` reports success so "Save and add another" can chain.
 
