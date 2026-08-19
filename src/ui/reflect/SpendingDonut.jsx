@@ -12,7 +12,11 @@ const cssVar = name => (typeof window === 'undefined' ? '#fff'
   : getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#fff');
 const pctLabel = p => (p > 0 && p < 0.005 ? '<1%' : Math.round(p * 100) + '%');
 
-export default function SpendingDonut({ slices = [], total = 0, money, size = 380, onSliceClick }) {
+// `labels` off drops the external leader labels (and their lines): on a phone
+// there is no room beside the ring for them, and ECharts silently truncates
+// them to unreadable stubs ("Enter…", "Rs 7,…", "…"). The category list below
+// the chart already carries every name, amount and percent.
+export default function SpendingDonut({ slices = [], total = 0, money, size = 380, labels = true, onSliceClick }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
   const [hover, setHover] = useState(null); // a slice object or null
@@ -39,11 +43,11 @@ export default function SpendingDonut({ slices = [], total = 0, money, size = 38
         type: 'pie', radius: ['58%', '84%'], center: ['50%', '50%'],
         itemStyle: { borderColor: surface, borderWidth: 3, borderRadius: 3 },
         label: {
-          show: true, position: 'outside', color: text, lineHeight: 18,
+          show: labels, position: 'outside', color: text, lineHeight: 18,
           formatter: p => p.data.slice.name + '\n' + p.data.sub,
           rich: {},
         },
-        labelLine: { length: 14, length2: 10, lineStyle: { color: muted } },
+        labelLine: { show: labels, length: 14, length2: 10, lineStyle: { color: muted } },
         emphasis: { scale: true, scaleSize: 4, focus: 'self' },
         blur: { itemStyle: { opacity: 0.25 }, label: { opacity: 0.3 } },
         data: slices.map(s => ({
@@ -73,7 +77,7 @@ export default function SpendingDonut({ slices = [], total = 0, money, size = 38
       if (chart.isDisposed()) return;
       chart.off('mouseover', over); chart.off('mouseout', out); chart.off('click', click);
     };
-  }, [slices, money, onSliceClick]);
+  }, [slices, money, labels, onSliceClick]);
 
   const center = hover
     ? { top: hover.name, mid: money(hover.amt), sub: pctLabel(hover.pct) }
