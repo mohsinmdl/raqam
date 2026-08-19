@@ -63,10 +63,10 @@ const COLUMNS = [
   { key: 'details', label: 'DETAILS', width: null },
   { key: 'category', label: 'CATEGORY', width: 190 },
   { key: 'notes', label: 'MEMO', width: 180 },
-  // altKeys: the signed sort has no header of its own, so AMOUNT stays lit
-  // while it drives the order — the reader can always see which column owns
-  // the ordering, even when the mode came from the dropdown.
-  { key: 'size', label: 'AMOUNT', width: 120, align: 'right', altKeys: ['signed'] },
+  // Two amount columns (YNAB). altKeys keep the toolbar's size/signed modes
+  // lighting a header: both are magnitude-family sorts, closest to OUTFLOW.
+  { key: 'outflow', label: 'OUTFLOW', width: 110, align: 'right', altKeys: ['size', 'signed'] },
+  { key: 'inflow', label: 'INFLOW', width: 110, align: 'right' },
   // Just a small one-letter badge, so the column is narrow and centred.
   { key: 'status', label: 'STATUS', width: 68, align: 'center' },
 ];
@@ -87,7 +87,8 @@ function SortableHeader({ col, sort, onSort, last }) {
     account: { asc: 'A to Z', desc: 'Z to A' },
     notes: { asc: 'A to Z', desc: 'Z to A' },
     status: { asc: 'needs action first', desc: 'settled first' },
-    size: { asc: 'smallest first', desc: 'largest first' },
+    outflow: { asc: 'smallest first', desc: 'largest first' },
+    inflow: { asc: 'smallest first', desc: 'largest first' },
   }[col.key][nextDir];
   return (
     <th
@@ -197,7 +198,10 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused, 
         <span title={t.notes || undefined} style={{ display: 'block', fontSize: 14, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</span>
       </td>
       <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: 'middle' }}>
-        <span className="tnum" style={{ fontSize: 14, fontWeight: 500, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.amtLabel}</span>
+        <span className="tnum" style={{ fontSize: 14, fontWeight: 500, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.outflowLabel}</span>
+      </td>
+      <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: 'middle' }}>
+        <span className="tnum" style={{ fontSize: 14, fontWeight: 500, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.inflowLabel}</span>
       </td>
       {/* No status badge on scheduled rows — the warm band and the SCHEDULED
           heading already say what they are, so only recorded rows show C. */}
