@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  RANGE_PRESETS, rangeFor, inRange, presetOf, rangeLabel, clampRange, yearOpts, shiftRange,
+  RANGE_PRESETS, REPORT_PRESETS, rangeFor, inRange, presetOf, rangeLabel, clampRange, yearOpts, shiftRange,
 } from '../src/lib/dateRange.js';
 
 const AUG = '2026-08';   // mid-year, nothing wraps
@@ -242,5 +242,30 @@ describe('shiftRange', () => {
     expect(shiftRange('2026-08-08', '2026-08-08', 1, YEARS)).toEqual({ from: '2026-08-09', to: '2026-08-09' });
     // Day stepping rolls across a month boundary.
     expect(shiftRange('2026-08-01', '2026-08-01', -1, YEARS)).toEqual({ from: '2026-07-31', to: '2026-07-31' });
+  });
+});
+
+describe('report presets', () => {
+  const T = '2026-08-19';
+  it('defines the YNAB menu order', () => {
+    expect(REPORT_PRESETS.map(p => p.id)).toEqual(['month', 'last3', 'last6', 'last12', 'ytd', 'lastYear', 'all']);
+    expect(REPORT_PRESETS.find(p => p.id === 'ytd').label).toBe('Year To Date');
+  });
+  it('last6/last12 include the current month', () => {
+    expect(rangeFor('last6', T)).toEqual({ from: '2026-03', to: '2026-08' });
+    expect(rangeFor('last12', T)).toEqual({ from: '2025-09', to: '2026-08' });
+  });
+  it('ytd runs Jan..current month, distinct from This Year', () => {
+    expect(rangeFor('ytd', T)).toEqual({ from: '2026-01', to: '2026-08' });
+    expect(rangeFor('year', T)).toEqual({ from: '2026-01', to: '2026-12' });
+  });
+  it('presetOf round-trips every report preset', () => {
+    for (const p of REPORT_PRESETS) {
+      const { from, to } = rangeFor(p.id, T);
+      expect(presetOf(from, to, T, REPORT_PRESETS)).toBe(p.id);
+    }
+  });
+  it('year-crossing: last6 in February', () => {
+    expect(rangeFor('last6', '2026-02-10')).toEqual({ from: '2025-09', to: '2026-02' });
   });
 });
