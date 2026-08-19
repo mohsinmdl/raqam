@@ -70,7 +70,7 @@ function categorySections(store, spentIds) {
   const byOrder = (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0);
   const groups = [...(store.categoryGroups || [])].sort(byOrder);
   const groupIds = new Set(groups.map(g => g.id));
-  const asItem = c => ({ id: c.id, name: c.name, icon: c.icon, color: c.color });
+  const asItem = c => ({ id: c.id, name: c.name });
   const active = c => c.status === 'active';
   const groupSections = groups
     .map(g => {

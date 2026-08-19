@@ -13,7 +13,6 @@ import { useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';
 import { useMoney } from '../../lib/format.js';
 import { useIsPhone } from '../../lib/useIsPhone.js';
-import { iconStyle } from '../../lib/catIcon.js';
 import { clampRange } from '../../lib/dateRange.js';
 import { breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows } from '../../lib/spendingReport.js';
 import { exportSpendingReport } from '../../lib/spendingExport.js';
@@ -239,7 +238,6 @@ export default function SpendingBreakdown() {
                 className="hv-soft"
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span aria-hidden="true" style={iconStyle(r.icon, r.color, 12)} />
                   <span style={{ fontSize: 13, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
                   <span className="tnum" style={{ fontSize: 13, fontWeight: 600, flex: 'none' }}>{money(r.amt)}</span>
                 </div>

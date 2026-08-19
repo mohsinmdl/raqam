@@ -85,7 +85,6 @@ describe('ruleRowOf', () => {
     const row = ruleRowOf(rule(), store(), fmt, NOW);
     expect(row.merchant).toBe('Rent');
     expect(row.catName).toBe('Rent');
-    expect(row.catColor).toBe('#c33');
     expect(row.acctLabel).toBe('Main');
     expect(row.isRepeating).toBe(true);
     expect(row.isRule).toBe(true);
@@ -134,7 +133,6 @@ describe('ruleRowOf', () => {
   it('survives a rule with no category', () => {
     const row = ruleRowOf(rule({ category: null }), store(), fmt, NOW);
     expect(row.catName).toBe('—');
-    expect(row.catColor).toBe('var(--border)');
   });
 });
 

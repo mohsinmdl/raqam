@@ -10,7 +10,6 @@ import {
 import { moveAssigned, setCategoryNote, setTarget, clearTarget, renameCategory, archiveCategory, setCategoryExcluded } from '../../store/actions.js';
 import { hasTarget, targetNeeded, targetSummary, costToBeMe } from '../../lib/targets.js';
 import { parseAmt } from '../../lib/format.js';
-import { iconStyle } from '../../lib/catIcon.js';
 import { useUI } from '../UIProvider.jsx';
 import { useDrawer } from '../DrawerProvider.jsx';
 import { askDeleteCategory } from '../categoryActions.js';
@@ -326,12 +325,9 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
       {rtaBanner}
       <div style={{ padding: '2px 2px 0' }}>
         <div style={{ fontSize: 15, fontWeight: 700 }}>{selected.size} Categories Selected</div>
-        {/* Each selected category shown with its colour/shape swatch, so the list
-            reads the same as the rows above it rather than as bare text. */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '3px 10px', fontSize: 12, color: 'var(--muted)' }}>
           {selCats.map(c => (
             <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-              <span aria-hidden="true" style={iconStyle(c.icon || 'square', c.color || 'var(--muted)', 10)} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
             </span>
           ))}

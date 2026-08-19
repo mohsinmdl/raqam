@@ -14,7 +14,6 @@
 // know whether the filter is actually narrowing anything.
 import { useMemo, useState } from 'react';
 import { useIsPhone } from '../../lib/useIsPhone.js';
-import { iconStyle } from '../../lib/catIcon.js';
 import Checkbox from '../Checkbox.jsx';
 import SearchField from '../SearchField.jsx';
 import { Popover, PopoverTrigger, PopoverPanel } from '../primitives/Popover.jsx';
@@ -55,7 +54,6 @@ function ItemRow({ item, checked, onToggle, indent }) {
       }}
     >
       <Checkbox checked={checked} onChange={onToggle} label={item.name} />
-      {item.icon && <span aria-hidden="true" style={iconStyle(item.icon, item.color, 12)} />}
       <span style={{ fontSize: 13, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {item.name}
       </span>

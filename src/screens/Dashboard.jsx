@@ -244,7 +244,6 @@ export default function Dashboard() {
                   {v.catBars.map(c => (
                     <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '150px 1fr 92px', gap: 12, alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: 3, background: c.color, flex: 'none' }} />
                         <span style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
                       </div>
                       <div style={{ height: 8, background: 'var(--track)', borderRadius: 4, overflow: 'hidden' }}>
@@ -382,10 +381,7 @@ export default function Dashboard() {
                   </div>
                   <div className="tx-cell-cat" style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                     {t.needsCategory ? <NeedsCategoryPill fontSize={11} onClick={e => openRowCategorize(t.id, e?.currentTarget)} /> : (
-                      <>
-                        <span style={{ width: 7, height: 7, borderRadius: 2, background: t.catColor, flex: 'none' }} />
-                        <span style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
-                      </>
+                      <span style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
                     )}
                   </div>
                   <div className="tx-cell-acct" style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</div>

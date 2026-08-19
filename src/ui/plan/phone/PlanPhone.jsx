@@ -121,7 +121,7 @@ export default function PlanPhone({
               background: assignDraft && assignDraft.catId === item.cat.id ? 'var(--soft)' : 'transparent' }}>
             <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 500,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {item.cat.emoji ? item.cat.emoji + ' ' : ''}{item.cat.name}
+              {item.cat.name}
             </span>
             {(() => {
               const isDraft = !!(assignDraft && assignDraft.catId === item.cat.id);

@@ -9,7 +9,6 @@ import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
 import { budgetProjection, budgetRollover, budgetSpent, budgetState, catById, monthLabel, prevMonth, recoverableSpending, unbudgetedSpend } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
-import { iconStyle } from '../lib/catIcon.js';
 import { toggleBudgetRollover, deleteBudget } from '../store/actions.js';
 import RowMenu from '../ui/RowMenu.jsx';
 import { openers } from '../drawers/openers.js';
@@ -197,7 +196,6 @@ export default function Budgets() {
             {rows.map(b => (
               <div key={b.id} className="hv-elev" style={{ ...gridCols, alignItems: 'center', padding: '11px 16px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                  <span aria-hidden="true" style={iconStyle(b.icon, b.color, 14)} />
                   <span style={{ minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</span>
                     {b.hasRoll && <span style={{ display: 'block', fontSize: 10.5, color: 'var(--muted)' }}>{b.rollLabel}</span>}
@@ -255,7 +253,6 @@ export default function Budgets() {
             {rec.rows.map(r => (
               <div key={r.id} className="hv-elev" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)', gap: 10, alignItems: 'center', padding: '11px 16px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                  <span aria-hidden="true" style={iconStyle(r.cat.icon || 'square', r.cat.color || 'var(--muted)', 14)} />
                   <span style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
                 </div>
                 <div className="tnum" style={{ fontSize: 13, fontWeight: 500, textAlign: 'right' }}>{money(r.paid)}</div>

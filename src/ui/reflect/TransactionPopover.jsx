@@ -6,7 +6,6 @@
 // `anchor` prop for an external anchor); phone uses the BottomSheet.
 import { Popover as BasePopover } from '@base-ui/react/popover';
 import { useIsPhone } from '../../lib/useIsPhone.js';
-import { iconStyle } from '../../lib/catIcon.js';
 import { BottomSheet, BottomSheetPanel } from '../primitives/BottomSheet.jsx';
 
 const fmtDate = ymd => {
@@ -48,10 +47,8 @@ function Table({ rows, money, dropMemo }) {
 }
 
 function Header({ title }) {
-  const swatch = title.color ? iconStyle(title.icon, title.color, 16) : null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      {swatch && <span aria-hidden="true" style={swatch} />}
       <span style={{ fontSize: 15, fontWeight: 700 }}>{title.name}</span>
     </div>
   );

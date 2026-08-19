@@ -180,7 +180,7 @@ function OverspentSheetBody({ sheet, env, S, money }) {
             background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}
         >
           <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {cat.emoji ? cat.emoji + ' ' : ''}{cat.name}
+            {cat.name}
           </span>
           <span className="tnum" style={{ flex: 'none', borderRadius: 999, padding: '4px 10px', fontSize: 13, fontWeight: 700,
             background: 'var(--neg-soft)', color: 'var(--neg)' }}>{money(row.available)}</span>
@@ -202,7 +202,7 @@ function HiddenSheetBody({ S }) {
         <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 2px',
           borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
           <span style={{ fontSize: 14.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {cat.emoji ? cat.emoji + ' ' : ''}{cat.name}
+            {cat.name}
           </span>
         </div>
       ))}
