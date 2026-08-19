@@ -21,6 +21,8 @@
 // component would otherwise call directly.
 import { NavLink, Outlet } from 'react-router-dom';
 import { useMonth } from '../../store/MonthContext.jsx';
+import { useStore } from '../../store/StoreProvider.jsx';
+import { isFirstUse } from '../../lib/txRow.js';
 
 const TABS = [
   { to: '/reflect', label: 'Overview', end: true },
@@ -56,13 +58,21 @@ function TabBar() {
 
 export default function Reflect() {
   const { month, balanceMonth } = useMonth();
+  const { data: S, prefs } = useStore();
+  // The Overview (index) tab renders <FirstUse/> while setup is incomplete.
+  // Framing that onboarding card with the report tab bar would invite a new
+  // user to click into empty reports, so hide the bar until setup is complete
+  // or skipped. Same condition Dashboard uses to decide to show <FirstUse/>.
+  const firstUse = isFirstUse(S, prefs);
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'hsFade .25s ease' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <TabBar />
-        </div>
+        {!firstUse && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <TabBar />
+          </div>
+        )}
         <Outlet context={{ month, balanceMonth }} />
       </div>
     </div>

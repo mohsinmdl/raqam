@@ -263,3 +263,11 @@ export function setupState(S) {
   const hasCard = S.cards.length > 0;
   return { hasAccount, snapConfirmed, hasTx, hasCard, complete: hasAccount && snapConfirmed && hasTx };
 }
+
+// Whether the guided first-use setup should show: setup incomplete AND not
+// dismissed. Shared by the Dashboard/Overview page (which renders <FirstUse/>)
+// and the Reflect shell (which hides its report tab bar while it's active), so
+// the two can't drift out of sync.
+export function isFirstUse(S, prefs) {
+  return !setupState(S).complete && !prefs.skippedSetup;
+}
