@@ -90,7 +90,10 @@ export default function SpendingBreakdown() {
     return member.map(r => ({ ...r, pct: t ? r.amt / t : 0 }));
   }, [lens, drill, catRows, groupRows]);
   const total = rows.reduce((s, r) => s + r.amt, 0);
-  const slices = rows.filter(r => r.amt > 0);
+  // Memoized: SpendingDonut's option-building effect depends on `slices` by
+  // identity, so a fresh array every render would rebuild the chart and
+  // replay its entry animation on every unrelated parent re-render.
+  const slices = useMemo(() => rows.filter(r => r.amt > 0), [rows]);
   const stats = useMemo(() => breakdownStats(S, drill
     ? { ...opts, catIds: new Set(drill.catIds.filter(id => !catSel || catSel.has(id))) }
     : opts), [S, range, catSel, acctSel, drill]);
@@ -123,9 +126,22 @@ export default function SpendingBreakdown() {
 
   const focusRow = focus ? rows.find(r => r.id === focus.id) : null;
 
-  const exportNow = () => exportSpendingReport(S, opts);
-  const onExportClick = () => (localStorage.getItem(SKIP_KEY) ? exportNow() : setExportOpen(true));
-  const onExportConfirm = skip => { if (skip) localStorage.setItem(SKIP_KEY, '1'); setExportOpen(false); exportNow(); };
+  // Export honors the active filters + lens drill: drilled into a group, the
+  // export narrows to that group's member categories, same as the on-screen
+  // rows/donut. localStorage read/write are guarded — Safari private mode or
+  // a full quota must not abort the export the user just asked for; on
+  // failure we just skip the "don't ask again" persistence.
+  const exportNow = () => exportSpendingReport(S, drill ? { ...opts, catIds: new Set(drill.catIds) } : opts);
+  const onExportClick = () => {
+    let skip = false;
+    try { skip = !!localStorage.getItem(SKIP_KEY); } catch { /* proceed as if not skipped */ }
+    if (skip) exportNow(); else setExportOpen(true);
+  };
+  const onExportConfirm = skip => {
+    if (skip) { try { localStorage.setItem(SKIP_KEY, '1'); } catch { /* export proceeds regardless */ } }
+    setExportOpen(false);
+    exportNow();
+  };
 
   const exportDisabled = total === 0 && !slices.length;
 
@@ -138,16 +154,19 @@ export default function SpendingBreakdown() {
 
   const emptyNote = <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>No spending recorded for this period.</div>;
 
+  // The Header shell already renders the page's <h1> ("Reflect", per
+  // src/components/Header.jsx:74-81's one-h1-per-page rule) — this is a
+  // section heading, so both branches use <h2>.
   const header = drill ? (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+    <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontSize: 15, fontWeight: 700, margin: 0 }}>
       <button type="button" onClick={() => setDrillGroupId(null)}
         style={{ border: 'none', background: 'none', padding: 0, color: 'var(--accent)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
       >All Groups</button>
-      <span style={{ color: 'var(--muted)', fontSize: 15 }}>›</span>
-      <span style={{ fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drill.name}</span>
-    </div>
+      <span style={{ color: 'var(--muted)', fontSize: 15, fontWeight: 400 }}>›</span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drill.name}</span>
+    </h2>
   ) : (
-    <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Spending Breakdown</h1>
+    <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Spending Breakdown</h2>
   );
 
   const exportBtn = (
