@@ -2,7 +2,7 @@
 // Phone-native rendering of the SAME addTx drawer: same form state, same
 // submission path (useSubmit) — DrawerProvider chooses this shell on phone.
 // All five types render here now (Task 7); edit-mode extras (edited-before
-// notice, Delete via def.useDanger) and the Show more disclosure (notes, fee,
+// notice, Delete via def.useDanger) and the Show more disclosure (notes,
 // status, All options → classic drawer) arrived in the same task.
 // Spec: docs/superpowers/specs/2026-08-15-mobile-accounts-ynab-design.md §3
 import { useState } from 'react';
@@ -61,11 +61,10 @@ export default function TxSheet({ def, state, requestClose }) {
   const [kp, setKp] = useState(() => (f.amount ? null : ''));
   const [picker, setPicker] = useState(null); // 'category' | 'payWith' | 'account' | 'from' | 'to' | null
   // Show more: folded away until asked for, unless the form already carries
-  // non-default state there — a note, a transfer fee, or Uncleared (money-
-  // visible: excluded from totals) — mirrors TxForm's noteOpen seed
-  // (TxForm.jsx:54) plus Status/Fee always being visible on desktop, so
-  // nothing is ever hidden from an edit.
-  const [showMore, setShowMore] = useState(() => !!f.notes || !!f.fee || !!f.pending);
+  // non-default state there — a note, or Uncleared (money-visible: excluded
+  // from totals) — mirrors TxForm's showMore seed, so nothing is ever hidden
+  // from an edit.
+  const [showMore, setShowMore] = useState(() => !!f.notes || !!f.pending);
 
   const current = parseAmt(f.amount) || 0;
   const commitKp = () => {
@@ -183,8 +182,8 @@ export default function TxSheet({ def, state, requestClose }) {
               // sanctioned; a transfer moves money between your own accounts,
               // there's no payee to name). An existing f.merchant value on a
               // transfer being edited is preserved untouched by buildTx even
-              // though nothing here lets it be changed; desktop's TxForm still
-              // offers the field for transfers if it's ever needed.
+              // though nothing here lets it be changed; desktop's TxForm now
+              // omits the payee for transfers too (fxMerchant).
               <>
                 <div style={card}>
                   <Row last>
@@ -294,7 +293,7 @@ export default function TxSheet({ def, state, requestClose }) {
               </div>
             )}
 
-            {/* Show more: folded to keep the sheet short — notes, transfer fee,
+            {/* Show more: folded to keep the sheet short — notes,
                 clear/uncleared status, and the escape hatch to the classic drawer
                 for anything this shell doesn't cover (repeat, split, etc). The
                 toggle button stays mounted across both states (a real
@@ -302,8 +301,8 @@ export default function TxSheet({ def, state, requestClose }) {
                 gets dropped to a generic wrapper on expand — it just stays put
                 on the button while aria-expanded/aria-controls track the
                 revealed region. Collapsing only hides #tx-more-region; the
-                notes/fee/status values themselves live in the form (f.notes /
-                f.fee / f.pending), so nothing entered is lost. */}
+                notes/status values themselves live in the form (f.notes /
+                f.pending), so nothing entered is lost. */}
             <div style={{ marginTop: 12 }}>
               <button onClick={() => { commitKp(); setShowMore(v => !v); }} className="hv-elev"
                 aria-expanded={showMore} aria-controls="tx-more-region"
@@ -324,18 +323,6 @@ export default function TxSheet({ def, state, requestClose }) {
                           color: 'var(--text)', font: 'inherit', fontSize: 14, padding: '8px 10px', resize: 'vertical', outline: 'none' }} />
                     </div>
                   </Row>
-                  {fields.transfer && (
-                    <Row last={false} error={errors.fee} errorId="tx-err-fee">
-                      <div style={{ padding: '10px 14px' }}>
-                        <label htmlFor="tx-fee" style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 4 }}>Transfer fee</label>
-                        <input id="tx-fee" inputMode="decimal" placeholder="0" value={f.fee || ''} onFocus={commitKp} onChange={e => setField('fee', e.target.value)}
-                          aria-invalid={errors.fee ? 'true' : undefined} aria-describedby={errors.fee ? 'tx-err-fee' : undefined}
-                          className="tnum" style={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--elev)',
-                            color: 'var(--text)', font: 'inherit', fontSize: 14, padding: '8px 10px', outline: 'none' }} />
-                        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4 }}>A fee is recorded separately as a Bank fees expense.</div>
-                      </div>
-                    </Row>
-                  )}
                   <Row last={false}>
                     <div role="group" aria-label="Status" style={{ padding: '10px 14px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 500 }}>Status:</span>

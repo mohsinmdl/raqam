@@ -54,7 +54,10 @@ function Body() {
   const f = drawer.form, errors = drawer.errors;
   const type = f.type || 'expense';
   // Body remounts per drawer (keyed by name), so this resets between opens.
-  const [noteOpen, setNoteOpen] = useState(!!f.notes);
+  // Show more folds Notes + Status away, but opens for an edit that already
+  // carries either (a note, or Uncleared) so nothing is hidden — mirrors the
+  // phone sheet's showMore seed (TxSheet.jsx).
+  const [showMore, setShowMore] = useState(!!f.notes || !!f.pending);
 
   const fxPayWith = type === 'expense' || type === 'refund';
   const fxAccount = type === 'income' || type === 'adjustment';
@@ -68,9 +71,10 @@ function Body() {
   const splitOn = canSplit && !!f.splitOn;
   // An adjustment is not paid to anyone — it reconciles the record to reality,
   // and buildTx labels every one of them 'Balance adjustment' regardless of what
-  // is typed here. Asking the question invited a wrong mental model and threw
-  // the answer away; the reason field below is where the explanation belongs.
-  const fxMerchant = type !== 'adjustment';
+  // is typed here. A transfer likewise has no payee — it moves money between
+  // your own accounts — so the field is dropped for both; the phone sheet's
+  // two-card from/to layout already omits it (TxSheet.jsx).
+  const fxMerchant = type !== 'adjustment' && type !== 'transfer';
   // Money in/out only, and never while recording an occurrence — that transaction
   // already belongs to a rule. Editing IS allowed: that is "Make repeating".
   // Hidden once converted, so one transaction can't spawn two rules.
@@ -80,7 +84,6 @@ function Body() {
   const catType = type === 'income' ? 'income' : 'expense';
   const cardHint = type === 'expense' && String(f.payWith || '').startsWith('card:');
   const amt = parseAmt(f.amount);
-  const fee = parseAmt(f.fee);
   const nameOf = ref => {
     const a = activeAccts.find(x => 'acc:' + x.id === ref);
     if (a) return a.nickname;
@@ -235,16 +238,10 @@ function Body() {
               <span style={{ opacity: .85 }}>Recorded as a bill payment — reduces the bank balance and the card's outstanding. Never an expense.</span>
             </div>
           )}
-          <div>
-            <Label htmlFor="f-fee" optional>Transfer fee</Label>
-            <TextField id="f-fee" field="fee" inputMode="decimal" placeholder="0" />
-            <Hint>A fee is recorded separately as a Bank fees expense.</Hint>
-          </div>
           {hasReview && (
             <div style={{ ...noteBox('var(--soft)'), padding: '11px 14px', lineHeight: 1.55 }}>
               <span style={{ fontWeight: 700, color: 'var(--accent-h)' }}>Review: </span>
               Move {moneyRaw(amt)} from {nameOf(f.from)} to {nameOf(f.to)} on {dayLabel((f.date || todayStr()) + 'T00:00')}. One linked record — excluded from income and expenses.
-              {fee > 0 ? ` The ${moneyRaw(fee)} fee is recorded separately as a Bank fees expense.` : ''}
             </div>
           )}
         </>
@@ -281,30 +278,36 @@ function Body() {
         <FieldError msg={errors.date} />
       </div>
 
-      {/* The note is the tallest thing in the form and the least used, so it
-          stays folded away until asked for — that is what keeps the drawer
-          from scrolling. A transaction that already has one opens expanded, so
-          nothing is ever hidden from you. */}
-      {noteOpen ? (
-        <div>
-          <Label htmlFor="f-notes" optional>Notes</Label>
-          <TextAreaField id="f-notes" field="notes" autoFocus={!f.notes} />
-        </div>
-      ) : (
-        <div>
-          <button
-            type="button" onClick={() => setNoteOpen(true)}
-            className="hv-soft"
-            style={{ height: 30, padding: '0 10px', border: '1px dashed var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
-          >＋ Add note</button>
-        </div>
-      )}
-
-      <div role="group" aria-label="Status" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 500 }}>Status:</span>
-        <Pill on={!f.pending} onClick={() => setField('pending', false)}>Cleared</Pill>
-        <Pill on={!!f.pending} warn onClick={() => setField('pending', true)}>Uncleared</Pill>
-        <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Uncleared amounts are excluded from totals until cleared.</span>
+      {/* Notes and Status are the tallest, least-used controls, so they fold
+          away behind "Show more" to keep the drawer from scrolling. The toggle
+          stays mounted in both states (a real disclosure, aria-expanded /
+          aria-controls) so focus is never dropped on expand. Values live in the
+          form (f.notes / f.pending), so collapsing hides nothing; an edit that
+          already carries a note or is Uncleared opens expanded (showMore seed). */}
+      <div>
+        <button
+          type="button" onClick={() => setShowMore(v => !v)}
+          className="hv-soft"
+          aria-expanded={showMore} aria-controls="tx-more-region"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 10px', border: '1px dashed var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+        >
+          {showMore ? 'Show less' : 'Show more'}
+          <span aria-hidden="true" style={{ display: 'inline-block', transform: showMore ? 'rotate(180deg)' : 'none' }}>⌄</span>
+        </button>
+        {showMore && (
+          <div id="tx-more-region" style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
+            <div>
+              <Label htmlFor="f-notes" optional>Notes</Label>
+              <TextAreaField id="f-notes" field="notes" />
+            </div>
+            <div role="group" aria-label="Status" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 500 }}>Status:</span>
+              <Pill on={!f.pending} onClick={() => setField('pending', false)}>Cleared</Pill>
+              <Pill on={!!f.pending} warn onClick={() => setField('pending', true)}>Uncleared</Pill>
+              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Uncleared amounts are excluded from totals until cleared.</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {drawer.dupMsg && (
