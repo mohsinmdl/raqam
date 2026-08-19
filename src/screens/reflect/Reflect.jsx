@@ -15,7 +15,7 @@
 // component would otherwise call directly. Per-tab is the simpler, less
 // coupled option the brief calls out as preferred.
 import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useMonth } from '../../store/MonthContext.jsx';
 import { useStore } from '../../store/StoreProvider.jsx';
 
@@ -86,6 +86,12 @@ export default function Reflect() {
   const { month, balanceMonth } = useMonth();
   const [categoryId, setCategoryId] = useState(null);
   const [accountId, setAccountId] = useState(null);
+  const { pathname } = useLocation();
+  // Spending Breakdown (the index route) owns its own filter bar
+  // (ReportFilterBar, range + category + account) now — the shell's
+  // shared FilterRow would be a redundant, out-of-sync second set of
+  // filters on that tab. Every other tab still gets it.
+  const onBreakdown = pathname.replace(/\/+$/, '') === '/reflect';
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>
@@ -93,7 +99,9 @@ export default function Reflect() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <TabBar />
           <span style={{ flex: 1 }} />
-          <FilterRow categoryId={categoryId} setCategoryId={setCategoryId} accountId={accountId} setAccountId={setAccountId} />
+          {!onBreakdown && (
+            <FilterRow categoryId={categoryId} setCategoryId={setCategoryId} accountId={accountId} setAccountId={setAccountId} />
+          )}
         </div>
         <Outlet context={{ month, balanceMonth, categoryId, accountId }} />
       </div>
