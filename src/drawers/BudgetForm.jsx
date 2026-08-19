@@ -60,7 +60,6 @@ function Body() {
         <div>
           <span style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Category</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, height: 40, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--elev)', fontSize: 13.5 }}>
-            <span aria-hidden="true" style={{ width: 12, height: 12, flex: 'none', background: cat.color, borderRadius: 3 }} />
             {cat.name}
           </div>
           <Hint>A budget stays with its category. To budget something else, add a new one.</Hint>
