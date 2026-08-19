@@ -1,13 +1,13 @@
-// Reflect — Spending Breakdown tab: YNAB-parity report page. Composes Tasks
-// 1–8's building blocks: spendingReport.js/spendingExport.js (range-aware
-// data + CSV export), ReportFilterBar (date range + category/account
-// multi-select), SpendingDonut (ECharts interactive ring), TransactionPopover
-// (drill into a row/slice's transactions), ExportModal (confirm-once export).
+// Reflect — Spending Breakdown tab: YNAB-parity report page. Composes:
+// spendingReport.js/spendingExport.js (range-aware data + CSV export),
+// ReportFilterBar (date range + category/account multi-select), SpendingDonut
+// (ECharts interactive ring), TransactionPopover (drill into a row/slice's
+// transactions), ExportModal (confirm-once export).
 //
 // Local state only — the shell's month (via outlet context) merely seeds the
 // initial range; every filter/lens/drill/focus/export choice on this page
-// lives here, independent of the other four tabs and independent of the
-// shell's own (now-hidden-on-this-route) FilterRow.
+// lives here, independent of the other four tabs. The Reflect shell renders
+// no filter UI of its own at all (see Reflect.jsx).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';
@@ -17,8 +17,9 @@ import { iconStyle } from '../../lib/catIcon.js';
 import { clampRange } from '../../lib/dateRange.js';
 import { breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows } from '../../lib/spendingReport.js';
 import { exportSpendingReport } from '../../lib/spendingExport.js';
+import { useUI } from '../../ui/UIProvider.jsx';
 import ReportFilterBar from '../../ui/reflect/ReportFilterBar.jsx';
-import SpendingDonut from '../../ui/reflect/SpendingDonut.jsx';
+import SpendingDonut, { pctLabel } from '../../ui/reflect/SpendingDonut.jsx';
 import TransactionPopover from '../../ui/reflect/TransactionPopover.jsx';
 import ExportModal from '../../ui/reflect/ExportModal.jsx';
 
@@ -29,17 +30,8 @@ const SKIP_KEY = 'raqam.reflect.exportConfirmSkip';
 // "1 transactions" reads wrong — pluralize the count-driven noun.
 const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
-// pct display rule (kept from the prior page): round to whole percent, but
-// never show 0% for a genuinely nonzero (if tiny) share, and never show >0%
-// for an exact zero.
-function pctLabel(pct) {
-  if (pct === 0) return '0%';
-  if (pct < 0.005) return '<1%';
-  return Math.round(pct * 100) + '%';
-}
-
-// Same pill-toggle idiom as Plan.jsx's ViewToggle (~304-324) and the prior
-// version of this page.
+// Same pill-toggle idiom as Plan.jsx's ViewToggle and the prior version of
+// this page.
 function ViewToggle({ view, onChange }) {
   const seg = (key, label) => (
     <button
@@ -63,6 +55,7 @@ export default function SpendingBreakdown() {
   const { month } = useOutletContext();
   const { data: S } = useStore();
   const { money } = useMoney();
+  const { notify } = useUI();
   const isPhone = useIsPhone();
 
   const [range, setRange] = useState(() => ({ from: month, to: month }));
@@ -131,7 +124,16 @@ export default function SpendingBreakdown() {
   // rows/donut. localStorage read/write are guarded — Safari private mode or
   // a full quota must not abort the export the user just asked for; on
   // failure we just skip the "don't ask again" persistence.
-  const exportNow = () => exportSpendingReport(S, drill ? { ...opts, catIds: new Set(drill.catIds) } : opts);
+  // A throwing builder or a Blob/download the browser refuses would otherwise
+  // fail in total silence — by then the modal has closed, so the user sees a
+  // dismissed dialog and no files and has no way to tell the two apart.
+  const exportNow = () => {
+    try {
+      exportSpendingReport(S, drill ? { ...opts, catIds: new Set(drill.catIds) } : opts);
+    } catch {
+      notify("Couldn't export the report — please try again.");
+    }
+  };
   const onExportClick = () => {
     let skip = false;
     try { skip = !!localStorage.getItem(SKIP_KEY); } catch { /* proceed as if not skipped */ }
@@ -143,20 +145,25 @@ export default function SpendingBreakdown() {
     exportNow();
   };
 
-  const exportDisabled = total === 0 && !slices.length;
+  // Drill-scoped on purpose: exportNow() exports the drilled view, so the
+  // button follows whatever the page is currently showing. `total` already
+  // covers the empty case — every slice comes from a row with amt > 0.
+  const exportDisabled = total === 0;
 
   const statBlocks = [
     { label: 'Average Monthly Spending', value: money(stats.avgMonthly), sub: '' },
     { label: 'Average Daily Spending', value: money(stats.avgDaily), sub: '' },
     { label: 'Most Frequent Category', value: stats.mostFrequent ? stats.mostFrequent.name : '—', sub: stats.mostFrequent ? plural(stats.mostFrequent.count, 'transaction') : '' },
-    { label: 'Largest Outflow', value: stats.largestOutflow ? stats.largestOutflow.merchant : '—', sub: stats.largestOutflow ? money(stats.largestOutflow.amt) : '' },
+    // A payee-less transaction has an empty merchant — show the em dash rather
+    // than a blank value with an amount hanging under it.
+    { label: 'Largest Outflow', value: stats.largestOutflow?.merchant || '—', sub: stats.largestOutflow ? money(stats.largestOutflow.amt) : '' },
   ];
 
   const emptyNote = <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>No spending recorded for this period.</div>;
 
-  // The Header shell already renders the page's <h1> ("Reflect", per
-  // src/components/Header.jsx:74-81's one-h1-per-page rule) — this is a
-  // section heading, so both branches use <h2>.
+  // The Header shell already renders the page's <h1> ("Reflect"), per
+  // Header.jsx's one-h1-per-page rule — this is a section heading, so both
+  // branches use <h2>.
   const header = drill ? (
     // Same 18/700 as the undrilled title below — the breadcrumb REPLACES it,
     // so a smaller size just made the whole page shift up on drill-in.

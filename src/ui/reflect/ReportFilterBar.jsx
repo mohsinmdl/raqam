@@ -1,15 +1,16 @@
 // Reflect reports' filter bar: a date-range preset pill (‹ / › stepping, a
-// YNAB-ordered preset menu) plus the Categories and Accounts multi-select
-// pills from Task 5. Pure presentation over the range/selection state the
-// caller (Task 9's report screen) owns — every change goes out through
+// YNAB-ordered preset menu) plus the Categories and Accounts FilterMultiSelect
+// pills. Pure presentation over the range/selection state the caller
+// (SpendingBreakdown) owns — every change goes out through
 // onRangeChange/onCatSel/onAcctSel rather than being held locally here.
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useIsPhone } from '../../lib/useIsPhone.js';
 import { kindLabel } from '../../lib/calc.js';
 import { monthsBetween } from '../../lib/dates.js';
 import {
-  REPORT_PRESETS, presetOf, rangeFor, rangeLabel, shiftRange, yearOpts,
+  REPORT_PRESETS, presetOf, rangeFor, rangeLabel, shiftRange,
 } from '../../lib/dateRange.js';
+import { reportTxns } from '../../lib/spendingReport.js';
 import { Menu, MenuTrigger, MenuPanel, MenuItem } from '../primitives/Menu.jsx';
 import { BottomSheet, BottomSheetTrigger, BottomSheetPanel, BottomSheetClose } from '../primitives/BottomSheet.jsx';
 import FilterMultiSelect from './FilterMultiSelect.jsx';
@@ -43,38 +44,72 @@ function CalendarGlyph() {
   );
 }
 
+// The filter list has to cover the same universe the report does, or it
+// offers no way to exclude rows the user can see. breakdownByCategory keeps a
+// NON-active expense category when it has in-range spend, and reportTxns
+// reads every account's transactions regardless of status — so `spentIds`
+// (the ids with in-range activity) re-admits exactly those.
+//
 // Root section is the 'Uncategorized Transactions' row; then each category
-// group (sortOrder order) with its active expense-category members
-// (sortOrder order); then any active expense categories with no group under
-// an 'Other' section. Groups/Other with no members are omitted.
-function categorySections(store) {
+// group (sortOrder order) with its expense-category members (active first by
+// sortOrder, then any archived-with-spend ones); then ungrouped active
+// categories under 'Other'; then archived-with-spend categories that have no
+// group to sit in, under a final 'Archived'. Empty sections are omitted, so a
+// range with no archived spend looks exactly as it did before.
+function categorySections(store, spentIds) {
   const root = { id: null, name: '', items: [{ id: 'uncategorized', name: 'Uncategorized Transactions' }] };
-  const cats = (store.categories || []).filter(c => c.type === 'expense' && c.status === 'active');
+  const cats = (store.categories || []).filter(c => c.type === 'expense'
+    && (c.status === 'active' || spentIds.has(c.id)));
   const byOrder = (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0);
   const groups = [...(store.categoryGroups || [])].sort(byOrder);
+  const groupIds = new Set(groups.map(g => g.id));
   const asItem = c => ({ id: c.id, name: c.name, icon: c.icon, color: c.color });
+  const active = c => c.status === 'active';
   const groupSections = groups
-    .map(g => ({ id: g.id, name: g.name, items: cats.filter(c => c.groupId === g.id).sort(byOrder).map(asItem) }))
+    .map(g => {
+      const mine = cats.filter(c => c.groupId === g.id);
+      return {
+        id: g.id,
+        name: g.name,
+        items: [...mine.filter(active).sort(byOrder), ...mine.filter(c => !active(c)).sort(byOrder)].map(asItem),
+      };
+    })
     .filter(s => s.items.length > 0);
-  const ungrouped = cats.filter(c => c.groupId == null).sort(byOrder).map(asItem);
-  const other = ungrouped.length ? [{ id: 'other', name: 'Other', items: ungrouped }] : [];
-  return [root, ...groupSections, ...other];
+  // A groupId pointing at a group that no longer exists is homeless too —
+  // breakdownByCategory folds those rows into 'Other' for the same reason.
+  const homeless = cats.filter(c => c.groupId == null || !groupIds.has(c.groupId));
+  const ungrouped = homeless.filter(active).sort(byOrder).map(asItem);
+  const archived = homeless.filter(c => !active(c)).sort(byOrder).map(asItem);
+  return [
+    root,
+    ...groupSections,
+    ...(ungrouped.length ? [{ id: 'other', name: 'Other', items: ungrouped }] : []),
+    ...(archived.length ? [{ id: 'archived', name: 'Archived', items: archived }] : []),
+  ];
 }
 
 // Active accounts sectioned by their institution's kind label, in first-seen
-// order — same grouping accountGroupsFor() uses for the phone Accounts list.
-function accountSections(store) {
+// order — same grouping accountGroupsFor() uses for the phone Accounts list —
+// then any closed/archived account with in-range activity under a final
+// 'Closed' section (the report counts its transactions, so the filter must be
+// able to drop them). Omitted when there is no such activity.
+function accountSections(store, spentIds) {
   const instById = new Map((store.institutions || []).map(i => [i.id, i]));
   const sections = [];
   const byLabel = new Map();
+  const closed = [];
   for (const a of (store.accounts || [])) {
-    if (a.status !== 'active') continue;
+    if (a.status !== 'active') {
+      if (spentIds.has(a.id)) closed.push({ id: a.id, name: a.nickname });
+      continue;
+    }
     const inst = instById.get(a.instId) || null;
     const label = inst ? kindLabel(inst.kind) : 'Other';
     let sec = byLabel.get(label);
     if (!sec) { sec = { id: label, name: label, items: [] }; byLabel.set(label, sec); sections.push(sec); }
     sec.items.push({ id: a.id, name: a.nickname });
   }
+  if (closed.length) sections.push({ id: 'closed', name: 'Closed', items: closed });
   return sections;
 }
 
@@ -87,11 +122,28 @@ export default function ReportFilterBar({ store, range, onRangeChange, catSel, o
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const width = range.from && range.to ? monthsBetween(range.from, range.to) + 1 : 1;
-  const years = yearOpts(store);
-  const prev = shiftRange(range.from, range.to, -width, years);
-  const next = shiftRange(range.from, range.to, width, years);
+  // No year gate: that exists for the Transactions filter's year <select>,
+  // whose options a stepped-past bound could fall outside of. This bar has no
+  // such select, so the arrows disable only when there is nothing to step —
+  // 'All dates', where shiftRange returns null.
+  const prev = shiftRange(range.from, range.to, -width);
+  const next = shiftRange(range.from, range.to, width);
   const activePreset = presetOf(range.from, range.to, undefined, REPORT_PRESETS);
   const label = rangeLabel(range.from, range.to);
+
+  // Which categories/accounts the report actually touches in this range.
+  // Deliberately range-only (no catIds/acctIds): narrowing one pill must not
+  // shrink the other pill's list, nor its own.
+  const spent = useMemo(() => {
+    const cats = new Set(), accts = new Set();
+    for (const t of reportTxns(store, { from: range.from, to: range.to })) {
+      if (t.category != null) cats.add(t.category);
+      accts.add(t.accountId);
+    }
+    return { cats, accts };
+  }, [store, range.from, range.to]);
+  const catSections = useMemo(() => categorySections(store, spent.cats), [store, spent]);
+  const acctSections = useMemo(() => accountSections(store, spent.accts), [store, spent]);
 
   const pickPreset = id => onRangeChange(rangeFor(id));
 
@@ -160,14 +212,14 @@ export default function ReportFilterBar({ store, range, onRangeChange, catSel, o
       <FilterMultiSelect
         pillLabel={pillLabelFor(catSel, 'Category', 'Categories')}
         searchPlaceholder="Search categories"
-        sections={categorySections(store)}
+        sections={catSections}
         selected={catSel}
         onApply={onCatSel}
       />
       <FilterMultiSelect
         pillLabel={pillLabelFor(acctSel, 'Account', 'Accounts')}
         searchPlaceholder="Search accounts"
-        sections={accountSections(store)}
+        sections={acctSections}
         selected={acctSel}
         onApply={onAcctSel}
       />

@@ -2,8 +2,8 @@
 // structural model (fixed overlay + FocusTrap + role="dialog" aria-modal) and
 // ExplainDialog's centered-card sizing, with FilterMultiSelect's soft/accent
 // pill footer styling. The caller owns "don't show again" persistence
-// (localStorage, Task 9) — this component only reports the checkbox state on
-// export.
+// (localStorage, SpendingBreakdown) — this component only reports the
+// checkbox state on export.
 import { useEffect, useState } from 'react';
 import FocusTrap from '../FocusTrap.jsx';
 import Checkbox from '../Checkbox.jsx';
@@ -20,7 +20,10 @@ const accentPillStyle = {
   background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
 };
 
-const BODY_COPY = 'Your data is just that — yours. The report will be exported as CSV files, easy to open in other applications.';
+// Says "two" on purpose: the export fires two downloads from one click, and a
+// browser that silently drops the second same-gesture download would otherwise
+// leave the user believing the export simply produced one file.
+const BODY_COPY = 'Your data is just that — yours. Two CSV files will be exported — a summary and the transaction detail — easy to open in other applications.';
 
 function Content({ dontShowAgain, setDontShowAgain, onCancel, onExport, headerExtra }) {
   return (
