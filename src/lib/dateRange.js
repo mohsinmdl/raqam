@@ -1,4 +1,7 @@
-// Month ranges for the Transactions filter.
+// Month ranges, shared by the Transactions filter and the Reflect reports'
+// date pill. Both need the same arithmetic over the same bound format; the
+// two differences (which presets each offers, and whether a year gate
+// applies) are parameters, not separate implementations.
 //
 // A range is two 'YYYY-MM' strings, either of which may be null meaning
 // unbounded. Because months are zero-padded text, chronological order IS
@@ -27,7 +30,8 @@ export const RANGE_PRESETS = [
 ];
 
 // YNAB-order presets for the Reflect reports' date menu. Separate list because
-// the Transactions filter keeps Today/Yesterday, which a monthly report can't use.
+// it drops Today/Yesterday (day precision isn't offered on reports) and adds
+// last6/last12/ytd.
 export const REPORT_PRESETS = [
   { id: 'month', label: 'This Month' },
   { id: 'last3', label: 'Last 3 Months' },
@@ -81,6 +85,9 @@ export function inRange(t, from, to) {
 
 // Which preset a range corresponds to, or 'custom'. Lets the popover show the
 // right chip highlighted after From/To have been edited back to a known window.
+// `presets` is overridable so the Reflect date menu matches against
+// REPORT_PRESETS instead of the Transactions filter's RANGE_PRESETS — matching
+// against the wrong list would leave a valid preset reading as 'custom'.
 export function presetOf(from, to, today, presets = RANGE_PRESETS) {
   const hit = presets.find(p => {
     const r = rangeFor(p.id, today);
@@ -122,9 +129,11 @@ export function clampRange(from, to) {
 // stays open-ended.
 //
 // Returns null when the step is impossible, which is what disables the arrows.
-// Two reasons: 'All dates' has no bounds to move, and a step outside `years`
-// would put a value in the From/To selects with no matching <option> — the
-// exact failure yearOpts below exists to prevent.
+// Two reasons: 'All dates' has no bounds to move, and — only when the optional
+// `years` gate is supplied — a step outside it would put a value in the
+// From/To selects with no matching <option>, the exact failure yearOpts below
+// exists to prevent. Callers with no such selects (the Reflect date pill) omit
+// `years`, so only the 'All dates' case disables their arrows.
 export function shiftRange(from, to, delta, years) {
   if (!from && !to) return null;
   // A day-precise range steps by day (Today → Yesterday → …); a month range
