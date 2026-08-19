@@ -37,7 +37,9 @@ export function buildSummaryCsv(store, opts = {}) {
   const body = sorted.map(r => {
     const cells = months.map(m => -(cell[r.id + '|' + m] || 0));
     const total = cells.reduce((s, v) => s + v, 0);
-    return [groupName(r), r.name, ...cells, total / months.length, total];
+    // Rounded: money is whole-PKR everywhere else in the app, and an unrounded
+    // mean writes cells like -4633.333333333333 into the CSV.
+    return [groupName(r), r.name, ...cells, Math.round(total / months.length), total];
   });
   return {
     filename: base() + '.csv',
