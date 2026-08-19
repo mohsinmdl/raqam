@@ -12,6 +12,7 @@ import { useAppLock } from '../ui/AppLockContext.jsx';
 import TxMonthNav from './TxMonthNav.jsx';
 import MonthGridPopover from './MonthGridPopover.jsx';
 import { useIsPhone } from '../lib/useIsPhone.js';
+import { showMonthSel } from '../lib/headerNav.js';
 
 const TITLES = {
   dashboard: 'Dashboard', transactions: 'All Accounts', accounts: 'Accounts',
@@ -63,8 +64,10 @@ export default function Header() {
   const acctSnap = acct ? S.snapshots.find(s => s.accountId === acct.id && s.month === currentMonth()) : null;
   const reconLabel = acctSnap && acctSnap.status === 'confirmed' ? 'Reconciled ' + relTime(acctSnap.confirmedAt, nowIso()) : 'Not reconciled';
   // Transactions gets its own control in this slot: it filters by a date range,
-  // not a single month, so it cannot share the stepper below.
-  const showMonthSel = seg === 'dashboard' || pathname === '/budget' || seg === 'reflect';
+  // not a single month, so it cannot share the stepper below. Reflect's
+  // Spending Breakdown is likewise excluded (it owns a range picker) — see
+  // showMonthSel in lib/headerNav.js for the full route rule.
+  const monthSel = showMonthSel(pathname);
   const showTxNav = seg === 'transactions';
   // The four sidebar pages (Sidebar.jsx NAV) name themselves in the highlighted
   // nav item, so a big matching <h1> here just repeats it. Keep the heading for
@@ -102,7 +105,7 @@ export default function Header() {
       ) : (
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>{title}</h1>
       )}
-      {showMonthSel && (
+      {monthSel && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, border: '1px solid var(--border)', borderRadius: 8, padding: 2, background: 'var(--bg)' }}>
             <button onClick={goPrev} disabled={prevDisabled} aria-label="Previous month" className="hv-soft" style={{ width: 26, height: 26, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontSize: 14, opacity: prevDisabled ? .4 : 1 }}>‹</button>
