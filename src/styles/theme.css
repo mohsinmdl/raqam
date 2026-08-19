@@ -125,6 +125,17 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
 .picker-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
 @supports not selector(::-webkit-scrollbar) { .picker-scroll { scrollbar-width: thin; scrollbar-color: var(--border) transparent; } }
 
+/* Reflect report tabs — a minimal underline strip that scrolls horizontally
+   rather than wrapping when the six labels exceed the width (mobile). The
+   scrollbar is hidden; the clipped peek of the next tab at the scroll edge is
+   the affordance. The full-width hairline is the rail the active tab sits on. */
+.reflect-tabs {
+  display: flex; gap: 22px; overflow-x: auto; scroll-behavior: smooth;
+  border-bottom: 1px solid var(--border);
+}
+.reflect-tabs::-webkit-scrollbar { display: none; }
+@supports not selector(::-webkit-scrollbar) { .reflect-tabs { scrollbar-width: none; } }
+
 /* Sidebar ACCOUNTS total: hide it (rather than wrap and collide with the label)
    once the resizable sidebar is squeezed narrow. Container query on the accounts
    section, so it reacts to the sidebar width directly. */
