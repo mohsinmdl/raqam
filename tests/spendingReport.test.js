@@ -123,6 +123,43 @@ describe('breakdownByCategory', () => {
     // sorted amt desc then name
     expect(rows.map(r => r.id)).toEqual(['rent', 'groc', 'adv', 'legacy', 'uncategorized']);
   });
+
+  it('includes an archived expense category with in-range spend, but not a zero-activity archived category', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 4000, category: 'oldcat' }),
+    ], {
+      categories: [
+        { id: 'rent', name: 'Rent', icon: 'square', color: '#64748B', type: 'expense', status: 'active', groupId: 'housing' },
+        { id: 'groc', name: 'Groceries', icon: 'circle', color: '#0F766E', type: 'expense', status: 'active', groupId: 'living' },
+        { id: 'adv', name: 'Household advance', icon: 'diamond', color: '#B7791F', type: 'expense', status: 'active', excludeFromBudget: true, groupId: 'living' },
+        { id: 'legacy', name: 'Legacy cat', icon: 'triangle', color: '#2563EB', type: 'expense', status: 'active' },
+        { id: 'salary', name: 'Salary', icon: 'square', color: '#15803D', type: 'income', status: 'active' },
+        { id: 'oldcat', name: 'Old Category', icon: 'diamond', color: '#DB2777', type: 'expense', status: 'archived', groupId: 'housing' },
+        { id: 'oldzero', name: 'Old Zero', icon: 'diamond', color: '#8B5CF6', type: 'expense', status: 'archived', groupId: 'housing' },
+      ],
+    });
+    const rows = breakdownByCategory(S, {});
+    const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+
+    expect(byId.oldcat).toMatchObject({ amt: 4000, txCount: 1, groupId: 'housing' });
+    expect(byId.oldzero).toBeUndefined(); // zero-activity archived category stays out (no clutter)
+
+    const total = rows.reduce((s, r) => s + r.amt, 0);
+    expect(total).toBe(4000); // total includes the archived-with-spend row
+  });
+
+  it('an explicit catIds set still excludes an archived category (with spend) not in the set', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 4000, category: 'oldcat' }),
+    ], {
+      categories: [
+        { id: 'rent', name: 'Rent', icon: 'square', color: '#64748B', type: 'expense', status: 'active', groupId: 'housing' },
+        { id: 'oldcat', name: 'Old Category', icon: 'diamond', color: '#DB2777', type: 'expense', status: 'archived', groupId: 'housing' },
+      ],
+    });
+    const rows = breakdownByCategory(S, { catIds: new Set(['rent']) });
+    expect(rows.map(r => r.id)).not.toContain('oldcat');
+  });
 });
 
 describe('breakdownByGroup', () => {

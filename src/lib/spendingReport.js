@@ -31,8 +31,15 @@ export function breakdownByCategory(store, opts = {}) {
     counts[k] = (counts[k] || 0) + 1;
   }
   const catIds = opts.catIds || null;
-  const cats = store.categories.filter(c => c.type === 'expense' && c.status === 'active'
-    && (!catIds || catIds.has(c.id)));
+  // Base row set is active expense categories. Non-active (e.g. archived)
+  // expense categories are ADDITIONALLY included when they have nonzero
+  // in-range spend, so a transaction whose category was later archived
+  // stays visible everywhere downstream (donut/list/Total/CSVs/stats)
+  // instead of only surviving in the transactions CSV. Zero-activity
+  // archived categories are left out to avoid clutter.
+  const cats = store.categories.filter(c => c.type === 'expense'
+    && (!catIds || catIds.has(c.id))
+    && (c.status === 'active' || sums[c.id]));
   const rows = cats.map(c => ({
     id: c.id, name: c.name, icon: c.icon, color: c.color || null, groupId: c.groupId || null,
     amt: Math.max(0, sums[c.id] || 0), txCount: counts[c.id] || 0,

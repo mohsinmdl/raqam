@@ -88,6 +88,28 @@ describe('buildSummaryCsv', () => {
     const { filename } = buildSummaryCsv(S, {});
     expect(filename).toBe('raqam-reflect-spending-breakdown-' + todayStr() + '.csv');
   });
+
+  it('includes an archived expense category with in-range spend, keeping the summary total consistent with the transactions CSV', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 4000, category: 'oldcat', date: CUR + '-10T12:00' }),
+    ], {
+      categories: [
+        { id: 'rent', name: 'Rent', icon: 'square', color: '#64748B', type: 'expense', status: 'active', groupId: 'housing' },
+        { id: 'groc', name: 'Groceries', icon: 'circle', color: '#0F766E', type: 'expense', status: 'active', groupId: 'living' },
+        { id: 'adv', name: 'Household advance', icon: 'diamond', color: '#B7791F', type: 'expense', status: 'active', excludeFromBudget: true, groupId: 'living' },
+        { id: 'legacy', name: 'Legacy cat', icon: 'triangle', color: '#2563EB', type: 'expense', status: 'active' },
+        { id: 'salary', name: 'Salary', icon: 'square', color: '#15803D', type: 'income', status: 'active' },
+        { id: 'oldcat', name: 'Old Category', icon: 'diamond', color: '#DB2777', type: 'expense', status: 'archived', groupId: 'housing' },
+      ],
+    });
+    const { csv } = buildSummaryCsv(S, { from: PREV, to: CUR });
+    const lines = csv.split('\r\n').slice(1);
+    const byName = Object.fromEntries(lines.map(l => {
+      const c = l.split(',');
+      return [c[1], c.slice(2)];
+    }));
+    expect(byName['Old Category']).toEqual(['0', '-4000', '-2000', '-4000']);
+  });
 });
 
 describe('buildTransactionsCsv', () => {
