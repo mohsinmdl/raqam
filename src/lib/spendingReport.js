@@ -40,6 +40,13 @@ export function breakdownByCategory(store, opts = {}) {
   const cats = store.categories.filter(c => c.type === 'expense'
     && (!catIds || catIds.has(c.id))
     && (c.status === 'active' || sums[c.id]));
+  // Floored at 0 on purpose, and only here: this is what the PAGE reports —
+  // spending — and a category whose in-range refunds outweigh its expenses has
+  // no spending to draw, no share of the total, and no meaningful percent. The
+  // summary CSV deliberately does NOT floor (see spendingExport.js): it is a
+  // net accounting matrix, so a net-refund month shows there as a positive
+  // cell. The split is intentional; the two documents answer different
+  // questions.
   const rows = cats.map(c => ({
     id: c.id, name: c.name, icon: c.icon, color: c.color || null, groupId: c.groupId || null,
     amt: Math.max(0, sums[c.id] || 0), txCount: counts[c.id] || 0,
@@ -48,6 +55,24 @@ export function breakdownByCategory(store, opts = {}) {
     rows.push({
       id: 'uncategorized', name: 'Uncategorized', icon: null, color: null, groupId: null,
       amt: Math.max(0, sums.uncategorized || 0), txCount: counts.uncategorized || 0,
+    });
+  }
+  // A transaction can outlive the category record it points at. Its spend
+  // would otherwise land in a bucket that gets no row — invisible on the page
+  // and in the summary CSV, yet still listed in the transactions CSV, so the
+  // two files stop reconciling. Every such id folds into one synthetic row.
+  // 'deleted' is a reserved id, like 'uncategorized'.
+  const known = new Set(store.categories.map(c => c.id));
+  let dAmt = 0, dCount = 0;
+  for (const k of Object.keys(counts)) {
+    if (k === 'uncategorized' || known.has(k)) continue;
+    dAmt += sums[k];
+    dCount += counts[k];
+  }
+  if (dCount) {
+    rows.push({
+      id: 'deleted', name: 'Deleted category', icon: null, color: null, groupId: null,
+      amt: Math.max(0, dAmt), txCount: dCount,
     });
   }
   const total = rows.reduce((s, r) => s + r.amt, 0);
@@ -67,6 +92,9 @@ export function breakdownByGroup(store, opts = {}) {
   };
   for (const r of rows) {
     if (r.id === 'uncategorized') { put('uncategorized', 'Uncategorized', r); continue; }
+    // Same treatment as Uncategorized: its own bucket, not folded into 'Other'
+    // (which means "a real category with no group").
+    if (r.id === 'deleted') { put('deleted', 'Deleted category', r); continue; }
     const g = r.groupId && store.categoryGroups.find(x => x.id === r.groupId);
     put(g ? g.id : 'other', g ? g.name : 'Other', r);
   }
@@ -98,8 +126,11 @@ export function breakdownStats(store, opts = {}) {
   const largest = txns.reduce((best, t) => (!best || t.amount > best.amount ? t : best), null);
   return {
     total,
-    avgMonthly: months.length ? total / months.length : 0,
-    avgDaily: days ? total / days : 0,
+    // Rounded to whole PKR, like reports.js and the CSV's Average column:
+    // money is integer everywhere in this app, and money() would otherwise
+    // render a mean as a long fraction.
+    avgMonthly: months.length ? Math.round(total / months.length) : 0,
+    avgDaily: days ? Math.round(total / days) : 0,
     mostFrequent: byCount.length ? { name: byCount[0].name, count: byCount[0].txCount } : null,
     largestOutflow: largest ? { merchant: largest.merchant || '', amt: largest.amount } : null,
   };

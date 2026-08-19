@@ -9,6 +9,7 @@ import { addMonths, currentMonth, todayStr } from '../src/lib/dates.js';
 // Months are anchored to the REAL current month, never hardcoded literals.
 const CUR = currentMonth();
 const PREV = addMonths(CUR, -1);
+const PREV2 = addMonths(CUR, -2);
 
 // Same month-label formula the implementation uses, computed independently
 // here so the assertion doesn't just restate the source.
@@ -83,6 +84,66 @@ describe('buildSummaryCsv', () => {
     expect(byName['Legacy cat']).toEqual(['0', '0', '0', '0']);
   });
 
+  // The summary is a NET accounting matrix, not the page's spending view: its
+  // cells are deliberately unfloored, so a month whose refunds exceed its
+  // expenses reads as a POSITIVE (money-back) cell. breakdownByCategory floors
+  // per category at 0 instead, because the donut/percent math on screen can't
+  // express a negative share.
+  it('cells net refunds against expenses, and a net-refund month goes positive', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 5000, category: 'rent', date: PREV + '-10T12:00' }),
+      tx({ id: 't2', type: 'refund', amount: 2000, category: 'rent', date: PREV + '-14T12:00' }),
+      tx({ id: 't3', type: 'expense', amount: 3000, category: 'rent', date: CUR + '-10T12:00' }),
+      tx({ id: 't4', type: 'refund', amount: 8000, category: 'rent', date: CUR + '-14T12:00' }),
+    ]);
+    const { csv } = buildSummaryCsv(S, { from: PREV, to: CUR });
+    const rent = csv.split('\r\n').slice(1).find(l => l.split(',')[1] === 'Rent').split(',').slice(2);
+    // PREV: 5000 out - 2000 back = 3000 spent -> -3000. CUR: 3000 out - 8000
+    // back = 5000 net refund -> +5000 (the page floors this category to 0).
+    expect(rent).toEqual(['-3000', '5000', '1000', '2000']);
+  });
+
+  it('Average rounds a non-divisible total to whole PKR', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 10000, category: 'rent', date: PREV2 + '-10T12:00' }),
+    ]);
+    const { csv } = buildSummaryCsv(S, { from: PREV2, to: CUR }); // 3 months
+    const rent = csv.split('\r\n').slice(1).find(l => l.split(',')[1] === 'Rent').split(',').slice(2);
+    expect(rent).toEqual(['-10000', '0', '0', '-3333', '-10000']); // -10000/3 = -3333.33…
+  });
+
+  it('null-category spend lands in the Uncategorized row (blank group)', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 1200, category: null, date: PREV + '-10T12:00' }),
+      tx({ id: 't2', type: 'expense', amount: 800, category: null, date: CUR + '-10T12:00' }),
+    ]);
+    const line = buildSummaryCsv(S, { from: PREV, to: CUR }).csv.split('\r\n')[1].split(',');
+    expect(line).toEqual(['', 'Uncategorized', '-1200', '-800', '-1000', '-2000']);
+  });
+
+  it('a catIds filter narrows the matrix to the selected categories only', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 5000, category: 'rent', date: CUR + '-10T12:00' }),
+      tx({ id: 't2', type: 'expense', amount: 2000, category: 'groc', date: CUR + '-10T12:00' }),
+      tx({ id: 't3', type: 'expense', amount: 900, category: null, date: CUR + '-10T12:00' }),
+    ]);
+    const lines = buildSummaryCsv(S, { from: CUR, to: CUR, catIds: new Set(['rent']) }).csv.split('\r\n').slice(1);
+    expect(lines.map(l => l.split(',').slice(0, 2))).toEqual([['Housing', 'Rent']]); // no Uncategorized row either
+  });
+
+  it('transactions whose category id matches no record become a "Deleted category" row, right after Uncategorized', () => {
+    const S = makeStore([
+      tx({ id: 't1', type: 'expense', amount: 2500, category: 'ghost', date: CUR + '-10T12:00' }),
+      tx({ id: 't2', type: 'expense', amount: 500, category: null, date: CUR + '-10T12:00' }),
+    ]);
+    const lines = buildSummaryCsv(S, { from: CUR, to: CUR }).csv.split('\r\n').slice(1);
+    expect(lines.map(l => l.split(',').slice(0, 2)).slice(0, 2)).toEqual([
+      ['', 'Uncategorized'],
+      ['', 'Deleted category'],
+    ]);
+    expect(lines[1].split(',').slice(2)).toEqual(['-2500', '-2500', '-2500']);
+  });
+
   it('filename: raqam-reflect-spending-breakdown-<todayStr()>.csv', () => {
     const S = makeStore([]);
     const { filename } = buildSummaryCsv(S, {});
@@ -153,6 +214,16 @@ describe('buildTransactionsCsv', () => {
     expect(rows[3]).toEqual([
       'Main', '', '01/' + m + '/' + y, 'Old', 'Other: Legacy cat', 'Other', 'Legacy cat', '', '700', '0', 'Cleared',
     ]);
+  });
+
+  // A raw id in the Category column reads as corruption to whoever opens the
+  // file; it also has to match the name the summary CSV and the page use.
+  it('a category id with no matching record reads as "Deleted category", not the raw id', () => {
+    const S = makeStore([
+      tx({ id: 'd1', type: 'expense', amount: 400, category: 'ghost', merchant: 'Shop', date: CUR + '-06T12:00' }),
+    ]);
+    const row = buildTransactionsCsv(S, {}).csv.split('\r\n')[1].split(',');
+    expect(row.slice(4, 7)).toEqual(['Deleted category', '', 'Deleted category']);
   });
 
   it('filename: raqam-reflect-spending-breakdown-<todayStr()>-transactions.csv', () => {
