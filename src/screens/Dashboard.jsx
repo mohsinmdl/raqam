@@ -62,7 +62,12 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   const peak = daily.reduce((a, b) => (b.amt > a.amt ? b : a), daily[0]);
   v.trendSummary = 'Daily cleared spending in ' + C.monthLabel(month) + ', total ' + moneyRaw(dtotal) + (peak && peak.amt > 0 ? ', highest on day ' + peak.day : '');
   const cats = C.categorySpending(S, month, view, now); const cmaxAmt = Math.max(...cats.map(c => c.amt), 1);
-  v.catBars = cats.slice(0, 6).map(c => ({ id: c.id, name: c.cat ? c.cat.name : c.id, color: c.cat ? c.cat.color : 'var(--border)', amt: money(c.amt), w: Math.max(Math.round(c.amt / cmaxAmt * 100), 3) + '%' }));
+  // A row without a matching category is either a transaction that carries no
+  // category (optional at entry — categorySpending buckets those under the
+  // string 'undefined', since that is what an undefined object key coerces to)
+  // or one pointing at a deleted id. Neither key is a name, so label them the
+  // way the Spending Breakdown does instead of printing the raw key.
+  v.catBars = cats.slice(0, 6).map(c => ({ id: c.id, name: c.cat ? c.cat.name : (c.id === 'undefined' ? 'Uncategorized' : 'Deleted category'), color: c.cat ? c.cat.color : 'var(--border)', amt: money(c.amt), w: Math.max(Math.round(c.amt / cmaxAmt * 100), 3) + '%' }));
   v.hasCat = cats.length > 0; v.noCat = cats.length === 0;
   return { v, cats, daily, M };
 }
