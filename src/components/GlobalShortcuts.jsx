@@ -32,7 +32,7 @@ export default function GlobalShortcuts() {
   useShortcuts(bindings, !drawer && !confirmOpen);
   // G-then-key navigation to the main screens.
   const seq = [
-    { seq: SPEC.goDashboard.seq, run: () => nav('/dashboard') },
+    { seq: SPEC.goDashboard.seq, run: () => nav('/reflect') },
     { seq: SPEC.goTransactions.seq, run: () => nav('/transactions') },
     { seq: SPEC.goAccounts.seq, run: () => nav('/accounts') },
     { seq: SPEC.goBudget.seq, run: () => nav('/budget') },

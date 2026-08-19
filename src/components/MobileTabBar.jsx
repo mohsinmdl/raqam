@@ -1,6 +1,7 @@
-// Phone bottom tab bar — floating pill, YNAB section set: Home · Plan ·
-// Spending · Accounts · Reflect. The add action moved to AddTxPill (floating
-// "+ Transaction" above this bar). Spec:
+// Phone bottom tab bar — floating pill: Reflect · Plan · Spending · Accounts.
+// (Reflect lands on its Overview tab, the former Dashboard/Home; the two used
+// to be separate slots and were merged.) The add action moved to AddTxPill
+// (floating "+ Transaction" above this bar). Spec:
 // docs/superpowers/specs/2026-08-12-mobile-tabbar-ynab-spending-design.md
 import { NavLink } from 'react-router-dom';
 
@@ -47,11 +48,10 @@ export default function MobileTabBar() {
       border: '1px solid var(--border)', borderRadius: 999,
       boxShadow: 'var(--shadow)',
     }}>
-      <Tab to="/dashboard" label="Home" d={ICONS.home} />
+      <Tab to="/reflect" label="Reflect" d={ICONS.reflect} />
       <Tab to="/budget" label="Plan" d={ICONS.plan} />
       <Tab to="/transactions" label="Spending" d={ICONS.spending} />
       <Tab to="/accounts" label="Accounts" d={ICONS.accounts} />
-      <Tab to="/reflect" label="Reflect" d={ICONS.reflect} />
     </nav>
   );
 }

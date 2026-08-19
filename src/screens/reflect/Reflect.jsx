@@ -1,7 +1,11 @@
-// Reflect: the reporting section shell. Hosts a five-tab segmented bar (same
+// Reflect: the reporting section shell. Hosts a six-tab segmented bar (same
 // pill-toggle idiom as Plan's ViewToggle) and routes the selected tab into an
 // Outlet. The month comes from the shared MonthContext and is handed down via
 // outlet context so each tab can read it without re-subscribing.
+//
+// The first tab, Overview, is the former standalone Dashboard screen (now the
+// index route) — the app's default landing surface. The remaining five tabs
+// are the report views.
 //
 // The shell owns no category/account filter UI: Spending Breakdown — the only
 // tab that ever read one — now owns its own range/category/account filter bar
@@ -19,7 +23,8 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useMonth } from '../../store/MonthContext.jsx';
 
 const TABS = [
-  { to: '/reflect', label: 'Spending Breakdown', end: true },
+  { to: '/reflect', label: 'Overview', end: true },
+  { to: '/reflect/spending', label: 'Spending Breakdown' },
   { to: '/reflect/trends', label: 'Spending Trends' },
   { to: '/reflect/net-worth', label: 'Net Worth' },
   { to: '/reflect/income-expense', label: 'Income v Expense' },

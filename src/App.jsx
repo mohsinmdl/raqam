@@ -103,7 +103,9 @@ function Shell() {
         <main style={{ flex: 1, overflowY: 'auto', minHeight: 0,
           paddingBottom: phone ? 'calc(var(--phone-nav-clearance) + 56px)' : 0 }}>
           <Routes>
-            <Route path="/dashboard" element={<Dashboard />} />
+            {/* Dashboard merged into Reflect as its "Overview" index tab.
+                Old bookmarks / deep-links to /dashboard land there. */}
+            <Route path="/dashboard" element={<Navigate to="/reflect" replace />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/transactions/:accountId" element={<Transactions />} />
             <Route path="/accounts" element={<Accounts />} />
@@ -119,7 +121,8 @@ function Shell() {
               <Route path="*" element={<Navigate to="/budget" replace />} />
             </Route>
             <Route path="/reflect" element={<Reflect />}>
-              <Route index element={<SpendingBreakdown />} />
+              <Route index element={<Dashboard />} />
+              <Route path="spending" element={<SpendingBreakdown />} />
               <Route path="trends" element={<SpendingTrends />} />
               <Route path="net-worth" element={<NetWorth />} />
               <Route path="income-expense" element={<IncomeVsExpense />} />
@@ -129,7 +132,7 @@ function Shell() {
             <Route path="/budgets" element={<Navigate to="/budget" replace />} />
             <Route path="/categories" element={<Navigate to="/budget" replace />} />
             <Route path="/recurring" element={<Navigate to="/budget/recurring" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/reflect" replace />} />
           </Routes>
         </main>
         {phone && <AddTxPill />}

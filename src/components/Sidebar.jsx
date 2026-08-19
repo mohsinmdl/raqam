@@ -2,12 +2,12 @@ import { NavLink, useLocation } from 'react-router-dom';
 import AccountList from './AccountList.jsx';
 import SidebarUser from './SidebarUser.jsx';
 
-// Nav glyphs from the design: budget = ledger lines, dashboard = tiled panels,
+// Nav glyphs from the design: budget = ledger lines, reflect = bar chart,
 // all accounts = a bank. Stroke icons take currentColor, so they follow the
-// item's active/inactive colour for free.
+// item's active/inactive colour for free. (Dashboard merged into Reflect as
+// its Overview tab, so it no longer has a standalone nav item.)
 const NAV = [
   { to: '/budget', label: 'Budget', icon: <path d="M3 7h18M3 12h18M3 17h12" /> },
-  { to: '/dashboard', label: 'Dashboard', icon: <><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></> },
   { to: '/reflect', label: 'Reflect', icon: <path d="M4 20V10M10 20V4M16 20v-7M20 20H2" /> },
   { to: '/transactions', label: 'All Accounts', icon: <path d="M4 10h16M4 10l8-6 8 6M6 10v8m4-8v8m4-8v8m4-8v8M4 20h16" /> },
 ];
