@@ -12,6 +12,7 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { shortDate } from '../lib/calc.js';
 import { todayStr } from '../lib/dates.js';
 import { addDays, PRESETS } from '../lib/schedule.js';
+import { calendarCells, shiftMonth } from '../lib/calendar.js';
 
 const CAL_NARROW = 286, CAL_WIDE = 340, TIME_W = 250, TIME_H = 268;
 const WD = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -84,7 +85,7 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
   // Only widened when it has to hold the Repeat control — a picker without it
   // (transfer, adjustment, editing, recording an occurrence) stays compact.
   const calW = showRepeat ? CAL_WIDE : CAL_NARROW;
-  const cells = calendarCells(month, f.date);
+  const cells = calendarCells(month, f.date, today);
   // Measured, not assumed: a six-row month is 36px taller, and getting this
   // wrong is what pushes the Today/Yesterday row off the bottom of the screen.
   const rows = Math.ceil(cells.length / 7);
@@ -251,25 +252,3 @@ function Column({ label, items, isOn, onPick }) {
   );
 }
 
-function shiftMonth(ym, n) {
-  const [y, m] = ym.split('-').map(Number);
-  const i = y * 12 + (m - 1) + n;
-  return Math.floor(i / 12) + '-' + p2((i % 12) + 1);
-}
-
-// Whole weeks from the Sunday on or before the 1st. The trailing week is
-// dropped when it holds nothing but next month, which is what keeps most
-// months to five rows.
-function calendarCells(ym, selected) {
-  const [y, m] = ym.split('-').map(Number);
-  const first = new Date(y, m - 1, 1);
-  const start = new Date(y, m - 1, 1 - first.getDay());
-  const today = todayStr();
-  const out = [];
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-    const iso = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
-    out.push({ iso, n: d.getDate(), out: iso.slice(0, 7) !== ym, sel: iso === selected, today: iso === today });
-  }
-  return out.slice(35).every(c => c.out) ? out.slice(0, 35) : out;
-}
