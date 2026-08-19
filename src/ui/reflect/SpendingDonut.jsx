@@ -4,13 +4,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { init, use } from 'echarts/core';
 import { PieChart } from 'echarts/charts';
+import { LabelLayout } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 
-use([PieChart, CanvasRenderer]);
+// LabelLayout is what keeps the outside leader labels from colliding when
+// several thin slices sit next to each other; without it ECharts just stacks
+// them and they overlap.
+use([PieChart, LabelLayout, CanvasRenderer]);
 
 const cssVar = name => (typeof window === 'undefined' ? '#fff'
   : getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#fff');
-const pctLabel = p => (p > 0 && p < 0.005 ? '<1%' : Math.round(p * 100) + '%');
+// The canvas can't inherit CSS custom properties, so these three have to be
+// resolved to concrete values and baked into the ECharts option.
+const readTheme = () => ({ surface: cssVar('--surface'), text: cssVar('--text'), muted: cssVar('--muted') });
+
+// Whole percent, except that a genuinely nonzero but tiny share must not read
+// as '0%'. Exported because the category list beside the chart labels its rows
+// the same way — one rule, one place.
+export const pctLabel = p => (p > 0 && p < 0.005 ? '<1%' : Math.round(p * 100) + '%');
 
 // `labels` off drops the external leader labels (and their lines): on a phone
 // there is no room beside the ring for them, and ECharts silently truncates
@@ -20,6 +31,30 @@ export default function SpendingDonut({ slices = [], total = 0, money, size = 38
   const boxRef = useRef(null);
   const chartRef = useRef(null);
   const [hover, setHover] = useState(null); // a slice object or null
+
+  // Re-resolve the baked-in colors whenever the theme changes, or a light/dark
+  // toggle leaves the ring bordered in the old theme's surface colour and its
+  // labels in the old text colour.
+  //
+  // Watching <html data-theme> rather than subscribing to the theme PREF is
+  // deliberate: PrefsProvider writes that attribute from its own effect, and
+  // React flushes a child's effects BEFORE its parent's — so a pref-driven
+  // rebuild here would run while the attribute (and therefore every var())
+  // still held the previous theme, leaving the chart one toggle behind. The
+  // attribute is also the thing the CSS actually keys off, so this stays
+  // correct no matter what sets it.
+  const [theme, setTheme] = useState(readTheme);
+  useEffect(() => {
+    const read = () => setTheme(prev => {
+      const next = readTheme();
+      const same = next.surface === prev.surface && next.text === prev.text && next.muted === prev.muted;
+      return same ? prev : next; // same object => no re-render, no option rebuild
+    });
+    read(); // the attribute may have been set after our first render
+    const mo = new MutationObserver(read);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => mo.disconnect();
+  }, []);
 
   useEffect(() => {
     const el = boxRef.current;
@@ -34,9 +69,7 @@ export default function SpendingDonut({ slices = [], total = 0, money, size = 38
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    const surface = cssVar('--surface');
-    const text = cssVar('--text');
-    const muted = cssVar('--muted');
+    const { surface, text, muted } = theme;
     chart.setOption({
       animationDuration: 300,
       series: [{
@@ -77,7 +110,7 @@ export default function SpendingDonut({ slices = [], total = 0, money, size = 38
       if (chart.isDisposed()) return;
       chart.off('mouseover', over); chart.off('mouseout', out); chart.off('click', click);
     };
-  }, [slices, money, labels, onSliceClick]);
+  }, [slices, money, labels, onSliceClick, theme]);
 
   const center = hover
     ? { top: hover.name, mid: money(hover.amt), sub: pctLabel(hover.pct) }
