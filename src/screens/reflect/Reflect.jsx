@@ -9,8 +9,8 @@
 //
 // The shell owns no category/account filter UI: Spending Breakdown — the only
 // tab that ever read one — now owns its own range/category/account filter bar
-// (ReportFilterBar) with its own local state, and the other four tabs filter
-// nothing. A shell-level FilterRow was therefore dead UI (no consumer) and has
+// (ReportFilterBar) with its own local state, and the other five tabs
+// (Overview + the four remaining charts) filter nothing. A shell-level FilterRow was therefore dead UI (no consumer) and has
 // been removed along with the categoryId/accountId it fed onto the outlet
 // context.
 //

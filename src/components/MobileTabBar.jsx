@@ -13,7 +13,6 @@ const icon = d => (
 );
 // Line icons in the sidebar's 1.8-stroke language.
 const ICONS = {
-  home: 'M3 11l9-8 9 8M5 9.5V20h5v-5h4v5h5V9.5',
   plan: 'M12 3v18M5 8c0-2 14-2 14 0M5 8v8c0 2 14 2 14 0V8',
   spending: 'M3 7h18v10H3zM12 9.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5',
   accounts: 'M4 10h16M4 10l8-6 8 6M6 10v8m4-8v8m4-8v8m4-8v8M4 20h16',

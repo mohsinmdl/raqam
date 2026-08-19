@@ -6,7 +6,7 @@
 //
 // Local state only — the shell's month (via outlet context) merely seeds the
 // initial range; every filter/lens/drill/focus/export choice on this page
-// lives here, independent of the other four tabs. The Reflect shell renders
+// lives here, independent of the other five tabs. The Reflect shell renders
 // no filter UI of its own at all (see Reflect.jsx).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
