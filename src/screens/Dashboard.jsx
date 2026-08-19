@@ -10,7 +10,7 @@ import { useIsPhone } from '../lib/useIsPhone.js';
 import { useMoney } from '../lib/format.js';
 import * as C from '../lib/calc.js';
 import { nowIso, todayStr } from '../lib/dates.js';
-import { txRowOf, freshInfo, instName, setupState } from '../lib/txRow.js';
+import { txRowOf, freshInfo, instName, setupState, isFirstUse } from '../lib/txRow.js';
 import PositionStrip from '../components/PositionStrip.jsx';
 import FirstUse from './FirstUse.jsx';
 import { openers } from '../drawers/openers.js';
@@ -99,7 +99,8 @@ export default function Dashboard() {
   const now = nowIso();
 
   const setup = setupState(S);
-  const showFirstUse = !setup.complete && !prefs.skippedSetup;
+  // Shared with the Reflect shell (which hides its tab bar during first-use).
+  const showFirstUse = isFirstUse(S, prefs);
 
   // Chart-only lens (own pref, independent of the Budgets screen's toggle):
   // fold excluded (recoverable) categories back into the two spending charts.
