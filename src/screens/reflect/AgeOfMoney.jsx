@@ -8,8 +8,8 @@
 // this is a standard-report reading of "age of money": the current figure
 // plus its 12-month trend, both from ageOfMoney().
 //
-// Filters: the shared category/account filters are Spending Breakdown-only
-// for now — this tab ignores categoryId/accountId from the outlet context.
+// Filters: category/account filtering is Spending Breakdown-only — that tab
+// owns its own filter bar, and this one takes no filters at all.
 import { useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';

@@ -1,7 +1,7 @@
 // Reflect — transaction drill-down popover. Anchored to a donut slice (a
 // virtual element derived from the click point, see SpendingDonut) or a
 // category row (a real DOM element), listing that category's transactions
-// (Task 2's categoryTxRows). Desktop uses Base UI's Popover directly (the
+// (spendingReport.js's categoryTxRows). Desktop uses Base UI's Popover directly (the
 // CategoryPickerPopover pattern: the shared PopoverPanel primitive has no
 // `anchor` prop for an external anchor); phone uses the BottomSheet.
 import { Popover as BasePopover } from '@base-ui/react/popover';

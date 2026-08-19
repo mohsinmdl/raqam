@@ -6,7 +6,7 @@
 // "Uncategorized Transactions" root row in the categories filter.
 //
 // `selected` is `null | Set<itemId>` — null means "everything", matching how
-// the report engine (Task 2) treats an absent filter. The component stages
+// the report engine (spendingReport.js) treats an absent filter. The component stages
 // edits in local state and only calls `onApply` on Done; Cancel or an
 // outside dismiss (Escape / click-away) discards the staged Set entirely,
 // since the popover/sheet just closes without a commit. Selecting every item
