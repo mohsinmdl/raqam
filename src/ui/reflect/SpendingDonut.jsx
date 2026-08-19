@@ -64,7 +64,15 @@ export default function SpendingDonut({ slices = [], total = 0, money, size = 38
       });
     };
     chart.on('mouseover', over); chart.on('mouseout', out); chart.on('click', click);
-    return () => { chart.off('mouseover', over); chart.off('mouseout', out); chart.off('click', click); };
+    return () => {
+      // React runs the effects' cleanups in declaration order, so on unmount
+      // (and on every StrictMode double-invoke) the init effect above has
+      // ALREADY disposed this instance by the time we get here. Calling off()
+      // on a disposed chart logs "[ECharts] Instance … has been disposed" —
+      // three warnings per unmount. Nothing to detach in that case.
+      if (chart.isDisposed()) return;
+      chart.off('mouseover', over); chart.off('mouseout', out); chart.off('click', click);
+    };
   }, [slices, money, onSliceClick]);
 
   const center = hover
