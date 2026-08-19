@@ -26,6 +26,18 @@ export const RANGE_PRESETS = [
   { id: 'all', label: 'All Dates' },
 ];
 
+// YNAB-order presets for the Reflect reports' date menu. Separate list because
+// the Transactions filter keeps Today/Yesterday, which a monthly report can't use.
+export const REPORT_PRESETS = [
+  { id: 'month', label: 'This Month' },
+  { id: 'last3', label: 'Last 3 Months' },
+  { id: 'last6', label: 'Last 6 Months' },
+  { id: 'last12', label: 'Last 12 Months' },
+  { id: 'ytd', label: 'Year To Date' },
+  { id: 'lastYear', label: 'Last Year' },
+  { id: 'all', label: 'All Dates' },
+];
+
 export const MONTH_OPTS = MN.map((name, i) => ({ id: String(i + 1).padStart(2, '0'), label: name }));
 
 // `today` is injectable so the tests don't depend on the wall clock. It may be
@@ -43,6 +55,9 @@ export function rangeFor(presetId, today) {
     // Three months INCLUDING this one, so -2. In February this reaches back
     // into December of the previous year, which addMonths handles.
     case 'last3': return { from: addMonths(month, -2), to: month };
+    case 'last6': return { from: addMonths(month, -5), to: month };
+    case 'last12': return { from: addMonths(month, -11), to: month };
+    case 'ytd': return { from: year + '-01', to: month };
     case 'year': return { from: year + '-01', to: year + '-12' };
     case 'lastYear': {
       const y = String(Number(year) - 1);
@@ -66,8 +81,8 @@ export function inRange(t, from, to) {
 
 // Which preset a range corresponds to, or 'custom'. Lets the popover show the
 // right chip highlighted after From/To have been edited back to a known window.
-export function presetOf(from, to, today) {
-  const hit = RANGE_PRESETS.find(p => {
+export function presetOf(from, to, today, presets = RANGE_PRESETS) {
+  const hit = presets.find(p => {
     const r = rangeFor(p.id, today);
     return r.from === from && r.to === to;
   });
