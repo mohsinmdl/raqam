@@ -28,8 +28,9 @@ rules, hide, delete-with-reassignment) plus multi-select operations
 3. **Delete = reassign-then-remove** (per user's YNAB screenshots): deleting
    a referenced payee first asks "Select a new payee for these N
    transactions" via a dropdown defaulting to **[No Payee]** (which blanks
-   `merchant`, landing those transactions in the existing needs-attention
-   flows); other payees are offered. Then the record and the old name are
+   `merchant`, simply leaving those transactions payee-less — '—' in the
+   register; they enter the needs-attention flows only if they also lack a
+   category); other payees are offered. Then the record and the old name are
    gone.
 4. **Modal-scoped Undo/Redo**: the modal's Undo/Redo buttons operate on a
    scoped window over the app's existing global undo stack — a boundary

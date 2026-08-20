@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
+import { useUI } from '../ui/UIProvider.jsx';
 import { monthLabel, relTime } from '../lib/calc.js';
 import { currentMonth, nowIso } from '../lib/dates.js';
 import { openers } from '../drawers/openers.js';
@@ -29,6 +30,7 @@ export default function Header() {
   const { drawer, openDrawer } = useDrawer();
   const { enabled: lockEnabled, lockNow } = useAppLock();
   const phoneHdr = useIsPhone();
+  const { payeesOpen } = useUI();
 
   useEffect(() => {
     const onKey = e => {
@@ -37,16 +39,19 @@ export default function Header() {
       if (k !== 'z' && k !== 'y') return;
       // Text fields own Cmd+Z; a drawer open over the table means a form is
       // mid-edit, and pulling the store out from under it would leave the
-      // drawer editing a row that no longer exists.
+      // drawer editing a row that no longer exists. Manage Payees owns its
+      // own scoped Undo/Redo buttons while open (spec decision 4) — the
+      // global shortcut must stand down too, or it would reach across the
+      // modal's undo boundary into pre-modal history.
       const el = document.activeElement;
       const tag = el ? el.tagName : '';
-      if (drawer || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el && el.isContentEditable)) return;
+      if (drawer || payeesOpen || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el && el.isContentEditable)) return;
       e.preventDefault();
       if (k === 'y' || e.shiftKey) redo(); else undo();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [drawer, undo, redo]);
+  }, [drawer, payeesOpen, undo, redo]);
 
   const seg = pathname.split('/')[1] || 'dashboard';
   let title = TITLES[seg] || 'Dashboard';

@@ -1438,6 +1438,11 @@ function rewriteMerchants(transactions, keys, to) {
   return { out, changed };
 }
 
+// A record with no effective customization left carries nothing the overlay
+// needs to remember — same bare-record spirit as bareAfterUnhide below, but
+// covers `hidden` too (used after a patch, not just after un-hiding).
+const bareRecord = p => !p.autoCategorize && !p.autoCategoryId && !(p.renameRules || []).length && !p.hidden;
+
 export function upsertPayee(data, { name, patch }) {
   const k = payeeKey(name);
   if (!k) return data;
@@ -1447,6 +1452,16 @@ export function upsertPayee(data, { name, patch }) {
     ? { ...existing, ...safe }
     : { id: uid(), name: String(name).trim(), ...safe };
   if (existing && JSON.stringify(rec) === JSON.stringify(existing)) return data;
+  // Don't let bare records accumulate (e.g. autoCategorize toggled back off,
+  // or the last renameRule removed) — if the patch leaves nothing to
+  // customize, drop the record entirely rather than storing an empty shell.
+  if (bareRecord(rec)) {
+    if (!existing) return data;
+    return {
+      ...data, payees: data.payees.filter(p => p.id !== existing.id),
+      audit: [payeeAudit('Updated payee "' + rec.name + '"'), ...(data.audit || [])],
+    };
+  }
   const payees = existing
     ? data.payees.map(p => (p.id === existing.id ? rec : p))
     : [...data.payees, rec];
@@ -1459,7 +1474,31 @@ export function renamePayee(data, { from, to }) {
   if (!toName || !fromKey || payeeKey(toName) === fromKey) return data;
   const { out, changed } = rewriteMerchants(data.transactions, [fromKey], toName);
   const rec = payeeRecordFor(data, from);
-  const payees = rec ? data.payees.map(p => (p.id === rec.id ? { ...p, name: toName } : p)) : data.payees;
+  const targetExisting = payeeRecordFor(data, toName);
+  let payees = data.payees;
+  if (rec && targetExisting && targetExisting.id !== rec.id) {
+    // Renaming onto an already-customized payee would otherwise leave two
+    // overlay records keyed to the same merged name. Merge into the target
+    // instead: its renameRules first, then `from`'s (deduped by op+pattern),
+    // and carry over autoCategorize/autoCategoryId/hidden only where the
+    // target doesn't already set them. `from`'s record is dropped.
+    const ruleKey = r => r.op + '|' + payeeKey(r.pattern);
+    const mergedRules = [];
+    const seenRules = new Set();
+    for (const r of [...(targetExisting.renameRules || []), ...(rec.renameRules || [])]) {
+      if (seenRules.has(ruleKey(r))) continue;
+      seenRules.add(ruleKey(r));
+      mergedRules.push(r);
+    }
+    const merged = { ...targetExisting, name: toName };
+    if (mergedRules.length) merged.renameRules = mergedRules;
+    if (merged.autoCategorize === undefined && rec.autoCategorize !== undefined) merged.autoCategorize = rec.autoCategorize;
+    if (!merged.autoCategoryId && rec.autoCategoryId) merged.autoCategoryId = rec.autoCategoryId;
+    if (merged.hidden === undefined && rec.hidden !== undefined) merged.hidden = rec.hidden;
+    payees = data.payees.filter(p => p.id !== rec.id).map(p => (p.id === targetExisting.id ? merged : p));
+  } else if (rec) {
+    payees = data.payees.map(p => (p.id === rec.id ? { ...p, name: toName } : p));
+  }
   if (!changed && !rec) return data;
   return {
     ...data, transactions: out, payees,

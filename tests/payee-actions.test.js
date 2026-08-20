@@ -33,6 +33,12 @@ describe('upsertPayee', () => {
     expect(next.payees.find(p => p.id === 'p1').name).toBe('Subway');
     expect(next.payees.find(p => p.id === 'p1').hidden).toBe(true);
   });
+  it('toggling autoCategorize on then off leaves no bare record', () => {
+    let next = upsertPayee(base(), { name: 'New Shop', patch: { autoCategorize: true, autoCategoryId: 'c1' } });
+    expect(next.payees.some(p => p.name === 'New Shop')).toBe(true);
+    next = upsertPayee(next, { name: 'New Shop', patch: { autoCategorize: false, autoCategoryId: '' } });
+    expect(next.payees.some(p => p.name === 'New Shop')).toBe(false);
+  });
 });
 
 describe('renamePayee', () => {
@@ -48,6 +54,28 @@ describe('renamePayee', () => {
     const d = base();
     expect(renamePayee(d, { from: 'Subway', to: '  ' })).toBe(d);
     expect(renamePayee(d, { from: 'Subway', to: 'SUBWAY' })).toBe(d);
+  });
+  it('renaming onto an existing customized payee merges into one surviving record', () => {
+    const data = {
+      transactions: [
+        { id: 't1', type: 'expense', merchant: 'Foo', amount: 5 },
+        { id: 't2', type: 'expense', merchant: 'Bar', amount: 6 },
+      ],
+      payees: [
+        { id: 'p1', name: 'Foo', renameRules: [{ op: 'contains', pattern: 'foo' }] },
+        { id: 'p2', name: 'Bar', autoCategorize: true, autoCategoryId: 'c1' },
+      ],
+      audit: [],
+    };
+    const next = renamePayee(data, { from: 'Foo', to: 'Bar' });
+    expect(next.payees.some(p => p.id === 'p1')).toBe(false);
+    const survivors = next.payees.filter(p => p.name === 'Bar');
+    expect(survivors.length).toBe(1);
+    expect(survivors[0].id).toBe('p2');
+    expect(survivors[0].autoCategorize).toBe(true);
+    expect(survivors[0].autoCategoryId).toBe('c1');
+    expect(survivors[0].renameRules).toEqual([{ op: 'contains', pattern: 'foo' }]);
+    expect(next.transactions.find(t => t.id === 't1').merchant).toBe('Bar');
   });
 });
 

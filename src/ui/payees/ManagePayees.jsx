@@ -66,6 +66,10 @@ export default function ManagePayees() {
   const mixed = selPayees.length > 0 && selTransfers.length > 0;
   const close = () => { setSel(new Set()); setQ(''); setScope(null); closePayees(); };
   const modalUndo = () => { undo(); setScope(s => transition(s, undoDepth - 1, false)); };
+  // A double-click within one render frame can fire this twice before the
+  // undoDepth-driven effect above has re-derived `scope`, so the second call's
+  // transition sees a stale wasRedo=false path and under-counts the redoable
+  // window. This fails safe — Redo just disables a tick early — never over-counts.
   const modalRedo = () => { redo(); setScope(s => transition(s, undoDepth + 1, true)); };
 
   if (phone) return null; // desktop-first (spec decision 5)
