@@ -12,6 +12,7 @@ import { txDefaults } from '../../../drawers/openers.js';
 import { ruleFromTx } from '../../../lib/schedule.js';
 import { cellsFromForm, editorPatch, editableCells, firstEmptyCell, keepForNext, sourceRef } from '../../../lib/txEditorState.js';
 import { blankLine, splitHalves } from '../../../lib/splitTx.js';
+import { autoCategoryPatchArgs } from '../../../lib/payees.js';
 import { formatAmountInput } from '../../../lib/amountInput.js';
 import AccountCell from './AccountCell.jsx';
 import DateCell from './DateCell.jsx';
@@ -57,6 +58,14 @@ export default function TxEditorRow({ hideAccount, colSpan, scopeRef }) {
     if (scopeRef) keep.payWith = scopeRef;
     if (await submit()) openDrawer('addTx', { ...txDefaults('expense'), ...keep });
   };
+  const pickPayee = name => {
+    const payeePatch = editorPatch(f, 'payee', name, { catTypeOf });
+    const auto = autoCategoryPatchArgs(S, name, f.category);
+    if (!auto) { setForm(payeePatch); return; }
+    // One setForm: category inference runs against the payee-patched form.
+    const f2 = { ...f, ...payeePatch };
+    setForm({ ...payeePatch, ...editorPatch(f2, 'category', auto, { catTypeOf }) });
+  };
   const onRowKey = e => {
     if (e.key === 'Enter' && !e.defaultPrevented && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SELECT') submit();
   };
@@ -77,7 +86,7 @@ export default function TxEditorRow({ hideAccount, colSpan, scopeRef }) {
         </td>
         <td style={cellTd}>
           <PayeeCell payee={cells.payee} transferTo={cells.transferTo} sourceRef={sourceRef(f)}
-            onPickPayee={v => patch('payee', v)} onPickTransfer={ref => patch('transfer', ref)}
+            onPickPayee={pickPayee} onPickTransfer={ref => patch('transfer', ref)}
             disabled={!can.payee} autoFocus={focusKey === 'payee'} />
         </td>
         <td style={cellTd}>

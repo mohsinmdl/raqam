@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { payeeKey, payeeRecordFor, payeeIndex, transferHidden, autoCategoryFor, applyRenameRules, matchesPayeeTx } from '../src/lib/payees.js';
+import { payeeKey, payeeRecordFor, payeeIndex, transferHidden, autoCategoryFor, applyRenameRules, matchesPayeeTx, autoCategoryPatchArgs } from '../src/lib/payees.js';
 
 const S = {
   transactions: [
@@ -70,5 +70,22 @@ describe('matchesPayeeTx', () => {
     expect(matchesPayeeTx({ type: 'expense', merchant: 'SUBWAY' }, 'subway')).toBe(true);
     expect(matchesPayeeTx({ type: 'adjustment', merchant: 'subway' }, 'subway')).toBe(false);
     expect(matchesPayeeTx({ type: 'cardAdjustment', merchant: 'subway' }, 'subway')).toBe(false);
+  });
+});
+
+describe('autoCategoryPatchArgs', () => {
+  const S2 = { transactions: [], payees: [
+    { id: 'p1', name: 'Mepco', autoCategorize: true, autoCategoryId: 'c9' },
+    { id: 'p2', name: 'Boss', autoCategorize: true, autoCategoryId: 'rta' },
+  ] };
+  it('prefills only when the category is empty', () => {
+    expect(autoCategoryPatchArgs(S2, 'Mepco', '')).toBe('c9');
+    expect(autoCategoryPatchArgs(S2, 'Mepco', 'c1')).toBe(null);  // user pick wins
+  });
+  it('rta means leave uncategorized — no patch', () => {
+    expect(autoCategoryPatchArgs(S2, 'Boss', '')).toBe(null);
+  });
+  it('unknown payee → no patch', () => {
+    expect(autoCategoryPatchArgs(S2, 'nobody', '')).toBe(null);
   });
 });
