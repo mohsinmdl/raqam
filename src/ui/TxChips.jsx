@@ -81,17 +81,17 @@ export default function TxChips({ row, meta }) {
           aria-label, so the meaning is still spoken and on hover. */}
       {meta && t.edited && (
         <span role="img" aria-label={t.editedLabel} title={t.editedLabel} style={chip('var(--elev)', 'var(--muted)')}>
-          <EditedIcon size={13} />
+          <EditedIcon size={14} />
         </span>
       )}
       {meta && t.excluded && (
         <span role="img" aria-label={t.excludedLabel} title={t.excludedLabel} style={chip('var(--elev)', 'var(--muted)')}>
-          <ExcludedIcon size={13} />
+          <ExcludedIcon size={14} />
         </span>
       )}
       {meta && t.split && (
         <span role="img" aria-label={t.splitLabel} title={t.splitLabel} style={chip('var(--elev)', 'var(--muted)')}>
-          <SplitIcon size={13} />
+          <SplitIcon size={14} />
         </span>
       )}
     </>
