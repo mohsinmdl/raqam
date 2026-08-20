@@ -240,7 +240,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
       // row-saved-wash (Wave D) holds a fainter version of that same wash after
       // the flash fades — see theme.css; harmless alongside row-flash (the
       // animation's !important background wins first, then hands off to this).
-      className={[checked ? null : 'hv-elev', flash ? 'row-flash' : null, saved ? 'row-saved-wash' : null].filter(Boolean).join(' ') || undefined}
+      className={['tx-row', checked ? null : 'hv-elev', flash ? 'row-flash' : null, saved ? 'row-saved-wash' : null].filter(Boolean).join(' ')}
       // Scheduled rows sit on a SUBTLE warm wash — the full --warn-soft (used on
       // the group heading) is too heavy per row, so blend it down into the
       // surface. Theme-adaptive, and a checked row's --soft still wins.

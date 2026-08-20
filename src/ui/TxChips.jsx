@@ -1,7 +1,7 @@
 // The badge cluster on a transaction row: transfer, repeats, edited, excluded.
 // Extracted because this markup was duplicated verbatim across Transactions,
 // AccountDetail and Dashboard, and every tweak had to be made three times.
-import { EditedIcon, ExcludedIcon, RepeatIcon, SplitIcon, TransferIcon } from './icons.jsx';
+import { RepeatIcon, TransferIcon } from './icons.jsx';
 
 const chip = (bg, fg) => ({
   fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999,
@@ -74,24 +74,17 @@ export default function TxChips({ row, meta }) {
         </span>
       )}
       {/* Only the full-width Transactions row shows these (meta); the compact
-          account-detail and dashboard rows have always omitted them. Drawn as
-          icons rather than text pills so the cluster stays one visual family
-          with the transfer/repeat glyphs above and never outgrows the now
-          fixed-width PAYEE column — the label lives on the chip's title +
-          aria-label, so the meaning is still spoken and on hover. */}
-      {meta && t.edited && (
-        <span role="img" aria-label={t.editedLabel} title={t.editedLabel} style={chip('var(--elev)', 'var(--muted)')}>
-          <EditedIcon size={14} />
-        </span>
-      )}
-      {meta && t.excluded && (
-        <span role="img" aria-label={t.excludedLabel} title={t.excludedLabel} style={chip('var(--elev)', 'var(--muted)')}>
-          <ExcludedIcon size={14} />
-        </span>
-      )}
-      {meta && t.split && (
-        <span role="img" aria-label={t.splitLabel} title={t.splitLabel} style={chip('var(--elev)', 'var(--muted)')}>
-          <SplitIcon size={14} />
+          account-detail and dashboard rows have always omitted them. Passive
+          metadata, so they read as quiet text pills and — via .tx-meta in
+          theme.css — stay hidden until the row is hovered or focused, keeping
+          the resting ledger calm. "Excluded from budgets" shortens to
+          "Excluded" (the full phrase lives in the title / aria-label): the long
+          label was what overflowed the now fixed-width PAYEE column. */}
+      {meta && (t.edited || t.excluded || t.split) && (
+        <span className="tx-meta" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none' }}>
+          {t.edited && <span title={t.editedLabel} aria-label={t.editedLabel} style={chip('var(--elev)', 'var(--muted)')}>Edited</span>}
+          {t.excluded && <span title={t.excludedLabel} aria-label={t.excludedLabel} style={chip('var(--elev)', 'var(--muted)')}>Excluded</span>}
+          {t.split && <span title={t.splitLabel} aria-label={t.splitLabel} style={chip('var(--elev)', 'var(--muted)')}>Split</span>}
         </span>
       )}
     </>
