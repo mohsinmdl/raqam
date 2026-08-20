@@ -20,7 +20,6 @@ import PayeeCell from './PayeeCell.jsx';
 import CategoryCell from './CategoryCell.jsx';
 import AmountCell from './AmountCell.jsx';
 import SplitRows from './SplitRows.jsx';
-import Checkbox from '../../Checkbox.jsx';
 
 const cellTd = { padding: '4px 4px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle', background: 'var(--soft)' };
 const btn = accent => ({ height: 30, padding: '0 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: accent ? 'none' : '1px solid var(--border)', background: accent ? 'var(--accent)' : 'var(--surface)', color: accent ? 'var(--on-accent)' : 'var(--text)' });
@@ -100,8 +99,20 @@ export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }
   return (
     <>
       <tr onKeyDown={onRowKey} style={{ height: '2.5rem' }}>
+        {/* Not a checkbox: this cell used to hold a permanently-checked, readOnly
+            one whose only job was to line the editor up with the selection
+            column. It offered a keyboard stop and an accessible name for a
+            control that could never do anything. It is a MARKER — same
+            13px footprint, same accent fill, no semantics. The row already
+            announces itself as the editor through its fields. */}
         <td style={{ ...cellTd, padding: 0, position: 'relative', minWidth: 34 }}>
-          <Checkbox fill checked readOnly label="Editing this transaction" onChange={() => {}} />
+          <span aria-hidden="true" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', paddingLeft: 18 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13, borderRadius: 3, background: 'var(--accent)', flex: 'none' }}>
+              <svg width="9" height="9" viewBox="0 0 10 10" fill="none" focusable="false">
+                <path d="M1.6 5.2 3.9 7.5 8.4 2.7" stroke="var(--on-accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          </span>
         </td>
         {!hideAccount && (
           <td style={cellTd}>

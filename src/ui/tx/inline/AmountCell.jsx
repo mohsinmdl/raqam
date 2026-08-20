@@ -50,8 +50,13 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
       <Popover>
-        <PopoverTrigger aria-label={'Calculator for ' + ariaLabel} disabled={disabled} tabIndex={-1} className="hv-soft"
-          style={{ width: 18, height: 28, border: 'none', background: 'none', color: 'var(--muted)', fontSize: 10, cursor: 'pointer', flex: 'none', padding: 0 }}>
+        {/* In the tab order (it used to be tabIndex -1): the op pad is the only
+            way to reach the calculator without knowing the operators are
+            typeable, and a control no keyboard can reach is not a control. The
+            theme's :focus-visible ring makes the stop visible; the radius keeps
+            that ring on the glyph rather than around the whole cell. */}
+        <PopoverTrigger aria-label={'Calculator for ' + ariaLabel} disabled={disabled} tabIndex={0} className="hv-soft"
+          style={{ width: 18, height: 28, border: 'none', borderRadius: 4, background: 'none', color: 'var(--muted)', fontSize: 10, cursor: 'pointer', flex: 'none', padding: 0 }}>
           ⌗
         </PopoverTrigger>
         <PopoverPanel width={92} arrow style={{ padding: 8 }}

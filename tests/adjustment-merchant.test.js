@@ -71,3 +71,31 @@ describe('other types keep their merchant', () => {
       .toBe('Own-account transfer');
   });
 });
+
+// The em dash the ledger prints for a machine-written row is a typographic
+// placeholder. Spoken through the row checkbox — "Select — on 7 Aug" — it
+// names nothing, so every row also carries a name meant to be said out loud.
+describe('a row can say what it is when it has no payee', () => {
+  const row = over => txRowOf({ id: 't1', date: '2026-08-07T12:00', amount: 100, status: 'cleared', accountId: 'cash', ...over }, S, fmt);
+
+  it('names a machine-written adjustment instead of the printed em dash', () => {
+    const r = row({ type: 'adjustment', merchant: '' });
+    expect(r.merchant).toBe('—');
+    expect(r.a11yName).toBe('adjustment');
+  });
+
+  it('names a card correction, a refund and an income the same way', () => {
+    expect(row({ type: 'cardAdjustment', merchant: '' }).a11yName).toBe('card correction');
+    expect(row({ type: 'refund', merchant: '' }).a11yName).toBe('refund');
+    expect(row({ type: 'income', merchant: '' }).a11yName).toBe('income');
+    expect(row({ type: 'expense', merchant: '' }).a11yName).toBe('transaction');
+  });
+
+  it('prefers the real payee whenever there is one', () => {
+    expect(row({ type: 'expense', merchant: 'Imtiaz' }).a11yName).toBe('Imtiaz');
+  });
+
+  it('keeps the transfer wording the ledger already uses', () => {
+    expect(row({ type: 'transfer', merchant: '', toAccountId: 'bank' }).a11yName).toBe('Own-account transfer');
+  });
+});

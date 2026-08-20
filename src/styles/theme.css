@@ -101,6 +101,10 @@ textarea:focus {
 
 /* Hover utilities replacing the prototype's style-hover attributes. */
 .hv-elev:hover { background: var(--elev) !important; }
+/* Base UI marks the keyboard-highlighted combobox option with data-highlighted.
+   Without this the arrow keys moved an invisible cursor: hv-elev only answers
+   the pointer. --soft is the same fill the picker's hand-rolled highlight used. */
+.rq-combo-item[data-highlighted] { background: var(--soft); }
 .hv-soft:hover { background: var(--soft) !important; }
 .hv-accent:hover { background: var(--accent-h) !important; }
 .hv-neg-soft:hover { background: var(--neg-soft) !important; }
@@ -123,17 +127,15 @@ textarea:focus {
 }
 textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: vertical; }
 
-/* YNAB-faithful dropdown scroll region (PlanCategoryPicker). Captured from
-   app.ynab.com .dropdown-modal-body: the divider lines above and below the
-   list are this element's own borders, and the scrollbar lives inside it —
-   inset from the panel edge by the panel's padding. overflow-y: scroll (not
-   auto) so the track is always present, like YNAB's. */
-.picker-scroll { overflow-y: scroll; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.picker-scroll::-webkit-scrollbar { width: 11px; }
-.picker-scroll::-webkit-scrollbar-track { background: transparent; }
-.picker-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
-.picker-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
-@supports not selector(::-webkit-scrollbar) { .picker-scroll { scrollbar-width: thin; scrollbar-color: var(--border) transparent; } }
+/* Scrollbar skin for a dropdown's list region, captured from YNAB's
+   .dropdown-modal-body: a slim thumb inset from the panel edge, on no track.
+   Only the skin lives here — which element scrolls, and the hairlines that
+   separate it from the panel's pinned header/footer, are ComboboxPanel's. */
+.rq-scroll::-webkit-scrollbar { width: 11px; }
+.rq-scroll::-webkit-scrollbar-track { background: transparent; }
+.rq-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
+.rq-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
+@supports not selector(::-webkit-scrollbar) { .rq-scroll { scrollbar-width: thin; scrollbar-color: var(--border) transparent; } }
 
 /* Reflect report tabs — a minimal underline strip that scrolls horizontally
    rather than wrapping when the six labels exceed the width (mobile). The

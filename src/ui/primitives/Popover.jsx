@@ -36,8 +36,12 @@ export const PopoverClose = BasePopover.Close;
 //     passes { side: 'flip', align: 'shift' }.
 //   arrow — render a caret pointing at the anchor (styled in theme.css by the
 //     Base UI data-side attribute). Off by default; no consumer had one before.
+//   anchor — position against this element/ref instead of the trigger. The
+//     register's date cell needs it: its trigger is a small chevron button but
+//     the calendar must hang off the whole field. Anything not named here
+//     (initialFocus/finalFocus among them) falls through to the Popup.
 export function PopoverPanel({
-  children, style, width, arrow = false,
+  children, style, width, arrow = false, anchor,
   side = 'bottom', align = 'start', sideOffset = 6,
   collisionAvoidance = { side: 'shift', align: 'shift' }, ...rest
 }) {
@@ -47,6 +51,7 @@ export function PopoverPanel({
         side={side}
         align={align}
         sideOffset={sideOffset}
+        anchor={anchor}
         collisionAvoidance={collisionAvoidance}
         // Transactions' existing dropdown/popover band.
         style={{ zIndex: 30 }}
