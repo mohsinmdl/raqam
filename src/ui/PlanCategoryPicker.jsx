@@ -1,6 +1,7 @@
 import { forwardRef, useMemo, useRef, useState } from 'react';
 import { sortGroups, sortCats } from '../lib/categoryOrder.js';
 import { Combobox, ComboboxPanel } from './primitives/Combobox.jsx';
+import { Chevron } from './icons.jsx';
 
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
@@ -43,7 +44,11 @@ const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: 
 //                        (e.g. the inline transaction editor's Split button).
 const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   env, S, month, money, value, onChange,
-  excludeRta, excludeId, excludeIds, placeholder = 'Choose a category',
+  // 'Category' — the FIELD's name, not an instruction. Every consumer sits it
+  // under (or in) a column already called Category, so "Choose a category" was
+  // telling the reader what they could already see, twice. It doubles as the
+  // aria-label below, where the name is what a screen reader needs.
+  excludeRta, excludeId, excludeIds, placeholder = 'Category',
   catType = 'expense', showAmounts = true, heading = 'Plan Categories',
   allowCreate = false, onCreate, showSelected = false, footer = null,
   size = 34, invalid, errorMsg, errorId,
@@ -226,7 +231,7 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
           }}
           style={{ width: '100%', boxSizing: 'border-box', height: size, padding: `0 ${pad.right}px 0 ${pad.left}px`, fontSize: 13, ...(open ? { borderColor: 'var(--accent)' } : null), ...(invalid ? ringStyle : null) }}
         />
-        <span aria-hidden="true" style={{ position: 'absolute', right: pad.left, top: size / 2, transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 10, pointerEvents: 'none' }}>▾</span>
+        <span aria-hidden="true" style={{ position: 'absolute', right: pad.left, top: size / 2, transform: 'translateY(-50%)', color: 'var(--muted)', display: 'inline-flex', pointerEvents: 'none' }}><Chevron /></span>
         {invalid && <span id={errId} role="alert" style={srOnly}>{errorMsg}</span>}
         <ComboboxPanel
           style={{ minWidth: 240, padding: '10px 12px' }}

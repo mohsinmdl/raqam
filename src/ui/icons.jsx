@@ -11,6 +11,29 @@
 
 const style = { flex: 'none', display: 'inline-block', verticalAlign: '-0.15em' };
 
+// The app's one chevron. Every disclosure and picker used to draw its own from
+// a TEXT glyph (▾ ▸ ⌄ ▼), which meant four different shapes at four different
+// optical weights, each rendered by whichever font happened to answer — and
+// none of them matching the 1.8px drawn stroke of the icons beside them. This
+// is a real path: same stroke as EyeIcon/WideIcon, coloured by currentColor,
+// and it never falls back to a system glyph.
+//
+// `dir` rotates rather than swapping paths, so a disclosure that animates has
+// something continuous to animate: 'down' is the resting/open state, 'right'
+// is a collapsed tree node, 'up' is a control that closes what it opened.
+const CHEV_ROT = { down: '0deg', right: '-90deg', up: '180deg', left: '90deg' };
+
+export function Chevron({ size = 9, dir = 'down', title }) {
+  return (
+    <svg viewBox="0 0 9 6" width={size} height={size * (6 / 9)} fill="none"
+      role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} focusable="false"
+      style={{ ...style, transform: 'rotate(' + (CHEV_ROT[dir] || '0deg') + ')' }}>
+      {title && <title>{title}</title>}
+      <path d="M1 1.25 4.5 4.75 8 1.25" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function TransferIcon({ size = 14, title }) {
   return (
     <svg viewBox="0 0 17.53 19.42" width={size} height={size} fill="currentColor" style={style}

@@ -55,7 +55,7 @@ export default function AccountList() {
         <span aria-hidden="true" style={{ display: 'inline-flex', color: 'var(--muted)', transition: 'transform .18s ease', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
         </span>
-        <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '.09em', color: 'var(--muted)' }}>ACCOUNTS</span>
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.09em', color: 'var(--muted)' }}>ACCOUNTS</span>
         {rows.length > 0 && <span className="tnum sidebar-accounts-total" style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{money(total)}</span>}
       </button>
 

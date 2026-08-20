@@ -8,6 +8,7 @@ import { useUI } from '../../UIProvider.jsx';
 import { useIsPhone } from '../../../lib/useIsPhone.js';
 import { payeeSections } from '../../../lib/payeeOptions.js';
 import { Combobox, ComboboxPanel, ComboboxGroupLabel, ComboboxItem } from '../../primitives/Combobox.jsx';
+import { Chevron } from '../../icons.jsx';
 
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
@@ -45,14 +46,22 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
   return (
     <Combobox.Root items={sections.flatMap(s => s.items)} onValueChange={pick} value={null} filter={null}
       itemToStringLabel={itemLabel} itemToStringValue={itemLabel}>
-      <Combobox.Input
-        ref={ref} className="field" placeholder="payee" aria-label="Payee" disabled={disabled} autoFocus={autoFocus}
-        aria-invalid={invalid || undefined} aria-describedby={invalid ? id : undefined}
-        value={shown}
-        onChange={e => setQ(e.target.value)}
-        onBlur={commitText}
-        style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13, ...(invalid ? ringStyle : null) }}
-      />
+      {/* The chevron says this field is a picker as well as a text box —
+          without it the cell looked like plain free text, and the To/From
+          transfer list (the only way to make the row a transfer) was
+          undiscoverable. Drawn, muted, and pointer-transparent so the whole
+          field stays one click target. */}
+      <span style={{ position: 'relative', display: 'block' }}>
+        <Combobox.Input
+          ref={ref} className="field" placeholder="Payee" aria-label="Payee" disabled={disabled} autoFocus={autoFocus}
+          aria-invalid={invalid || undefined} aria-describedby={invalid ? id : undefined}
+          value={shown}
+          onChange={e => setQ(e.target.value)}
+          onBlur={commitText}
+          style={{ width: '100%', height: 28, padding: '0 22px 0 8px', fontSize: 13, ...(invalid ? ringStyle : null) }}
+        />
+        <span aria-hidden="true" style={{ position: 'absolute', right: 8, top: 14, transform: 'translateY(-50%)', color: 'var(--muted)', display: 'inline-flex', pointerEvents: 'none' }}><Chevron /></span>
+      </span>
       {invalid && <span id={id} role="alert" style={srOnly}>{errorMsg}</span>}
       <ComboboxPanel footer={phone ? null : (
         <button type="button" onMouseDown={e => e.preventDefault()} onClick={openPayees} className="hv-soft"

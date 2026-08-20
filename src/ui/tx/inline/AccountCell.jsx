@@ -19,7 +19,7 @@ const AccountCell = forwardRef(function AccountCell({ value, onChange, disabled,
     <span style={{ display: 'block', position: 'relative' }}>
       <Select ref={ref} value={value || null} onValueChange={v => onChange(v || '')} ariaLabel="Account" disabled={disabled} autoFocus={autoFocus}
         invalid={invalid} describedBy={id}
-        renderValue={() => picked ? nameOnly(picked.label) : 'account'}>
+        renderValue={() => picked ? nameOnly(picked.label) : 'Account'}>
         <SelectGroup label="Cash Accounts">
           {bankOpts.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
         </SelectGroup>

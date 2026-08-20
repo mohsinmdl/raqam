@@ -1,0 +1,125 @@
+// The register's BALANCE column. The whole point of this column is that its
+// last value IS the balance the header strip prints — so the last test here
+// checks exactly that, against accountBalance() itself rather than against a
+// number copied out of it.
+import { describe, expect, it } from 'vitest';
+import { withRunningBalances, txGroups } from './txRow.js';
+import { accountBalance } from './calc.js';
+import { inRange } from './dateRange.js';
+
+const row = (id, acctDelta) => ({ id, sortId: id, acctDelta });
+
+describe('withRunningBalances', () => {
+  it('walks chronologically under a date-asc render order', () => {
+    const out = withRunningBalances([row('a', -100), row('b', -50), row('c', 500)], 1000, 'asc');
+    expect(out.map(r => r.runningBalance)).toEqual([900, 850, 1350]);
+  });
+
+  it('still walks chronologically under a date-desc render order', () => {
+    // Same three rows, newest first. The TOP row must carry the latest balance.
+    const out = withRunningBalances([row('c', 500), row('b', -50), row('a', -100)], 1000, 'desc');
+    expect(out.map(r => r.runningBalance)).toEqual([1350, 850, 900]);
+    expect(out[0].id).toBe('c'); // order preserved, only the arithmetic reversed
+  });
+
+  it('gives the same row the same balance in either direction', () => {
+    const rows = [row('a', -100), row('b', -50), row('c', 500)];
+    const asc = withRunningBalances(rows, 1000, 'asc');
+    const desc = withRunningBalances([...rows].reverse(), 1000, 'desc');
+    const byId = list => Object.fromEntries(list.map(r => [r.id, r.runningBalance]));
+    expect(byId(desc)).toEqual(byId(asc));
+  });
+
+  it('repeats the balance across an uncleared row (delta 0), as accountBalance does', () => {
+    // accountDelta() returns 0 for a pending row, so the column must not move.
+    const out = withRunningBalances([row('a', -100), row('pending', 0), row('c', 500)], 1000, 'asc');
+    expect(out.map(r => r.runningBalance)).toEqual([900, 900, 1400]);
+  });
+
+  it('treats a missing delta as no movement rather than NaN', () => {
+    const out = withRunningBalances([{ id: 'x' }, row('y', -25)], 500, 'asc');
+    expect(out.map(r => r.runningBalance)).toEqual([500, 475]);
+  });
+
+  it('leaves the input rows untouched', () => {
+    const rows = [row('a', -100)];
+    withRunningBalances(rows, 1000, 'asc');
+    expect(rows[0].runningBalance).toBeUndefined();
+  });
+
+  it('formats through the injected money fn, so masking flows through', () => {
+    const masked = () => 'Rs ••••';
+    const out = withRunningBalances([row('a', -100)], 1000, 'asc', masked);
+    expect(out[0].balanceLabel).toBe('Rs ••••');
+    const plain = withRunningBalances([row('a', -100)], 1000, 'asc', n => 'Rs ' + n);
+    expect(plain[0].balanceLabel).toBe('Rs 900');
+  });
+
+  it('attaches an empty label when no formatter is given', () => {
+    expect(withRunningBalances([row('a', -100)], 1000, 'asc')[0].balanceLabel).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reconciliation: the column's last value === the header strip's figure.
+// ---------------------------------------------------------------------------
+const MONTH = '2026-08';
+const NOW = '2026-08-20T12:00:00';
+const ACC = 'acc1';
+
+const tx = (id, day, type, amount, extra) => ({
+  id, date: '2026-08-' + day + 'T12:00:00', type, amount, accountId: ACC,
+  status: 'cleared', merchant: id, ...extra,
+});
+
+const store = {
+  accounts: [{ id: ACC, nickname: 'Main', status: 'active', createdAt: '2026-01-01' }],
+  cards: [], categories: [], institutions: [], recurring: [], snapshots: [
+    { accountId: ACC, month: MONTH, amount: 100000, status: 'confirmed' },
+  ],
+  transactions: [
+    tx('t1', '02', 'expense', 2500),
+    tx('t2', '05', 'income', 40000),
+    tx('t3', '09', 'expense', 1200, { status: 'pending' }),   // uncleared: steps 0
+    tx('t4', '12', 'refund', 700),
+    tx('t5', '14', 'adjustment', -300),                       // signed
+    tx('t6', '18', 'expense', 9000),
+    tx('t7', '28', 'expense', 5000),                          // future-dated: scheduled
+  ],
+};
+
+const fmt = { money: n => String(n), moneyS: n => String(n) };
+
+// Exactly what the screen does: range-filter, account-scope, group, then walk.
+const registerRows = sort => {
+  const list = store.transactions.filter(t => inRange(t, MONTH, MONTH)
+    && (t.accountId === ACC || t.toAccountId === ACC));
+  const { postedRows } = txGroups(list, store, fmt, NOW, { from: MONTH, to: MONTH }, false, sort, ACC);
+  return withRunningBalances(postedRows, store.snapshots[0].amount, sort.dir, fmt.money);
+};
+
+describe('running balance vs the header strip', () => {
+  it("date-desc: the TOP row's balance is accountBalance()", () => {
+    const rows = registerRows({ key: 'date', dir: 'desc' });
+    const strip = accountBalance(store.accounts[0], store, MONTH, NOW);
+    expect(rows[0].runningBalance).toBe(strip);
+  });
+
+  it("date-asc: the BOTTOM row's balance is accountBalance()", () => {
+    const rows = registerRows({ key: 'date', dir: 'asc' });
+    const strip = accountBalance(store.accounts[0], store, MONTH, NOW);
+    expect(rows[rows.length - 1].runningBalance).toBe(strip);
+  });
+
+  it('excludes the future-dated row from the column entirely (it is a scheduled row)', () => {
+    const rows = registerRows({ key: 'date', dir: 'asc' });
+    expect(rows.map(r => r.id)).toEqual(['t1', 't2', 't3', 't4', 't5', 't6']);
+  });
+
+  it('steps by accountDelta at every row, uncleared included', () => {
+    const rows = registerRows({ key: 'date', dir: 'asc' });
+    // 100000 -2500 +40000 (pending: no move) +700 -300 -9000
+    expect(rows.map(r => r.runningBalance))
+      .toEqual([97500, 137500, 137500, 138200, 137900, 128900]);
+  });
+});

@@ -24,7 +24,7 @@ import SplitRows from './SplitRows.jsx';
 const cellTd = { padding: '4px 4px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle', background: 'var(--soft)' };
 const btn = accent => ({ height: 30, padding: '0 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: accent ? 'none' : '1px solid var(--border)', background: accent ? 'var(--accent)' : 'var(--surface)', color: accent ? 'var(--on-accent)' : 'var(--text)' });
 
-export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }) {
+export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpan, scopeRef }) {
   const { drawer, setForm, setField, openDrawer, requestClose } = useDrawer();
   const { data: S } = useStore();
   const submit = txFormDef.useSubmit();
@@ -163,19 +163,25 @@ export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }
             already works here). */}
         {!hideMemo && (
           <td style={cellTd}>
-            <input className="field" placeholder="memo" aria-label="Memo" disabled={!can.memo} value={cells.memo}
+            <input className="field" placeholder="Memo" aria-label="Memo" disabled={!can.memo} value={cells.memo}
               onChange={e => patch('memo', e.target.value)}
               style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13 }} />
           </td>
         )}
         <td style={cellTd}>
-          <AmountCell ref={cellRefs.outflow} value={cells.outflow} onCommit={v => patch('outflow', v)} placeholder="outflow" ariaLabel="Outflow" disabled={!can.outflow}
+          <AmountCell ref={cellRefs.outflow} value={cells.outflow} onCommit={v => patch('outflow', v)} placeholder="Outflow" ariaLabel="Outflow" disabled={!can.outflow}
             invalid={!!cellErrors.outflow} errorMsg={cellErrors.outflow} />
         </td>
         <td style={cellTd}>
-          <AmountCell ref={cellRefs.inflow} value={cells.inflow} onCommit={v => patch('inflow', v)} placeholder="inflow" ariaLabel="Inflow" disabled={!can.inflow}
+          <AmountCell ref={cellRefs.inflow} value={cells.inflow} onCommit={v => patch('inflow', v)} placeholder="Inflow" ariaLabel="Inflow" disabled={!can.inflow}
             invalid={!!cellErrors.inflow} errorMsg={cellErrors.inflow} />
         </td>
+        {/* BALANCE: a spacer, deliberately empty. The column only appears on an
+            account-scoped, date-sorted register (registerColumns.js), and this
+            row is not saved yet — it has no place in the running balance until
+            it does. The cell still has to EXIST or every cell after it shifts
+            one column left of its header. */}
+        {showBalance && <td style={cellTd} />}
         <td style={{ ...cellTd, textAlign: 'center' }}>
           <button type="button" onClick={() => patch('cleared', !cells.cleared)} aria-pressed={cells.cleared}
             aria-label={cells.cleared ? 'Cleared — click to unclear' : 'Uncleared — click to clear'} className="hv-soft"
@@ -185,7 +191,7 @@ export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }
               color: cells.cleared ? 'var(--on-pos)' : 'var(--muted)' }}>C</button>
         </td>
       </tr>
-      {splitOn && <SplitRows colSpan={colSpan} />}
+      {splitOn && <SplitRows colSpan={colSpan} showBalance={showBalance} />}
       <tr>
         {/* The register's table wrapper can scroll horizontally on a narrow
             container (tx-table-wrap, overflow-x: auto in Transactions.jsx) —

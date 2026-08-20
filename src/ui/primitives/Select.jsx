@@ -3,6 +3,7 @@
 // "The Trusted Ledger" look. First consumer: the inline editor's account cell.
 import { forwardRef } from 'react';
 import { Select as BaseSelect } from '@base-ui/react/select';
+import { Chevron } from '../icons.jsx';
 
 const popupStyle = {
   background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
@@ -23,7 +24,10 @@ export const Select = forwardRef(function Select({ value, onValueChange, ariaLab
         <BaseSelect.Value style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {renderValue}
         </BaseSelect.Value>
-        <BaseSelect.Icon style={{ color: 'var(--muted)', fontSize: 10, flex: 'none' }}>▾</BaseSelect.Icon>
+        {/* Drawn, not the ▾ text glyph: the trigger sits beside 1.8px-stroke
+            icons everywhere it is used, and a font-rendered arrowhead never
+            matched their weight. */}
+        <BaseSelect.Icon style={{ color: 'var(--muted)', display: 'inline-flex', flex: 'none' }}><Chevron /></BaseSelect.Icon>
       </BaseSelect.Trigger>
       <BaseSelect.Portal>
         <BaseSelect.Positioner sideOffset={4} style={{ zIndex: 45 }}>

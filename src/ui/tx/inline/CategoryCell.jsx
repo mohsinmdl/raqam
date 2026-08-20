@@ -32,7 +32,7 @@ const CategoryCell = forwardRef(function CategoryCell({ value, onChange, onCreat
     <PlanCategoryPicker
       ref={ref} env={env} S={S} month={month} money={money} size={28}
       catType={catType} showAmounts={catType === 'expense'} excludeRta heading={null}
-      allowCreate showSelected placeholder="category"
+      allowCreate showSelected placeholder="Category"
       onCreate={onCreate}
       value={value} onChange={onChange}
       invalid={invalid} errorMsg={errorMsg} errorId={errorId || 'txeditor-err-category'}
