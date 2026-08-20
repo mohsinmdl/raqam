@@ -38,6 +38,23 @@ export function payeeIndex(S) {
   return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// Display helper for the delete-reassignment step, which has to name the
+// payees it is about to delete (the selection behind it is disabled, so this
+// copy is the only remaining evidence of what the button will do). A 40-payee
+// bulk delete would push the buttons off-screen, so cap it and say how many
+// are unnamed rather than silently truncating.
+export function payeeListLabel(names, { maxNames = 3, maxChars = 60 } = {}) {
+  const shown = [];
+  let chars = 0;
+  for (const n of names) {
+    if (shown.length >= maxNames || (shown.length && chars + n.length > maxChars)) break;
+    shown.push(n);
+    chars += n.length + 2;
+  }
+  const rest = names.length - shown.length;
+  return shown.join(', ') + (rest > 0 ? ', … (' + rest + ' more)' : '');
+}
+
 export function transferHidden(S, ref) {
   return (S.payees || []).some(p => p.transferRef === ref && p.hidden);
 }

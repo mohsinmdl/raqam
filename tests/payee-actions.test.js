@@ -42,6 +42,9 @@ describe('upsertPayee', () => {
     expect(second).toBe(first);
     expect(second.audit).toHaveLength(1);
   });
+  // B5: this IS the shape PayeeDetail sends — unchecking "Automatically
+  // categorize payee" patches {autoCategorize: false, autoCategoryId: ''}, not
+  // the boolean alone, so the record really does empty out and get pruned.
   it('toggling autoCategorize on then off leaves no bare record', () => {
     let next = upsertPayee(base(), { name: 'New Shop', patch: { autoCategorize: true, autoCategoryId: 'c1' } });
     expect(next.payees.some(p => p.name === 'New Shop')).toBe(true);
