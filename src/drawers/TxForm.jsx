@@ -413,13 +413,13 @@ function useSubmit() {
       const splitErr = validateSplit(f.amount, f.splits, S, moneyRaw);
       if (splitErr) errs.split = splitErr;
     }
-    if (Object.keys(errs).length) { fail(errs, Object.values(errs)); return; }
+    if (Object.keys(errs).length) { fail(errs, Object.values(errs)); return false; }
 
     if (!f.editId && (type === 'expense' || type === 'income') && !drawer.dupAck) {
       const d = findDuplicate(S, { amount: amt, merchant: f.merchant, date: f.date || todayStr() });
       if (d) {
         setDup(moneyRaw(d.amount) + ' to “' + (d.merchant || 'the same merchant') + '” is already recorded on this date. Save again to keep both.');
-        return;
+        return false;
       }
     }
 
@@ -432,7 +432,7 @@ function useSubmit() {
         action: 'Change type and save',
         tone: 'accent',
       });
-      if (!ok) return;
+      if (!ok) return false;
     }
 
     const payload = { form: f, type, amt, fee: parseAmt(f.fee) };
@@ -447,13 +447,14 @@ function useSubmit() {
       applyData(data => addSplitTransaction(data, { form: f, legs: f.splits, amt, ids }));
       closeDrawer();
       flashRows(ids);
-      return;
+      return true;
     }
     const rowId = f.editId || uid();
     applyData(data => (f.editId ? updateTransaction(data, payload) : addTransaction(data, { ...payload, id: rowId })));
     closeDrawer();
     flashRows(rowId);
     if (repeated) notify('Recurring rule created.');
+    return true;
   };
 }
 
