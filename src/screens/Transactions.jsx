@@ -327,7 +327,14 @@ export default function Transactions() {
   // single-row pick renders as a popover on it (web); without one (phone list
   // passes no element) it falls back to the sheet.
   const [catAnchor, setCatAnchor] = useState(null);
-  const openRowCategorize = (id, el) => { setCatTarget(id); setCatAnchor(el || null); };
+  const openRowCategorize = (id, el) => {
+    // Desktop: the needs-category pill opens the same inline editor as a
+    // second click, rather than a standalone category popover — the editor
+    // has a category field, so a separate popover is redundant. Phone keeps
+    // the sheet (no inline editor there).
+    if (!phone) { openers.editTx(S, id, openDrawer); return; }
+    setCatTarget(id); setCatAnchor(el || null);
+  };
   // Banner filters are phone-local view state, not TxView filters.
   const [listFilter, setListFilter] = useState('all'); // 'all' | 'uncleared' | 'needsCat' — phone banners + the desktop needs-category banner share it
 
@@ -422,6 +429,15 @@ export default function Transactions() {
       setSelected(new Set(rangeBetween(visibleIds, anchorId ?? id, id)));
       return;
     }
+    // YNAB edit gesture: the row is already the sole selection and is clicked
+    // plainly again → open it in the inline editor instead of deselecting.
+    // (Desktop only; phone taps already edit via TxSheet. cardAdjustment rows
+    // are refused by openers.editTx itself.)
+    if (!phone && e && !e.shiftKey && !e.metaKey && !e.ctrlKey
+      && selected.size === 1 && selected.has(id)) {
+      openers.editTx(S, id, openDrawer);
+      return;
+    }
     setAnchorId(id);
     // The checkbox (no event), Ctrl/Cmd+click, and Space add to / remove from
     // the selection. A plain row-body click selects only that row (clearing the
@@ -439,7 +455,17 @@ export default function Transactions() {
     setSelected(prev => (prev.size === 1 && prev.has(id)) ? new Set() : new Set([id]));
   };
   const toggleAll = on => { setSchedSel(new Set()); setSelected(on ? new Set(visibleIds) : new Set()); };
-  const toggleSched = (key, on) => {
+  const toggleSched = (key, on, e) => {
+    // Same YNAB edit gesture as toggleRow: a plain second click on the sole
+    // scheduled selection opens the editor instead of deselecting. Guarded on
+    // `e` (absent from the checkbox's onChange) and modifier keys so the
+    // checkbox and ⌘/Ctrl+click still deselect. 'rule:' keys have no tx to
+    // edit — skip them.
+    if (!phone && e && !e.shiftKey && !e.metaKey && !e.ctrlKey
+      && schedSel.size === 1 && schedSel.has(key) && !String(key).startsWith('rule:')) {
+      openers.editTx(S, key, openDrawer);
+      return;
+    }
     setSelected(new Set()); // mutual exclusion with the recorded selection
     setSchedSel(prev => {
       const next = new Set(prev);
