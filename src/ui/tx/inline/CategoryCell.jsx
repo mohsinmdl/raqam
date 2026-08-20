@@ -22,6 +22,10 @@ export default function CategoryCell({ value, onChange, onCreate, onSplit, canSp
   if (isTransfer) {
     return <span className="field" style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)' }}>Payment/Transfer</span>;
   }
+  if (disabled) {
+    const cat = value ? S.categories.find(c => c.id === value) : null;
+    return <span className="field" style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)' }}>{cat ? cat.name : 'category'}</span>;
+  }
   const env = envelopeFor(S, month, nowIso());
   return (
     <PlanCategoryPicker

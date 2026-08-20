@@ -55,7 +55,7 @@ export default function AmountCell({ value, onCommit, placeholder, ariaLabel, di
         onFocus={e => e.target.select()}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter' && draft !== null && OP_KEYS.test(draft)) { e.preventDefault(); commit(); } }}
+        onKeyDown={e => { if (e.key === 'Enter' && draft !== null) { e.preventDefault(); commit(); } }}
         style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13, textAlign: 'right', minWidth: 0 }}
       />
     </span>
