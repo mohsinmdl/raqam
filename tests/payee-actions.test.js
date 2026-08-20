@@ -1,0 +1,80 @@
+// tests/payee-actions.test.js
+import { describe, it, expect } from 'vitest';
+import { upsertPayee, renamePayee, combinePayees, deletePayees, setPayeesHidden } from '../src/store/actions.js';
+
+const base = () => ({
+  transactions: [
+    { id: 't1', type: 'expense', merchant: 'Subway', amount: 5 },
+    { id: 't2', type: 'expense', merchant: 'SUBWAY', amount: 6 },
+    { id: 't3', type: 'income', merchant: 'CodingCops', amount: 7 },
+    { id: 't4', type: 'adjustment', merchant: 'Subway', amount: 1 },  // never rewritten
+  ],
+  payees: [
+    { id: 'p1', name: 'Subway', renameRules: [{ op: 'contains', pattern: 'sub' }] },
+    { id: 'p2', name: 'CodingCops', autoCategorize: true, autoCategoryId: 'c9' },
+  ],
+  audit: [],
+});
+
+describe('upsertPayee', () => {
+  it('creates a record for an uncustomized payee', () => {
+    const next = upsertPayee(base(), { name: 'New Shop', patch: { hidden: true } });
+    const rec = next.payees.find(p => p.name === 'New Shop');
+    expect(rec.hidden).toBe(true);
+    expect(next.audit[0].entityType).toBe('payee');
+  });
+  it('updates in place, case-insensitively', () => {
+    const next = upsertPayee(base(), { name: 'sUbWaY', patch: { autoCategorize: true, autoCategoryId: 'c1' } });
+    expect(next.payees.find(p => p.id === 'p1').autoCategoryId).toBe('c1');
+    expect(next.payees.length).toBe(2);
+  });
+});
+
+describe('renamePayee', () => {
+  it('bulk-updates merchants (ci) and the record name, skipping adjustments', () => {
+    const next = renamePayee(base(), { from: 'subway', to: 'Subway Gulberg' });
+    expect(next.transactions.find(t => t.id === 't1').merchant).toBe('Subway Gulberg');
+    expect(next.transactions.find(t => t.id === 't2').merchant).toBe('Subway Gulberg');
+    expect(next.transactions.find(t => t.id === 't4').merchant).toBe('Subway'); // adjustment untouched
+    expect(next.payees.find(p => p.id === 'p1').name).toBe('Subway Gulberg');
+    expect(next.audit[0].summary).toContain('Subway Gulberg');
+  });
+  it('no-ops on blank or same-key rename', () => {
+    const d = base();
+    expect(renamePayee(d, { from: 'Subway', to: '  ' })).toBe(d);
+    expect(renamePayee(d, { from: 'Subway', to: 'SUBWAY' })).toBe(d);
+  });
+});
+
+describe('combinePayees', () => {
+  it('rewrites merchants, merges rules into the survivor, drops absorbed records', () => {
+    const next = combinePayees(base(), { names: ['Subway', 'CodingCops'], into: 'Everything' });
+    expect(next.transactions.filter(t => t.merchant === 'Everything').map(t => t.id).sort()).toEqual(['t1', 't2', 't3']);
+    expect(next.payees.some(p => p.id === 'p1' || p.id === 'p2')).toBe(false);
+    const survivor = next.payees.find(p => p.name === 'Everything');
+    expect(survivor.renameRules).toEqual([{ op: 'contains', pattern: 'sub' }]);
+  });
+});
+
+describe('deletePayees', () => {
+  it('reassigns to the replacement and removes records', () => {
+    const next = deletePayees(base(), { names: ['Subway'], replacement: 'CodingCops' });
+    expect(next.transactions.find(t => t.id === 't1').merchant).toBe('CodingCops');
+    expect(next.payees.some(p => p.id === 'p1')).toBe(false);
+  });
+  it('[No Payee] blanks the merchant', () => {
+    const next = deletePayees(base(), { names: ['Subway'], replacement: '' });
+    expect(next.transactions.find(t => t.id === 't1').merchant).toBe('');
+    expect(next.transactions.find(t => t.id === 't4').merchant).toBe('Subway');
+  });
+});
+
+describe('setPayeesHidden', () => {
+  it('hides names and transfer refs; un-hiding a bare record removes it', () => {
+    let next = setPayeesHidden(base(), { names: ['Subway'], transferRefs: ['acc:a1'], hidden: true });
+    expect(next.payees.find(p => p.id === 'p1').hidden).toBe(true);
+    expect(next.payees.find(p => p.transferRef === 'acc:a1').hidden).toBe(true);
+    next = setPayeesHidden(next, { transferRefs: ['acc:a1'], hidden: false });
+    expect(next.payees.some(p => p.transferRef === 'acc:a1')).toBe(false); // bare record dropped
+  });
+});
