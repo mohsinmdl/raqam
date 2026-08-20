@@ -215,6 +215,14 @@ export const COLLECTIONS = [
   },
   {
     name: 'payees', table: 'payees', keyOf: r => r.id,
+    // The overlay's one asymmetry: locally `autoCategoryId` holds either a
+    // category id or the string sentinel 'rta' ("leave it uncategorized"),
+    // which is not an id and must not land in auto_category_id — the column
+    // splits it into a boolean, and fromRow puts the sentinel back.
+    // Explicit nulls in toRow (transfer_ref, auto_category_id) so clearing a
+    // field reads as a change and not as an absent one; fromRow is stripNulls
+    // because the local shape keeps only what a payee actually customized —
+    // a record with nothing left is deleted, not stored empty.
     toRow: r => ({
       id: r.id, name: r.name || '', transfer_ref: r.transferRef ?? null,
       auto_categorize: !!r.autoCategorize,

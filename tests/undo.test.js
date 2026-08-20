@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { UNDO_CAP, emptyStacks, labelFor, recordChange, applyUndo, applyRedo, undoLabel, redoLabel } from '../src/lib/undo.js';
+import { UNDO_CAP, emptyStacks, labelFor, recordChange, applyUndo, applyRedo, undoLabel, redoLabel, topSeq } from '../src/lib/undo.js';
 
 const store = over => ({ transactions: [], recurring: [], audit: [], ...(over || {}) });
 const auditRow = summary => ({ id: 'a' + summary, at: '2026-08-06T10:00', summary });
@@ -67,6 +67,37 @@ describe('recordChange', () => {
     const stacks = emptyStacks();
     recordChange(stacks, store(), 'x');
     expect(stacks.past).toEqual([]);
+  });
+});
+
+// A6: depth is not identity — at the cap two different changes share a
+// past.length, so every entry carries a monotonic seq instead.
+describe('entry sequence', () => {
+  it('stamps each entry with the next seq and reports the newest', () => {
+    let s = recordChange(emptyStacks(), store(), 'one');
+    expect(s.past[0].seq).toBe(1);
+    expect(topSeq(s)).toBe(1);
+    s = recordChange(s, store(), 'two');
+    expect(topSeq(s)).toBe(2);
+  });
+
+  it('topSeq is 0 when there is nothing to undo', () => {
+    expect(topSeq(emptyStacks())).toBe(0);
+  });
+
+  it('keeps climbing past UNDO_CAP even though depth stops', () => {
+    let s = emptyStacks();
+    for (let i = 0; i < UNDO_CAP + 10; i++) s = recordChange(s, store({ n: i }), 'step' + i);
+    expect(s.past).toHaveLength(UNDO_CAP);
+    expect(topSeq(s)).toBe(UNDO_CAP + 10);
+    expect(s.past[0].seq).toBe(11); // the surviving front entry
+  });
+
+  it('never reuses a seq after a system reset empties the stacks', () => {
+    const s = recordChange(emptyStacks(), store(), 'one');
+    const reset = { ...s, ...emptyStacks() };   // hydrate / rollover / replaceData
+    expect(topSeq(reset)).toBe(0);
+    expect(recordChange(reset, store(), 'next').past[0].seq).toBe(2);
   });
 });
 

@@ -25,6 +25,7 @@ function Body() {
     refs.budgets ? refs.budgets + ' budget' + (refs.budgets === 1 ? '' : 's') : null,
     refs.recurring ? refs.recurring + ' recurring item' + (refs.recurring === 1 ? '' : 's') : null,
     refs.assignments ? refs.assignments + ' assignment' + (refs.assignments === 1 ? '' : 's') : null,
+    refs.payees ? refs.payees + ' payee rule' + (refs.payees === 1 ? '' : 's') : null,
   ].filter(Boolean).join(', ');
   const month = currentMonth();
   const env = envelopeFor(S, month, nowIso());

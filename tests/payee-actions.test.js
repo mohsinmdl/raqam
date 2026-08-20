@@ -8,6 +8,7 @@ const base = () => ({
     { id: 't2', type: 'expense', merchant: 'SUBWAY', amount: 6 },
     { id: 't3', type: 'income', merchant: 'CodingCops', amount: 7 },
     { id: 't4', type: 'adjustment', merchant: 'Subway', amount: 1 },  // never rewritten
+    { id: 't5', type: 'transfer', merchant: 'Subway', amount: 2 },    // machine-written, never rewritten
   ],
   payees: [
     { id: 'p1', name: 'Subway', renameRules: [{ op: 'contains', pattern: 'sub' }] },
@@ -33,6 +34,14 @@ describe('upsertPayee', () => {
     expect(next.payees.find(p => p.id === 'p1').name).toBe('Subway');
     expect(next.payees.find(p => p.id === 'p1').hidden).toBe(true);
   });
+  // A8: the modal re-sends the whole patch on every commit, so a second
+  // identical commit must be a true no-op — same reference, no audit growth.
+  it('the same patch twice is a no-op the second time', () => {
+    const first = upsertPayee(base(), { name: 'Subway', patch: { autoCategorize: true, autoCategoryId: 'c1' } });
+    const second = upsertPayee(first, { name: 'Subway', patch: { autoCategorize: true, autoCategoryId: 'c1' } });
+    expect(second).toBe(first);
+    expect(second.audit).toHaveLength(1);
+  });
   it('toggling autoCategorize on then off leaves no bare record', () => {
     let next = upsertPayee(base(), { name: 'New Shop', patch: { autoCategorize: true, autoCategoryId: 'c1' } });
     expect(next.payees.some(p => p.name === 'New Shop')).toBe(true);
@@ -50,10 +59,35 @@ describe('renamePayee', () => {
     expect(next.payees.find(p => p.id === 'p1').name).toBe('Subway Gulberg');
     expect(next.audit[0].summary).toContain('Subway Gulberg');
   });
-  it('no-ops on blank or same-key rename', () => {
+  // A5: the only true no-ops are a blank `to` and a byte-identical one. A
+  // same-key rename with different casing is a NORMALIZATION and must write —
+  // see the casing test below.
+  it('no-ops on a blank or byte-identical rename', () => {
     const d = base();
     expect(renamePayee(d, { from: 'Subway', to: '  ' })).toBe(d);
-    expect(renamePayee(d, { from: 'Subway', to: 'SUBWAY' })).toBe(d);
+    expect(renamePayee(d, { from: 'Subway', to: 'Subway' })).toBe(d);
+    expect(renamePayee(d, { from: '  Subway  ', to: 'Subway' })).toBe(d);
+  });
+  it('a same-key rename normalizes casing across merchants and the record', () => {
+    const next = renamePayee(base(), { from: 'Subway', to: 'SUBWAY' });
+    expect(next.transactions.find(t => t.id === 't1').merchant).toBe('SUBWAY');
+    expect(next.transactions.find(t => t.id === 't2').merchant).toBe('SUBWAY'); // already exact — untouched
+    expect(next.transactions.find(t => t.id === 't2').editCount).toBeUndefined();
+    expect(next.transactions.find(t => t.id === 't4').merchant).toBe('Subway'); // adjustment
+    expect(next.transactions.find(t => t.id === 't5').merchant).toBe('Subway'); // transfer
+    expect(next.payees.find(p => p.id === 'p1').name).toBe('SUBWAY');
+    expect(next.audit.length).toBe(1);                                          // ONE audit row
+    expect(next.audit[0].summary).toContain('1 transaction');
+  });
+  it('a casing rename with no record rewrites the merchants alone — no record is born', () => {
+    const d = { transactions: [{ id: 't1', type: 'expense', merchant: 'amazon', amount: 5 }], payees: [], audit: [] };
+    const next = renamePayee(d, { from: 'amazon', to: 'Amazon' });
+    expect(next.transactions[0].merchant).toBe('Amazon');
+    expect(next.payees).toEqual([]);
+  });
+  it('never rewrites a transfer\'s machine-written merchant', () => {
+    const next = renamePayee(base(), { from: 'Subway', to: 'Subway Gulberg' });
+    expect(next.transactions.find(t => t.id === 't5').merchant).toBe('Subway');
   });
   it('renaming onto an existing customized payee merges into one surviving record', () => {
     const data = {
@@ -101,6 +135,67 @@ describe('combinePayees', () => {
     expect(next.transactions.find(t => t.id === 't2').editCount).toBe(1);
     expect(next.audit[0].summary).toContain('1 transaction');
   });
+  // A4: an absorbed record is about to vanish — its auto-categorize rule and
+  // hidden flag move to the survivor unless the survivor already sets them.
+  it('carries absorbed autoCategorize/autoCategoryId/hidden onto a bare survivor', () => {
+    const data = {
+      transactions: [
+        { id: 't1', type: 'expense', merchant: 'Store A', amount: 5 },
+        { id: 't2', type: 'expense', merchant: 'Store B', amount: 6 },
+      ],
+      payees: [{ id: 'p2', name: 'Store B', autoCategorize: true, autoCategoryId: 'c1', hidden: true }],
+      audit: [],
+    };
+    const next = combinePayees(data, { names: ['Store A', 'Store B'], into: 'Store A' });
+    const survivor = next.payees.find(p => p.name === 'Store A');
+    expect(survivor.autoCategorize).toBe(true);
+    expect(survivor.autoCategoryId).toBe('c1');
+    expect(survivor.hidden).toBe(true);
+    expect(next.payees.some(p => p.id === 'p2')).toBe(false);
+  });
+  it("the survivor's own settings win over an absorbed record's", () => {
+    const data = {
+      transactions: [
+        { id: 't1', type: 'expense', merchant: 'Store A', amount: 5 },
+        { id: 't2', type: 'expense', merchant: 'Store B', amount: 6 },
+      ],
+      payees: [
+        { id: 'p1', name: 'Store A', autoCategorize: false, autoCategoryId: 'keep', hidden: false },
+        { id: 'p2', name: 'Store B', autoCategorize: true, autoCategoryId: 'drop', hidden: true },
+      ],
+      audit: [],
+    };
+    const survivor = combinePayees(data, { names: ['Store A', 'Store B'], into: 'Store A' }).payees.find(p => p.name === 'Store A');
+    expect(survivor.autoCategorize).toBe(false);
+    expect(survivor.autoCategoryId).toBe('keep');
+    expect(survivor.hidden).toBe(false);
+  });
+  // A8: the shape the modal actually sends — every selected name, `into` being
+  // the first of them.
+  it('the default UI path (into === names[0]) absorbs the rest and keeps the name', () => {
+    const data = {
+      transactions: [
+        { id: 't1', type: 'expense', merchant: 'Alpha', amount: 5 },
+        { id: 't2', type: 'expense', merchant: 'Beta', amount: 6 },
+        { id: 't3', type: 'expense', merchant: 'Gamma', amount: 7 },
+      ],
+      payees: [
+        { id: 'p1', name: 'Alpha', renameRules: [{ op: 'contains', pattern: 'al' }] },
+        { id: 'p2', name: 'Beta', hidden: true },
+        { id: 'p3', name: 'Gamma', renameRules: [{ op: 'is', pattern: 'gamma' }] },
+      ],
+      audit: [],
+    };
+    const next = combinePayees(data, { names: ['Alpha', 'Beta', 'Gamma'], into: 'Alpha' });
+    expect(next.transactions.every(t => t.merchant === 'Alpha')).toBe(true);
+    expect(next.payees).toHaveLength(1);
+    const survivor = next.payees[0];
+    expect(survivor.id).toBe('p1');
+    expect(survivor.name).toBe('Alpha');
+    expect(survivor.hidden).toBe(true);
+    expect(survivor.renameRules).toEqual([{ op: 'contains', pattern: 'al' }, { op: 'is', pattern: 'gamma' }]);
+    expect(next.audit[0].summary).toContain('2 transaction'); // t1 already read 'Alpha'
+  });
   it('merges deduped rules from survivor and absorbed records', () => {
     const data = {
       transactions: [
@@ -129,10 +224,32 @@ describe('deletePayees', () => {
     expect(next.transactions.find(t => t.id === 't1').merchant).toBe('CodingCops');
     expect(next.payees.some(p => p.id === 'p1')).toBe(false);
   });
+  // A1: "delete A, B and C, move everything to C" is a legal pick — C has to
+  // survive both the rewrite and the record sweep.
+  it('a replacement inside the deleted set survives with its record intact', () => {
+    const data = {
+      transactions: [
+        { id: 't1', type: 'expense', merchant: 'A', amount: 1 },
+        { id: 't2', type: 'expense', merchant: 'B', amount: 2 },
+        { id: 't3', type: 'expense', merchant: 'C', amount: 3 },
+      ],
+      payees: [
+        { id: 'pa', name: 'A', hidden: true },
+        { id: 'pc', name: 'C', autoCategorize: true, autoCategoryId: 'c1' },
+      ],
+      audit: [],
+    };
+    const next = deletePayees(data, { names: ['A', 'B', 'C'], replacement: 'C' });
+    expect(next.transactions.map(t => t.merchant)).toEqual(['C', 'C', 'C']);
+    expect(next.transactions.find(t => t.id === 't3').editCount).toBeUndefined(); // untouched
+    expect(next.payees).toEqual([{ id: 'pc', name: 'C', autoCategorize: true, autoCategoryId: 'c1' }]);
+    expect(next.audit[0].summary).toContain('2 payees');
+  });
   it('[No Payee] blanks the merchant', () => {
     const next = deletePayees(base(), { names: ['Subway'], replacement: '' });
     expect(next.transactions.find(t => t.id === 't1').merchant).toBe('');
     expect(next.transactions.find(t => t.id === 't4').merchant).toBe('Subway');
+    expect(next.transactions.find(t => t.id === 't5').merchant).toBe('Subway');
   });
 });
 

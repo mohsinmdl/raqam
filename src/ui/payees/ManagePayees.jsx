@@ -26,15 +26,16 @@ function transferRows(S) { // plain data helper, not a component
 }
 
 export default function ManagePayees() {
-  const { data: S, undo, redo, undoDepth, canUndo, canRedo } = useStore();
+  const { data: S, undo, redo, undoDepth, undoSeq, canUndo, canRedo } = useStore();
   const { payeesOpen, closePayees } = useUI();
   const phone = useIsPhone();
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(() => new Set());
   const [scope, setScope] = useState(null);
 
-  // Scope lifecycle: mark the boundary when the modal opens, and re-derive the
-  // window whenever the global undo depth moves while it's open. Kept in an
+  // Scope lifecycle: mark the boundary (the newest change's seq) when the
+  // modal opens, and re-derive the redo window whenever the global undo depth
+  // moves while it's open — the boundary itself never moves. Kept in an
   // effect (rather than the mid-render `if (cond) setState(...)` form) so the
   // dependency (undoDepth changing out from under an open modal) is explicit
   // and there's no risk of a render-phase warning from the structural/strict
@@ -43,11 +44,11 @@ export default function ManagePayees() {
   useEffect(() => {
     if (!payeesOpen) { setScope(null); return; }
     setScope(prev => {
-      if (!prev) return openScope(undoDepth);
+      if (!prev) return openScope(undoSeq, undoDepth);
       if (prev.depth === undoDepth) return prev;
       return transition(prev, undoDepth, false);
     });
-  }, [payeesOpen, undoDepth]);
+  }, [payeesOpen, undoDepth, undoSeq]);
 
   const index = useMemo(() => payeeIndex(S), [S]);
   const transfers = useMemo(() => transferRows(S), [S]);
@@ -125,8 +126,8 @@ export default function ManagePayees() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderTop: '1px solid var(--border)', flex: 'none' }}>
-          <button type="button" onClick={modalUndo} disabled={!(scope && canUndoScoped(scope, undoDepth) && canUndo)} className="hv-elev"
-            style={{ height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', opacity: scope && canUndoScoped(scope, undoDepth) && canUndo ? 1 : 0.45 }}>↺ Undo</button>
+          <button type="button" onClick={modalUndo} disabled={!(scope && canUndoScoped(scope, undoSeq) && canUndo)} className="hv-elev"
+            style={{ height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', opacity: scope && canUndoScoped(scope, undoSeq) && canUndo ? 1 : 0.45 }}>↺ Undo</button>
           <button type="button" onClick={modalRedo} disabled={!(scope && canRedoScoped(scope) && canRedo)} className="hv-elev"
             style={{ height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', opacity: scope && canRedoScoped(scope) && canRedo ? 1 : 0.45 }}>↻ Redo</button>
           <span style={{ flex: 1 }} />

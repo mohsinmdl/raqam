@@ -3,6 +3,7 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { loadLegacy, markLegacyMigrated } from '../store/persistence.js';
 import { rolloverMonth } from '../store/actions.js';
+import { freshStore } from '../store/seed.js';
 
 // One-shot migration offer: if this device holds pre-Supabase data (raqam.v1)
 // and the signed-in account is empty, offer to import. The local key is renamed
@@ -36,7 +37,12 @@ export default function ImportLegacy() {
 
       // Merge onto the hydrated catalogues (server institutions/products win by id),
       // roll the current month, and let the diff-sync push everything in FK order.
+      // freshStore() underneath is the shape normalizer: a legacy blob predates
+      // whatever collections have been added since (payees, assignments,
+      // categoryGroups…), and every reader downstream — actions, sync's differ,
+      // the pure lib helpers — assumes each collection is an array.
       const merged = {
+        ...freshStore(),
         ...d,
         institutions: [
           ...data.institutions,
