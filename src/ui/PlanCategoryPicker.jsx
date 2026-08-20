@@ -50,6 +50,11 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   // telling the reader what they could already see, twice. It doubles as the
   // aria-label below, where the name is what a screen reader needs.
   excludeRta, excludeId, excludeIds, placeholder = 'Category',
+  // Which envelope figure the rows show and the caller steers by. Defaults to
+  // 'available' (rollover-inclusive — what the Assign flow and every incumbent
+  // caller want). The Fix-This un-assign flow passes 'assigned' so the number
+  // shown is the THIS-MONTH assignment that moveAssigned actually decrements.
+  amountField = 'available',
   catType = 'expense', showAmounts = true, heading = 'Plan Categories',
   allowCreate = false, onCreate, showSelected = false, footer = null,
   size = 34, invalid, errorMsg, errorId,
@@ -126,7 +131,7 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   };
   const cancelCreate = () => { setCreating(false); setQ(''); };
 
-  const availOf = id => (env && env.rows.get(id) || {}).available || 0;
+  const availOf = id => (env && env.rows.get(id) || {})[amountField] || 0;
   const tone = v => (v > 0 ? 'var(--pos)' : v < 0 ? 'var(--neg)' : 'var(--muted)');
 
   // Current pick for the "Selected" section — looked up directly (not via the

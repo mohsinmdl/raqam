@@ -328,11 +328,16 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
 
 // The inverse of AssignPopover, shown on the banner only when Ready to Assign
 // is negative (you have assigned more than you have — YNAB's "You assigned more
-// than you have" state). "Un-assign money from" a chosen category pulls money
+// than you have" state). Un-assign money from a chosen category pulls money
 // back into Ready to Assign via the SAME moveAssigned contract, reversed
 // (from: category, to: 'rta'). The amount prefills to the exact shortfall
-// (|rta|), the amount that returns the month to zero; the picker is the shared
-// PlanCategoryPicker, so this reads as the same family as the Assign flow.
+// (|rta|), the amount that returns Ready to Assign to zero.
+//
+// The picker is the shared PlanCategoryPicker in `assigned` mode: it shows each
+// category's THIS-MONTH assigned (the number moveAssigned actually decrements,
+// and what YNAB's Fix This picker lists) — not the rollover-inclusive
+// `available` the Assign flow shows — and hides categories with nothing
+// assigned this month, since there is nothing to pull back from them.
 function FixThisPopover({ rta, env, S, month, money, applyData }) {
   const { notify } = useUI();
   const [open, setOpen] = useState(false);
@@ -340,6 +345,12 @@ function FixThisPopover({ rta, env, S, month, money, applyData }) {
   const [amount, setAmount] = useState(() => String(shortfall));
   const [from, setFrom] = useState(null);
   const rootRef = useRef(null);
+  // Only categories that hold assigned money THIS month can give any back; the
+  // rest are excluded from the picker (assigned <= 0 → nothing to un-assign).
+  const noAssignedIds = useMemo(
+    () => S.categories.filter(c => ((env.rows.get(c.id) || {}).assigned || 0) <= 0).map(c => c.id),
+    [S.categories, env]
+  );
 
   const close = () => setOpen(false);
   usePopoverDismiss(open, rootRef, close);
@@ -367,7 +378,7 @@ function FixThisPopover({ rta, env, S, month, money, applyData }) {
       <button
         onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
         className="hv-neg"
-        style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--neg)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--neg)', color: 'var(--on-neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
       >Fix This ▾</button>
       {open && (
         <div role="dialog" aria-label="Un-assign money to fix over-assignment" style={{ ...popCard, top: 40, left: 0, width: 320 }}>
@@ -382,6 +393,7 @@ function FixThisPopover({ rta, env, S, month, money, applyData }) {
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>From:</label>
           <PlanCategoryPicker
             env={env} S={S} month={month} money={money} excludeRta
+            amountField="assigned" excludeIds={noAssignedIds}
             value={from} onChange={setFrom}
           />
 
