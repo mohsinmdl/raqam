@@ -28,7 +28,15 @@ export const Combobox = BaseCombobox;
 const popupStyle = {
   background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
   boxShadow: 'var(--shadow)', padding: 6, color: 'var(--text)', boxSizing: 'border-box',
-  maxHeight: 320, outline: 'none', width: 'var(--anchor-width)',
+  // Floating UI publishes the room actually left below (or above) the anchor as
+  // --available-height. A flat 320 ignored it: in a register row near the
+  // bottom of the viewport the popup ran off the screen edge and its last
+  // options were unreachable. Take the smaller of what fits and 420 — the cap
+  // stops a picker opened at the top of a tall window from becoming a
+  // full-height wall of options. The 320 fallback is the old value, for the
+  // first paint before positioning resolves.
+  maxHeight: 'min(var(--available-height, 320px), 420px)',
+  outline: 'none', width: 'var(--anchor-width)',
   display: 'flex', flexDirection: 'column', minHeight: 0,
 };
 const listStyle = { overflowY: 'auto', minHeight: 0, flex: '0 1 auto' };
@@ -68,8 +76,13 @@ export function ComboboxGroupLabel({ children }) {
 // UI's data-highlighted). hv-elev alone only covers the pointer.
 export function ComboboxItem({ value, children, indent }) {
   return (
+    // One line, ellipsised. A long payee (or a "To/From" transfer label naming
+    // two accounts) wrapped to two and three lines, which broke the rhythm of
+    // the list and made the option boxes different heights — so the keyboard
+    // highlight appeared to change size as it moved.
     <BaseCombobox.Item value={value} className="rq-combo-item hv-elev"
-      style={{ padding: '5px 8px', paddingLeft: indent ? 22 : 8, borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
+      style={{ padding: '5px 8px', paddingLeft: indent ? 22 : 8, borderRadius: 6, fontSize: 13, cursor: 'pointer',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
       {children}
     </BaseCombobox.Item>
   );

@@ -24,8 +24,13 @@ const CategoryCell = forwardRef(function CategoryCell({ value, onChange, onCreat
     return <span className="field" style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)' }}>Payment/Transfer</span>;
   }
   if (disabled) {
+    // aria-disabled, not just a muted colour: this looks exactly like the
+    // editable field beside it, so without the attribute it read as a text box
+    // that had simply stopped responding. The attribute also carries the
+    // disabled TREATMENT (theme.css, .field[aria-disabled="true"]) — a filled
+    // --elev ground with no border — so "not editable" is a shape, not a shade.
     const cat = value ? S.categories.find(c => c.id === value) : null;
-    return <span className="field" style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)' }}>{cat ? cat.name : 'category'}</span>;
+    return <span className="field" aria-disabled="true" style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13 }}>{cat ? cat.name : 'category'}</span>;
   }
   const env = envelopeFor(S, month, nowIso());
   return (

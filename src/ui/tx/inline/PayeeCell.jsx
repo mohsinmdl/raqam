@@ -42,6 +42,8 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
   };
   const commitText = () => { if (q !== null) { onPickPayee(q); setQ(null); } };
   const id = errorId || 'txeditor-err-payee';
+  // Nothing in the list at all — a brand-new merchant, or an empty ledger.
+  const noMatches = sections.every(s => s.items.length === 0);
 
   return (
     <Combobox.Root items={sections.flatMap(s => s.items)} onValueChange={pick} value={null} filter={null}
@@ -58,6 +60,16 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
           value={shown}
           onChange={e => setQ(e.target.value)}
           onBlur={commitText}
+          // With no item to pick, Enter has to MEAN what the empty state
+          // promises: take the typed text as the payee. preventDefault stops
+          // the same keystroke also reaching the editor row's Enter-to-save
+          // (onRowKey checks defaultPrevented), which would otherwise submit
+          // from a render that hadn't seen the payee yet — the free-text
+          // commit would race the save and lose. One Enter commits, a second
+          // saves.
+          onKeyDown={e => {
+            if (e.key === 'Enter' && noMatches && q !== null && q !== '') { e.preventDefault(); commitText(); }
+          }}
           style={{ width: '100%', height: 28, padding: '0 22px 0 8px', fontSize: 13, ...(invalid ? ringStyle : null) }}
         />
         <span aria-hidden="true" style={{ position: 'absolute', right: 8, top: 14, transform: 'translateY(-50%)', color: 'var(--muted)', display: 'inline-flex', pointerEvents: 'none' }}><Chevron /></span>
@@ -69,6 +81,18 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
           Manage Payees
         </button>
       )}>
+        {/* Typing a payee this ledger has never seen is the NORMAL case for a
+            new merchant, but the panel simply emptied — which reads as "no,
+            and there is nothing you can do", the opposite of the truth. Free
+            text is a valid payee here (commitText on blur / Enter), so the
+            empty state says so, quotes back what was typed, and names the key
+            that takes it. Styled like PlanCategoryPicker's "No matches." so
+            the two pickers' dead ends match. */}
+        {noMatches && (
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', padding: 8 }}>
+            {q ? <>No saved payee matches. Press Enter to use “{q}”.</> : 'No saved payees yet.'}
+          </div>
+        )}
         {sections.map(s => (
           <Combobox.Group key={s.label} items={s.items}>
             <ComboboxGroupLabel>{s.label}</ComboboxGroupLabel>

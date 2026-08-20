@@ -8,6 +8,7 @@ import { Popover, PopoverTrigger, PopoverPanel } from '../../primitives/Popover.
 import { applyCalcExpr } from '../../../lib/calcExpr.js';
 import { formatAmountInput } from '../../../lib/amountInput.js';
 import { parseAmt } from '../../../lib/format.js';
+import { CalcIcon } from '../../icons.jsx';
 
 const OP_KEYS = /[+\-−×*÷/]/;
 const CALC_MSG = {
@@ -54,10 +55,19 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
             way to reach the calculator without knowing the operators are
             typeable, and a control no keyboard can reach is not a control. The
             theme's :focus-visible ring makes the stop visible; the radius keeps
-            that ring on the glyph rather than around the whole cell. */}
-        <PopoverTrigger aria-label={'Calculator for ' + ariaLabel} disabled={disabled} tabIndex={0} className="hv-soft"
-          style={{ width: 18, height: 28, border: 'none', borderRadius: 4, background: 'none', color: 'var(--muted)', fontSize: 10, cursor: 'pointer', flex: 'none', padding: 0 }}>
-          ⌗
+            that ring on the glyph rather than around the whole cell.
+            24 wide, not 18 — the pointer-target floor — and the glyph is drawn
+            (CalcIcon): ⌗ is U+2317 VIEWDATA SQUARE, which is not a calculator,
+            is missing from plenty of font stacks, and arrived as a tofu box or
+            a hash on the ones that do have it.
+            The name says what pressing it DOES ("Insert an operator into
+            Outflow") rather than naming the machine behind it — "Calculator
+            for Outflow" left the reader to guess whether it opened a
+            calculator, a converter, or a setting. */}
+        <PopoverTrigger aria-label={'Insert an operator into ' + ariaLabel} title="Insert an operator"
+          disabled={disabled} tabIndex={0} className="hv-soft"
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 28, border: 'none', borderRadius: 4, background: 'none', color: 'var(--muted)', cursor: 'pointer', flex: 'none', padding: 0 }}>
+          <CalcIcon size={14} />
         </PopoverTrigger>
         <PopoverPanel width={92} arrow style={{ padding: 8 }}
           onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>
