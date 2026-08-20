@@ -23,11 +23,22 @@ export function labelFor(prevData, nextData) {
   return nextHead.summary || 'last change';
 }
 
+// Every entry carries a monotonic `seq`, because past.length is NOT a stable
+// identity for "which change is on top": at UNDO_CAP the front-drop below
+// keeps the length pinned, so two different changes share a depth. Anything
+// comparing "is the top entry newer than the one I saw?" (src/lib/scopedUndo.js)
+// has to compare seq. The counter lives on the stacks object and only ever
+// grows — emptyStacks() deliberately does NOT reset it, so an entry recorded
+// after a hydrate/system reset can never reuse a seq an open scope remembers.
 export function recordChange(stacks, prevData, label) {
-  const past = [...stacks.past, { snapshot: prevData, label }];
+  const seq = (stacks.seq || 0) + 1;
+  const past = [...stacks.past, { snapshot: prevData, label, seq }];
   // Drop from the front so the most recent UNDO_CAP steps survive.
-  return { past: past.length > UNDO_CAP ? past.slice(past.length - UNDO_CAP) : past, future: [] };
+  return { past: past.length > UNDO_CAP ? past.slice(past.length - UNDO_CAP) : past, future: [], seq };
 }
+
+// The seq of the newest undoable entry; 0 when there is nothing to undo.
+export const topSeq = stacks => (stacks.past.length ? stacks.past[stacks.past.length - 1].seq || 0 : 0);
 
 // Restoring an older snapshot would also restore an older `audit`, which the
 // sync engine treats as append-only (sync.js: appendOnly, and the server has
@@ -47,7 +58,9 @@ export function applyUndo(state, auditRow) {
   return {
     data: restore(state.data, entry.snapshot, auditRow),
     past: state.past.slice(0, -1),
-    future: [...state.future, { snapshot: state.data, label: entry.label }],
+    // The entry keeps its seq on the way to the redo stack and back, so a
+    // redone change lands on `past` with the identity it was recorded with.
+    future: [...state.future, { snapshot: state.data, label: entry.label, seq: entry.seq }],
   };
 }
 
@@ -56,7 +69,7 @@ export function applyRedo(state, auditRow) {
   const entry = state.future[state.future.length - 1];
   return {
     data: restore(state.data, entry.snapshot, auditRow),
-    past: [...state.past, { snapshot: state.data, label: entry.label }],
+    past: [...state.past, { snapshot: state.data, label: entry.label, seq: entry.seq }],
     future: state.future.slice(0, -1),
   };
 }

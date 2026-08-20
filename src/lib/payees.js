@@ -1,31 +1,33 @@
 // The payee OVERLAY (Spec 2): payees are the distinct merchant strings on
 // transactions; a S.payees record exists only once one is customized
 // (auto-categorize, rename rules, hidden, canonical casing). Everything here
-// is pure and case-insensitive on the trimmed name. Adjustment rows write a
-// machine merchant ('Balance adjustment') and are never payees. Records with
+// is pure and case-insensitive on the trimmed name. Three transaction kinds
+// carry a MACHINE-written merchant and are never payees: adjustments,
+// card adjustments, and transfers (a card payment is the only transfer that
+// carries a merchant at all, and the app writes it). Records with
 // transferRef customize SYNTHESIZED transfer payees (visibility only) and
-// never join the name index.
+// never join the name index — that is where a transfer's visibility lives.
 export const payeeKey = name => String(name || '').trim().toLowerCase();
 
 export const matchesPayeeTx = (t, key) =>
-  t.type !== 'adjustment' && t.type !== 'cardAdjustment' && payeeKey(t.merchant) === key;
+  t.type !== 'adjustment' && t.type !== 'cardAdjustment' && t.type !== 'transfer' && payeeKey(t.merchant) === key;
 
 export function payeeRecordFor(S, name) {
   const k = payeeKey(name);
   if (!k) return null;
-  return S.payees.find(p => !p.transferRef && payeeKey(p.name) === k) || null;
+  return (S.payees || []).find(p => !p.transferRef && payeeKey(p.name) === k) || null;
 }
 
 export function payeeIndex(S) {
   const byKey = new Map(); // key -> { name, record, txCount }
   for (const t of S.transactions) {
     const k = payeeKey(t.merchant);
-    if (!k || t.type === 'adjustment' || t.type === 'cardAdjustment') continue;
+    if (!k || t.type === 'adjustment' || t.type === 'cardAdjustment' || t.type === 'transfer') continue;
     const cur = byKey.get(k);
     if (cur) cur.txCount += 1;
     else byKey.set(k, { name: t.merchant.trim(), record: null, txCount: 1 });
   }
-  for (const p of S.payees) {
+  for (const p of (S.payees || [])) {
     if (p.transferRef) continue;
     const k = payeeKey(p.name);
     if (!k) continue;
@@ -37,12 +39,21 @@ export function payeeIndex(S) {
 }
 
 export function transferHidden(S, ref) {
-  return S.payees.some(p => p.transferRef === ref && p.hidden);
+  return (S.payees || []).some(p => p.transferRef === ref && p.hidden);
 }
 
+// A rule's category can go stale behind the overlay's back: the category may
+// be archived (still in S.categories, but no longer offerable) or deleted
+// outright by a path that missed the sweep. Resolving the id here — rather
+// than trusting the record — keeps a stale rule from silently writing a dead
+// category id onto a transaction. 'rta' is a sentinel, not an id, so it never
+// needs to resolve.
 export function autoCategoryFor(S, name) {
   const r = payeeRecordFor(S, name);
-  return r && r.autoCategorize ? (r.autoCategoryId || null) : null;
+  if (!r || !r.autoCategorize) return null;
+  const id = r.autoCategoryId || null;
+  if (!id || id === 'rta') return id;
+  return (S.categories || []).some(c => c.id === id && c.status !== 'archived') ? id : null;
 }
 
 // Import-time canonicalization (NO production caller yet — the app has no
@@ -52,7 +63,7 @@ export function autoCategoryFor(S, name) {
 export function applyRenameRules(name, payees) {
   const k = payeeKey(name);
   if (!k) return name;
-  const records = payees.filter(p => !p.transferRef && (p.renameRules || []).length);
+  const records = (payees || []).filter(p => !p.transferRef && (p.renameRules || []).length);
   for (const op of ['is', 'contains']) {
     for (const p of records) {
       for (const rule of p.renameRules) {

@@ -56,8 +56,9 @@ rules, hide, delete-with-reassignment) plus multi-select operations
 ```
 
 **Supabase**: one new migration — `payees` table (`id` uuid pk, `user_id`,
-`name` text, `auto_categorize` bool, `auto_category_id` uuid nullable FK →
-categories, `auto_category_rta` bool, `rename_rules` jsonb, `hidden` bool)
+`name` text, `auto_categorize` bool, `auto_category_id` text nullable (no FK
+— the app-level category sweep owns that integrity; see the migration
+header), `auto_category_rta` bool, `rename_rules` jsonb, `hidden` bool)
 with the usual RLS — plus a `sync.js` collection mapping. This is the
 initiative's first schema change; the implementation plan carries the SQL
 for approval.
@@ -68,13 +69,18 @@ come free; each is ONE undo step):
 - `upsertPayee(data, { name, patch })` — create-or-update the overlay record.
 - `renamePayee(data, { from, to })` — updates the record's name AND
   bulk-updates every matching transaction's `merchant` (case-insensitive
-  match, exact replacement with `to`'s casing).
+  match, exact replacement with `to`'s casing — so a same-key rename is a
+  casing normalization, not a no-op). Renaming onto a payee that already has
+  a record MERGES the two: the target survives, taking the source's rename
+  rules (deduped) plus its auto-categorize/hidden settings wherever the
+  target sets none, and the source record is dropped.
 - `combinePayees(data, { names, into })` — survivor name `into`;
   bulk-updates merchants of all absorbed names; merges all rename rules
   onto the survivor's record (deduped); deletes absorbed records.
-- `deletePayee(data, { name, replacement })` — reassigns matching
+- `deletePayees(data, { names, replacement })` — reassigns the matching
   transactions' `merchant` to `replacement` (`''` for [No Payee]), then
-  removes the record. Bulk variant accepts multiple names, one replacement.
+  removes those records. One replacement for the whole set; if the
+  replacement is itself one of `names`, it survives untouched.
 - `setPayeesHidden(data, { names, hidden })`.
 
 ## Section 2 — Editor & import integration
@@ -135,7 +141,7 @@ Desktop modal on a new Base UI Dialog primitive
 - Pure Vitest (no jsdom, repo convention): `payees.js` union/casing/hidden/
   txCount; rule matching incl. precedence; auto-categorize decision (empty
   cell, explicit pick wins, 'rta'); store actions (`renamePayee` bulk
-  update, `combinePayees` rule merge + record cleanup, `deletePayee`
+  update, `combinePayees` rule merge + record cleanup, `deletePayees`
   reassignment incl. [No Payee], hidden), extending the existing
   store-action test style; upgraded `payeeOptions` sections (Saved Payees,
   hidden exclusion); sync round-trip mapping for the new collection; the

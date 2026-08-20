@@ -7,7 +7,7 @@ import { CATEGORIES } from './seed.js';
 import { currentMonth } from '../lib/dates.js';
 import LoadingScreen from '../components/LoadingScreen.jsx';
 import { makeAudit } from './audit.js';
-import { applyRedo, applyUndo, emptyStacks, labelFor, recordChange, redoLabel, undoLabel } from '../lib/undo.js';
+import { applyRedo, applyUndo, emptyStacks, labelFor, recordChange, redoLabel, topSeq, undoLabel } from '../lib/undo.js';
 import { loadUserPrefs, writeUserPrefs } from '../lib/prefsStore.js';
 
 // Server-backed store. The in-memory store + pure actions are unchanged from the
@@ -206,6 +206,9 @@ export function StoreProvider({ userId, children }) {
     undoLabel: undoLabel(state),
     redoLabel: redoLabel(state),
     undoDepth: state.past.length,
+    // Identity of the newest undoable change — the scoped-undo boundary is
+    // marked against this, not against depth (src/lib/scopedUndo.js).
+    undoSeq: topSeq(state),
   }), [state.data, state.past, state.future, syncStatus, userPrefsSaved, deviceSaved, userPrefs, devicePrefs, setPrefs]);
 
   if (state.status === 'loading') return <LoadingScreen message="Loading your data…" />;

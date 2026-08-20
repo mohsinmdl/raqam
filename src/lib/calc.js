@@ -228,7 +228,11 @@ export function catRefs(store, id) {
   const budgets = store.budgets.filter(b => b.category === id).length;
   const recurring = store.recurring.filter(r => r.category === id).length;
   const assignments = (store.assignments || []).filter(a => a.category === id).length;
-  return { transactions, budgets, recurring, assignments, total: transactions + budgets + recurring + assignments };
+  // Payee auto-categorize rules point at a category by id with no FK behind
+  // them, so they count as references too — otherwise deletePolicy calls a
+  // rule-referenced category "unused" and the rule keeps a dead id.
+  const payees = (store.payees || []).filter(p => p.autoCategoryId === id).length;
+  return { transactions, budgets, recurring, assignments, payees, total: transactions + budgets + recurring + assignments + payees };
 }
 export function catMonthTotal(store, id, month, now) {
   return store.transactions

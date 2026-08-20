@@ -2,10 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { payeeKey, payeeRecordFor, payeeIndex, transferHidden, autoCategoryFor, applyRenameRules, matchesPayeeTx, autoCategoryPatchArgs } from '../src/lib/payees.js';
 
 const S = {
+  categories: [
+    { id: 'c9', name: 'Food', type: 'expense', status: 'active' },
+    { id: 'c8', name: 'Old', type: 'expense', status: 'archived' },
+  ],
   transactions: [
     { type: 'expense', merchant: 'Subway' }, { type: 'expense', merchant: 'subway' },
     { type: 'income', merchant: 'CodingCops' }, { type: 'expense', merchant: '' },
     { type: 'adjustment', merchant: 'Balance adjustment' },
+    { type: 'transfer', merchant: 'Meezan payment' },   // machine-written, never a payee
   ],
   payees: [
     { id: 'p1', name: 'SUBWAY', autoCategorize: true, autoCategoryId: 'c9', renameRules: [{ op: 'contains', pattern: 'sub' }] },
@@ -25,11 +30,18 @@ describe('payeeIndex', () => {
     const landlord = idx.find(p => p.name === 'Landlord');
     expect(landlord.txCount).toBe(0);         // record-only payee still listed
     expect(idx.some(p => p.name === 'Balance adjustment')).toBe(false); // adjustments never payees
+    expect(idx.some(p => p.name === 'Meezan payment')).toBe(false);     // transfers never payees
     expect(idx.some(p => p.name === '')).toBe(false);
     expect(idx.map(p => p.name)).toEqual([...idx.map(p => p.name)].sort((a, b) => a.localeCompare(b)));
   });
   it('transfer records never appear in the index', () => {
     expect(payeeIndex(S).some(p => p.record && p.record.transferRef)).toBe(false);
+  });
+  it('survives a store with no payees collection at all', () => {
+    expect(payeeIndex({ transactions: [] })).toEqual([]);
+    expect(payeeIndex({ transactions: [{ type: 'expense', merchant: 'Subway' }] })).toEqual([
+      { name: 'Subway', record: null, txCount: 1 },
+    ]);
   });
 });
 
@@ -46,6 +58,19 @@ describe('lookups', () => {
     expect(autoCategoryFor(S, 'Subway')).toBe('c9');
     expect(autoCategoryFor(S, 'Mepco')).toBe(null);
     expect(autoCategoryFor(S, 'unknown')).toBe(null);
+  });
+  // A3: the id has no FK behind it, so a rule can outlive its category.
+  it('autoCategoryFor returns null when the rule points at a deleted category', () => {
+    const stale = { ...S, payees: [{ id: 'p1', name: 'Subway', autoCategorize: true, autoCategoryId: 'gone' }] };
+    expect(autoCategoryFor(stale, 'Subway')).toBe(null);
+  });
+  it('autoCategoryFor returns null when the rule points at an ARCHIVED category', () => {
+    const archived = { ...S, payees: [{ id: 'p1', name: 'Subway', autoCategorize: true, autoCategoryId: 'c8' }] };
+    expect(autoCategoryFor(archived, 'Subway')).toBe(null);
+  });
+  it("'rta' is a sentinel, not an id — it never has to resolve", () => {
+    const rta = { ...S, categories: [], payees: [{ id: 'p1', name: 'Subway', autoCategorize: true, autoCategoryId: 'rta' }] };
+    expect(autoCategoryFor(rta, 'Subway')).toBe('rta');
   });
 });
 
@@ -71,10 +96,13 @@ describe('matchesPayeeTx', () => {
     expect(matchesPayeeTx({ type: 'adjustment', merchant: 'subway' }, 'subway')).toBe(false);
     expect(matchesPayeeTx({ type: 'cardAdjustment', merchant: 'subway' }, 'subway')).toBe(false);
   });
+  it('never matches a transfer — a card payment\'s merchant is machine-written', () => {
+    expect(matchesPayeeTx({ type: 'transfer', merchant: 'Meezan payment' }, 'meezan payment')).toBe(false);
+  });
 });
 
 describe('autoCategoryPatchArgs', () => {
-  const S2 = { transactions: [], payees: [
+  const S2 = { transactions: [], categories: [{ id: 'c9', name: 'Food', type: 'expense', status: 'active' }], payees: [
     { id: 'p1', name: 'Mepco', autoCategorize: true, autoCategoryId: 'c9' },
     { id: 'p2', name: 'Boss', autoCategorize: true, autoCategoryId: 'rta' },
   ] };

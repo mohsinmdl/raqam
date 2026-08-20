@@ -133,8 +133,8 @@ describe('catRefs + deletePolicy count assignments (I3)', () => {
   it('catRefs counts assignments alongside the existing ref kinds', () => {
     const s = twoCats();
     s.assignments = [{ id: 'x1', category: 'groc', month: '2026-08', amount: 5000 }];
-    expect(catRefs(s, 'groc')).toEqual({ transactions: 0, budgets: 0, recurring: 0, assignments: 1, total: 1 });
-    expect(catRefs(s, 'food')).toEqual({ transactions: 0, budgets: 0, recurring: 0, assignments: 0, total: 0 });
+    expect(catRefs(s, 'groc')).toEqual({ transactions: 0, budgets: 0, recurring: 0, assignments: 1, payees: 0, total: 1 });
+    expect(catRefs(s, 'food')).toEqual({ transactions: 0, budgets: 0, recurring: 0, assignments: 0, payees: 0, total: 0 });
   });
 
   it('deletePolicy offers reassign — not delete — when only an assignment references the category', () => {
@@ -204,5 +204,41 @@ describe('reassignDeleteCategory repoints and merges assignments (I3)', () => {
     const next = reassignDeleteCategory(s, { id: 'groc', replacementId: 'food' });
     expect(next.audit[0]).toMatchObject({ entityType: 'category', action: 'reassign-delete' });
     expect(next.audit[0].summary).toContain('1 reference(s) moved');
+  });
+});
+
+// A3: a payee's auto-categorize rule points at a category id with no FK behind
+// it, so the overlay is a referrer like any other — a category delete must see
+// it and a reassign must repoint it, or the rule keeps writing a dead id.
+describe('payee auto-categorize rules are category references (A3)', () => {
+  it('catRefs counts a payee rule and deletePolicy refuses to hard-delete', () => {
+    const s = twoCats();
+    s.payees = [{ id: 'p1', name: 'Imtiaz', autoCategorize: true, autoCategoryId: 'groc' }];
+    expect(catRefs(s, 'groc')).toMatchObject({ payees: 1, total: 1 });
+    expect(deletePolicy(s, s.categories[0]).mode).toBe('reassign');
+  });
+
+  it('deleteCategory no-ops when only a payee rule references the category', () => {
+    const s = twoCats();
+    s.payees = [{ id: 'p1', name: 'Imtiaz', autoCategorize: true, autoCategoryId: 'groc' }];
+    expect(deleteCategory(s, { id: 'groc' })).toBe(s);
+  });
+
+  it('reassignDeleteCategory repoints the rule and counts it in the audit', () => {
+    const s = twoCats();
+    s.payees = [
+      { id: 'p1', name: 'Imtiaz', autoCategorize: true, autoCategoryId: 'groc' },
+      { id: 'p2', name: 'Other', autoCategorize: true, autoCategoryId: 'food' },
+    ];
+    const next = reassignDeleteCategory(s, { id: 'groc', replacementId: 'food' });
+    expect(next.payees.find(p => p.id === 'p1').autoCategoryId).toBe('food');
+    expect(next.payees.find(p => p.id === 'p2').autoCategoryId).toBe('food'); // untouched
+    expect(next.audit[0].summary).toContain('1 reference(s) moved');
+  });
+
+  it('leaves the collection by reference when no rule points at the category', () => {
+    const s = twoCats();
+    s.payees = [{ id: 'p1', name: 'Imtiaz', hidden: true }];
+    expect(reassignDeleteCategory(s, { id: 'groc', replacementId: 'food' }).payees).toBe(s.payees);
   });
 });

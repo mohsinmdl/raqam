@@ -1011,7 +1011,8 @@ export function restoreCategory(data, { id }) {
 export function deleteCategory(data, { id }) {
   const cat = data.categories.find(c => c.id === id);
   if (!cat || cat.isSystem) return data;
-  const used = data.transactions.some(t => t.category === id) || data.budgets.some(b => b.category === id) || data.recurring.some(r => r.category === id);
+  const used = data.transactions.some(t => t.category === id) || data.budgets.some(b => b.category === id) || data.recurring.some(r => r.category === id)
+    || (data.payees || []).some(p => p.autoCategoryId === id);
   if (used) return data; // policy violation — caller should have offered reassign
   return {
     ...data,
@@ -1034,6 +1035,7 @@ export function reassignDeleteCategory(data, { id, replacementId }) {
     budgets: data.budgets.filter(b => b.category === id).length,
     recurring: data.recurring.filter(r => r.category === id).length,
     assignments: srcAssignments.length,
+    payees: (data.payees || []).filter(p => p.autoCategoryId === id).length,
   };
   // Budgets are unique per category: if the replacement already has one, the
   // source's budget is dropped rather than repointed (the replacement's own
@@ -1062,10 +1064,11 @@ export function reassignDeleteCategory(data, { id, replacementId }) {
       : data.budgets.map(b => (b.category === id ? { ...b, category: replacementId } : b)),
     recurring: data.recurring.map(r => (r.category === id ? { ...r, category: replacementId } : r)),
     assignments,
+    payees: sweepPayeeCategory(data.payees, id, replacementId),
     categories: data.categories.filter(c => c.id !== id),
     audit: [makeAudit({
       entityType: 'category', entityId: id, action: 'reassign-delete',
-      summary: 'Deleted ' + cat.name + ' — ' + (moved.transactions + moved.budgets + moved.recurring + moved.assignments) + ' reference(s) moved to ' + repl.name,
+      summary: 'Deleted ' + cat.name + ' — ' + (moved.transactions + moved.budgets + moved.recurring + moved.assignments + moved.payees) + ' reference(s) moved to ' + repl.name,
       before: { name: cat.name, refs: moved }, after: { replacementId, replacementName: repl.name },
     }), ...(data.audit || [])],
   };
@@ -1443,6 +1446,29 @@ function rewriteMerchants(transactions, keys, to) {
 // covers `hidden` too (used after a patch, not just after un-hiding).
 const bareRecord = p => !p.autoCategorize && !p.autoCategoryId && !(p.renameRules || []).length && !p.hidden;
 
+// The category-delete sweep for the overlay. `autoCategoryId` is a plain id
+// with no FK behind it (the payees table is name-keyed and user-scoped — see
+// migration 0016), so nothing but this pass stops a deleted category's id from
+// living on inside a rule and being written onto a future transaction.
+// With a replacement the rule follows the category; without one the rule is
+// removed outright (the record keeps whatever else it customized, and is
+// dropped when that leaves it bare). reassignDeleteCategory is the only
+// caller today, and it always has a replacement; the no-replacement branch
+// exists because deleteCategory's `used` guard is what forbids that path, and
+// a guard is a decision that can be revisited.
+function sweepPayeeCategory(payees, id, replacementId) {
+  const src = payees || [];
+  if (!src.some(p => p.autoCategoryId === id)) return src;
+  const out = [];
+  for (const p of src) {
+    if (p.autoCategoryId !== id) { out.push(p); continue; }
+    if (replacementId) { out.push({ ...p, autoCategoryId: replacementId }); continue; }
+    const { autoCategoryId: _a, autoCategorize: _c, ...rest } = p;
+    if (!bareRecord(rest)) out.push(rest);
+  }
+  return out;
+}
+
 export function upsertPayee(data, { name, patch }) {
   const k = payeeKey(name);
   if (!k) return data;
@@ -1468,10 +1494,16 @@ export function upsertPayee(data, { name, patch }) {
   return { ...data, payees, audit: [payeeAudit('Updated payee "' + rec.name + '"'), ...(data.audit || [])] };
 }
 
+// A same-key rename ('amazon' → 'Amazon') is a CASING NORMALIZATION, not a
+// no-op: the payee list shows one canonical spelling, so committing a new one
+// has to reach the transactions (and the record, if there is one) or the old
+// spelling wins the moment the record is dropped. rewriteMerchants skips rows
+// that already read exactly `to`, so the common case costs one pass and zero
+// writes. The only true no-ops are a blank `to` and a byte-identical one.
 export function renamePayee(data, { from, to }) {
   const toName = String(to || '').trim();
   const fromKey = payeeKey(from);
-  if (!toName || !fromKey || payeeKey(toName) === fromKey) return data;
+  if (!toName || !fromKey || toName === String(from || '').trim()) return data;
   const { out, changed } = rewriteMerchants(data.transactions, [fromKey], toName);
   const rec = payeeRecordFor(data, from);
   const targetExisting = payeeRecordFor(data, toName);
@@ -1499,7 +1531,8 @@ export function renamePayee(data, { from, to }) {
   } else if (rec) {
     payees = data.payees.map(p => (p.id === rec.id ? { ...p, name: toName } : p));
   }
-  if (!changed && !rec) return data;
+  // Nothing moved and the record (if any) already carries this exact spelling.
+  if (!changed && (!rec || rec.name === toName)) return data;
   return {
     ...data, transactions: out, payees,
     audit: [payeeAudit('Renamed payee "' + String(from).trim() + '" to "' + toName + '" (' + changed + ' transaction' + (changed === 1 ? '' : 's') + ')'), ...(data.audit || [])],
@@ -1526,11 +1559,23 @@ export function combinePayees(data, { names, into }) {
     seenRules.add(ruleKey(r));
     mergedRules.push(r);
   }
+  // Absorbed records also hand over their auto-categorize rule and hidden
+  // flag — same merge as renamePayee's collision path, and for the same
+  // reason: the absorbed record is about to vanish, so anything it customized
+  // is lost unless the survivor takes it. The survivor's own settings always
+  // win; among the absorbed, the first record that sets a value wins.
+  const merged = survivorExisting ? { ...survivorExisting, name: intoName } : { id: uid(), name: intoName };
+  if (mergedRules.length) merged.renameRules = mergedRules;
+  for (const p of absorbed) {
+    if (merged.autoCategorize === undefined && p.autoCategorize !== undefined) merged.autoCategorize = p.autoCategorize;
+    if (!merged.autoCategoryId && p.autoCategoryId) merged.autoCategoryId = p.autoCategoryId;
+    if (merged.hidden === undefined && p.hidden !== undefined) merged.hidden = p.hidden;
+  }
   let payees = data.payees.filter(p => !absorbed.includes(p));
   if (survivorExisting) {
-    payees = payees.map(p => (p.id === survivorExisting.id ? { ...p, name: intoName, ...(mergedRules.length ? { renameRules: mergedRules } : {}) } : p));
-  } else if (mergedRules.length) {
-    payees = [...payees, { id: uid(), name: intoName, renameRules: mergedRules }];
+    payees = payees.map(p => (p.id === survivorExisting.id ? merged : p));
+  } else if (!bareRecord(merged)) {
+    payees = [...payees, merged];
   }
   if (!changed && absorbed.length === 0) return data;
   return {
@@ -1540,7 +1585,12 @@ export function combinePayees(data, { names, into }) {
 }
 
 export function deletePayees(data, { names, replacement = '' }) {
-  const keys = (names || []).map(payeeKey).filter(Boolean);
+  // Reassigning INTO one of the deleted payees is a legal (if odd) pick from
+  // the UI's dropdown: "delete A, B and C, move everything to C". The
+  // replacement must then survive both the merchant rewrite and the record
+  // sweep, so its key never joins the delete set.
+  const replKey = payeeKey(replacement);
+  const keys = (names || []).map(payeeKey).filter(k => k && k !== replKey);
   if (keys.length === 0) return data;
   const { out, changed } = rewriteMerchants(data.transactions, keys, String(replacement || '').trim());
   const payees = data.payees.filter(p => p.transferRef || !keys.includes(payeeKey(p.name)));
