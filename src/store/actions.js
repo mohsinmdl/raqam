@@ -8,6 +8,7 @@ import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } 
 import { uid } from '../lib/util.js';
 import { parseAmt } from '../lib/format.js';
 import { YNAB_TREE, OTHER_GROUP, ALIASES, normName } from '../lib/ynabTree.js';
+import { payeeKey, matchesPayeeTx, payeeRecordFor } from '../lib/payees.js';
 import { makeAudit, diffFields, stampUpdate } from './audit.js';
 import { freshStore } from './seed.js';
 import { TARGET_MODES } from '../lib/targets.js';
@@ -1414,5 +1415,135 @@ export function deleteBudget(data, { id }) {
       entityType: 'budget', entityId: id, action: 'delete', summary: 'Budget removed',
       before: { category: b.category || null, amount: b.amount, rollover: !!b.rollover },
     }), ...(data.audit || [])],
+  };
+}
+
+// ---- Payees (Spec 2 overlay) ------------------------------------------------
+// A payee is the merchant string on transactions; a S.payees record exists
+// only once it is customized. Bulk merchant rewrites here are the ONLY place
+// merchant strings change wholesale — always case-insensitive on the trimmed
+// name and never touching adjustments (their merchant is machine-written).
+
+const payeeAudit = (summary, before = null, after = null) =>
+  makeAudit({ entityType: 'payee', entityId: 'payees', action: 'update', summary, before, after });
+
+function rewriteMerchants(transactions, keys, to) {
+  let changed = 0;
+  const out = transactions.map(t => {
+    if (!keys.some(k => matchesPayeeTx(t, k))) return t;
+    changed += 1;
+    return stampUpdate({ ...t, merchant: to });
+  });
+  return { out, changed };
+}
+
+export function upsertPayee(data, { name, patch }) {
+  const k = payeeKey(name);
+  if (!k) return data;
+  const existing = payeeRecordFor(data, name);
+  const rec = existing
+    ? { ...existing, ...patch }
+    : { id: uid(), name: String(name).trim(), ...patch };
+  if (existing && JSON.stringify(rec) === JSON.stringify(existing)) return data;
+  const payees = existing
+    ? data.payees.map(p => (p.id === existing.id ? rec : p))
+    : [...data.payees, rec];
+  return { ...data, payees, audit: [payeeAudit('Updated payee "' + rec.name + '"'), ...(data.audit || [])] };
+}
+
+export function renamePayee(data, { from, to }) {
+  const toName = String(to || '').trim();
+  const fromKey = payeeKey(from);
+  if (!toName || !fromKey || payeeKey(toName) === fromKey) return data;
+  const { out, changed } = rewriteMerchants(data.transactions, [fromKey], toName);
+  const rec = payeeRecordFor(data, from);
+  const payees = rec ? data.payees.map(p => (p.id === rec.id ? { ...p, name: toName } : p)) : data.payees;
+  if (!changed && !rec) return data;
+  return {
+    ...data, transactions: out, payees,
+    audit: [payeeAudit('Renamed payee "' + String(from).trim() + '" to "' + toName + '" (' + changed + ' transaction' + (changed === 1 ? '' : 's') + ')'), ...(data.audit || [])],
+  };
+}
+
+export function combinePayees(data, { names, into }) {
+  const intoName = String(into || '').trim();
+  if (!intoName || !names || names.length === 0) return data;
+  const intoKey = payeeKey(intoName);
+  const absorbedKeys = names.map(payeeKey).filter(k => k && k !== intoKey);
+  const allKeys = [...new Set([...absorbedKeys, ...names.map(payeeKey).filter(Boolean)])];
+  const { out, changed } = rewriteMerchants(data.transactions, allKeys, intoName);
+  const absorbed = data.payees.filter(p => !p.transferRef && absorbedKeys.includes(payeeKey(p.name)));
+  // Combining also combines renaming rules (YNAB copy) — deduped by op+pattern.
+  const survivorExisting = payeeRecordFor(data, intoName);
+  const ruleKey = r => r.op + '|' + payeeKey(r.pattern);
+  const mergedRules = [];
+  const seenRules = new Set();
+  for (const r of [...(survivorExisting?.renameRules || []), ...absorbed.flatMap(p => p.renameRules || [])]) {
+    if (seenRules.has(ruleKey(r))) continue;
+    seenRules.add(ruleKey(r));
+    mergedRules.push(r);
+  }
+  let payees = data.payees.filter(p => !absorbed.includes(p));
+  if (survivorExisting) {
+    payees = payees.map(p => (p.id === survivorExisting.id ? { ...p, name: intoName, ...(mergedRules.length ? { renameRules: mergedRules } : {}) } : p));
+  } else if (mergedRules.length) {
+    payees = [...payees, { id: uid(), name: intoName, renameRules: mergedRules }];
+  }
+  if (!changed && absorbed.length === 0) return data;
+  return {
+    ...data, transactions: out, payees,
+    audit: [payeeAudit('Combined ' + names.length + ' payees into "' + intoName + '" (' + changed + ' transaction' + (changed === 1 ? '' : 's') + ')'), ...(data.audit || [])],
+  };
+}
+
+export function deletePayees(data, { names, replacement = '' }) {
+  const keys = (names || []).map(payeeKey).filter(Boolean);
+  if (keys.length === 0) return data;
+  const { out, changed } = rewriteMerchants(data.transactions, keys, String(replacement || '').trim());
+  const payees = data.payees.filter(p => p.transferRef || !keys.includes(payeeKey(p.name)));
+  if (!changed && payees.length === data.payees.length) return data;
+  const dest = String(replacement || '').trim() || '[No Payee]';
+  return {
+    ...data, transactions: out, payees,
+    audit: [payeeAudit('Deleted ' + keys.length + ' payee' + (keys.length === 1 ? '' : 's') + ' — ' + changed + ' transaction' + (changed === 1 ? '' : 's') + ' reassigned to ' + dest), ...(data.audit || [])],
+  };
+}
+
+// A record whose ONLY remaining customization was `hidden` disappears when
+// un-hidden, keeping the overlay minimal.
+const bareAfterUnhide = p => !p.autoCategorize && !p.autoCategoryId && !(p.renameRules || []).length;
+
+export function setPayeesHidden(data, { names = [], transferRefs = [], hidden }) {
+  let payees = [...data.payees];
+  let changed = 0;
+  for (const name of names) {
+    const rec = payeeRecordFor({ payees }, name);
+    if (rec) {
+      if (!!rec.hidden === !!hidden) continue;
+      changed += 1;
+      if (!hidden && bareAfterUnhide(rec)) payees = payees.filter(p => p.id !== rec.id);
+      else payees = payees.map(p => (p.id === rec.id ? { ...p, hidden } : p));
+    } else if (hidden) {
+      changed += 1;
+      payees = [...payees, { id: uid(), name: String(name).trim(), hidden: true }];
+    }
+  }
+  for (const ref of transferRefs) {
+    const rec = payees.find(p => p.transferRef === ref);
+    if (rec) {
+      if (!!rec.hidden === !!hidden) continue;
+      changed += 1;
+      if (!hidden) payees = payees.filter(p => p.id !== rec.id); // transfer records hold nothing else
+      else payees = payees.map(p => (p === rec ? { ...p, hidden } : p));
+    } else if (hidden) {
+      changed += 1;
+      payees = [...payees, { id: uid(), name: '', transferRef: ref, hidden: true }];
+    }
+  }
+  if (!changed) return data;
+  const n = names.length + transferRefs.length;
+  return {
+    ...data, payees,
+    audit: [payeeAudit((hidden ? 'Hid ' : 'Unhid ') + n + ' payee' + (n === 1 ? '' : 's')), ...(data.audit || [])],
   };
 }
