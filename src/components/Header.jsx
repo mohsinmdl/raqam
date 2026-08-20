@@ -80,6 +80,11 @@ export default function Header() {
   // titles (scoped account nickname, recurring rule name) and non-sidebar pages
   // (Accounts, Settings) stay visible — they aren't duplicated by any nav label.
   const titleRedundant = seg === 'dashboard' || seg === 'reflect' || seg === 'transactions' || seg === 'budget';
+  // The queue reports the rejected status as 'rejected' or 'rejected:<table>'
+  // (rejectedStatus in store/sync.js), so match on the prefix and name the
+  // table in the tooltip when there is one.
+  const rejected = typeof syncStatus === 'string' && syncStatus.startsWith('rejected');
+  const rejectedTable = rejected ? syncStatus.split(':')[1] || '' : '';
 
   return (
     <header className="app-header" style={{ height: 60, flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
@@ -137,6 +142,16 @@ export default function Header() {
       {(syncStatus === 'retrying' || syncStatus === 'error') && (
         <span role="status" title="Changes are kept locally and pushed automatically when the connection recovers" style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)' }}>
           Not saved — retrying
+        </span>
+      )}
+      {/* 'rejected' is the dead-end branch of the sync queue (see run() in
+          store/sync.js): the server refused this change and the queue has
+          STOPPED retrying it, so it gets its own pill — an alert, not a
+          status — and copy that never promises a retry. */}
+      {rejected && (
+        <span role="alert" title={'The server rejected this change' + (rejectedTable ? ' to ' + rejectedTable : '') + '. It will not be retried on its own — make another edit to try again, and note that reloading this page loses the change.'}
+          style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--neg-soft)', color: 'var(--neg)' }}>
+          Not saved — rejected
         </span>
       )}
       {prefsSaved === false && (

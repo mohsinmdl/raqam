@@ -408,9 +408,22 @@ function isNonRetryable(e) {
   return /violates .* constraint/i.test(e.message || '');
 }
 
+// pushDiff stamps every error message with `<table> <verb>: …`, which is the
+// only place the failing collection survives into the status callback. A
+// rejected push is a dead end the user has to know about by name, so pull the
+// table back out and hand it to the status vocabulary ('rejected:payees');
+// callers that only care about the kind can test the 'rejected' prefix.
+export function rejectedStatus(e) {
+  const m = /^([A-Za-z_][A-Za-z0-9_]*) (?:insert|update|delete):/.exec(e && e.message || '');
+  return m ? 'rejected:' + m[1] : 'rejected';
+}
+
 // Single-flight write-behind queue. `latest` always holds the newest store; a
 // push diffs lastPushed -> latest, and only a fully successful push advances
-// the baseline. onStatus reports 'synced' | 'syncing' | 'retrying' | 'error'.
+// the baseline. onStatus reports 'synced' | 'syncing' | 'retrying' | 'error' |
+// 'rejected[:<table>]'. The last one is NOT a transient state: the queue has
+// stopped retrying that diff and will only try again if a later store change
+// produces a fresh one, so the UI must say so rather than imply a retry.
 export function createSyncQueue({ initialBaseline, onStatus = () => {} }) {
   let lastPushed = initialBaseline;
   let latest = initialBaseline;
@@ -446,9 +459,11 @@ export function createSyncQueue({ initialBaseline, onStatus = () => {} }) {
         // Surface the failure and stop scheduling retries against this same
         // diff. A later real store change still gets a fresh attempt (via
         // update()'s !inFlight && !retryTimer check), since lastPushed hasn't
-        // advanced and diffStores will simply recompute.
+        // advanced and diffStores will simply recompute. Reported as
+        // 'rejected', never 'error' — 'error' is the retrying path's escalation
+        // and its UI promises a retry that this branch will not make.
         attempt = 0;
-        status('error');
+        status(rejectedStatus(e));
         return;
       }
       const delay = BACKOFF[Math.min(attempt, BACKOFF.length - 1)];

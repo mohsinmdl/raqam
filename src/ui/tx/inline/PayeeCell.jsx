@@ -5,12 +5,16 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../../../store/StoreProvider.jsx';
 import { useUI } from '../../UIProvider.jsx';
+import { useIsPhone } from '../../../lib/useIsPhone.js';
 import { payeeSections } from '../../../lib/payeeOptions.js';
 import { Combobox, ComboboxPanel, ComboboxGroupLabel, ComboboxItem } from '../../primitives/Combobox.jsx';
 
 export default function PayeeCell({ payee, transferTo, sourceRef, onPickPayee, onPickTransfer, disabled, autoFocus }) {
   const { data: S } = useStore();
   const { openPayees } = useUI();
+  // Manage Payees is desktop-only (spec decision 5) — ManagePayees renders
+  // nothing on a phone, so offering the link there is a dead button.
+  const phone = useIsPhone();
   const [q, setQ] = useState(null); // null = closed, show the committed value
   const sections = useMemo(() => payeeSections(S, { sourceRef, query: q || '' }), [S, sourceRef, q]);
   const transferLabel = useMemo(() => {
@@ -44,12 +48,12 @@ export default function PayeeCell({ payee, transferTo, sourceRef, onPickPayee, o
         onBlur={commitText}
         style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13 }}
       />
-      <ComboboxPanel footer={
+      <ComboboxPanel footer={phone ? null : (
         <button type="button" onMouseDown={e => e.preventDefault()} onClick={openPayees} className="hv-soft"
           style={{ width: '100%', border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '8px 2px 2px', textAlign: 'left' }}>
           Manage Payees
         </button>
-      }>
+      )}>
         {sections.map(s => (
           <Combobox.Group key={s.label} items={s.items}>
             <ComboboxGroupLabel>{s.label}</ComboboxGroupLabel>

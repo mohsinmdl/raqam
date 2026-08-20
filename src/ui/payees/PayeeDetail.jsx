@@ -3,8 +3,9 @@
 // rules, visibility, delete-with-reassignment (spec §3 + the reference
 // screenshots — Delete swaps this pane into a "New payee" step defaulting
 // [No Payee]).
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../store/StoreProvider.jsx';
+import { useUI } from '../UIProvider.jsx';
 import { useMoney } from '../../lib/format.js';
 import { currentMonth, nowIso } from '../../lib/dates.js';
 import { envelopeFor } from '../../lib/envelope.js';
@@ -12,47 +13,86 @@ import Checkbox from '../Checkbox.jsx';
 import PlanCategoryPicker from '../PlanCategoryPicker.jsx';
 import PayeeTxList from './PayeeTxList.jsx';
 import { upsertPayee, renamePayee, setPayeesHidden, deletePayees } from '../../store/actions.js';
-import { payeeIndex, payeeKey } from '../../lib/payees.js';
+import { payeeIndex, payeeKey, payeeListLabel } from '../../lib/payees.js';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 };
 const h = { fontSize: 13.5, fontWeight: 700 };
 const note = { fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 };
 
-export default function PayeeDetail({ entry, onDeselect }) {
+export default function PayeeDetail({ entry, onDeselect, onStepChange = () => {} }) {
   const { data: S, applyData } = useStore();
+  const { ask } = useUI();
   const { money } = useMoney();
   const month = currentMonth();
   const [nameDraft, setNameDraft] = useState(null); // null = mirror entry.name
   const [txOpen, setTxOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  // null = no step. Otherwise a SNAPSHOT {names, txCount} taken when Delete was
+  // clicked: the step must act on what the user saw, not on whatever the
+  // selection says by the time they press the red button.
+  const [deleting, setDeleting] = useState(null);
   const [replacement, setReplacement] = useState('');
   const [ruleOp, setRuleOp] = useState('contains');
   const [rulePattern, setRulePattern] = useState('');
+  const committing = useRef(false);
   const rec = entry.record;
   const rules = (rec && rec.renameRules) || [];
 
-  const commitName = () => {
-    if (nameDraft !== null && nameDraft.trim() && payeeKey(nameDraft) !== payeeKey(entry.name)) {
-      applyData(d => renamePayee(d, { from: entry.name, to: nameDraft.trim() }));
+  const index = useMemo(() => payeeIndex(S), [S]);
+  const others = useMemo(() => index.filter(p => payeeKey(p.name) !== payeeKey(entry.name)), [index, entry.name]);
+
+  // Tell the modal a step is open so it can freeze the selection list behind it.
+  useEffect(() => { onStepChange(!!deleting); return () => onStepChange(false); }, [deleting, onStepChange]);
+  // The chosen replacement can disappear underneath the open step — another
+  // tab's sync, an undo, a rename. Falling back to [No Payee] is the honest
+  // reading of a <select> whose value no longer exists (the browser shows the
+  // first option anyway); silently deleting against a stale name is not.
+  useEffect(() => {
+    if (replacement && !others.some(p => payeeKey(p.name) === payeeKey(replacement))) setReplacement('');
+  }, [others, replacement]);
+
+  const commitName = async () => {
+    if (committing.current) return; // Enter then blur must not ask twice
+    const to = nameDraft === null ? '' : nameDraft.trim();
+    if (!to || payeeKey(to) === payeeKey(entry.name)) { setNameDraft(null); return; }
+    const clash = index.find(p => payeeKey(p.name) === payeeKey(to)); // different key by the check above
+    committing.current = true;
+    try {
+      if (clash) {
+        const ok = await ask({
+          title: 'Combine payees?',
+          body: '“' + clash.name + '” already exists with ' + clash.txCount + ' transaction' + (clash.txCount === 1 ? '' : 's') +
+            '. Renaming “' + entry.name + '” to that name merges the two into one payee — their transactions, rules and settings end up together. Undo reverses it.',
+          action: 'Rename and combine',
+        });
+        if (!ok) { setNameDraft(null); return; }
+      }
+      applyData(d => renamePayee(d, { from: entry.name, to }));
       onDeselect(); // the selection key just changed
+      setNameDraft(null);
+    } finally {
+      committing.current = false;
     }
-    setNameDraft(null);
   };
   const patch = p => applyData(d => upsertPayee(d, { name: entry.name, patch: p }));
+  const rulePatternValid = !!rulePattern.trim();
+  // Duplicate rules are inert (applyRenameRules stops at the first match), so
+  // adding one is pure noise in the list. The button disables on both the
+  // empty and the duplicate case — a disabled control explains itself where a
+  // silent no-op would just look broken.
+  const ruleDuplicate = rules.some(r => r.op === ruleOp && payeeKey(r.pattern) === payeeKey(rulePattern));
+  const canAddRule = rulePatternValid && !ruleDuplicate;
   const addRule = () => {
-    const pattern = rulePattern.trim();
-    if (!pattern) return;
-    patch({ renameRules: [...rules, { op: ruleOp, pattern }] });
+    if (!canAddRule) return;
+    patch({ renameRules: [...rules, { op: ruleOp, pattern: rulePattern.trim() }] });
     setRulePattern('');
   };
-  const others = payeeIndex(S).filter(p => payeeKey(p.name) !== payeeKey(entry.name));
 
   if (deleting) {
     return (
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={h}>New payee</div>
         <div style={{ ...note, fontStyle: 'italic' }}>
-          {entry.txCount} transaction{entry.txCount === 1 ? ' is' : 's are'} using this payee. Select a new payee for {entry.txCount === 1 ? 'this transaction' : 'these transactions'}.
+          {deleting.txCount} transaction{deleting.txCount === 1 ? ' is' : 's are'} using this payee. Select a new payee for: {payeeListLabel(deleting.names)}.
         </div>
         <select className="field" aria-label="New payee" value={replacement} onChange={e => setReplacement(e.target.value)}
           style={{ height: 36, padding: '0 10px', fontSize: 13.5, maxWidth: 520 }}>
@@ -60,9 +100,9 @@ export default function PayeeDetail({ entry, onDeselect }) {
           {others.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
         </select>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" onClick={() => setDeleting(false)} className="hv-elev" style={{ height: 34, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+          <button type="button" onClick={() => setDeleting(null)} className="hv-elev" style={{ height: 34, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
           <button type="button" className="hv-neg-soft"
-            onClick={() => { applyData(d => deletePayees(d, { names: [entry.name], replacement })); setDeleting(false); onDeselect(); }}
+            onClick={() => { applyData(d => deletePayees(d, { names: deleting.names, replacement })); setDeleting(null); onDeselect(); }}
             style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--neg-soft)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>
         </div>
       </div>
@@ -86,10 +126,17 @@ export default function PayeeDetail({ entry, onDeselect }) {
       <div style={card}>
         <div style={h}>Categorization</div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }}>
-          <Checkbox checked={!!(rec && rec.autoCategorize)} onChange={on => patch({ autoCategorize: on })} label="Automatically categorize payee" />
+          {/* Unchecking clears the category too: a record holding only a dead
+              autoCategoryId is a bare record, and upsertPayee deletes a record
+              with nothing left to customize. Sending the boolean alone would
+              leave the id behind and keep the record alive forever. */}
+          <Checkbox checked={!!(rec && rec.autoCategorize)}
+            onChange={on => patch(on ? { autoCategorize: true } : { autoCategorize: false, autoCategoryId: '' })}
+            label="Automatically categorize payee" />
           Automatically categorize payee
         </label>
         <div style={note}>If enabled, transactions with this payee will automatically receive the selected category.</div>
+        <div style={note}>Choosing Ready to Assign keeps this payee's inflows as uncategorized income — the same as having no rule.</div>
         {rec && rec.autoCategorize && (
           <PlanCategoryPicker
             env={envelopeFor(S, month, nowIso())} S={S} month={month} money={money}
@@ -120,9 +167,11 @@ export default function PayeeDetail({ entry, onDeselect }) {
           <input className="field" aria-label="Rule pattern" value={rulePattern} onChange={e => setRulePattern(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addRule(); } }}
             style={{ flex: 1, height: 34, padding: '0 10px', fontSize: 13 }} />
-          <button type="button" onClick={addRule} aria-label="Add rule" className="hv-soft"
-            style={{ width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 16, cursor: 'pointer', flex: 'none' }}>＋</button>
+          <button type="button" onClick={addRule} aria-label="Add rule" className="hv-soft" disabled={!canAddRule}
+            title={ruleDuplicate ? 'This rule already exists' : undefined}
+            style={{ width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 16, cursor: canAddRule ? 'pointer' : 'default', opacity: canAddRule ? 1 : 0.45, flex: 'none' }}>＋</button>
         </div>
+        {ruleDuplicate && <div style={note}>This rule is already on the list.</div>}
       </div>
 
       <div style={card}>
@@ -136,7 +185,7 @@ export default function PayeeDetail({ entry, onDeselect }) {
 
       <button type="button" onClick={() => (entry.txCount === 0
         ? (applyData(d => deletePayees(d, { names: [entry.name], replacement: '' })), onDeselect())
-        : setDeleting(true))}
+        : setDeleting({ names: [entry.name], txCount: entry.txCount }))}
         className="hv-neg-soft"
         style={{ alignSelf: 'flex-start', height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--neg-soft)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
         Delete

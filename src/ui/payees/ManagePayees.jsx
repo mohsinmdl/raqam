@@ -32,6 +32,11 @@ export default function ManagePayees() {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(() => new Set());
   const [scope, setScope] = useState(null);
+  // True while a pane is showing its delete-reassignment step. The step is a
+  // confirmation of a snapshot taken at click time, so the list behind it is
+  // frozen: letting the selection move under an open step is how you end up
+  // reading one set of names and deleting another.
+  const [stepOpen, setStepOpen] = useState(false);
 
   // Scope lifecycle: mark the boundary (the newest change's seq) when the
   // modal opens, and re-derive the redo window whenever the global undo depth
@@ -60,20 +65,34 @@ export default function ManagePayees() {
   const visibleKeys = rows.map(r => r.key);
   const selVisible = visibleKeys.filter(k => sel.has(k));
   const allSelected = selVisible.length > 0 && selVisible.length === visibleKeys.length;
+  // Selection survives the search box, so the count above can undersell what
+  // the right-hand pane is actually editing. Say how many are off-screen.
+  const hiddenSelCount = sel.size - selVisible.length;
   const toggle = (key, on) => setSel(prev => { const n = new Set(prev); if (on) n.add(key); else n.delete(key); return n; });
 
   const selPayees = rows.filter(r => r.kind === 'p' && sel.has(r.key)).map(r => r.entry);
   const selTransfers = rows.filter(r => r.kind === 't' && sel.has(r.key));
   const mixed = selPayees.length > 0 && selTransfers.length > 0;
-  const close = () => { setSel(new Set()); setQ(''); setScope(null); closePayees(); };
+  const close = () => { setSel(new Set()); setQ(''); setScope(null); setStepOpen(false); closePayees(); };
   const modalUndo = () => { undo(); setScope(s => transition(s, undoDepth - 1, false)); };
-  // A double-click within one render frame can fire this twice before the
-  // undoDepth-driven effect above has re-derived `scope`, so the second call's
-  // transition sees a stale wasRedo=false path and under-counts the redoable
-  // window. This fails safe — Redo just disables a tick early — never over-counts.
+  // Double-click within one render frame: `undoDepth` is still the pre-click
+  // value on the second call, so its transition targets the SAME depth the
+  // first one already recorded and no-ops on the equal-depth check. The cost
+  // is the reconciling effect above, which then runs with wasRedo=false and
+  // can zero the redoable window — Redo disables a tick early. That fails
+  // safe (a redo you must re-earn), never the other way (a redo that reaches
+  // past the modal's boundary into pre-modal history).
   const modalRedo = () => { redo(); setScope(s => transition(s, undoDepth + 1, true)); };
 
-  if (phone) return null; // desktop-first (spec decision 5)
+  // The modal is desktop-only (spec decision 5) and the early return below
+  // unmounts it — but unmounting alone leaves `payeesOpen` true, so the app
+  // keeps behaving as if a modal were up (Header stands its Cmd+Z down for
+  // it) with nothing on screen to close. Rotating a tablet or dragging a
+  // window narrow is enough to get there. Closing for real is the fix, and
+  // this sits ABOVE the early return because hook order cannot be conditional.
+  useEffect(() => { if (phone && payeesOpen) close(); }, [phone, payeesOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (phone) return null;
   return (
     <Modal open={payeesOpen} onOpenChange={o => { if (!o) close(); }}>
       <ModalPanel label="Manage Payees">
@@ -85,18 +104,38 @@ export default function ManagePayees() {
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           <div style={{ width: 300, flex: 'none', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '12px 14px 8px' }}>
-              <input className="field" placeholder="Search Payees" aria-label="Search payees" value={q}
-                onChange={e => setQ(e.target.value)} style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 13 }} />
+              {/* Frozen along with the list while a delete step is open: the
+                  pane is chosen from the SEARCH-FILTERED rows, so typing here
+                  would drop the selection out of view and unmount the step. */}
+              <input className="field" placeholder="Search Payees" aria-label="Search payees" value={q} disabled={stepOpen}
+                onChange={e => setQ(e.target.value)} style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 13, opacity: stepOpen ? 0.5 : 1 }} />
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 14px 8px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-              <Checkbox checked={allSelected} indeterminate={selVisible.length > 0 && !allSelected}
-                onChange={on => setSel(on ? new Set(visibleKeys) : new Set())} label="Select all payees" />
+              {/* Merges/removes only the VISIBLE keys: the box speaks for the
+                  rows it sits above, and a search that hides half the list
+                  must not silently drop the other half of the selection. */}
+              <Checkbox checked={allSelected} indeterminate={selVisible.length > 0 && !allSelected} disabled={stepOpen}
+                onChange={on => setSel(prev => {
+                  const n = new Set(prev);
+                  visibleKeys.forEach(k => (on ? n.add(k) : n.delete(k)));
+                  return n;
+                })} label="Select all payees" />
               Payees ({selVisible.length || rows.length})
             </label>
-            <div style={{ flex: 1, overflowY: 'auto', borderTop: '1px solid var(--border)' }}>
+            {hiddenSelCount > 0 && (
+              <div style={{ padding: '0 14px 8px', fontSize: 12, color: 'var(--muted)' }}>
+                {hiddenSelCount} selected payee{hiddenSelCount === 1 ? '' : 's'} hidden by this search{' '}
+                <button type="button" onClick={() => setQ('')}
+                  style={{ border: 'none', background: 'none', color: 'var(--accent)', font: 'inherit', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                  clear search
+                </button>
+              </div>
+            )}
+            <div style={{ flex: 1, overflowY: 'auto', borderTop: '1px solid var(--border)', ...(stepOpen ? { pointerEvents: 'none', opacity: 0.5 } : null) }}
+              aria-disabled={stepOpen || undefined}>
               {rows.map(r => (
                 <label key={r.key} className="hv-elev" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', fontSize: 13.5, cursor: 'pointer', opacity: r.dim ? 0.5 : 1 }}>
-                  <Checkbox checked={sel.has(r.key)} onChange={on => toggle(r.key, on)} label={'Select ' + r.label} />
+                  <Checkbox checked={sel.has(r.key)} disabled={stepOpen} onChange={on => toggle(r.key, on)} label={'Select ' + r.label} />
                   <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.label}</span>
                 </label>
               ))}
@@ -117,9 +156,15 @@ export default function ManagePayees() {
             ) : selTransfers.length > 0 ? (
               <TransferPane S={S} rows={selTransfers} />
             ) : selPayees.length === 1 ? (
-              <PayeeDetail entry={selPayees[0]} onDeselect={() => setSel(new Set())} />
+              // Keyed on the selection itself: these panes carry per-selection
+              // drafts (name, combine-into, an open delete step). Without a key
+              // React reuses the instance across a selection change and those
+              // drafts survive onto a payee they were never typed for.
+              <PayeeDetail key={'p:' + payeeKey(selPayees[0].name)} entry={selPayees[0]}
+                onDeselect={() => setSel(new Set())} onStepChange={setStepOpen} />
             ) : selPayees.length > 1 ? (
-              <PayeeBulk entries={selPayees} onDeselect={() => setSel(new Set())} />
+              <PayeeBulk key={selPayees.map(p => payeeKey(p.name)).sort().join('|')} entries={selPayees}
+                onDeselect={() => setSel(new Set())} onStepChange={setStepOpen} />
             ) : (
               <div style={paneMsg}>Select a Payee to Edit</div>
             )}
@@ -144,11 +189,13 @@ function TransferPane({ S, rows }) {
   const { applyData } = useStore();
   const refs = rows.map(r => r.ref);
   const allHidden = refs.every(ref => transferHidden(S, ref));
+  const anyHidden = refs.some(ref => transferHidden(S, ref));
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ fontSize: 14, fontWeight: 700 }}>{rows.length === 1 ? rows[0].label : rows.length + ' Transfer Payees Selected'}</div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }}>
-        <Checkbox checked={allHidden} onChange={on => applyData(d => setPayeesHidden(d, { transferRefs: refs, hidden: on }))} label="Hide these transfer payees" />
+        <Checkbox checked={allHidden} indeterminate={anyHidden && !allHidden}
+          onChange={on => applyData(d => setPayeesHidden(d, { transferRefs: refs, hidden: on }))} label="Hide these transfer payees" />
         Hide {rows.length === 1 ? 'this payee' : 'these payees'}
       </label>
       <div style={{ fontSize: 12.5, color: 'var(--muted)', maxWidth: '52ch' }}>
