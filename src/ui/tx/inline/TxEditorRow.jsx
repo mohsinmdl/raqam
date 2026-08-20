@@ -24,7 +24,7 @@ import Checkbox from '../../Checkbox.jsx';
 const cellTd = { padding: '4px 4px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle', background: 'var(--soft)' };
 const btn = accent => ({ height: 30, padding: '0 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: accent ? 'none' : '1px solid var(--border)', background: accent ? 'var(--accent)' : 'var(--surface)', color: accent ? 'var(--on-accent)' : 'var(--text)' });
 
-export default function TxEditorRow({ hideAccount, colSpan }) {
+export default function TxEditorRow({ hideAccount, colSpan, scopeRef }) {
   const { drawer, setForm, setField, openDrawer, requestClose } = useDrawer();
   const { data: S } = useStore();
   const submit = txFormDef.useSubmit();
@@ -45,6 +45,11 @@ export default function TxEditorRow({ hideAccount, colSpan }) {
   const patch = (key, value) => setForm(editorPatch(f, key, value));
   const saveAndAdd = async () => {
     const keep = keepForNext(f);
+    // On a scoped register (a single account's page) the next row always
+    // seeds that account, regardless of which side the finished row's ref
+    // landed on (e.g. an inflow-direction transfer swaps from/to) — mirrors
+    // the toolbar's own seeding and keeps the new row visible in this register.
+    if (scopeRef) keep.payWith = scopeRef;
     if (await submit()) openDrawer('addTx', { ...txDefaults('expense'), ...keep });
   };
   const onRowKey = e => {

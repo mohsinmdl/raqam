@@ -961,7 +961,7 @@ export default function Transactions() {
               </thead>
               {inlineTx && !editingId && (
                 <tbody>
-                  <TxEditorRow hideAccount={!!accountId} colSpan={gridColSpan} />
+                  <TxEditorRow hideAccount={!!accountId} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
                 </tbody>
               )}
               {scheduled.length > 0 && (
@@ -977,7 +977,7 @@ export default function Transactions() {
                   {schedOpen && scheduled.map(x => {
                     const key = schedKey(x);
                     return key === editingId
-                      ? <TxEditorRow key={key} hideAccount={!!accountId} colSpan={gridColSpan} />
+                      ? <TxEditorRow key={key} hideAccount={!!accountId} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
                       : (
                         <Row
                           key={key} t={x.row} selId={key} scheduled hideAccount={!!accountId}
@@ -997,7 +997,7 @@ export default function Transactions() {
                 )}
                 {/* Recorded rows act through the bulk bar once selected — no ⋯. */}
                 {shownRows.map(t => (t.id === editingId
-                  ? <TxEditorRow key={t.id} hideAccount={!!accountId} colSpan={gridColSpan} />
+                  ? <TxEditorRow key={t.id} hideAccount={!!accountId} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
                   : <Row
                       key={t.id} t={t} selId={t.id} hideAccount={!!accountId}
                       checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
