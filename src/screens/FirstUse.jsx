@@ -1,6 +1,8 @@
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { openers } from '../drawers/openers.js';
+import { useIsPhone } from '../lib/useIsPhone.js';
 
 // First-use guided setup — ported from the prototype (template 233-267, firstUseVals
 // script 1000-1017). Shown on the Reflect Overview tab (the app's landing
@@ -8,6 +10,8 @@ import { openers } from '../drawers/openers.js';
 export default function FirstUse({ setup, onSkip }) {
   const { data: S } = useStore();
   const { openDrawer } = useDrawer();
+  const phone = useIsPhone();
+  const navigate = useNavigate();
   const doneCount = [setup.hasAccount, setup.snapConfirmed, setup.hasTx].filter(Boolean).length;
   const mk = (n, title, desc, done, cta, act, disabled, ctaTitle) => ({
     n: done ? '✓' : String(n), title, desc, done, cta, act, showCta: !done,
@@ -23,7 +27,7 @@ export default function FirstUse({ setup, onSkip }) {
   const stepAct = act => {
     if (act === 'addAccount') openers.addAccount(openDrawer);
     else if (act === 'snapshot') openers.snapshot(S, openDrawer);
-    else if (act === 'addTx') openers.addTx(openDrawer);
+    else if (act === 'addTx') { if (!phone) navigate('/transactions'); openers.addTx(openDrawer); }
   };
 
   return (

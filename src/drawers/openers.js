@@ -48,7 +48,7 @@ export function formFromTx(t) {
 }
 
 export const openers = {
-  addTx: (openDrawer, type = 'expense') => openDrawer('addTx', txDefaults(type)),
+  addTx: (openDrawer, type = 'expense', seed = {}) => openDrawer('addTx', { ...txDefaults(type), ...seed }),
 
   editTx: (S, txId, openDrawer) => {
     const t = S.transactions.find(x => x.id === txId);
