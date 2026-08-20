@@ -293,7 +293,11 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
           "whatever the longest nickname measures" is exactly what used to
           push the table wider than its wrapper. */}
       <td style={{ ...td, ...dim, maxWidth: 280, minWidth: 0, padding: pad, verticalAlign: 'middle' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        {/* overflow:hidden is the guard that keeps a long name or a full chip
+            cluster from bleeding into CATEGORY now that table-layout:fixed pins
+            this column: the merchant ellipsizes (minWidth:0) and the chips clip
+            at the column edge rather than spilling past it. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
           <span style={{ fontSize: 14, fontWeight: 500, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
           <TxChips row={t} meta />
         </div>
