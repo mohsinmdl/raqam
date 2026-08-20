@@ -41,6 +41,7 @@ import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import EditNamePopover from '../ui/plan/EditNamePopover.jsx';
 import { Popover, PopoverTrigger, PopoverPanel } from '../ui/primitives/Popover.jsx';
+import { CalcIcon, HistoryIcon } from '../ui/icons.jsx';
 import { askDeleteCategory } from '../ui/categoryActions.js';
 import { openers } from '../drawers/openers.js';
 import {
@@ -69,6 +70,11 @@ const popCard = { position: 'absolute', zIndex: 30, background: 'var(--surface)'
 const popBtnRow = { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 };
 const popCancel = { height: 30, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, cursor: 'pointer' };
 const popOk = { height: 30, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' };
+// The ASSIGNED editor's bad-expression marker + its screen-reader alert, shared
+// verbatim with the inline transaction AmountCell so the two calculators fail
+// the same way: a --neg outline on the box and an off-screen role="alert".
+const calcRing = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
+const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
 
 // Same dismissal contract as TxMonthNav / BulkBar's MoreMenu: outside mousedown
 // closes, Escape closes via the capture phase so it never bubbles into a
@@ -675,30 +681,6 @@ function fmtDMY(iso) {
 
 const OP_GLYPHS = ['+', '−', '×', '÷'];
 
-// The 2x2 calculator-operator grid under the ASSIGNED editor. Every button
-// mousedown-prevents its default so the ASSIGNED input never blurs (and thus
-// never commits) while the user is just picking an operator — onPick handles
-// the actual draft mutation and refocuses the input itself.
-function OpPopover({ onPick }) {
-  return (
-    <div
-      role="dialog" aria-label="Calculator operators"
-      onMouseDown={e => e.preventDefault()}
-      style={{ ...popCard, top: 36, left: 0, width: 92, padding: 6 }}
-    >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-        {OP_GLYPHS.map(op => (
-          <button
-            key={op} type="button" onClick={() => onPick(op)}
-            className="hv-elev"
-            style={{ height: 28, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--elev)', color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-          >{op}</button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // Read-only Moves history for one category+month, opened by the ASSIGNED
 // editor's clock button. Replays S.audit into human rows rather than owning
 // any state of its own. Unlike PlanCategoryPicker, the dismiss wiring does
@@ -747,10 +729,11 @@ function MovesPopover({ open, up, cat, month, S, money, onClose }) {
     <div
       role="dialog" aria-label="Assignment history"
       onMouseDown={e => e.preventDefault()}
-      // Below the editor it sits under OpPopover's footprint (top:36 + ~74px
-      // card + 8px gap) so the two never overlap; flipped up (bottom rows) it
-      // opens above the cell, clear of OpPopover entirely.
-      style={{ ...popCard, ...(up ? { bottom: 40 } : { top: 118 }), right: 0, width: 340, textAlign: 'left' }}
+      // Sits just under the 30px editor box (right-aligned to the history
+      // trigger); flipped up (bottom rows) it opens above the cell. The op pad
+      // opens from the CalcIcon on the far side and dismisses this one (and vice
+      // versa), so the two can't be open together to overlap.
+      style={{ ...popCard, ...(up ? { bottom: 40 } : { top: 36 }), right: 0, width: 340, textAlign: 'left' }}
     >
       <div style={{ fontSize: 14, fontWeight: 700 }}>Moves</div>
       <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>{cat.name}</div>
@@ -922,23 +905,32 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
 // that opens Cover/Move popovers when non-zero. In "progress" view a thin bar
 // + note show spend against (carryIn + assigned); "compact" view drops both.
 function CategoryRow({ cat, row, sectionGroupId, ctx }) {
-  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, dnd, cursorId, phone } = ctx;
+  const { month, applyData, money, moneyS, view, env, S, selected, toggleSelect, selectRow, dnd, cursorId } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  // A bad calculator expression marks the field (a --neg ring + an sr-only
+  // alert), the same failure treatment the inline transaction AmountCell uses.
+  const [calcErr, setCalcErr] = useState(false);
+  // The 2×2 operator pad, opened by the CalcIcon trigger.
+  const [opOpen, setOpOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyUp, setHistoryUp] = useState(false);
   const cancelledRef = useRef(false);
   const inputRef = useRef(null);
   const historyRef = useRef(null);
+  const opRef = useRef(null);
+  const assignErrId = 'plan-assign-err-' + cat.id;
   const closeHistory = () => setHistoryOpen(false);
-  // Shared ref wraps BOTH the clock trigger and MovesPopover (I1): if the ref
-  // only wrapped the popover card, the trigger button would read as "outside"
-  // on its own mousedown, so the dismiss handler would close the popover a
-  // beat before onClick's toggle ran — and the toggle would then reopen it,
-  // making the trigger unable to ever close its own popover.
+  // Shared ref wraps BOTH the trigger and its popover (I1): if the ref only
+  // wrapped the popover card, the trigger button would read as "outside" on
+  // its own mousedown, so the dismiss handler would close the popover a beat
+  // before onClick's toggle ran — and the toggle would then reopen it, making
+  // the trigger unable to ever close its own popover. The op pad has the same
+  // shape, so it gets the same treatment.
   usePopoverDismiss(historyOpen, historyRef, closeHistory);
+  usePopoverDismiss(opOpen, opRef, () => setOpOpen(false));
 
   useEffect(() => {
     if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); }
@@ -949,30 +941,40 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
   const startEdit = () => {
     cancelledRef.current = false;
     setDraft(r.assigned ? String(r.assigned) : '');
+    setCalcErr(false);
+    setOpOpen(false);
     setHistoryOpen(false);
     setEditing(true);
   };
   // Calculator commit: applyCalcExpr(current, draft) → null means the text
-  // doesn't parse (or divides by zero) — stay in edit mode with the text
-  // selected so the user can retype, exactly like a bad formula in a
-  // spreadsheet cell. A number commits via ONE setAssigned call. Guarded by
-  // cancelledRef the same way the pre-calculator version was: Escape sets
-  // that ref before tearing down the input, so if blur still fires on
-  // teardown this bails out instead of re-committing. Any further duplicate
-  // commit (e.g. Enter immediately followed by a teardown blur) is a no-op
-  // in practice too — setAssigned itself skips the write when the amount is
-  // unchanged.
+  // doesn't parse (or divides by zero) — stay in edit mode and MARK the field
+  // (calcErr → a --neg ring + sr-only alert, matching the inline transaction
+  // AmountCell), with the text selected so the user can retype, exactly like a
+  // bad formula in a spreadsheet cell. An empty field is not an error: it just
+  // reverts to the current value and closes. A number commits via ONE
+  // setAssigned call. Guarded by cancelledRef the same way the pre-calculator
+  // version was: Escape sets that ref before tearing down the input, so if
+  // blur still fires on teardown this bails out instead of re-committing. Any
+  // further duplicate commit (e.g. Enter immediately followed by a teardown
+  // blur) is a no-op in practice too — setAssigned itself skips the write when
+  // the amount is unchanged. A NEGATIVE result commits normally: an assignment
+  // is signed (unlike a transaction magnitude), so unlike AmountCell there is
+  // no negative-rejection branch here.
   const commit = () => {
     if (cancelledRef.current) { cancelledRef.current = false; return; }
+    if (!String(draft).trim()) { setCalcErr(false); setOpOpen(false); setEditing(false); return; }
     const v = applyCalcExpr(r.assigned, draft);
     if (v === null) {
+      setCalcErr(true);
       if (inputRef.current) { inputRef.current.focus(); inputRef.current.select(); }
       return;
     }
+    setCalcErr(false);
+    setOpOpen(false);
     setEditing(false);
     applyData(data => setAssigned(data, { categoryId: cat.id, month, amount: v }));
   };
-  const cancel = () => { cancelledRef.current = true; setEditing(false); };
+  const cancel = () => { cancelledRef.current = true; setCalcErr(false); setOpOpen(false); setEditing(false); };
 
   // Appends an operator glyph to the draft (calcExpr now folds a full
   // left-to-right chain, so '500' + '+' → '500+', then '40' → '500+40').
@@ -984,6 +986,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
   // loses focus in the first place; this focus() is a harmless
   // belt-and-suspenders per the spec's "refocuses the input".
   const insertOp = op => {
+    setCalcErr(false);
     setDraft(d => {
       const s = String(d ?? '');
       const last = s[s.length - 1];
@@ -1067,11 +1070,45 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
       <div style={{ textAlign: 'right', position: 'relative' }}>
         {editing ? (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: 30, padding: '0 6px', border: '1px solid var(--accent)', borderRadius: 6, background: 'var(--surface)' }}>
-              <span aria-hidden="true" style={{ flex: 'none', fontSize: 11, letterSpacing: '-.5px', color: 'var(--muted)', userSelect: 'none' }}>+−×÷</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 30, padding: '0 4px', border: '1px solid var(--accent)', borderRadius: 6, background: 'var(--surface)', ...(calcErr ? calcRing : null) }}>
+              {/* Calculator op-pad trigger — the drawn CalcIcon the inline
+                  transaction AmountCell uses, opening the same 2×2 operator
+                  grid. mousedown-prevented on both the trigger and the pad so
+                  opening or clicking it never blurs (and thus never commits or
+                  tears down) the ASSIGNED input, which is why the pad is a
+                  focus-preserving card rather than a portalled Base UI popover
+                  (that would move focus into the panel and end the edit). */}
+              <span ref={opRef} style={{ flex: 'none', position: 'relative', display: 'inline-flex' }}>
+                <button
+                  type="button" onMouseDown={e => e.preventDefault()}
+                  onClick={() => setOpOpen(o => !o)}
+                  aria-label="Insert an operator" title="Insert an operator"
+                  aria-haspopup="dialog" aria-expanded={String(opOpen)}
+                  className="hv-soft"
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, border: 'none', borderRadius: 4, background: 'transparent', color: 'var(--muted)', cursor: 'pointer', padding: 0 }}
+                ><CalcIcon size={14} /></button>
+                {opOpen && (
+                  <div
+                    role="dialog" aria-label="Calculator operators"
+                    onMouseDown={e => e.preventDefault()}
+                    style={{ ...popCard, top: 30, left: 0, width: 96, padding: 8 }}
+                  >
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      {OP_GLYPHS.map(op => (
+                        <button
+                          key={op} type="button" onClick={() => insertOp(op)}
+                          className="hv-soft"
+                          style={{ height: 30, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+                        >{op}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </span>
               <input
                 ref={inputRef} inputMode="numeric" className="tnum"
-                value={draft} onChange={e => setDraft(e.target.value)}
+                value={draft} onChange={e => { setDraft(e.target.value); setCalcErr(false); }}
+                aria-invalid={calcErr || undefined} aria-describedby={calcErr ? assignErrId : undefined}
                 onKeyDown={e => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') { e.stopPropagation(); cancel(); } }}
                 onBlur={commit}
                 style={{ flex: 1, minWidth: 0, height: '100%', padding: 0, textAlign: 'right', border: 'none', outline: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 500 }}
@@ -1081,12 +1118,12 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
                   type="button" onMouseDown={e => e.preventDefault()}
                   onClick={() => { setHistoryUp(flipIfLow(historyRef.current, 380)); setHistoryOpen(o => !o); }}
                   aria-label="Assignment history" aria-haspopup="dialog" aria-expanded={String(historyOpen)}
-                  style={{ width: 20, height: 20, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                >🕐</button>
+                  style={{ width: 22, height: 22, border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                ><HistoryIcon size={14} /></button>
                 <MovesPopover open={historyOpen} up={historyUp} cat={cat} month={month} S={S} money={money} onClose={closeHistory} />
               </span>
             </div>
-            {!phone && <OpPopover onPick={insertOp} />}
+            {calcErr && <span id={assignErrId} role="alert" style={srOnly}>Couldn't compute — check the expression.</span>}
           </>
         ) : (
           <button

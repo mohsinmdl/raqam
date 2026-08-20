@@ -75,6 +75,22 @@ export function CalcIcon({ size = 14, title }) {
   );
 }
 
+// The ASSIGNED editor's assignment-history trigger. Was the 🕐 emoji (a
+// system-drawn clock at whatever weight the platform shipped); this is the
+// standard "history" glyph — a clock face with a counterclockwise arrow —
+// drawn at the same 1.8-family stroke as the icons beside it in the cell.
+export function HistoryIcon({ size = 14, title }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none"
+      role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} focusable="false" style={style}>
+      {title && <title>{title}</title>}
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 3v5h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 7v5l3.5 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // The app's one tick. Lifted verbatim from the inline editor's row marker so
 // the picker's "Selected" tick and that marker are the same drawn shape rather
 // than a ✓ text glyph beside a real path.
