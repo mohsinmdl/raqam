@@ -142,7 +142,11 @@ export function sortLabel(sort) {
   const s = sort && isSortable(sort.key) ? sort : DEFAULT_SORT;
   return {
     date: { asc: 'Oldest first', desc: 'Newest first' },
-    details: { asc: 'Details A–Z', desc: 'Details Z–A' },
+    // The KEY stays `details` (it is stored in view state and referenced by the
+    // header's altKeys); only what we CALL it changes, matching the column
+    // header and the editor's field. The toolbar prints this label right
+    // beside that header, so the two disagreeing was visible on one screen.
+    details: { asc: 'Payee A–Z', desc: 'Payee Z–A' },
     category: { asc: 'Category A–Z', desc: 'Category Z–A' },
     account: { asc: 'Account A–Z', desc: 'Account Z–A' },
     notes: { asc: 'Memo A–Z', desc: 'Memo Z–A' },

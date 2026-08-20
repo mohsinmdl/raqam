@@ -30,7 +30,12 @@ const SearchField = forwardRef(function SearchField({ value, onChange, placehold
       height, width: open ? expanded : collapsed, padding: '0 8px 0 10px',
       border: '1px solid ' + (focused ? 'var(--accent)' : 'var(--border)'),
       borderRadius: 999, background: 'var(--surface)',
-      transition: 'width .18s ease, border-color .15s ease',
+      // Border colour animates; the WIDTH does not. Transitioning width
+      // animates layout — every frame relaid the toolbar row beside it (and,
+      // at the widths where the toolbar wraps, could reflow it mid-tween).
+      // The field still grows on focus, it just arrives at the new width in
+      // one frame; the accent border is what carries the "you're in here now".
+      transition: 'border-color .15s ease',
     }}>
       <span style={{ color: 'var(--muted)', flex: 'none', display: 'inline-flex' }}><SearchIcon /></span>
       <input

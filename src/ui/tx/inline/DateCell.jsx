@@ -13,6 +13,7 @@ import { Popover, PopoverTrigger, PopoverPanel } from '../../primitives/Popover.
 import { calendarCells, shiftMonth } from '../../../lib/calendar.js';
 import { todayStr, addDays, parseTypedDate } from '../../../lib/dates.js';
 import { PRESETS } from '../../../lib/schedule.js';
+import { Chevron } from '../../icons.jsx';
 
 const WD = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -21,14 +22,6 @@ const chip = on => ({ height: 24, padding: '0 8px', borderRadius: 6, cursor: 'po
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
 const TYPE_MSG = "Couldn't read that date — try 17, 17/8 or 17/08/2026.";
-
-function Chevron() {
-  return (
-    <svg width="9" height="6" viewBox="0 0 9 6" fill="none" aria-hidden="true" focusable="false">
-      <path d="M1 1.25 4.5 4.75 8 1.25" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepeat, showRepeat, disabled, invalid, errorMsg, errorId }, ref) {
   const today = todayStr();

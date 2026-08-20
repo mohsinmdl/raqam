@@ -264,10 +264,48 @@ export function txGroups(list, S, fmt, now, range, anyFilter, sort, accountId) {
     .map(row => (row.isRule ? { row } : { row, selId: row.id }));
   return {
     scheduled, futureTx, postedTx,
-    postedRows: sortRows(postedTx.map(t => txRowOf(t, S, fmt)), sort),
+    // acctDelta is this row's signed effect on the SCOPED account's balance —
+    // the one number withRunningBalances needs and a presenter row otherwise
+    // throws away (amtValue is a display figure built from the all-accounts
+    // perspective, and outflow/inflow drop the sign). Threaded here rather
+    // than re-derived from a tx lookup downstream so the running balance is
+    // computed from the same accountDelta() the balance strip sums, not from
+    // a parallel reading of the row. Null off an account-scoped register:
+    // "this account" is undefined there, and so is a running balance.
+    postedRows: sortRows(postedTx.map(t => ({
+      ...txRowOf(t, S, fmt),
+      acctDelta: accountId ? accountDelta(t, accountId, now) : null,
+    })), sort),
     overdueCount: scheduled.filter(x => x.row.isOverdue).length,
     hiddenRuleCount: ruleRows.length - shownRuleRows.length,
   };
+}
+
+// Running balance down an account register: each row carries the account's
+// balance AS OF that row. Pure, and deliberately separate from txGroups — it
+// runs over the rows actually being RENDERED (after the sort), which is the
+// only list whose last visible value can be checked against the balance strip.
+//
+// Two rules, both inherited rather than invented:
+//   * the arithmetic is chronological, whatever the render order. Under a
+//     date-DESC sort the rows arrive newest-first, so the cumulative is walked
+//     bottom-up and the top row ends up carrying the latest balance — which is
+//     the figure the header strip shows.
+//   * a row's step is accountDelta(), so an UNCLEARED row steps by zero and
+//     repeats the balance above it, exactly as accountBalance() treats it. The
+//     column reports the cleared balance as of that row, never a total the
+//     strip would disagree with.
+//
+// `money` formats (fmt.money from useMoney), so masking flows through for
+// free; omit it and only the raw number is attached.
+export function withRunningBalances(rows, openingBalance, sortDir, money) {
+  const chron = sortDir === 'desc' ? [...rows].reverse() : rows;
+  let run = openingBalance;
+  const walked = chron.map(r => {
+    run += Number.isFinite(r.acctDelta) ? r.acctDelta : 0;
+    return { ...r, runningBalance: run, balanceLabel: money ? money(run) : '' };
+  });
+  return sortDir === 'desc' ? walked.reverse() : walked;
 }
 
 // The scheduled-band note ("N overdue · M more later"), shared by the desktop

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
-import { DEFAULT_SORT, nextSortState, sortLabel } from '../lib/sortRows.js';
+import { DEFAULT_SORT, isSortable, nextSortState, sortLabel } from '../lib/sortRows.js';
 import SortIcon from '../ui/SortIcon.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
@@ -12,11 +12,14 @@ import { SPEC, SHORTCUT_BY_ID, isTypingTarget } from '../lib/shortcuts.js';
 import { stepCursor, rangeBetween, cursorStatusLabel } from '../lib/rowCursor.js';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
+import { openingOf } from '../lib/calc.js';
+import { useMonth } from '../store/MonthContext.jsx';
 import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
 import { selectionForSel } from '../lib/activityDrill.js';
-import { instName, schedNote, txGroups } from '../lib/txRow.js';
+import { instName, schedNote, txGroups, withRunningBalances } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
+import { Chevron } from '../ui/icons.jsx';
 import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
 import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import Checkbox from '../ui/Checkbox.jsx';
@@ -65,13 +68,23 @@ const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: 
 const COLUMNS = [
   { key: 'account', label: 'ACCOUNT', width: 150 },
   { key: 'date', label: 'DATE', width: 96 },
-  { key: 'details', label: 'DETAILS', width: null },
+  // PAYEE, not DETAILS. The sort key stays `details` (SORT_COLUMNS, the header
+  // altKeys, every stored sort) — only the printed label changes, so the column
+  // is called the same thing here, in the editor's field, and in the product
+  // doc. "Details" named a cell that holds exactly one thing: who was paid.
+  { key: 'details', label: 'PAYEE', width: null },
   { key: 'category', label: 'CATEGORY', width: 190 },
   { key: 'notes', label: 'MEMO', width: 180 },
   // Two amount columns (YNAB). altKeys keep the toolbar's size/signed modes
   // lighting a header: both are magnitude-family sorts, closest to OUTFLOW.
   { key: 'outflow', label: 'OUTFLOW', width: 110, align: 'right', altKeys: ['size', 'signed'] },
   { key: 'inflow', label: 'INFLOW', width: 110, align: 'right' },
+  // Running balance — a passbook column, so it closes the money run. Not
+  // sortable (see SortableHeader's caller): its whole meaning is "the balance
+  // after this row in date order", which any other sort destroys, so the
+  // column withdraws instead of offering a sort that would lie. Conditions for
+  // it appearing at all are in balanceEligible below.
+  { key: 'balance', label: 'BALANCE', width: 120, align: 'right' },
   // Just a small one-letter badge, so the column is narrow and centred.
   { key: 'status', label: 'STATUS', width: 68, align: 'center' },
 ];
@@ -130,12 +143,32 @@ function SortableHeader({ col, sort, onSort, last }) {
 }
 
 
+// A column with no sort of its own. BALANCE is the only one: it is derived
+// from the date order, so there is nothing here to sort by — and a header that
+// looked clickable and then reordered the rows into a column of meaningless
+// running totals would be worse than no affordance at all. Plain text, no
+// button, no aria-sort (the column is not a sort candidate, which "none"
+// would wrongly imply).
+function PlainHeader({ col, last }) {
+  return (
+    <th scope="col" style={{ ...th, padding: 0, textAlign: col.align || 'left', ...(last ? { borderRight: 'none' } : null) }}>
+      {/* Same box as SortableHeader's button (32px, 0 8px, matching
+          justification) so a non-sortable column does not make the header row
+          taller than its sortable neighbours. */}
+      <span style={{
+        display: 'flex', alignItems: 'center', minHeight: 32, padding: '0 8px', whiteSpace: 'nowrap',
+        justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start',
+      }}>{col.label}</span>
+    </th>
+  );
+}
+
 // A transfer's acctLabel is 'Source → Dest'; a plain nowrap+ellipsis on the
 // whole string truncates from the END, hiding the destination — the half
 // that answers "where did this go", which matters more than the source (the
 // row is already scoped near the source in most views). Rendered as two
 // spans, BOTH individually truncatable (overflow hidden + ellipsis +
-// minWidth 0) so nothing can paint past the cell into DATE/DETAILS — but
+// minWidth 0) so nothing can paint past the cell into DATE/PAYEE — but
 // with very unequal flex-shrink weights (1000 : 1) so in practice the SOURCE
 // gives up its width first; the destination only starts losing characters
 // once the source is already down to nothing and the two still don't fit —
@@ -154,7 +187,7 @@ function AccountLabel({ t, fontSize, color }) {
   return <span style={{ display: 'block', fontSize, color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span>;
 }
 
-function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo, foldAccount, focused, onCategorize, flash, saved }) {
+function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo, showBalance, foldAccount, focused, onCategorize, flash, saved }) {
   // Fixed 2.25rem (36px) row height, YNAB-style — so the vertical padding is
   // zero and content is centred by the cells' middle alignment; horizontal
   // padding is all that remains.
@@ -260,6 +293,16 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
       <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: 'middle' }}>
         <span className="tnum" style={{ fontSize: 14, fontWeight: 500, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.inflowLabel}</span>
       </td>
+      {/* Running balance. Deliberately the quietest number in the row: --muted
+          and regular weight, so the eye still lands on OUTFLOW/INFLOW (what
+          happened) and finds the balance only when it goes looking (where that
+          left you). Blank on a scheduled row — nothing has moved yet, and a
+          figure there would claim otherwise. */}
+      {showBalance && (
+        <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: 'middle' }}>
+          <span className="tnum" style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{t.balanceLabel || ''}</span>
+        </td>
+      )}
       {/* No status badge on scheduled rows — the warm band and the SCHEDULED
           heading already say what they are, so only recorded rows show C. */}
       <td style={{ ...td, ...dim, padding: pad, textAlign: 'center', verticalAlign: 'middle' }}>
@@ -289,7 +332,13 @@ function GroupHead({ open, onToggle, label, count, note, bg, colSpan }) {
           onClick={onToggle} aria-expanded={open}
           style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 18px', border: 'none', background: 'none', color: 'var(--text)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }}
         >
-          <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--muted)', width: 10 }}>{open ? '▾' : '▸'}</span>
+          {/* Drawn chevron, rotating between the two states — the ▾/▸ pair it
+              replaces were two different glyphs at two different optical
+              weights, so the band appeared to change more than its own
+              open/closed state when you toggled it. */}
+          <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', width: 10 }}>
+            <Chevron dir={open ? 'down' : 'right'} />
+          </span>
           <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.05em' }}>{label}</span>
           <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{count}</span>
           {note && <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>· {note}</span>}
@@ -354,6 +403,10 @@ export default function Transactions() {
   const tableWrapRef = useRef(null);
   const containerWidth = useContainerWidth(tableWrapRef);
   const { ask, notify, confirmOpen, shortcutsOpen, flashRows, flashIds, lastSaved, clearLastSaved } = useUI();
+  // The month the balance strip reads (PositionStrip is month-scoped, never
+  // range-scoped, because opening snapshots exist per month). The running
+  // balance column seeds off the same month's snapshot, so the two agree.
+  const { balanceMonth } = useMonth();
   const fmt = useMoney();
   const { openDrawer, drawer } = useDrawer();
   // The inline editor session (desktop only — phone renders TxSheet instead).
@@ -492,15 +545,45 @@ export default function Transactions() {
   // same thresholds the pure visibleColumns() helper is tested against).
   // Header, colgroup, Row cells and the group-heading colSpan all read from
   // `columns` / `gridColSpan` so they can never drift.
+  //
+  // BALANCE is gated on TRUTH before width. A running balance is only honest
+  // when the last one printed equals the figure in the strip above it, and
+  // that holds under exactly four conditions:
+  //   * account-scoped — "the balance" needs an account to be the balance OF;
+  //   * sorted by date (either direction) — the column IS the date order;
+  //   * the range is exactly the month the strip reads, because the opening
+  //     snapshot that seeds the walk is a per-month figure. A three-month or
+  //     All-Dates range has no opening balance to start from;
+  //   * nothing is filtering rows out — a cumulative that skips the rows a
+  //     search hid is not a balance, it is a subtotal wearing one's clothes.
+  // Fail any of them and the column withdraws rather than print a number the
+  // strip would contradict. (The arithmetic itself, and the check against
+  // accountBalance(), live in txRow.balance.test.js.)
+  const rangeIsBalanceMonth = range.from === balanceMonth && range.to === balanceMonth;
+  // `acct`, not `accountId`: a stale/deleted id redirects on the next effect,
+  // but this render still has to survive it, and there is no opening snapshot
+  // to seed from without an account.
+  const balanceEligible = !!acct && sort.key === 'date' && rangeIsBalanceMonth
+    && !F.q && listFilter === 'all';
   const visibleKeys = useMemo(
-    () => visibleColumnKeys(COLUMNS, containerWidth, !!accountId),
-    [containerWidth, accountId],
+    () => visibleColumnKeys(COLUMNS, containerWidth, !!accountId, balanceEligible),
+    [containerWidth, accountId, balanceEligible],
   );
   const columns = useMemo(() => COLUMNS.filter(c => visibleKeys.has(c.key)), [visibleKeys]);
   const gridColSpan = columns.length + 1;
   const hideAccountCol = !visibleKeys.has('account');
   const hideMemoCol = !visibleKeys.has('notes');
-  // Only fold the account name into the DETAILS sub-label when it's the
+  const showBalanceCol = visibleKeys.has('balance');
+  // Rows as RENDERED, with the balance walked over them. `money` (not moneyPos)
+  // — this is a row figure like OUTFLOW/INFLOW, so it follows the app-wide
+  // "Hide amounts" toggle, which is also what the register's own eye drives.
+  const tableRows = useMemo(
+    () => (showBalanceCol
+      ? withRunningBalances(shownRows, openingOf(acct, S.snapshots, balanceMonth), sort.dir, fmt.money)
+      : shownRows),
+    [showBalanceCol, shownRows, acct, S.snapshots, balanceMonth, sort.dir, fmt.money],
+  );
+  // Only fold the account name into the PAYEE sub-label when it's the
   // *width* that dropped the column — an account-scoped register already
   // omits it deliberately (every row is that one account already) and a
   // repeated sub-label there would be pure noise.
@@ -1072,8 +1155,16 @@ export default function Transactions() {
               content pair to its right. */}
           <span aria-hidden="true" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 6px' }} />
           <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
+          {/* The one sort with no header of its own (`signed` — rank by effect
+              on the balance), so this button is its only door. The LABEL names
+              the state you are in, with the direction arrow, matching the
+              header cells; the TITLE names the door, because a label that
+              reads as a state gives no hint that it is also a switch. */}
           <button
             onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
+            title={sort.key === 'signed'
+              ? 'Sorted by effect on your balance. Click to go back to newest first.'
+              : 'Click to sort by effect on your balance — biggest expense first.'}
             aria-label={sort.key === 'signed' ? 'Sort newest first' : 'Sort by biggest expense first'}
             className="hv-accent-fg"
             style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '0 4px', whiteSpace: 'nowrap', flex: 'none' }}
@@ -1123,12 +1214,14 @@ export default function Transactions() {
                       label={allVisibleSelected ? 'Clear selection' : 'Select all ' + visibleIds.length + ' visible transactions'}
                     />
                   </th>
-                  {columns.map((c, i) => <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} last={i === columns.length - 1} />)}
+                  {columns.map((c, i) => (isSortable(c.key)
+                    ? <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} last={i === columns.length - 1} />
+                    : <PlainHeader key={c.key} col={c} last={i === columns.length - 1} />))}
                 </tr>
               </thead>
               {inlineTx && !editingId && (
                 <tbody>
-                  <TxEditorRow hideAccount={hideAccountCol} hideMemo={hideMemoCol} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
+                  <TxEditorRow hideAccount={hideAccountCol} hideMemo={hideMemoCol} showBalance={showBalanceCol} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
                 </tbody>
               )}
               {scheduled.length > 0 && (
@@ -1144,10 +1237,10 @@ export default function Transactions() {
                   {schedOpen && scheduled.map(x => {
                     const key = schedKey(x);
                     return key === editingId
-                      ? <TxEditorRow key={key} hideAccount={hideAccountCol} hideMemo={hideMemoCol} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
+                      ? <TxEditorRow key={key} hideAccount={hideAccountCol} hideMemo={hideMemoCol} showBalance={showBalanceCol} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
                       : (
                         <Row
-                          key={key} t={x.row} selId={key} scheduled hideAccount={hideAccountCol} hideMemo={hideMemoCol} foldAccount={foldAccount}
+                          key={key} t={x.row} selId={key} scheduled hideAccount={hideAccountCol} hideMemo={hideMemoCol} showBalance={showBalanceCol} foldAccount={foldAccount}
                           checked={schedSel.has(key)} onToggleRow={toggleSched}
                         />
                       );
@@ -1163,10 +1256,10 @@ export default function Transactions() {
                   </tr>
                 )}
                 {/* Recorded rows act through the bulk bar once selected — no ⋯. */}
-                {shownRows.map(t => (t.id === editingId
-                  ? <TxEditorRow key={t.id} hideAccount={hideAccountCol} hideMemo={hideMemoCol} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
+                {tableRows.map(t => (t.id === editingId
+                  ? <TxEditorRow key={t.id} hideAccount={hideAccountCol} hideMemo={hideMemoCol} showBalance={showBalanceCol} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
                   : <Row
-                      key={t.id} t={t} selId={t.id} hideAccount={hideAccountCol} hideMemo={hideMemoCol} foldAccount={foldAccount}
+                      key={t.id} t={t} selId={t.id} hideAccount={hideAccountCol} hideMemo={hideMemoCol} showBalance={showBalanceCol} foldAccount={foldAccount}
                       checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
                       onCategorize={openRowCategorize} flash={flashIds.has(t.id)} saved={lastSaved.has(t.id)}
                     />))}
@@ -1188,11 +1281,23 @@ export default function Transactions() {
               onSchedTap={x => (x.row.isRule ? navigate('/recurring/' + x.row.ruleId) : openers.editTx(S, x.selId, openDrawer))}
             />
           )}
-          {list.length === 0 && monthTx.length > 0 && (
+          {/* Suppressed while an inline editor session is open: the row being
+              typed IS the subject of the screen, and "No matches for your
+              search" under it announces a dead end the user is not in — they
+              are mid-entry, and the row they are writing is right there.
+              (`inlineTx` is the open session; `editingId` narrows it to an
+              existing row, which is itself hidden by the search — hence the
+              plain `inlineTx` test, matching the table's own render gate.)
+              The copy names the two controls that actually widen the view:
+              the search words, and the month arrows in the header. "Widen the
+              date range" named nothing on screen. And the button says what it
+              does — it clears search, sort AND range, which is the whole
+              view, not just a filter. */}
+          {list.length === 0 && monthTx.length > 0 && !inlineTx && (
             <div style={{ padding: '44px 20px', textAlign: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>No matches for your search</div>
-              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>Try different words, or widen the date range in the header.</div>
-              <button onClick={reset} className="hv-soft" style={{ marginTop: 12, height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Reset filters</button>
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>Try different words, or step to another month with the arrows in the header.</div>
+              <button onClick={reset} className="hv-soft" style={{ marginTop: 12, height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Reset view</button>
             </div>
           )}
           {monthTx.length === 0 && scheduled.length === 0 && !inlineTx && (

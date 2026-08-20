@@ -7,10 +7,13 @@
 //
 // Column alignment: colSpan is the register's actual <td> count for this row
 // (checkbox + data columns — see Transactions.jsx's gridColSpan). Each split
-// line's td-1 sits under the checkbox column; the category picker spans the
-// next (colSpan - 4) columns (account/date + payee + category + memo, minus
-// account when hideAccount); the amount td lands under outflow, an empty td
-// under inflow, and the remove button under status/cleared.
+// line's td-1 sits under the checkbox column; the category picker spans every
+// column up to OUTFLOW; then the amount td lands under outflow, an empty td
+// under inflow, another under BALANCE when that column is showing, and the
+// remove button under status/cleared. The picker's span is therefore colSpan
+// minus the fixed tail — counted from `showBalance` rather than hard-coded,
+// because a wrong count doesn't fail loudly, it silently slides the amount
+// field one column right of the header it belongs under.
 import { useDrawer } from '../../DrawerProvider.jsx';
 import { useStore } from '../../../store/StoreProvider.jsx';
 import { useMoney } from '../../../lib/format.js';
@@ -22,7 +25,7 @@ import PlanCategoryPicker from '../../PlanCategoryPicker.jsx';
 
 const lineTd = { padding: '2px 4px', borderBottom: '1px solid var(--border)', background: 'var(--soft)', verticalAlign: 'middle' };
 
-export default function SplitRows({ colSpan }) {
+export default function SplitRows({ colSpan, showBalance }) {
   const { drawer, setForm } = useDrawer();
   const { data: S } = useStore();
   const { money } = useMoney();
@@ -37,6 +40,8 @@ export default function SplitRows({ colSpan }) {
     if (rest.length < 2) setForm({ splitOn: false, splits: undefined, category: rest[0]?.category || '', newCat: rest[0]?.newCat || '', newCatGroup: rest[0]?.newCatGroup || '' });
     else setLines(rest);
   };
+  // Fixed tail after the picker: amount + inflow spacer + (balance spacer) + remove.
+  const tail = showBalance ? 5 : 4;
   const rem = splitRemainder(f.amount, lines);
   const fillIdx = fillRemainderIndex(lines);
   return (
@@ -44,9 +49,9 @@ export default function SplitRows({ colSpan }) {
       {lines.map((l, i) => (
         <tr key={l.id}>
           <td style={lineTd} />
-          <td colSpan={colSpan - 4} style={{ ...lineTd, paddingLeft: 34 }}>
+          <td colSpan={colSpan - tail} style={{ ...lineTd, paddingLeft: 34 }}>
             <PlanCategoryPicker env={env} S={S} month={month} money={money} size={28}
-              catType="expense" showAmounts excludeRta heading={null} allowCreate showSelected placeholder="category"
+              catType="expense" showAmounts excludeRta heading={null} allowCreate showSelected placeholder="Category"
               onCreate={({ name, groupId }) => setLine(i, { category: '__new', newCat: name, newCatGroup: groupId || '' })}
               value={l.category} onChange={id => setLine(i, { category: id, newCat: '', newCatGroup: '' })} />
           </td>
@@ -57,6 +62,7 @@ export default function SplitRows({ colSpan }) {
               style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13, textAlign: 'right' }} />
           </td>
           <td style={lineTd} />
+          {showBalance && <td style={lineTd} />}
           <td style={{ ...lineTd, textAlign: 'center' }}>
             <button type="button" onClick={() => removeLine(i)} aria-label={'Remove split line ' + (i + 1)} className="hv-soft"
               style={{ width: 22, height: 22, border: 'none', background: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 14 }}>×</button>

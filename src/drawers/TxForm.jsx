@@ -16,6 +16,7 @@ import { validate } from '../lib/validate.js';
 import { PRESETS, ruleFromTx } from '../lib/schedule.js';
 import WhenField from './WhenField.jsx';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
+import { Chevron } from '../ui/icons.jsx';
 import { envelopeFor } from '../lib/envelope.js';
 import { blankLine, fillRemainderIndex, splitHalves, splitRemainder, validateSplit } from '../lib/splitTx.js';
 import { formatAmountInput } from '../lib/amountInput.js';
@@ -292,7 +293,7 @@ function Body() {
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 10px', border: '1px dashed var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
         >
           {showMore ? 'Show less' : 'Show more'}
-          <span aria-hidden="true" style={{ display: 'inline-block', transform: showMore ? 'rotate(180deg)' : 'none' }}>⌄</span>
+          <Chevron dir={showMore ? 'up' : 'down'} />
         </button>
         {showMore && (
           <div id="tx-more-region" style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
