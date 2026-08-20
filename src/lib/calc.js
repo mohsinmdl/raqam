@@ -8,20 +8,30 @@ export function fmtNum(n, decimals) {
   const a = Math.abs(n);
   return decimals ? nf2.format(a) : nf.format(Math.round(a));
 }
+// Digit-preserving mask: every digit becomes '•', everything else (the 'Rs '
+// prefix, grouping commas, decimal point, +/− sign) survives untouched — so a
+// masked Rs 425,000 reads as 'Rs •••,•••' and a masked Rs 450 reads as
+// 'Rs •••'. Bullet COUNT differentiates magnitude at a glance without
+// revealing the actual figure. Exported standalone (pure, formatted string in
+// → masked string out) so it's directly testable and reusable by any
+// formatter that grows a masked branch.
+export function maskDigits(formatted) {
+  return String(formatted).replace(/[0-9]/g, '•');
+}
 export function fmtPKR(n, masked, decimals) {
-  if (masked) return 'Rs ••••••';
-  return (n < 0 ? '−' : '') + 'Rs ' + fmtNum(n, decimals);
+  const s = (n < 0 ? '−' : '') + 'Rs ' + fmtNum(n, decimals);
+  return masked ? maskDigits(s) : s;
 }
 export function fmtSigned(n, masked, decimals) {
-  if (masked) return 'Rs ••••••';
-  return (n > 0 ? '+' : n < 0 ? '−' : '') + 'Rs ' + fmtNum(n, decimals);
+  const s = (n > 0 ? '+' : n < 0 ? '−' : '') + 'Rs ' + fmtNum(n, decimals);
+  return masked ? maskDigits(s) : s;
 }
 // Compact PKR for the large tail: Rs 1M, Rs 1.25M, Rs 1.2B. Intl compact notation
 // trims trailing zeros (1_000_000 → "1M", not "1.00M") and, on en-PK, uses the
 // western M/B/K scale (not lakh/crore). Callers apply this only above a magnitude
 // threshold; below it, full grouped formatting (fmtPKR) reads fine and stays exact.
 // Sign is the U+2212 minus to match fmtPKR/fmtSigned. Masking is left to callers,
-// which fall back to fmtPKR (→ 'Rs ••••••') before reaching this.
+// which fall back to fmtPKR (→ digit-preserving 'Rs •••,•••') before reaching this.
 const nfCompact = new Intl.NumberFormat('en-PK', { notation: 'compact', maximumFractionDigits: 2 });
 export function fmtPKRCompact(n) {
   return (n < 0 ? '−' : '') + 'Rs ' + nfCompact.format(Math.abs(n));

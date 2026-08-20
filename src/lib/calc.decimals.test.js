@@ -26,8 +26,8 @@ describe('formatter decimals flag', () => {
     expect(fmtSigned(0, false, true)).toBe('Rs 0.00');
   });
 
-  it('mask still wins over decimals', () => {
-    expect(fmtPKR(1234, true, true)).toBe('Rs ••••••');
-    expect(fmtSigned(1234, true, true)).toBe('Rs ••••••');
+  it('mask still applies over decimals, digit-preserving', () => {
+    expect(fmtPKR(1234, true, true)).toBe('Rs •,•••.••');
+    expect(fmtSigned(1234, true, true)).toBe('+Rs •,•••.••');
   });
 });

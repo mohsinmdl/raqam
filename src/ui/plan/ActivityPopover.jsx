@@ -34,7 +34,8 @@ const td = { padding: '8px', borderBottom: '1px solid var(--border)', fontSize: 
 // rupee rows stay on one line instead of wrapping; smaller amounts keep their
 // exact grouped value. We delegate to the prefs-bound `money` for the full string
 // (respecting the decimals pref) and for the privacy-masked case — `money` returns
-// 'Rs ••••••' when masked, which we detect rather than re-thread the mask pref.
+// a digit-preserving mask (e.g. 'Rs •••,•••') when masked, which we detect via
+// the bullet character rather than re-thread the mask pref.
 const AMOUNT_COMPACT_MIN = 1_000_000;
 function amountCell(n, money) {
   const full = money(n);
