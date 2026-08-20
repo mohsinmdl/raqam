@@ -56,7 +56,7 @@ export default function TxEditorRow({ hideAccount, colSpan }) {
         </td>
         {!hideAccount && (
           <td style={cellTd}>
-            <AccountCell value={cells.account} disabled={!can.account} onChange={v => patch('account', v)} />
+            <AccountCell value={cells.account} disabled={!can.account} onChange={v => patch('account', v)} autoFocus={focusKey === 'account'} />
           </td>
         )}
         <td style={cellTd}>

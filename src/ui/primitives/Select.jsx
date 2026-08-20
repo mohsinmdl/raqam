@@ -9,10 +9,10 @@ const popupStyle = {
   maxHeight: 320, overflowY: 'auto', outline: 'none', minWidth: 'var(--anchor-width)',
 };
 
-export function Select({ value, onValueChange, ariaLabel, renderValue, disabled, children, triggerStyle }) {
+export function Select({ value, onValueChange, ariaLabel, renderValue, disabled, children, triggerStyle, autoFocus }) {
   return (
     <BaseSelect.Root value={value} onValueChange={onValueChange} disabled={disabled}>
-      <BaseSelect.Trigger aria-label={ariaLabel} className="field" style={{
+      <BaseSelect.Trigger autoFocus={autoFocus} aria-label={ariaLabel} className="field" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
         width: '100%', height: 28, padding: '0 8px', fontSize: 13, cursor: 'pointer',
         ...triggerStyle,

@@ -4,7 +4,7 @@
 import { Select, SelectGroup, SelectItem } from '../../primitives/Select.jsx';
 import { useTxOpts } from '../../../drawers/TxForm.jsx';
 
-export default function AccountCell({ value, onChange, disabled }) {
+export default function AccountCell({ value, onChange, disabled, autoFocus }) {
   const { bankOpts, creditOpts } = useTxOpts();
   const all = [...bankOpts, ...creditOpts];
   const picked = all.find(o => o.id === value);
@@ -12,7 +12,7 @@ export default function AccountCell({ value, onChange, disabled }) {
   // only (the row has no room for " — Rs 1,234,567").
   const nameOnly = label => label.split(' — ')[0];
   return (
-    <Select value={value || null} onValueChange={v => onChange(v || '')} ariaLabel="Account" disabled={disabled}
+    <Select value={value || null} onValueChange={v => onChange(v || '')} ariaLabel="Account" disabled={disabled} autoFocus={autoFocus}
       renderValue={() => picked ? nameOnly(picked.label) : 'account'}>
       <SelectGroup label="Cash Accounts">
         {bankOpts.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
