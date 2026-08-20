@@ -124,6 +124,17 @@ textarea:focus {
    fallback here since nothing animates. */
 .row-saved-wash { background-color: color-mix(in srgb, var(--soft) 55%, var(--surface)); }
 
+/* Secondary row metadata (Edited / Excluded / Split) is passive — it clutters
+   a dense ledger when shown on every qualifying row at rest. So it stays laid
+   out (no reflow on reveal) but hidden until the row is hovered or a control
+   inside it takes keyboard focus. opacity, not display: the pills remain in the
+   accessibility tree, so a screen reader still announces "Excluded", "Edited"
+   regardless of hover. The global reduced-motion rule above already drops the
+   transition, so the reveal is simply instant there. */
+.tx-meta { opacity: 0; transition: opacity .12s ease-out; }
+.tx-row:hover .tx-meta,
+.tx-row:focus-within .tx-meta { opacity: 1; }
+
 /* Hover utilities replacing the prototype's style-hover attributes. */
 .hv-elev:hover { background: var(--elev) !important; }
 /* Base UI marks the keyboard-highlighted combobox option with data-highlighted.

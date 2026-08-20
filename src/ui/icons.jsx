@@ -123,48 +123,6 @@ export function TransferIcon({ size = 14, title }) {
   );
 }
 
-// The row's three secondary meta indicators — edited, excluded-from-budgets,
-// split — drawn to sit in the same chip cluster as TransferIcon/RepeatIcon.
-// They were text pills ("Edited", "Excluded from budgets", "Split"); once the
-// register moved to table-layout:fixed the PAYEE column stopped growing to fit
-// them and the long "Excluded from budgets" pill spilled into CATEGORY. Icons
-// carry the same meaning at a fraction of the width, and match the two glyphs
-// already beside them. The full label rides on the wrapping chip's title /
-// aria-label (see TxChips), so nothing is lost.
-export function EditedIcon({ size = 14, title }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" style={style}
-      role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} focusable="false">
-      {title && <title>{title}</title>}
-      <path d="M14.5 5.5l4 4M4.5 19.5l1-4L15 6l3 3-9.5 9.5-4 1z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-// Excluded from budgets: the "not counted" prohibition mark — a ring with a
-// diagonal bar. Muted, so it reads as a quiet exclusion, not an error.
-export function ExcludedIcon({ size = 14, title }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" style={style}
-      role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} focusable="false">
-      {title && <title>{title}</title>}
-      <circle cx="12" cy="12" r="8.2" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M6.2 6.2l11.6 11.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-// One transaction split across categories: a trunk forking into two legs.
-export function SplitIcon({ size = 14, title }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" style={style}
-      role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} focusable="false">
-      {title && <title>{title}</title>}
-      <path d="M12 4v7M12 11l-5 9M12 11l5 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export function RepeatIcon({ size = 14, title }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" style={style}
