@@ -1,7 +1,7 @@
 // The badge cluster on a transaction row: transfer, repeats, edited, excluded.
 // Extracted because this markup was duplicated verbatim across Transactions,
 // AccountDetail and Dashboard, and every tweak had to be made three times.
-import { RepeatIcon, TransferIcon } from './icons.jsx';
+import { EditedIcon, ExcludedIcon, RepeatIcon, SplitIcon, TransferIcon } from './icons.jsx';
 
 const chip = (bg, fg) => ({
   fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999,
@@ -73,11 +73,27 @@ export default function TxChips({ row, meta }) {
           <RepeatIcon size={14} />
         </span>
       )}
-      {/* Only the full-width Transactions row has room for these; the compact
-          account-detail and dashboard rows have always omitted them. */}
-      {meta && t.edited && <span title={t.editedLabel} style={chip('var(--elev)', 'var(--muted)')}>Edited</span>}
-      {meta && t.excluded && <span style={chip('var(--elev)', 'var(--muted)')}>{t.excludedLabel}</span>}
-      {meta && t.split && <span title={t.splitLabel} style={chip('var(--elev)', 'var(--muted)')}>Split</span>}
+      {/* Only the full-width Transactions row shows these (meta); the compact
+          account-detail and dashboard rows have always omitted them. Drawn as
+          icons rather than text pills so the cluster stays one visual family
+          with the transfer/repeat glyphs above and never outgrows the now
+          fixed-width PAYEE column — the label lives on the chip's title +
+          aria-label, so the meaning is still spoken and on hover. */}
+      {meta && t.edited && (
+        <span role="img" aria-label={t.editedLabel} title={t.editedLabel} style={chip('var(--elev)', 'var(--muted)')}>
+          <EditedIcon size={13} />
+        </span>
+      )}
+      {meta && t.excluded && (
+        <span role="img" aria-label={t.excludedLabel} title={t.excludedLabel} style={chip('var(--elev)', 'var(--muted)')}>
+          <ExcludedIcon size={13} />
+        </span>
+      )}
+      {meta && t.split && (
+        <span role="img" aria-label={t.splitLabel} title={t.splitLabel} style={chip('var(--elev)', 'var(--muted)')}>
+          <SplitIcon size={13} />
+        </span>
+      )}
     </>
   );
 }
