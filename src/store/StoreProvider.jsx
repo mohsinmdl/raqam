@@ -205,6 +205,7 @@ export function StoreProvider({ userId, children }) {
     canRedo: state.future.length > 0,
     undoLabel: undoLabel(state),
     redoLabel: redoLabel(state),
+    undoDepth: state.past.length,
   }), [state.data, state.past, state.future, syncStatus, userPrefsSaved, deviceSaved, userPrefs, devicePrefs, setPrefs]);
 
   if (state.status === 'loading') return <LoadingScreen message="Loading your data…" />;
