@@ -17,7 +17,7 @@ export default function PayeeTxList({ names, open, onClose }) {
   const keys = names.map(payeeKey);
   const rows = useMemo(() => S.transactions
     .filter(t => keys.some(k => matchesPayeeTx(t, k)))
-    .sort((a, b) => (a.date < b.date ? 1 : -1)), [S, open]); // eslint-disable-line react-hooks/exhaustive-deps
+    .sort((a, b) => (a.date < b.date ? 1 : -1)), [S, open, names.map(payeeKey).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
   const acctOf = t => (S.accounts.find(a => a.id === t.accountId) || {}).nickname
     || (S.cards.find(c => c.id === t.cardId) || {}).nickname || '—';
   const catOf = t => (S.categories.find(c => c.id === t.category) || {}).name || (t.type === 'transfer' ? 'Transfer' : '—');
