@@ -11,11 +11,14 @@ import { txFormDef } from '../../../drawers/TxForm.jsx';
 import { txDefaults } from '../../../drawers/openers.js';
 import { ruleFromTx } from '../../../lib/schedule.js';
 import { cellsFromForm, editorPatch, editableCells, firstEmptyCell, keepForNext, sourceRef } from '../../../lib/txEditorState.js';
+import { blankLine, splitHalves } from '../../../lib/splitTx.js';
+import { formatAmountInput } from '../../../lib/amountInput.js';
 import AccountCell from './AccountCell.jsx';
 import DateCell from './DateCell.jsx';
 import PayeeCell from './PayeeCell.jsx';
 import CategoryCell from './CategoryCell.jsx';
 import AmountCell from './AmountCell.jsx';
+import SplitRows from './SplitRows.jsx';
 import Checkbox from '../../Checkbox.jsx';
 
 const cellTd = { padding: '4px 4px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle', background: 'var(--soft)' };
@@ -69,11 +72,27 @@ export default function TxEditorRow({ hideAccount, colSpan }) {
         </td>
         <td style={cellTd}>
           {splitOn
-            ? <span className="field" style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)' }}>Split ({(f.splits || []).length})</span>
+            ? <button type="button" className="field hv-soft" onClick={() => setForm({ splitOn: false, splits: undefined, category: (f.splits || [])[0]?.category || '' })}
+                style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)', cursor: 'pointer', width: '100%' }}>
+                Split ({(f.splits || []).length}) — un-split
+              </button>
             : <CategoryCell value={cells.category} catType={catType} isTransfer={isTransfer} disabled={!can.category}
                 onChange={id => patch('category', id)}
                 onCreate={({ name, groupId }) => setForm({ category: '__new', newCat: name, newCatGroup: groupId || '' })}
-                canSplit={canSplit} onSplit={() => setForm({ splitOn: true, splits: [] })} />}
+                canSplit={canSplit} onSplit={() => {
+                  // Seed a 50/50 prefill from the total (the common shared-purchase
+                  // case); with no total yet the lines start empty as before.
+                  // Mirrors TxForm.jsx's footer "Split across categories" button
+                  // exactly, so the two entry paths cannot drift.
+                  const halves = splitHalves(f.amount);
+                  setForm({
+                    splitOn: true, newCat: '', newCatGroup: '',
+                    splits: [
+                      { ...blankLine(), category: f.category === '__new' ? '' : (f.category || ''), amount: halves ? formatAmountInput(String(halves[0])) : '' },
+                      { ...blankLine(), amount: halves ? formatAmountInput(String(halves[1])) : '' },
+                    ],
+                  });
+                }} />}
         </td>
         <td style={cellTd}>
           <input className="field" placeholder="memo" aria-label="Memo" disabled={!can.memo} value={cells.memo}
@@ -95,6 +114,7 @@ export default function TxEditorRow({ hideAccount, colSpan }) {
               color: cells.cleared ? 'var(--on-pos)' : 'var(--muted)' }}>C</button>
         </td>
       </tr>
+      {splitOn && <SplitRows colSpan={colSpan} />}
       <tr>
         <td colSpan={colSpan} style={{ padding: '6px 12px 10px', borderBottom: '1px solid var(--border)', background: 'var(--soft)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
