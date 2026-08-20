@@ -11,6 +11,7 @@ export function UIProvider({ children }) {
   const [toast, setToast] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [payeesOpen, setPayeesOpen] = useState(false);
   // True while a bottom-pinned bar (the bulk-actions bar) is showing. The toast
   // lifts above it rather than landing on top of it — see useBottomBar / Toast.
   const [bottomBar, setBottomBar] = useState(false);
@@ -56,11 +57,15 @@ export function UIProvider({ children }) {
   const openShortcuts = useCallback(() => setShortcutsOpen(true), []);
   const closeShortcuts = useCallback(() => setShortcutsOpen(false), []);
 
+  const openPayees = useCallback(() => setPayeesOpen(true), []);
+  const closePayees = useCallback(() => setPayeesOpen(false), []);
+
   const value = useMemo(() => ({
     notify, ask, closeTopOverlay, confirmOpen: !!confirm, setBottomBar,
     shortcutsOpen, openShortcuts, closeShortcuts,
+    payeesOpen, openPayees, closePayees,
     flashRows, flashIds,
-  }), [notify, ask, closeTopOverlay, confirm, shortcutsOpen, openShortcuts, closeShortcuts, flashRows, flashIds]);
+  }), [notify, ask, closeTopOverlay, confirm, shortcutsOpen, openShortcuts, closeShortcuts, payeesOpen, openPayees, closePayees, flashRows, flashIds]);
 
   return (
     <Ctx.Provider value={value}>
