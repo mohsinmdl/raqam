@@ -43,7 +43,7 @@ textarea:focus {
 :root {
   --bg: #F7F7F3; --surface: #FFFFFF; --elev: #FCFCFA; --text: #14201B; --muted: #66736C;
   --accent: #0F766E; --accent-h: #115E59; --on-accent: #FFFFFF; --soft: #DDF3EC; --border: #DCE4DF;
-  --pos: #15803D; --warn: #B7791F; --neg: #C2413B; --info: #2563EB;
+  --pos: #15803D; --warn: #B7791F; --neg: #C2413B; --neg-h: #A5352F; --info: #2563EB;
   --pos-soft: #E3F2E7; --warn-soft: #F6ECD9; --neg-soft: #F8E4E2; --info-soft: #E3EBFC;
   --on-neg: #FFFFFF; --on-warn: #FFFFFF; --on-pos: #FFFFFF; --on-info: #FFFFFF;
   /* Two compliance tones, for small text that has to sit on a TINTED ground.
@@ -73,7 +73,7 @@ textarea:focus {
 [data-theme="dark"] {
   --bg: #0F1513; --surface: #161D1A; --elev: #1C2420; --text: #E9F0EC; --muted: #9AABA2;
   --accent: #3CBFAB; --accent-h: #5ED3C0; --on-accent: #06211D; --soft: #15302B; --border: #28332E;
-  --pos: #5BBE7E; --warn: #D9A852; --neg: #E37A72; --info: #7FA7F2;
+  --pos: #5BBE7E; --warn: #D9A852; --neg: #E37A72; --neg-h: #EC968E; --info: #7FA7F2;
   --pos-soft: #12291A; --warn-soft: #2E2412; --neg-soft: #331715; --info-soft: #16233D;
   /* dark --neg/--warn/--pos/--info are light tints, so text on them must be dark */
   --on-neg: #2A100E; --on-warn: #2E2412; --on-pos: #06211D; --on-info: #0B1836;
@@ -144,9 +144,10 @@ textarea:focus {
 .hv-soft:hover { background: var(--soft) !important; }
 .hv-accent:hover { background: var(--accent-h) !important; }
 .hv-neg-soft:hover { background: var(--neg-soft) !important; }
-/* Solid-red button hover (the Plan "Fix This" over-assignment action): --neg-strong
-   darkens the fill in light and brightens it a touch in dark — a valid hover both ways. */
-.hv-neg:hover { background: var(--neg-strong) !important; }
+/* Solid-red button hover (the Plan "Fix This" over-assignment action): --neg-h is
+   --neg's hover pair, mirroring --accent/--accent-h — darker in light, brighter in
+   dark, so the fill shifts perceptibly on either ground. */
+.hv-neg:hover { background: var(--neg-h) !important; }
 .hv-text:hover { color: var(--text) !important; }
 .hv-accent-fg:hover { color: var(--accent-h) !important; }
 
