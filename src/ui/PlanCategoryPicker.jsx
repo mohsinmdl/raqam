@@ -22,11 +22,14 @@ import { sortGroups, sortCats } from '../lib/categoryOrder.js';
 //                        Save calls onCreate — the host creates + selects it.
 //   showSelected=false — render a "Selected" section for the current pick
 //                        (with a ✓), even if that category is archived.
+//   footer=null         — extra content rendered inside the panel, below the
+//                        scrollable list, only while not in the create form
+//                        (e.g. the inline transaction editor's Split button).
 export default function PlanCategoryPicker({
   env, S, month, money, value, onChange,
   excludeRta, excludeId, excludeIds, placeholder = 'Choose a category',
   catType = 'expense', showAmounts = true, heading = 'Plan Categories',
-  allowCreate = false, onCreate, showSelected = false,
+  allowCreate = false, onCreate, showSelected = false, footer = null,
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -233,6 +236,7 @@ export default function PlanCategoryPicker({
               })}
               {pickable.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--muted)', padding: 8 }}>No matches.</div>}
               </div>
+              {footer && <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)', marginTop: 8 }}>{footer}</div>}
             </>
           )}
         </div>

@@ -1,0 +1,38 @@
+// CATEGORY cell: the existing PlanCategoryPicker combobox (search, groups,
+// available amounts, inline ＋New Category) plus the YNAB footer — Split.
+// On a transfer row the picker is replaced by a static "Payment/Transfer"
+// label (transfers carry no category).
+//
+// The spec's Payment/Transfer footer button is intentionally NOT reproduced
+// here — the payee combobox's "Payments and Transfers" section already
+// provides that affordance, and a second path through the category cell
+// would need its own account-target picker for no added capability. YAGNI.
+import { useStore } from '../../../store/StoreProvider.jsx';
+import { useMoney } from '../../../lib/format.js';
+import { currentMonth, nowIso } from '../../../lib/dates.js';
+import { envelopeFor } from '../../../lib/envelope.js';
+import PlanCategoryPicker from '../../PlanCategoryPicker.jsx';
+
+const footerBtn = { flex: 1, height: 30, border: 'none', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' };
+
+export default function CategoryCell({ value, onChange, onCreate, onSplit, canSplit, isTransfer, catType, disabled }) {
+  const { data: S } = useStore();
+  const { money } = useMoney();
+  const month = currentMonth();
+  if (isTransfer) {
+    return <span className="field" style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)' }}>Payment/Transfer</span>;
+  }
+  const env = envelopeFor(S, month, nowIso());
+  return (
+    <PlanCategoryPicker
+      env={env} S={S} month={month} money={money}
+      catType={catType} showAmounts={catType === 'expense'} excludeRta heading={null}
+      allowCreate showSelected placeholder="category"
+      onCreate={onCreate}
+      value={value} onChange={onChange}
+      footer={canSplit ? (
+        <button type="button" onMouseDown={e => e.preventDefault()} onClick={onSplit} className="hv-soft" style={footerBtn}>Split</button>
+      ) : null}
+    />
+  );
+}
