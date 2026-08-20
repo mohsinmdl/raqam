@@ -1,7 +1,8 @@
 import { forwardRef, useMemo, useRef, useState } from 'react';
 import { sortGroups, sortCats } from '../lib/categoryOrder.js';
 import { Combobox, ComboboxPanel } from './primitives/Combobox.jsx';
-import { Chevron } from './icons.jsx';
+import { CheckIcon, Chevron } from './icons.jsx';
+import { PlusCircle } from './ToolbarAction.jsx';
 
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
@@ -156,7 +157,11 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
       {allowCreate && (
         <button type="button" onMouseDown={noBlur} onClick={startCreate} className="hv-soft"
           style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', padding: '8px 6px' }}>
-          <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: 999, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, lineHeight: 1 }}>＋</span>
+          {/* PlusCircle, the same drawn filled-circle plus the toolbar's "Add
+              Transaction" uses — this was ＋ (U+FF0B FULLWIDTH PLUS SIGN)
+              hand-centred inside a CSS circle, which sat a pixel or two off
+              centre at every font size and matched nothing else in the app. */}
+          <PlusCircle />
           New Category
         </button>
       )}
@@ -166,7 +171,9 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
           <div style={headStyle}>Selected:</div>
           <button type="button" onMouseDown={noBlur} onClick={() => pick({ kind: 'cat', cat: selectedCat })} className="hv-elev" style={rowStyle}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <span aria-hidden="true" style={{ flex: 'none', color: 'var(--accent)' }}>✓</span>
+              {/* Drawn tick (the inline editor's row marker, shared out) — ✓
+                  is U+2713, which several stacks answer with an emoji check. */}
+              <span aria-hidden="true" style={{ flex: 'none', display: 'inline-flex', color: 'var(--accent)' }}><CheckIcon size={10} /></span>
               <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedCat.name} <span style={{ color: 'var(--muted)' }}>({groupNameOf(selectedCat)})</span></span>
             </span>
             {showAmounts && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(availOf(selectedCat.id)) }}>{money(availOf(selectedCat.id))}</span>}
@@ -241,7 +248,10 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
         >
           {sections.map(s => (
             <Combobox.Group key={s.key} items={s.items}>
-              <Combobox.GroupLabel style={headStyle}>{s.name}:</Combobox.GroupLabel>
+              {/* No trailing colon. A group label heads the rows beneath it —
+                  it is a name, not the start of a sentence the rows finish,
+                  and the punctuation read as a stray character mid-list. */}
+              <Combobox.GroupLabel style={headStyle}>{s.name}</Combobox.GroupLabel>
               {s.items.map(item => {
                 const isRta = item.kind === 'rta';
                 const val = isRta ? env.rta : availOf(item.cat.id);

@@ -30,7 +30,15 @@ export const Select = forwardRef(function Select({ value, onValueChange, ariaLab
         <BaseSelect.Icon style={{ color: 'var(--muted)', display: 'inline-flex', flex: 'none' }}><Chevron /></BaseSelect.Icon>
       </BaseSelect.Trigger>
       <BaseSelect.Portal>
-        <BaseSelect.Positioner sideOffset={4} style={{ zIndex: 45 }}>
+        {/* alignItemWithTrigger={false} turns off Base UI's native-macOS-style
+            placement, which lifts the popup so the SELECTED item sits over the
+            trigger. In a register row that dragged the list up over the rows
+            above — the further down the list the current value sat, the
+            further the popup climbed — so the same control opened in a
+            different place on every row, and on a row near the top it was
+            pushed back down and clipped. A plain anchored dropdown below the
+            field is what every other picker in this app does. */}
+        <BaseSelect.Positioner sideOffset={4} alignItemWithTrigger={false} style={{ zIndex: 45 }}>
           {/* Base UI still closes the popup on Escape; stopping propagation
               here just keeps it from also reaching DrawerProvider's session
               listener, same contract as every sibling overlay (Popover). */}

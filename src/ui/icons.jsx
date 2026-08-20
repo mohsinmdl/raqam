@@ -34,6 +34,82 @@ export function Chevron({ size = 9, dir = 'down', title }) {
   );
 }
 
+// Sort state, drawn — the ↑ ↓ ↕ text glyphs it replaces were three unrelated
+// arrow shapes rendered by whichever font answered, at an optical weight that
+// never matched the 1.8px strokes beside them (and ↕ in particular arrived as
+// an emoji-ish double arrow on some stacks). Same geometry as Chevron, so a
+// sorted header reads as the same family as the disclosure chevrons above it.
+//
+// `dir` null/undefined = sortable but not sorted: BOTH chevrons, which is the
+// only state that has to say "this column can go either way". asc/desc show
+// the single chevron for the direction in force. Colour comes from the caller
+// (currentColor) at FULL opacity — the old 0.4 opacity on the inactive icon
+// dropped --muted to 2.4:1, below any floor, for the one state that has to be
+// discoverable before hover.
+export function SortIcon({ dir, size = 10 }) {
+  const active = dir === 'asc' || dir === 'desc';
+  return (
+    <svg viewBox="0 0 10 12" width={size} height={size * 1.2} fill="none" aria-hidden="true" focusable="false" style={style}>
+      {!active && <path d="M1.5 4.6 5 1.4 8.5 4.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />}
+      {!active && <path d="M1.5 7.4 5 10.6 8.5 7.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />}
+      {dir === 'asc' && <path d="M1.5 7.6 5 4.4 8.5 7.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />}
+      {dir === 'desc' && <path d="M1.5 4.4 5 7.6 8.5 4.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />}
+    </svg>
+  );
+}
+
+// The amount cells' operator-pad trigger. Was the ⌗ text glyph — a "viewdata
+// square", not a calculator, and one of the characters most likely to arrive
+// as a tofu box or a wildly off-weight shape. Drawn as what it opens: a
+// calculator body, its display bar, and four keys (round-cap zero-length
+// segments, so each key is a dot at the same 1.8-family weight).
+export function CalcIcon({ size = 14, title }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none"
+      role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} focusable="false" style={style}>
+      {title && <title>{title}</title>}
+      <rect x="4.5" y="2.5" width="15" height="19" rx="3" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8.5 7h7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M9.5 12.5h.01M14.5 12.5h.01M9.5 17h.01M14.5 17h.01" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// The app's one tick. Lifted verbatim from the inline editor's row marker so
+// the picker's "Selected" tick and that marker are the same drawn shape rather
+// than a ✓ text glyph beside a real path.
+export function CheckIcon({ size = 10, title }) {
+  return (
+    <svg viewBox="0 0 10 10" width={size} height={size} fill="none"
+      role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} focusable="false" style={style}>
+      {title && <title>{title}</title>}
+      <path d="M1.6 5.2 3.9 7.5 8.4 2.7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// Plain plus and close, for the places that were spelling them with text
+// characters (+ and ×, and the full-width ＋). Same stroke family again.
+export function PlusIcon({ size = 10, title }) {
+  return (
+    <svg viewBox="0 0 10 10" width={size} height={size} fill="none"
+      role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} focusable="false" style={style}>
+      {title && <title>{title}</title>}
+      <path d="M5 1.2v7.6M1.2 5h7.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function CloseIcon({ size = 10, title }) {
+  return (
+    <svg viewBox="0 0 10 10" width={size} height={size} fill="none"
+      role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} focusable="false" style={style}>
+      {title && <title>{title}</title>}
+      <path d="M1.6 1.6 8.4 8.4M8.4 1.6 1.6 8.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function TransferIcon({ size = 14, title }) {
   return (
     <svg viewBox="0 0 17.53 19.42" width={size} height={size} fill="currentColor" style={style}

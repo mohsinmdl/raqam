@@ -48,9 +48,16 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
   // strip). Every instance flips the same `maskedPosition`, so the two eyes
   // stay in lockstep — masking only these "bigger number" position figures.
   const eyeToggle = (
+    // "balances", not "amounts": the register toolbar has its own eye a few
+    // pixels away that hides the ROW amounts (prefs.masked), and both were
+    // called "Hide amounts" — two controls, one name, different effects. This
+    // one masks the position figures only, which are balances.
+    // No aria-pressed either: the label already names the action, so
+    // aria-pressed=false read as "Hide balances, not pressed" while the
+    // balances were showing — the inverse of the state it was asserting.
     <button onClick={() => setPrefs({ maskedPosition: !prefs.maskedPosition })} className="hv-soft"
-      aria-pressed={String(prefs.maskedPosition)} aria-label={prefs.maskedPosition ? 'Show amounts' : 'Hide amounts'}
-      title={prefs.maskedPosition ? 'Show amounts' : 'Hide amounts'}
+      aria-label={prefs.maskedPosition ? 'Show balances' : 'Hide balances'}
+      title={prefs.maskedPosition ? 'Show balances' : 'Hide balances'}
       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         {prefs.maskedPosition
@@ -83,6 +90,16 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
       </div>
     );
     const op = s => <span aria-hidden="true" style={{ fontSize: 17, color: 'var(--muted)', padding: '0 8px' }}>{s}</span>;
+    // The strip wraps on a phone (390px), and an operator is meaningless
+    // stranded at the end of a line: "Cleared + Uncleared" then a bare "="
+    // hanging under it. Each operator therefore travels WITH the operand it
+    // introduces, in a nowrap group, so the row can only ever break BETWEEN
+    // terms — the equation stays readable however many lines it takes.
+    const term = (opSym, body) => (
+      <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'nowrap', flex: 'none', minWidth: 0 }}>
+        {op(opSym)}{body}
+      </span>
+    );
     // Wide mode drops the card frame for a flush strip whose only edge is the
     // single bottom divider between it and the table below.
     const compactCard = wide
@@ -91,10 +108,8 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
     return (
       <section aria-label="Current position" style={{ ...compactCard, padding: '11px 18px', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         {cell(M.totalBank, 'Cleared Balance', cBadge(true))}
-        {op('+')}
-        {cell(M.uncleared, 'Uncleared Balance', cBadge(false))}
-        {op('=')}
-        {cell(M.working, 'Working Balance', null)}
+        {term('+', cell(M.uncleared, 'Uncleared Balance', cBadge(false)))}
+        {term('=', cell(M.working, 'Working Balance', null))}
         {/* Eye sits just right of the totals it protects; the search slot below
             still pushes to the far right via marginLeft:auto. */}
         <div style={{ marginLeft: 8, display: 'inline-flex', flex: 'none' }}>{eyeToggle}</div>

@@ -70,7 +70,17 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
             // the editor session and cancelling the whole row.
             else if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); }
           }}
-          style={{ width: '100%', height: 28, padding: '0 22px 0 8px', fontSize: 13, ...(showInvalid ? ringStyle : null) }}
+          // Tight horizontal padding and minWidth 0: this input has to hold a
+          // full dd/mm/yyyy — the placeholder and every committed value are the
+          // same 10 characters — and at the old 8px/22px gutters inside a 96px
+          // column the content box was narrower than the text, so the field
+          // scrolled its own value out of sight (scrollWidth > clientWidth) and
+          // showed "17/08/20" with the year clipped. The column is 120 now
+          // (COLUMNS in Transactions.jsx) and the gutters are 4px, so the text
+          // fits with room to spare and still stops well short of the calendar
+          // chevron's 20px box at the right edge. minWidth 0 keeps the input
+          // from asserting a min-content floor of its own inside the cell.
+          style={{ width: '100%', minWidth: 0, height: 28, padding: '0 4px', fontSize: 13, ...(showInvalid ? ringStyle : null) }}
         />
         <PopoverTrigger
           aria-label="Open calendar" disabled={disabled} className="hv-soft"

@@ -67,7 +67,12 @@ const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: 
 // line up only if they agree.
 const COLUMNS = [
   { key: 'account', label: 'ACCOUNT', width: 150 },
-  { key: 'date', label: 'DATE', width: 96 },
+  // 120, not 96: the editor's DATE field is a TYPED dd/mm/yyyy input, and at 96
+  // the placeholder and a committed value both overflowed the input's content
+  // box (scrollWidth > clientWidth), so the field clipped the year the moment
+  // it was not focused. The column is sized for the widest thing it has to
+  // hold, which is the editor's field, not the read-only "26 Aug" label.
+  { key: 'date', label: 'DATE', width: 120 },
   // PAYEE, not DETAILS. The sort key stays `details` (SORT_COLUMNS, the header
   // altKeys, every stored sort) — only the printed label changes, so the column
   // is called the same thing here, in the editor's field, and in the product
@@ -96,7 +101,15 @@ const CAT_TYPES = ['expense', 'refund', 'income'];
 // full header height rather than the width of the label text.
 function SortableHeader({ col, sort, onSort, last }) {
   const active = sort.key === col.key || (col.altKeys || []).includes(sort.key);
-  const dir = active ? sort.dir : null;
+  // `signed` borrows the OUTFLOW header (altKeys) but ranks by effect on the
+  // balance, so its stored direction is the OPPOSITE of what this column shows:
+  // signed-ASC puts the most negative row on top, i.e. the LARGEST outflow —
+  // which under this column's own vocabulary is descending. Showing the raw
+  // dir here drew an ascending icon over a column reading largest-first.
+  const shownDir = active && sort.key === 'signed'
+    ? (sort.dir === 'asc' ? 'desc' : 'asc')
+    : (active ? sort.dir : null);
+  const dir = shownDir;
   const nextDir = nextSortState(sort, col.key).dir;
   const nextWord = {
     date: { asc: 'oldest first', desc: 'newest first' },
@@ -111,7 +124,7 @@ function SortableHeader({ col, sort, onSort, last }) {
   return (
     <th
       scope="col"
-      aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      aria-sort={active ? (shownDir === 'asc' ? 'ascending' : 'descending') : 'none'}
       style={{ ...th, padding: 0, textAlign: col.align || 'left', ...(last ? { borderRight: 'none' } : null) }}
     >
       <button
@@ -168,23 +181,33 @@ function PlainHeader({ col, last }) {
 // that answers "where did this go", which matters more than the source (the
 // row is already scoped near the source in most views). Rendered as two
 // spans, BOTH individually truncatable (overflow hidden + ellipsis +
-// minWidth 0) so nothing can paint past the cell into DATE/PAYEE — but
-// with very unequal flex-shrink weights (1000 : 1) so in practice the SOURCE
-// gives up its width first; the destination only starts losing characters
-// once the source is already down to nothing and the two still don't fit —
-// the realistic case (an ordinary-length destination) never touches it. The
-// outer span also clips as a backstop. Non-transfer rows have no acctTo and
-// fall back to the single truncating span exactly as before.
+// minWidth 0) so nothing can paint past the cell into DATE/PAYEE.
+//
+// The shrink weights used to be wildly unequal (1000 : 1) so the SOURCE gave
+// up its width first — which worked right up to the point where it gave up
+// ALL of it: on a narrow container the source collapsed to ~1.8px, a stray
+// ellipsis with no word left in it, which reads as damage rather than as
+// truncation. Both halves now shrink on equal terms and are each capped at
+// HALF the cell, so neither can eat the other: a long source ellipsizes at
+// 50% and hands the rest to the destination, a short one takes only what it
+// needs (no flex-grow, so nothing stretches into a gap before the arrow), and
+// when both are long they truncate symmetrically. The outer span also clips as
+// a backstop. Non-transfer rows have no acctTo and fall back to the single
+// truncating span exactly as before.
+const half = (fontSize, color) => ({
+  minWidth: 0, maxWidth: '50%', flex: '0 1 auto',
+  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize, color,
+});
 function AccountLabel({ t, fontSize, color }) {
   if (t.acctTo) {
     return (
-      <span style={{ display: 'flex', minWidth: 0, overflow: 'hidden', alignItems: 'baseline' }}>
-        <span style={{ minWidth: 0, flex: '0 1000 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize, color }}>{t.acctFrom}</span>
-        <span style={{ minWidth: 0, flex: '0 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize, color }}>{' → ' + t.acctTo}</span>
+      <span style={{ display: 'flex', minWidth: 0, maxWidth: '100%', overflow: 'hidden', alignItems: 'baseline' }}>
+        <span style={half(fontSize, color)}>{t.acctFrom}</span>
+        <span style={half(fontSize, color)}>{' → ' + t.acctTo}</span>
       </span>
     );
   }
-  return <span style={{ display: 'block', fontSize, color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span>;
+  return <span style={{ display: 'block', maxWidth: '100%', fontSize, color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span>;
 }
 
 function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo, showBalance, foldAccount, focused, onCategorize, flash, saved }) {
@@ -227,7 +250,14 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
       // selecting it) apart from one landing anywhere else — selecting a saved
       // row must not itself end its completion accent (selected + saved both
       // read at once; see the category cell and background below).
-      style={{ height: '2.25rem', background: checked ? 'var(--soft)' : scheduled ? 'color-mix(in srgb, var(--warn-soft) 40%, var(--surface))' : undefined, cursor: selId ? 'pointer' : undefined }}
+      // The scheduled wash is mixed further up in DARK (70% vs 40%): the dark
+      // --warn-soft (#2E2412) and dark --surface (#161D1A) are both near-black,
+      // so a 40% blend of one into the other moved the row by about 1% relative
+      // luminance — a band that existed in the stylesheet and not on the
+      // screen. 70% is still a wash rather than a fill, and a checked row's
+      // --soft still wins over it. Light stays at 40%, where the difference was
+      // already legible.
+      style={{ height: '2.25rem', background: checked ? 'var(--soft)' : scheduled ? 'var(--sched-row)' : undefined, cursor: selId ? 'pointer' : undefined }}
       data-saved-row={saved || undefined}
     >
       {/* Padding moves onto the checkbox's own label so the whole cell, not
@@ -258,9 +288,13 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
             cue on the date itself, since the second line that held it is gone. */}
         <span className="tnum" style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', color: t.isOverdue ? 'var(--neg)' : undefined }}>{t.dateLabel}</span>
       </td>
-      <td style={{ ...td, ...dim, maxWidth: 280, padding: pad, verticalAlign: 'middle' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
+      {/* minWidth 0 alongside the maxWidth: under table-layout:fixed the
+          colgroup sets this column's width, and a min-width floor of
+          "whatever the longest nickname measures" is exactly what used to
+          push the table wider than its wrapper. */}
+      <td style={{ ...td, ...dim, maxWidth: 280, minWidth: 0, padding: pad, verticalAlign: 'middle' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: 14, fontWeight: 500, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
           <TxChips row={t} meta />
         </div>
         {/* ACCOUNT folds in here under ~900px container width (narrower than
@@ -297,15 +331,30 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
           and regular weight, so the eye still lands on OUTFLOW/INFLOW (what
           happened) and finds the balance only when it goes looking (where that
           left you). Blank on a scheduled row — nothing has moved yet, and a
-          figure there would claim otherwise. */}
+          figure there would claim otherwise.
+          NOT dimmed on an uncleared row (see `dim` above): --muted is already
+          at the 4.96:1 floor, and .62 opacity dropped it to 2.43:1 — the row
+          state must not be paid for out of the legibility of the number.
+          An uncleared row steps the running balance by ZERO (withRunningBalances,
+          matching accountBalance()), so the figure here would be a verbatim
+          repeat of the row above — three identical numbers down a column read
+          as an arithmetic error, not as "these don't count yet". An em dash
+          says the true thing instead, and the title says why. The cleared math
+          is untouched: the last cleared row still carries the figure the
+          balance strip shows. */}
       {showBalance && (
-        <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: 'middle' }}>
-          <span className="tnum" style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{t.balanceLabel || ''}</span>
+        <td style={{ ...td, padding: pad, textAlign: 'right', verticalAlign: 'middle' }}>
+          {t.isPending && !scheduled
+            ? <span aria-hidden="true" title="Uncleared — not counted until cleared" style={{ fontSize: 13.5, color: 'var(--muted)' }}>—</span>
+            : <span className="tnum" style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{t.balanceLabel || ''}</span>}
         </td>
       )}
       {/* No status badge on scheduled rows — the warm band and the SCHEDULED
-          heading already say what they are, so only recorded rows show C. */}
-      <td style={{ ...td, ...dim, padding: pad, textAlign: 'center', verticalAlign: 'middle' }}>
+          heading already say what they are, so only recorded rows show C.
+          Un-dimmed for the same reason as BALANCE: the uncleared badge is
+          drawn in --muted, and it is the one cell whose whole job is to
+          report the state that would have dimmed it. */}
+      <td style={{ ...td, padding: pad, textAlign: 'center', verticalAlign: 'middle' }}>
         {!scheduled && (
           <span
             role="img" aria-label={t.stLabel} title={t.stTitle || t.stLabel}
@@ -340,8 +389,14 @@ function GroupHead({ open, onToggle, label, count, note, bg, colSpan }) {
             <Chevron dir={open ? 'down' : 'right'} />
           </span>
           <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.05em' }}>{label}</span>
-          <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{count}</span>
-          {note && <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>· {note}</span>}
+          {/* The subtitle sits on --warn-soft, where --muted measures 4.23:1 —
+              under the 4.5:1 floor, and 11.5px is nowhere near large-text
+              territory, so nothing exempts it. --text-toned (theme.css) is the
+              muted-but-compliant tone: 5.11:1 light, 7.80:1 dark on this
+              band. 12/600 as well, so the count still reads as secondary to
+              the heading beside it without leaning on colour alone. */}
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-toned)' }}>{count}</span>
+          {note && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-toned)' }}>· {note}</span>}
         </button>
       </td>
     </tr>
@@ -1114,7 +1169,7 @@ export default function Transactions() {
         // the page-level horizontal scrollbar this wave removes from the
         // table itself — the `flex: 1` spacer still pushes the trailing
         // group right on whichever line it lands on.
-        <div style={{
+        <div className="tx-toolbar" style={{
           display: 'flex', alignItems: 'center', gap: 6, rowGap: 6, flexWrap: 'wrap', padding: flush ? '9px 18px' : '10px 14px',
           background: 'var(--surface)',
           ...(flush ? { borderBottom: '1px solid var(--border)' } : { border: '1px solid var(--border)', borderRadius: 12 }),
@@ -1133,10 +1188,14 @@ export default function Transactions() {
             {sortLabel(sort) + ', ' + list.length + ' row' + (list.length === 1 ? '' : 's')}
           </span>
           <span style={{ flex: 1 }} />
+          {/* No aria-pressed. The label names the ACTION ("Hide amounts"), so
+              aria-pressed=false alongside it announced "Hide amounts, not
+              pressed" while amounts were in fact showing — the state read as
+              the inverse of the truth. A control whose name changes with its
+              state is not a toggle button; it is two named actions. */}
           <ToolbarAction
             icon={prefs.masked ? <EyeOffIcon /> : <EyeIcon />}
             label={prefs.masked ? 'Show amounts' : 'Hide amounts'}
-            aria-pressed={prefs.masked}
             shortcut={SHORTCUT_BY_ID.hideAmounts}
             title={prefs.masked ? 'Show amounts' : 'Hide amounts'}
             onClick={() => setPrefs({ masked: !prefs.masked })}
@@ -1152,14 +1211,25 @@ export default function Transactions() {
             <WideIcon />
           </button>
           {/* Divider: Fit-width is a display control; Sort + Search are the
-              content pair to its right. */}
-          <span aria-hidden="true" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 6px' }} />
+              content pair to its right. It is the FIRST thing dropped once the
+              row wraps (theme.css, container query on .tx-toolbar): a divider
+              is a separator between two groups on one line, and once the line
+              breaks it either lands at the end of the first row separating
+              nothing, or at the head of the second row pointing at a group
+              that no longer sits beside it. The 13px it gives back is also
+              often the whole overflow. */}
+          <span aria-hidden="true" className="tx-toolbar-divider" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 6px' }} />
           <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
           {/* The one sort with no header of its own (`signed` — rank by effect
               on the balance), so this button is its only door. The LABEL names
-              the state you are in, with the direction arrow, matching the
-              header cells; the TITLE names the door, because a label that
-              reads as a state gives no hint that it is also a switch. */}
+              the state you are in; the TITLE names the door, because a label
+              that reads as a state gives no hint that it is also a switch.
+              No arrow. Every label here already CONTAINS its direction —
+              "Newest first", "Biggest expense first" — so the ↑/↓ beside it
+              was a second, independent claim about the same ordering, and one
+              of them was routinely wrong: `signed` ASC reads as "biggest
+              expense first", which the arrow drew as ascending. The word
+              wins; the arrow goes. */}
           <button
             onClick={() => setSort(s => (s.key === 'signed' ? DEFAULT_SORT : { key: 'signed', dir: 'asc' }))}
             title={sort.key === 'signed'
@@ -1169,7 +1239,7 @@ export default function Transactions() {
             className="hv-accent-fg"
             style={{ border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '0 4px', whiteSpace: 'nowrap', flex: 'none' }}
           >
-            {sortLabel(sort) + ' ' + (sort.dir === 'asc' ? '↑' : '↓')}
+            {sortLabel(sort)}
           </button>
         </div>
         )}
@@ -1190,7 +1260,18 @@ export default function Transactions() {
               whether that row is selected, so Space has an audible result. */}
           <span role="status" aria-live="polite" style={srOnly}>{cursorStatus}</span>
           {!phone && (postedRows.length > 0 || scheduled.length > 0 || (inlineTx && !editingId)) && (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            /* table-layout: fixed makes the <colgroup> below AUTHORITATIVE.
+               Under the default auto layout the browser sizes every column
+               from its content's min-content width, so one long account
+               nickname folded into the PAYEE sub-line (a nowrap+ellipsis span,
+               whose min-content is the whole string) widened the PAYEE column
+               past the wrapper and put a horizontal scrollbar under a table
+               that had already folded ACCOUNT and MEMO away to avoid exactly
+               that. Fixed layout means the declared widths win, the one
+               width-less column (PAYEE) takes the remainder, and every
+               over-long cell ellipsises inside its column instead of pushing
+               it. */
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               {/* Widths declared once, so a header and its cells cannot drift.
                   `columns` is already filtered by container width (registerColumns.js)
                   before it reaches colgroup/header/cells, so all three fold together. */}

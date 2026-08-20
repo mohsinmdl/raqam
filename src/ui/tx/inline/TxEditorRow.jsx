@@ -14,6 +14,7 @@ import { cellsFromForm, editorPatch, editableCells, errorCells, firstEmptyCell, 
 import { blankLine, splitHalves } from '../../../lib/splitTx.js';
 import { autoCategoryPatchArgs } from '../../../lib/payees.js';
 import { formatAmountInput } from '../../../lib/amountInput.js';
+import { CheckIcon } from '../../icons.jsx';
 import AccountCell from './AccountCell.jsx';
 import DateCell from './DateCell.jsx';
 import PayeeCell from './PayeeCell.jsx';
@@ -51,6 +52,20 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
     account: useRef(null), date: useRef(null), payee: useRef(null),
     category: useRef(null), outflow: useRef(null), inflow: useRef(null),
   };
+  // The summary sentence under the row, ordered the way the row reads.
+  // drawer.errList arrives in whatever order validate.transaction happened to
+  // append its messages — which is neither the column order nor the order the
+  // failed-submit focus walk (above) visits the cells, so "Pick a category.
+  // Enter an amount. Choose an account." described a left-to-right row from
+  // the middle, then the end, then the start. Attributed messages come first,
+  // in CELL_ORDER; anything errList carries that belongs to no single cell
+  // (a whole-form message, e.g. a split that doesn't sum) keeps its own order
+  // at the end rather than being dropped.
+  const errSummary = (() => {
+    const attributed = CELL_ORDER.map(k => cellErrors[k]).filter(Boolean);
+    const rest = drawer.errList.filter(m => !attributed.includes(m));
+    return [...attributed, ...rest].join(' ');
+  })();
   // The store lookup editorPatch/inflowType need but can't reach themselves:
   // whether a category is income- or expense-typed, to decide an income+
   // category pick or an inflow's type inference (see FIX 1 — a blind flip to
@@ -107,10 +122,11 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
             announces itself as the editor through its fields. */}
         <td style={{ ...cellTd, padding: 0, position: 'relative', minWidth: 34 }}>
           <span aria-hidden="true" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', paddingLeft: 18 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13, borderRadius: 3, background: 'var(--accent)', flex: 'none' }}>
-              <svg width="9" height="9" viewBox="0 0 10 10" fill="none" focusable="false">
-                <path d="M1.6 5.2 3.9 7.5 8.4 2.7" stroke="var(--on-accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+            {/* CheckIcon (icons.jsx) is this shape, lifted out so the category
+                picker's "Selected" tick draws the same path instead of a ✓
+                text glyph. currentColor, hence the colour on the wrapper. */}
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13, borderRadius: 3, background: 'var(--accent)', color: 'var(--on-accent)', flex: 'none' }}>
+              <CheckIcon size={9} />
             </span>
           </span>
         </td>
@@ -191,35 +207,66 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
               color: cells.cleared ? 'var(--on-pos)' : 'var(--muted)' }}>C</button>
         </td>
       </tr>
-      {splitOn && <SplitRows colSpan={colSpan} showBalance={showBalance} />}
+      {splitOn && <SplitRows colSpan={colSpan} showBalance={showBalance} hideMemo={hideMemo} />}
       <tr>
         {/* The register's table wrapper can scroll horizontally on a narrow
             container (tx-table-wrap, overflow-x: auto in Transactions.jsx) —
-            colSpan makes this td as wide as the whole scrollable row, so
-            Cancel/Save would otherwise sit past the visible edge until the
-            user scrolled all the way over. The action group is its own
-            sticky, shrink-to-fit box (not the full-width td) pinned to
-            left: 0 of the scroll container, so it's the first thing in view
-            at any scroll position — buttons first, messages after, so a long
-            error/dup string can't push Save out of the pinned box. When the
-            table isn't actually overflowing (the common case at 1024/1366+)
-            sticky has nothing to do and this renders exactly as a normal
-            flex row. */}
+            colSpan makes this td as wide as the whole scrollable row, so the
+            actions would otherwise sit past the visible edge until the user
+            scrolled all the way over.
+            The td holds a full-width flex row that pushes its single child to
+            the END, and that child — the shrink-to-fit action group — is
+            sticky to right: 0. Unscrolled, the buttons sit under the amount
+            columns they commit, which is where a ledger's confirm belongs and
+            where the eye already is after typing the amount; scrolled, the
+            same group pins to the right edge instead of drifting off it.
+            (It was pinned LEFT before, which parked Save under the checkbox
+            column — the far side of the row from the last field touched.)
+            Messages come BEFORE the buttons in DOM order so a long error
+            string grows leftwards into the empty span of the row rather than
+            pushing the buttons out of the pinned box. When the table isn't
+            actually overflowing (the common case at 1024/1366+) sticky has
+            nothing to do and this renders as a plain right-aligned row. */}
         <td colSpan={colSpan} style={{ padding: '6px 12px 10px', borderBottom: '1px solid var(--border)', background: 'var(--soft)' }}>
-          <div style={{ position: 'sticky', left: 0, display: 'flex', alignItems: 'center', gap: 10, width: 'fit-content', maxWidth: '100%', flexWrap: 'wrap' }}>
-            <button type="button" onClick={requestClose} className="hv-elev" style={btn(false)}>Cancel</button>
-            <button type="button" onClick={attemptSubmit} className="hv-accent" style={btn(true)}>{txFormDef.cta(drawer)}</button>
-            {!isEdit && (
-              <button type="button" onClick={saveAndAdd} className="hv-accent" style={btn(true)}>Save and add another</button>
-            )}
-            {drawer.errList.length > 0 && (
-              <span role="alert" style={{ fontSize: 12.5, color: 'var(--neg)' }}>{drawer.errList.join(' ')}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, width: '100%', flexWrap: 'wrap' }}>
+            {/* The messages sit in the full-width wrapper, BEFORE the buttons,
+                but OUTSIDE the sticky group — deliberately. Inside it, a long
+                sentence made the group itself wider than the scrollport, and
+                sticky cannot move an element past its own containing block, so
+                the pin gave out and the CTA hung off the right edge. Out here
+                they shrink (minWidth 0) and wrap instead, and the group stays
+                shrink-to-fit, which is what sticky needs to work at all.
+                Not role="alert" on the summary. Every message in it is ALREADY
+                announced by the sr-only alert on the cell it belongs to
+                (AccountCell/DateCell/PayeeCell/CategoryCell/AmountCell), and
+                focus moves to the first failing cell on the same render — so a
+                second live region here read the whole failure out twice, the
+                second time detached from any field. This is the SIGHTED
+                summary of that same failure; 13/600 in --neg-strong carries it
+                (--neg alone measures 4.40:1 on the row's --soft ground, just
+                under the floor). */}
+            {/* flex-basis 240 with grow AND shrink: on a roomy row the message
+                shares the line with the buttons; on a row too narrow for both
+                it takes a line of its own rather than being slid under the
+                sticky group when that pins itself leftwards. */}
+            {errSummary && (
+              <span style={{ flex: '1 1 240px', minWidth: 0, fontSize: 13, fontWeight: 600, color: 'var(--neg-strong)' }}>{errSummary}</span>
             )}
             {drawer.dupMsg && (
-              <span role="alert" style={{ fontSize: 12.5, color: 'var(--warn)' }}>
+              <span role="alert" style={{ flex: '1 1 240px', minWidth: 0, fontSize: 12.5, color: 'var(--warn)' }}>
                 <b>Possible duplicate — </b>{drawer.dupMsg}
               </span>
             )}
+            <div style={{ position: 'sticky', right: 0, display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }}>
+              <button type="button" onClick={requestClose} className="hv-elev" style={btn(false)}>Cancel</button>
+              {/* Secondary, not a second filled accent button: two identical
+                  primaries side by side made the row ask which one is THE
+                  save. The CTA is the only filled control here. */}
+              {!isEdit && (
+                <button type="button" onClick={saveAndAdd} className="hv-elev" style={btn(false)}>Save and add another</button>
+              )}
+              <button type="button" onClick={attemptSubmit} className="hv-accent" style={btn(true)}>{txFormDef.cta(drawer)}</button>
+            </div>
           </div>
         </td>
       </tr>

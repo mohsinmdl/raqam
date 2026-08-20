@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useBottomBar } from './UIProvider.jsx';
 import Kbd from './Kbd.jsx';
+import { CloseIcon } from './icons.jsx';
 
 const btn = {
   height: 30, padding: '0 12px', borderRadius: 8, cursor: 'pointer',
@@ -170,7 +171,10 @@ export default function BulkBar({ count, total, actions, more, onClear }) {
         style={{ ...btn, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 10px',
           background: clearHover ? 'rgba(150, 150, 150, 0.28)' : 'transparent' }}
       >
-        <span aria-hidden="true" style={{ fontSize: 15, opacity: 0.8, lineHeight: 1 }}>×</span>
+        {/* Drawn, not the × character: this bar inverts (--bg on --text), where
+            a text-rendered multiplication sign sat visibly lighter than the
+            stroke icons on the action buttons beside it. */}
+        <span aria-hidden="true" style={{ display: 'inline-flex', opacity: 0.8 }}><CloseIcon size={11} /></span>
         <span aria-live="polite" style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
           {count} selected
         </span>

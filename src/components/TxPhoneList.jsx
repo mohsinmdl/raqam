@@ -55,7 +55,10 @@ function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, h
         color: 'var(--text)', font: 'inherit',
         borderBottom: last ? 'none' : '1px solid var(--border)',
         background: checked ? 'var(--soft)'
-          : scheduled ? 'color-mix(in srgb, var(--warn-soft) 40%, var(--surface))' : 'none',
+          // --sched-row (theme.css): the same wash the desktop register uses,
+          // now a token because the two themes need different mix ratios to
+          // land on the same perceived separation.
+          : scheduled ? 'var(--sched-row)' : 'none',
       }}
     >
       {selectMode && <Circle on={checked} />}

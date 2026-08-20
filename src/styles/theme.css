@@ -46,6 +46,18 @@ textarea:focus {
   --pos: #15803D; --warn: #B7791F; --neg: #C2413B; --info: #2563EB;
   --pos-soft: #E3F2E7; --warn-soft: #F6ECD9; --neg-soft: #F8E4E2; --info-soft: #E3EBFC;
   --on-neg: #FFFFFF; --on-warn: #FFFFFF; --on-pos: #FFFFFF; --on-info: #FFFFFF;
+  /* Two compliance tones, for small text that has to sit on a TINTED ground.
+     --muted (4.96:1 on --surface) drops to 4.23:1 on --warn-soft, and --neg
+     (5.11:1 on --surface) drops to 4.40:1 on --soft — both under the 4.5:1
+     floor, and both used at sizes nowhere near the large-text exemption. These
+     are the same hues carried far enough to clear it on those grounds:
+     --text-toned 5.11:1 on --warn-soft, --neg-strong 5.01:1 on --soft.
+     Use them ONLY for that case; --muted and --neg remain the defaults. */
+  --text-toned: #5A6660; --neg-strong: #B13E38;
+  /* The scheduled row's warm wash (Transactions.jsx). A token, not an inline
+     color-mix, because the two themes need DIFFERENT mix ratios to land on the
+     same perceived separation — see the dark override. */
+  --sched-row: color-mix(in srgb, var(--warn-soft) 40%, var(--surface));
   --shadow: 0 12px 32px rgba(10, 20, 16, .18); --track: #ECEFEA;
   --scrim: rgba(8, 16, 13, .44);
   /* Field corner radius — matches YNAB's inputs (theme-independent). */
@@ -65,6 +77,15 @@ textarea:focus {
   --pos-soft: #12291A; --warn-soft: #2E2412; --neg-soft: #331715; --info-soft: #16233D;
   /* dark --neg/--warn/--pos/--info are light tints, so text on them must be dark */
   --on-neg: #2A100E; --on-warn: #2E2412; --on-pos: #06211D; --on-info: #0B1836;
+  /* Dark's --muted/--neg already clear both grounds (6.33:1 and 4.90:1), so
+     these carry the same tones a step further rather than rescuing them —
+     7.80:1 on --warn-soft, 5.38:1 on --soft. */
+  --text-toned: #AEBDB4; --neg-strong: #E4867E;
+  /* 70%, not 40%: dark's --warn-soft and --surface are both near-black, so the
+     light theme's ratio blended the band down to a ~1.045 luminance ratio
+     against a normal row — present in the CSS, invisible on the screen. 70%
+     reaches ~1.082, which reads as a band without becoming a fill. */
+  --sched-row: color-mix(in srgb, var(--warn-soft) 70%, var(--surface));
   --shadow: 0 12px 32px rgba(0, 0, 0, .5); --track: #232B27;
   --scrim: rgba(0, 0, 0, .62);
 }
@@ -80,7 +101,11 @@ textarea:focus {
   from { background-color: color-mix(in srgb, var(--accent) 20%, transparent); }
   to { background-color: transparent; }
 }
-.row-flash { animation: hsRowFlash 1.1s ease-out; }
+/* Decelerating hard from the first frame, rather than ease-out's gentler
+   curve: the wash should be at full strength the instant the row changes and
+   then get out of the way, so the confirmation is felt at the moment of the
+   edit instead of lingering as a highlight the reader has to wait out. */
+.row-flash { animation: hsRowFlash 1.1s cubic-bezier(0.16, 1, 0.3, 1); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 /* Reduced motion: the rule above kills the blink, so give those users a brief
    static accent hold instead — the flash class is removed after ~1.3s, so the
@@ -126,6 +151,23 @@ textarea:focus {
   background: var(--surface); color: var(--text); font-size: 13.5px;
 }
 textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: vertical; }
+/* A field that cannot be edited should not look like one that can. Until now
+   the only cue was the text colour, so a disabled input sat on the same white
+   ground inside the same border as its live neighbour and read as a field that
+   had simply stopped responding. Filled --elev with the border removed makes
+   "not editable" a SHAPE — recognisable without reading the value, and without
+   relying on a colour difference at all.
+   Deliberately scoped to :disabled and an explicit aria-disabled, NOT to a
+   bare .field span: several read-only labels legitimately borrow .field for
+   its geometry (the inline editor's Payment/Transfer label), and they opt in
+   by declaring aria-disabled rather than being caught by the selector. */
+.field:disabled,
+.field[aria-disabled="true"] {
+  background: var(--elev);
+  border-color: transparent;
+  color: var(--muted);
+  cursor: not-allowed;
+}
 
 /* Scrollbar skin for a dropdown's list region, captured from YNAB's
    .dropdown-modal-body: a slim thumb inset from the panel edge, on no track.
@@ -151,6 +193,17 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
 /* Sidebar ACCOUNTS total: hide it (rather than wrap and collide with the label)
    once the resizable sidebar is squeezed narrow. Container query on the accounts
    section, so it reacts to the sidebar width directly. */
+/* Register toolbar. Its controls don't shrink, so once the resizable sidebar
+   eats into the content width the row wraps to a second line — at which point
+   the divider between the display controls and the Sort/Search pair separates
+   nothing (it lands at the end of one line or the head of the next). Hidden
+   just before the wrap, which is also often enough width to avoid the wrap
+   entirely. Container query, not a viewport media query: the sidebar changes
+   this width without the viewport moving, same convention as .sidebar-accounts
+   and .tx-table-wrap. */
+.tx-toolbar { container-type: inline-size; }
+@container (max-width: 1080px) { .tx-toolbar-divider { display: none; } }
+
 .sidebar-accounts { container-type: inline-size; }
 @container (max-width: 236px) { .sidebar-accounts-total { display: none; } }
 
