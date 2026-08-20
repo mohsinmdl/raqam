@@ -16,7 +16,8 @@ export default function PayeeBulk({ entries, onDeselect }) {
   const { data: S, applyData } = useStore();
   const names = entries.map(e => e.name);
   const txCount = entries.reduce((s, e) => s + e.txCount, 0);
-  const [into, setInto] = useState(names[0]);
+  const [intoDraft, setIntoDraft] = useState(null); // null = mirror names[0]
+  const into = intoDraft !== null ? intoDraft : names[0];
   const [txOpen, setTxOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [replacement, setReplacement] = useState('');
@@ -58,10 +59,10 @@ export default function PayeeBulk({ entries, onDeselect }) {
         <div style={h}>Combine and Rename</div>
         <div style={note}>Combining these payees will also combine all their renaming rules.</div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <input className="field" aria-label="Combined payee name" value={into} onChange={e => setInto(e.target.value)}
+          <input className="field" aria-label="Combined payee name" value={into} onChange={e => setIntoDraft(e.target.value)}
             style={{ flex: 1, height: 36, padding: '0 10px', fontSize: 13.5 }} />
           <button type="button" disabled={!into.trim()} className="hv-accent"
-            onClick={() => { applyData(d => combinePayees(d, { names, into: into.trim() })); onDeselect(); }}
+            onClick={() => { applyData(d => combinePayees(d, { names, into: into.trim() })); setIntoDraft(null); onDeselect(); }}
             style={{ height: 36, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: into.trim() ? 'pointer' : 'default', opacity: into.trim() ? 1 : 0.5, flex: 'none' }}>Combine</button>
         </div>
       </div>
