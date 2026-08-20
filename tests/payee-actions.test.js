@@ -28,6 +28,11 @@ describe('upsertPayee', () => {
     expect(next.payees.find(p => p.id === 'p1').autoCategoryId).toBe('c1');
     expect(next.payees.length).toBe(2);
   });
+  it('strips name and transferRef from patch, does not change record name', () => {
+    const next = upsertPayee(base(), { name: 'Subway', patch: { name: 'Different', hidden: true } });
+    expect(next.payees.find(p => p.id === 'p1').name).toBe('Subway');
+    expect(next.payees.find(p => p.id === 'p1').hidden).toBe(true);
+  });
 });
 
 describe('renamePayee', () => {
@@ -54,6 +59,40 @@ describe('combinePayees', () => {
     const survivor = next.payees.find(p => p.name === 'Everything');
     expect(survivor.renameRules).toEqual([{ op: 'contains', pattern: 'sub' }]);
   });
+  it('self-combine (exact casing) is a no-op — returns same data reference', () => {
+    const d = base();
+    const next = combinePayees(d, { names: ['Subway'], into: 'Subway' });
+    expect(next).toBe(d);
+  });
+  it('self-combine (mixed casing) rewrites only the non-exact merchants', () => {
+    const d = base();
+    const next = combinePayees(d, { names: ['Subway', 'SUBWAY'], into: 'Subway' });
+    expect(next.transactions.find(t => t.id === 't1').merchant).toBe('Subway');
+    expect(next.transactions.find(t => t.id === 't1').editCount).toBeUndefined();
+    expect(next.transactions.find(t => t.id === 't2').merchant).toBe('Subway');
+    expect(next.transactions.find(t => t.id === 't2').editCount).toBe(1);
+    expect(next.audit[0].summary).toContain('1 transaction');
+  });
+  it('merges deduped rules from survivor and absorbed records', () => {
+    const data = {
+      transactions: [
+        { id: 't1', type: 'expense', merchant: 'Starbucks', amount: 5 },
+        { id: 't2', type: 'expense', merchant: 'Coffee', amount: 6 },
+      ],
+      payees: [
+        { id: 'p1', name: 'Starbucks', renameRules: [{ op: 'contains', pattern: 'star' }] },
+        { id: 'p2', name: 'Coffee', renameRules: [{ op: 'contains', pattern: 'coffee' }, { op: 'is', pattern: 'brew' }] },
+      ],
+      audit: [],
+    };
+    const next = combinePayees(data, { names: ['Coffee'], into: 'Starbucks' });
+    const survivor = next.payees.find(p => p.name === 'Starbucks');
+    expect(survivor.renameRules).toEqual([
+      { op: 'contains', pattern: 'star' },
+      { op: 'contains', pattern: 'coffee' },
+      { op: 'is', pattern: 'brew' },
+    ]);
+  });
 });
 
 describe('deletePayees', () => {
@@ -76,5 +115,16 @@ describe('setPayeesHidden', () => {
     expect(next.payees.find(p => p.transferRef === 'acc:a1').hidden).toBe(true);
     next = setPayeesHidden(next, { transferRefs: ['acc:a1'], hidden: false });
     expect(next.payees.some(p => p.transferRef === 'acc:a1')).toBe(false); // bare record dropped
+  });
+  it('audit summary uses accurate changed count, not input array length', () => {
+    let next = setPayeesHidden(base(), { names: ['Subway', 'CodingCops'], hidden: true });
+    expect(next.audit[0].summary).toContain('2 payee');
+    next = setPayeesHidden(next, { names: ['Subway', 'CodingCops'], hidden: false });
+    expect(next.audit[0].summary).toContain('2 payee');
+    // Now hide Subway again, then try to hide it and CodingCops (only 1 changes)
+    next = setPayeesHidden(next, { names: ['Subway'], hidden: true });
+    expect(next.audit[0].summary).toContain('1 payee');
+    next = setPayeesHidden(next, { names: ['Subway', 'CodingCops'], hidden: true });
+    expect(next.audit[0].summary).toContain('1 payee'); // only CodingCops changed
   });
 });

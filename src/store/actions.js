@@ -1431,6 +1431,7 @@ function rewriteMerchants(transactions, keys, to) {
   let changed = 0;
   const out = transactions.map(t => {
     if (!keys.some(k => matchesPayeeTx(t, k))) return t;
+    if (t.merchant === to) return t; // already exact, skip
     changed += 1;
     return stampUpdate({ ...t, merchant: to });
   });
@@ -1441,9 +1442,10 @@ export function upsertPayee(data, { name, patch }) {
   const k = payeeKey(name);
   if (!k) return data;
   const existing = payeeRecordFor(data, name);
+  const { name: _n, transferRef: _t, ...safe } = patch || {};
   const rec = existing
-    ? { ...existing, ...patch }
-    : { id: uid(), name: String(name).trim(), ...patch };
+    ? { ...existing, ...safe }
+    : { id: uid(), name: String(name).trim(), ...safe };
   if (existing && JSON.stringify(rec) === JSON.stringify(existing)) return data;
   const payees = existing
     ? data.payees.map(p => (p.id === existing.id ? rec : p))
@@ -1470,6 +1472,8 @@ export function combinePayees(data, { names, into }) {
   if (!intoName || !names || names.length === 0) return data;
   const intoKey = payeeKey(intoName);
   const absorbedKeys = names.map(payeeKey).filter(k => k && k !== intoKey);
+  // Pure self-combine (single name, no absorbed payees): nothing to combine
+  if (absorbedKeys.length === 0 && names.length === 1) return data;
   const allKeys = [...new Set([...absorbedKeys, ...names.map(payeeKey).filter(Boolean)])];
   const { out, changed } = rewriteMerchants(data.transactions, allKeys, intoName);
   const absorbed = data.payees.filter(p => !p.transferRef && absorbedKeys.includes(payeeKey(p.name)));
@@ -1541,9 +1545,8 @@ export function setPayeesHidden(data, { names = [], transferRefs = [], hidden })
     }
   }
   if (!changed) return data;
-  const n = names.length + transferRefs.length;
   return {
     ...data, payees,
-    audit: [payeeAudit((hidden ? 'Hid ' : 'Unhid ') + n + ' payee' + (n === 1 ? '' : 's')), ...(data.audit || [])],
+    audit: [payeeAudit((hidden ? 'Hid ' : 'Unhid ') + changed + ' payee' + (changed === 1 ? '' : 's')), ...(data.audit || [])],
   };
 }
