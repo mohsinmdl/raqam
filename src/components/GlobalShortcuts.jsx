@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useStore } from '../store/StoreProvider.jsx';
@@ -20,12 +20,21 @@ export default function GlobalShortcuts() {
   // Same lockNow the header icon uses (AppLockGate owns the lock state).
   const { enabled: lockEnabled, lockNow } = useAppLock();
   const nav = useNavigate();
+  const location = useLocation();
   const phone = useIsPhone();
   const bindings = [
     { spec: SPEC.help,  run: () => (shortcutsOpen ? closeShortcuts() : openShortcuts()) },
     { spec: SPEC.addTx, when: () => !shortcutsOpen, run: () => {
-        // Desktop addTx renders inline in the register, so get there first.
-        if (!phone) nav('/transactions');
+        // Desktop addTx renders inline in the register, so get there first —
+        // but preserve whatever account scope the user is already on rather
+        // than always dropping them onto the unscoped register: a single-
+        // account page (/transactions/<id>) seeds that account without
+        // navigating away from it, and an already-unscoped register just
+        // opens in place too.
+        if (phone) { openers.addTx(openDrawer); return; }
+        const m = location.pathname.match(/^\/transactions\/([^/]+)$/);
+        if (m) { openers.addTx(openDrawer, 'expense', { payWith: 'acc:' + m[1] }); return; }
+        if (location.pathname !== '/transactions') nav('/transactions');
         openers.addTx(openDrawer);
       } },
     { spec: SPEC.toggleTheme, when: () => !shortcutsOpen, run: () => setPrefs({ theme: prefs.theme === 'light' ? 'dark' : 'light' }) },

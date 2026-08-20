@@ -42,7 +42,12 @@ export default function TxEditorRow({ hideAccount, colSpan, scopeRef }) {
   // Computed once per session: which cell greets the keyboard.
   const [focusKey] = useState(() => firstEmptyCell(cellsFromForm(f), hideAccount));
 
-  const patch = (key, value) => setForm(editorPatch(f, key, value));
+  // The store lookup editorPatch/inflowType need but can't reach themselves:
+  // whether a category is income- or expense-typed, to decide an income+
+  // category pick or an inflow's type inference (see FIX 1 — a blind flip to
+  // refund on any category was a data-corruption bug).
+  const catTypeOf = id => (S.categories.find(c => c.id === id) || {}).type || null;
+  const patch = (key, value) => setForm(editorPatch(f, key, value, { catTypeOf }));
   const saveAndAdd = async () => {
     const keep = keepForNext(f);
     // On a scoped register (a single account's page) the next row always
