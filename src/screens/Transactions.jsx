@@ -260,6 +260,28 @@ function WideIcon() {
   );
 }
 
+// Eye / eye-off pair for the masked-mode toggle — same drawn paths as
+// PositionStrip's eye (the maskedPosition toggle), so the two icons read as
+// one glyph everywhere in the app. Open eye = amounts showing; the crossed
+// eye reflects the CURRENT state (amounts hidden), while the label/tooltip
+// name the next action, matching PositionStrip's convention.
+function EyeIcon() {
+  return (
+    <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
+      <path d="M2 12s3.5-7.5 10-7.5S22 12 22 12s-3.5 7.5-10 7.5S2 12 2 12z" /><circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+function EyeOffIcon() {
+  return (
+    <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
+      <path d="M17.94 17.94A10.4 10.4 0 0 1 12 19.5C5.5 19.5 2 12 2 12a19.8 19.8 0 0 1 4.87-5.62M9.9 4.75A9.9 9.9 0 0 1 12 4.5c6.5 0 10 7.5 10 7.5a19.9 19.9 0 0 1-2.24 3.31M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M2 2l20 20" />
+    </svg>
+  );
+}
+
 export default function Transactions() {
   const { data: S, applyData, prefs, setPrefs, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
   // Full-width view: lifts the page's max-width and drops the table's card frame
@@ -906,6 +928,14 @@ export default function Transactions() {
             {sortLabel(sort) + ', ' + list.length + ' row' + (list.length === 1 ? '' : 's')}
           </span>
           <span style={{ flex: 1 }} />
+          <ToolbarAction
+            icon={prefs.masked ? <EyeOffIcon /> : <EyeIcon />}
+            label={prefs.masked ? 'Show amounts' : 'Hide amounts'}
+            aria-pressed={prefs.masked}
+            shortcut={SHORTCUT_BY_ID.hideAmounts}
+            title={prefs.masked ? 'Show amounts' : 'Hide amounts'}
+            onClick={() => setPrefs({ masked: !prefs.masked })}
+          />
           <button
             onClick={() => setPrefs({ wide: !wide })}
             aria-pressed={wide}
