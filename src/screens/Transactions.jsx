@@ -31,6 +31,7 @@ import { useIsPhone } from '../lib/useIsPhone.js';
 import TxPhoneList from '../components/TxPhoneList.jsx';
 import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
 import CategoryPickerPopover from '../components/CategoryPickerPopover.jsx';
+import TxEditorRow from '../ui/tx/inline/TxEditorRow.jsx';
 
 // Sticky against <main>'s scroll. No overflow is introduced here — the section
 // deliberately has none, because it would clip the per-row ⋯ menu. z-index sits
@@ -272,6 +273,9 @@ export default function Transactions() {
   const { ask, notify, confirmOpen, shortcutsOpen, flashRows, flashIds } = useUI();
   const fmt = useMoney();
   const { openDrawer, drawer } = useDrawer();
+  // The inline editor session (desktop only — phone renders TxSheet instead).
+  const inlineTx = !phone && drawer?.name === 'addTx' ? drawer : null;
+  const editingId = inlineTx ? inlineTx.form.editId : null;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchRef = useRef(null);
@@ -903,7 +907,7 @@ export default function Transactions() {
 
         {/* No overflow:hidden — it would clip the per-row ⋯ menu on the last rows. */}
         <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: flush ? 'none' : '1px solid var(--border)', borderRadius: flush ? 0 : 12 }}>
-          {!phone && (postedRows.length > 0 || scheduled.length > 0) && (
+          {!phone && (postedRows.length > 0 || scheduled.length > 0 || (inlineTx && !editingId)) && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               {/* Widths declared once, so a header and its cells cannot drift. */}
               <colgroup>
@@ -929,6 +933,11 @@ export default function Transactions() {
                   {columns.map((c, i) => <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} last={i === columns.length - 1} />)}
                 </tr>
               </thead>
+              {inlineTx && !editingId && (
+                <tbody>
+                  <TxEditorRow hideAccount={!!accountId} colSpan={gridColSpan} />
+                </tbody>
+              )}
               {scheduled.length > 0 && (
                 <tbody>
                   <GroupHead
@@ -941,12 +950,14 @@ export default function Transactions() {
                       like recorded rows — no per-row ⋯ anywhere. */}
                   {schedOpen && scheduled.map(x => {
                     const key = schedKey(x);
-                    return (
-                      <Row
-                        key={key} t={x.row} selId={key} scheduled hideAccount={!!accountId}
-                        checked={schedSel.has(key)} onToggleRow={toggleSched}
-                      />
-                    );
+                    return key === editingId
+                      ? <TxEditorRow key={key} hideAccount={!!accountId} colSpan={gridColSpan} />
+                      : (
+                        <Row
+                          key={key} t={x.row} selId={key} scheduled hideAccount={!!accountId}
+                          checked={schedSel.has(key)} onToggleRow={toggleSched}
+                        />
+                      );
                   })}
                 </tbody>
               )}
@@ -959,13 +970,13 @@ export default function Transactions() {
                   </tr>
                 )}
                 {/* Recorded rows act through the bulk bar once selected — no ⋯. */}
-                {shownRows.map(t => (
-                  <Row
-                    key={t.id} t={t} selId={t.id} hideAccount={!!accountId}
-                    checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
-                    onCategorize={openRowCategorize} flash={flashIds.has(t.id)}
-                  />
-                ))}
+                {shownRows.map(t => (t.id === editingId
+                  ? <TxEditorRow key={t.id} hideAccount={!!accountId} colSpan={gridColSpan} />
+                  : <Row
+                      key={t.id} t={t} selId={t.id} hideAccount={!!accountId}
+                      checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
+                      onCategorize={openRowCategorize} flash={flashIds.has(t.id)}
+                    />))}
               </tbody>
             </table>
           )}
@@ -991,7 +1002,7 @@ export default function Transactions() {
               <button onClick={reset} className="hv-soft" style={{ marginTop: 12, height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Reset filters</button>
             </div>
           )}
-          {monthTx.length === 0 && scheduled.length === 0 && (
+          {monthTx.length === 0 && scheduled.length === 0 && !inlineTx && (
             <div style={{ padding: '44px 20px', textAlign: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{range.from || range.to ? 'Nothing recorded in ' + rangeLabel(range.from, range.to) : 'Nothing recorded yet'}</div>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4, maxWidth: '44ch', marginLeft: 'auto', marginRight: 'auto' }}>Transactions you add appear here with search and filters. Recording as you spend keeps your dashboard honest.</div>

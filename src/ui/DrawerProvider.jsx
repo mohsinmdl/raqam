@@ -108,6 +108,11 @@ export function DrawerProvider({ registry, children }) {
   // classic shell (repeat, split, and anything else TxSheet doesn't cover).
   const phoneTx = phone && state?.name === 'addTx' && !state.form._classic;
 
+  // Desktop renders the addTx form INLINE in the register (TxEditorRow reads
+  // this same context); no aside at all. Phone keeps TxSheet. Every desktop
+  // addTx opener is responsible for being on (or navigating to) /transactions.
+  const inlineTx = !phone && state?.name === 'addTx';
+
   // Escape closes the drawer — unless the confirm dialog is stacked above it
   // (its capture-phase listener already consumed the key), or TxSheet is
   // rendering: its own Base UI Dialog owns Escape there (onOpenChange →
@@ -121,8 +126,8 @@ export function DrawerProvider({ registry, children }) {
   }, [state, confirmOpen, phoneTx, requestClose]);
 
   const value = useMemo(
-    () => ({ drawer: state, openDrawer, closeDrawer, setForm, setField, fail, setDup }),
-    [state, openDrawer, closeDrawer, setForm, setField, fail, setDup]
+    () => ({ drawer: state, openDrawer, closeDrawer, setForm, setField, fail, setDup, requestClose }),
+    [state, openDrawer, closeDrawer, setForm, setField, fail, setDup, requestClose]
   );
 
   const def = state ? registry[state.name] : null;
@@ -132,6 +137,7 @@ export function DrawerProvider({ registry, children }) {
       {children}
       {state && def && (phoneTx
         ? <TxSheet key="tx-phone" def={def} state={state} requestClose={requestClose} />
+        : inlineTx ? null
         : <DrawerShell key={state.name} def={def} state={state} closeDrawer={closeDrawer} requestClose={requestClose} />)}
     </Ctx.Provider>
   );
