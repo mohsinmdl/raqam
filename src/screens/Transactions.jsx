@@ -28,6 +28,8 @@ import SearchField from '../ui/SearchField.jsx';
 import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarAction.jsx';
 import { matchesQuery } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
+import { useContainerWidth } from '../lib/useContainerWidth.js';
+import { visibleColumnKeys } from '../lib/registerColumns.js';
 import TxPhoneList from '../components/TxPhoneList.jsx';
 import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
 import CategoryPickerPopover from '../components/CategoryPickerPopover.jsx';
@@ -126,7 +128,31 @@ function SortableHeader({ col, sort, onSort, last }) {
 }
 
 
-function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused, onCategorize, flash }) {
+// A transfer's acctLabel is 'Source → Dest'; a plain nowrap+ellipsis on the
+// whole string truncates from the END, hiding the destination — the half
+// that answers "where did this go", which matters more than the source (the
+// row is already scoped near the source in most views). Rendered as two
+// spans, BOTH individually truncatable (overflow hidden + ellipsis +
+// minWidth 0) so nothing can paint past the cell into DATE/DETAILS — but
+// with very unequal flex-shrink weights (1000 : 1) so in practice the SOURCE
+// gives up its width first; the destination only starts losing characters
+// once the source is already down to nothing and the two still don't fit —
+// the realistic case (an ordinary-length destination) never touches it. The
+// outer span also clips as a backstop. Non-transfer rows have no acctTo and
+// fall back to the single truncating span exactly as before.
+function AccountLabel({ t, fontSize, color }) {
+  if (t.acctTo) {
+    return (
+      <span style={{ display: 'flex', minWidth: 0, overflow: 'hidden', alignItems: 'baseline' }}>
+        <span style={{ minWidth: 0, flex: '0 1000 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize, color }}>{t.acctFrom}</span>
+        <span style={{ minWidth: 0, flex: '0 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize, color }}>{' → ' + t.acctTo}</span>
+      </span>
+    );
+  }
+  return <span style={{ display: 'block', fontSize, color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span>;
+}
+
+function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo, foldAccount, focused, onCategorize, flash }) {
   // Fixed 2.25rem (36px) row height, YNAB-style — so the vertical padding is
   // zero and content is centred by the cells' middle alignment; horizontal
   // padding is all that remains.
@@ -177,7 +203,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused, 
           />
         )}
       </td>
-      {!hideAccount && <td style={{ ...td, ...dim, maxWidth: 160, padding: pad, verticalAlign: 'middle' }}><span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span></td>}
+      {!hideAccount && <td style={{ ...td, ...dim, maxWidth: 160, padding: pad, verticalAlign: 'middle' }}><AccountLabel t={t} fontSize={14} color="var(--text)" /></td>}
       <td style={{ ...td, ...dim, padding: pad, verticalAlign: 'middle' }}>
         {/* Date only — no clock time, no "in N days". Overdue rows carry the
             cue on the date itself, since the second line that held it is gone. */}
@@ -188,16 +214,24 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, focused, 
           <span style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.merchant}</span>
           <TxChips row={t} meta />
         </div>
+        {/* ACCOUNT folds in here under ~900px container width (narrower than
+            the ACCOUNT column itself can afford) instead of just vanishing —
+            the row still says whose money this is, at a quieter weight. Not
+            shown for an account-scoped register: there every row is already
+            that one account, so a sub-label would be pure noise. */}
+        {foldAccount && <AccountLabel t={t} fontSize={11.5} color="var(--muted)" />}
       </td>
       <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: 'middle' }}>
         {t.needsCategory
           ? <NeedsCategoryPill onClick={onCategorize ? e => onCategorize(t.id, e?.currentTarget) : undefined} />
           : <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>}
       </td>
-      {/* Memo: adjustment reason and/or free-text note, truncated with an ellipsis and the full value on hover. */}
-      <td style={{ ...td, ...dim, maxWidth: 200, padding: pad, verticalAlign: 'middle' }}>
-        <span title={t.notes || undefined} style={{ display: 'block', fontSize: 14, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</span>
-      </td>
+      {/* Memo: adjustment reason and/or free-text note, truncated with an ellipsis and the full value on hover. Dropped under ~1000px container width. */}
+      {!hideMemo && (
+        <td style={{ ...td, ...dim, maxWidth: 200, padding: pad, verticalAlign: 'middle' }}>
+          <span title={t.notes || undefined} style={{ display: 'block', fontSize: 14, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.notes}</span>
+        </td>
+      )}
       <td style={{ ...td, ...dim, padding: pad, textAlign: 'right', verticalAlign: 'middle' }}>
         <span className="tnum" style={{ fontSize: 14, fontWeight: 500, color: t.amtColor, whiteSpace: 'nowrap' }}>{t.outflowLabel}</span>
       </td>
@@ -292,6 +326,11 @@ export default function Transactions() {
   // Phone always uses the flush, full-width layout — the boxed 1180px card
   // frame is a desktop choice; the wide pref stays desktop-only.
   const flush = wide || phone;
+  // Real content width of the table wrapper (not the viewport) — the same
+  // container-query convention as .dash-cols/.plan-grid, resolved in JS here
+  // since COLUMNS drives <colgroup>/header/cells from one array (see below).
+  const tableWrapRef = useRef(null);
+  const containerWidth = useContainerWidth(tableWrapRef);
   const { ask, notify, confirmOpen, shortcutsOpen, flashRows, flashIds } = useUI();
   const fmt = useMoney();
   const { openDrawer, drawer } = useDrawer();
@@ -398,10 +437,23 @@ export default function Transactions() {
   }, [listFilter, unclearedIds, needsCat]);
 
   // Hide the ACCOUNT column on a single-account ledger — every row is that
-  // account. Header, colgroup, Row cells and the group-heading colSpan all read
-  // from `columns` / `gridColSpan` so they can never drift.
-  const columns = accountId ? COLUMNS.filter(c => c.key !== 'account') : COLUMNS;
+  // account — and fold ACCOUNT/MEMO by measured container width (registerColumns.js,
+  // same thresholds the pure visibleColumns() helper is tested against).
+  // Header, colgroup, Row cells and the group-heading colSpan all read from
+  // `columns` / `gridColSpan` so they can never drift.
+  const visibleKeys = useMemo(
+    () => visibleColumnKeys(COLUMNS, containerWidth, !!accountId),
+    [containerWidth, accountId],
+  );
+  const columns = useMemo(() => COLUMNS.filter(c => visibleKeys.has(c.key)), [visibleKeys]);
   const gridColSpan = columns.length + 1;
+  const hideAccountCol = !visibleKeys.has('account');
+  const hideMemoCol = !visibleKeys.has('notes');
+  // Only fold the account name into the DETAILS sub-label when it's the
+  // *width* that dropped the column — an account-scoped register already
+  // omits it deliberately (every row is that one account already) and a
+  // repeated sub-label there would be pure noise.
+  const foldAccount = hideAccountCol && !accountId;
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter
   // has hidden would let the toolbar claim "12 selected" while showing three,
@@ -909,8 +961,17 @@ export default function Transactions() {
         {/* Action toolbar — the All-Accounts reference row: Add Transaction on
             the left, Undo/Redo after a divider, then View + Search on the right. */}
         {!phone && (
+        // flexWrap: the toolbar's own content (Add Transaction, Undo/Redo,
+        // RecentMoves, the eye/fit-width toggles, Search, the sort button —
+        // none of which shrink) can add up to more than the available
+        // container width once the sidebar eats into it (same 1024/1366
+        // regime the register table folds columns for below). Wrapping to a
+        // second line keeps every control reachable without reintroducing
+        // the page-level horizontal scrollbar this wave removes from the
+        // table itself — the `flex: 1` spacer still pushes the trailing
+        // group right on whichever line it lands on.
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: flush ? '9px 18px' : '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 6, rowGap: 6, flexWrap: 'wrap', padding: flush ? '9px 18px' : '10px 14px',
           background: 'var(--surface)',
           ...(flush ? { borderBottom: '1px solid var(--border)' } : { border: '1px solid var(--border)', borderRadius: 12 }),
         }}>
@@ -961,11 +1022,22 @@ export default function Transactions() {
         </div>
         )}
 
-        {/* No overflow:hidden — it would clip the per-row ⋯ menu on the last rows. */}
-        <section aria-label="Transaction list" style={{ background: 'var(--surface)', border: flush ? 'none' : '1px solid var(--border)', borderRadius: flush ? 0 : 12 }}>
+        {/* container-type: inline-size (tx-table-wrap in theme.css) so the
+            container-width state above tracks real content width — the
+            resizable sidebar, not the viewport, same convention as
+            .dash-cols/.plan-grid. overflow-x: auto is the fallback for
+            containers narrower than even the folded column set (ACCOUNT and
+            MEMO both dropped) can fit — a LOCAL scrollbar here instead of a
+            page-level one; TxEditorRow's action row stays sticky through it.
+            No per-row ⋯ menu exists any more (bulk bar replaced it), so
+            overflow-y computing to auto alongside overflow-x here no longer
+            risks clipping a popover the way it once did. */}
+        <section ref={tableWrapRef} aria-label="Transaction list" className="tx-table-wrap" style={{ background: 'var(--surface)', border: flush ? 'none' : '1px solid var(--border)', borderRadius: flush ? 0 : 12, overflowX: 'auto' }}>
           {!phone && (postedRows.length > 0 || scheduled.length > 0 || (inlineTx && !editingId)) && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              {/* Widths declared once, so a header and its cells cannot drift. */}
+              {/* Widths declared once, so a header and its cells cannot drift.
+                  `columns` is already filtered by container width (registerColumns.js)
+                  before it reaches colgroup/header/cells, so all three fold together. */}
               <colgroup>
                 <col style={{ width: 34 }} />
                 {columns.map(c => <col key={c.key} style={c.width ? { width: c.width } : undefined} />)}
@@ -991,7 +1063,7 @@ export default function Transactions() {
               </thead>
               {inlineTx && !editingId && (
                 <tbody>
-                  <TxEditorRow hideAccount={!!accountId} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
+                  <TxEditorRow hideAccount={hideAccountCol} hideMemo={hideMemoCol} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
                 </tbody>
               )}
               {scheduled.length > 0 && (
@@ -1007,10 +1079,10 @@ export default function Transactions() {
                   {schedOpen && scheduled.map(x => {
                     const key = schedKey(x);
                     return key === editingId
-                      ? <TxEditorRow key={key} hideAccount={!!accountId} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
+                      ? <TxEditorRow key={key} hideAccount={hideAccountCol} hideMemo={hideMemoCol} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
                       : (
                         <Row
-                          key={key} t={x.row} selId={key} scheduled hideAccount={!!accountId}
+                          key={key} t={x.row} selId={key} scheduled hideAccount={hideAccountCol} hideMemo={hideMemoCol} foldAccount={foldAccount}
                           checked={schedSel.has(key)} onToggleRow={toggleSched}
                         />
                       );
@@ -1027,9 +1099,9 @@ export default function Transactions() {
                 )}
                 {/* Recorded rows act through the bulk bar once selected — no ⋯. */}
                 {shownRows.map(t => (t.id === editingId
-                  ? <TxEditorRow key={t.id} hideAccount={!!accountId} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
+                  ? <TxEditorRow key={t.id} hideAccount={hideAccountCol} hideMemo={hideMemoCol} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
                   : <Row
-                      key={t.id} t={t} selId={t.id} hideAccount={!!accountId}
+                      key={t.id} t={t} selId={t.id} hideAccount={hideAccountCol} hideMemo={hideMemoCol} foldAccount={foldAccount}
                       checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
                       onCategorize={openRowCategorize} flash={flashIds.has(t.id)}
                     />))}

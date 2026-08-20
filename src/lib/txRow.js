@@ -50,7 +50,17 @@ export function txRowOf(t, S, fmt, forAccountId) {
   else if (amtValue < 0) outflowValue = -amtValue;
   else inflowValue = amtValue;
   let acctLabel = '—';
-  if (t.type === 'transfer') acctLabel = (acc ? acc.nickname : '?') + ' → ' + (toCard ? toCard.nickname + ' ••' + toCard.last4 : toAcc ? toAcc.nickname : '?');
+  // acctFrom/acctTo split the transfer pair apart for consumers that must
+  // truncate direction-aware (the register's account cell): acctLabel alone
+  // truncates end-first under an ellipsis, which hides the destination —
+  // the more important half ("where did the money go"). Only set for
+  // transfers; other types keep acctFrom/acctTo null and render acctLabel.
+  let acctFrom = null, acctTo = null;
+  if (t.type === 'transfer') {
+    acctFrom = acc ? acc.nickname : '?';
+    acctTo = toCard ? toCard.nickname + ' ••' + toCard.last4 : toAcc ? toAcc.nickname : '?';
+    acctLabel = acctFrom + ' → ' + acctTo;
+  }
   else if (card) acctLabel = card.nickname + ' ••' + card.last4;
   else if (acc) acctLabel = acc.nickname;
   return {
@@ -78,7 +88,7 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // Category is optional at entry; categorizable types without one surface a
     // "This needs a category" pill wherever the category cell renders.
     needsCategory: !cat && (t.type === 'expense' || t.type === 'income' || t.type === 'refund'),
-    acctLabel, amtLabel, amtColor, amtValue,
+    acctLabel, acctFrom, acctTo, amtLabel, amtColor, amtValue,
     outflowValue, inflowValue,
     outflowLabel: outflowValue != null ? fmt.money(outflowValue) : '',
     inflowLabel: inflowValue != null ? fmt.money(inflowValue) : '',
