@@ -30,6 +30,7 @@ import { matchesQuery } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { useContainerWidth } from '../lib/useContainerWidth.js';
 import { visibleColumnKeys } from '../lib/registerColumns.js';
+import { needsCategoryBannerCount } from '../lib/needsCategoryBanner.js';
 import TxPhoneList from '../components/TxPhoneList.jsx';
 import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
 import CategoryPickerPopover from '../components/CategoryPickerPopover.jsx';
@@ -152,7 +153,7 @@ function AccountLabel({ t, fontSize, color }) {
   return <span style={{ display: 'block', fontSize, color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span>;
 }
 
-function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo, foldAccount, focused, onCategorize, flash }) {
+function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo, foldAccount, focused, onCategorize, flash, saved }) {
   // Fixed 2.25rem (36px) row height, YNAB-style — so the vertical padding is
   // zero and content is centred by the cells' middle alignment; horizontal
   // padding is all that remains.
@@ -179,11 +180,21 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
       // --soft when checked — the selection highlight only appeared once the
       // cursor left. Dropping hv-elev while checked lets --soft show at once.
       // row-flash is additive: a just-touched row blinks whatever its state.
-      className={[checked ? null : 'hv-elev', flash ? 'row-flash' : null].filter(Boolean).join(' ') || undefined}
+      // row-saved-wash (Wave D) holds a fainter version of that same wash after
+      // the flash fades — see theme.css; harmless alongside row-flash (the
+      // animation's !important background wins first, then hands off to this).
+      className={[checked ? null : 'hv-elev', flash ? 'row-flash' : null, saved ? 'row-saved-wash' : null].filter(Boolean).join(' ') || undefined}
       // Scheduled rows sit on a SUBTLE warm wash — the full --warn-soft (used on
       // the group heading) is too heavy per row, so blend it down into the
       // surface. Theme-adaptive, and a checked row's --soft still wins.
+      // Wave D: data-saved-row marks this <tr> so the register's "clear on next
+      // interaction outside the saved row" listener (Transactions.jsx) can tell
+      // a click/keydown landing ON this row (e.g. its own Categorize? chip, or
+      // selecting it) apart from one landing anywhere else — selecting a saved
+      // row must not itself end its completion accent (selected + saved both
+      // read at once; see the category cell and background below).
       style={{ height: '2.25rem', background: checked ? 'var(--soft)' : scheduled ? 'color-mix(in srgb, var(--warn-soft) 40%, var(--surface))' : undefined, cursor: selId ? 'pointer' : undefined }}
+      data-saved-row={saved || undefined}
     >
       {/* Padding moves onto the checkbox's own label so the whole cell, not
           just the 13px box, is the target. minWidth floors the column: the box
@@ -192,8 +203,10 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
           overflows into ACCOUNT. */}
       {/* The keyboard cursor shows as a left accent bar on this first cell — an
           inset box-shadow renders here (unlike on a <tr> under border-collapse)
-          and reads on top of any row background, distinct from the checked fill. */}
-      <td style={{ ...td, ...dim, padding: 0, position: 'relative', verticalAlign: 'middle', minWidth: 34, boxShadow: focused ? 'inset 3px 0 0 var(--accent)' : undefined }}>
+          and reads on top of any row background, distinct from the checked fill.
+          Wave D's saved-state rule is 1px narrower (2px vs 3px) so the two read
+          as distinct on the rare row that is both the cursor and just-saved. */}
+      <td style={{ ...td, ...dim, padding: 0, position: 'relative', verticalAlign: 'middle', minWidth: 34, boxShadow: [focused ? 'inset 3px 0 0 var(--accent)' : null, saved ? 'inset 2px 0 0 var(--accent)' : null].filter(Boolean).join(', ') || undefined }}>
         {selId && (
           <Checkbox
             fill
@@ -223,7 +236,13 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
       </td>
       <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: 'middle' }}>
         {t.needsCategory
-          ? <NeedsCategoryPill onClick={onCategorize ? e => onCategorize(t.id, e?.currentTarget) : undefined} />
+          // Wave D: while the row is still holding its saved-state accent, the
+          // same CTA (opens the identical categorize flow) renders as an
+          // inviting accent chip instead of the amber warning pill — the row
+          // just finished being saved, and calling that a mistake mid-moment
+          // reads as a scold. The instant the saved-state ends the amber pill
+          // takes back over (same t.needsCategory, saved just goes false).
+          ? <NeedsCategoryPill tone={saved ? 'accent' : 'warn'} onClick={onCategorize ? e => onCategorize(t.id, e?.currentTarget) : undefined} />
           : <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>}
       </td>
       {/* Memo: adjustment reason and/or free-text note, truncated with an ellipsis and the full value on hover. Dropped under ~1000px container width. */}
@@ -331,7 +350,7 @@ export default function Transactions() {
   // since COLUMNS drives <colgroup>/header/cells from one array (see below).
   const tableWrapRef = useRef(null);
   const containerWidth = useContainerWidth(tableWrapRef);
-  const { ask, notify, confirmOpen, shortcutsOpen, flashRows, flashIds } = useUI();
+  const { ask, notify, confirmOpen, shortcutsOpen, flashRows, flashIds, lastSaved, clearLastSaved } = useUI();
   const fmt = useMoney();
   const { openDrawer, drawer } = useDrawer();
   // The inline editor session (desktop only — phone renders TxSheet instead).
@@ -435,6 +454,35 @@ export default function Transactions() {
     if ((listFilter === 'uncleared' && unclearedIds.size === 0)
       || (listFilter === 'needsCat' && needsCat.size === 0)) setListFilter('all');
   }, [listFilter, unclearedIds, needsCat]);
+
+  // Wave D: the desktop banner below must not visibly increment for a row
+  // that's still showing its own accent "Categorize?" chip (see Row) — that
+  // would read as the save itself creating a new mistake. needsCat itself is
+  // left alone (it also drives the phone review banner and the 'needsCat'
+  // list filter, neither in this wave's scope) — only the desktop banner's
+  // count is threaded through the exclusion.
+  const bannerNeedsCatCount = needsCategoryBannerCount(needsCat, lastSaved);
+
+  // Wave D: a saved row holds its completion accent until the NEXT user
+  // interaction. Defined as a pointerdown/keydown anywhere on this screen
+  // OUTSIDE the saved row itself (data-saved-row, set by Row) — so selecting
+  // the just-saved row, or clicking its own Categorize? chip, doesn't end its
+  // own moment, but touching anything else does. A later save supersedes this
+  // outright (flashRows replaces lastSaved), so this only needs to handle the
+  // "nothing else happened" case.
+  useEffect(() => {
+    if (lastSaved.size === 0) return;
+    const onInteract = e => {
+      if (e.target?.closest?.('[data-saved-row]')) return;
+      clearLastSaved();
+    };
+    document.addEventListener('pointerdown', onInteract);
+    document.addEventListener('keydown', onInteract);
+    return () => {
+      document.removeEventListener('pointerdown', onInteract);
+      document.removeEventListener('keydown', onInteract);
+    };
+  }, [lastSaved, clearLastSaved]);
 
   // Hide the ACCOUNT column on a single-account ledger — every row is that
   // account — and fold ACCOUNT/MEMO by measured container width (registerColumns.js,
@@ -949,14 +997,14 @@ export default function Transactions() {
         {/* Needs-a-category banner (desktop; the phone list has its own inline
             review banners). View flips the shared listFilter, and the auto-reset
             effect dissolves banner + filter once the last row is categorized. */}
-        {!phone && needsCat.size > 0 && (
+        {!phone && bannerNeedsCatCount > 0 && (
           <div role="region" aria-label="Transactions needing a category" style={{
             display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
             background: 'var(--soft)', borderRadius: flush ? 0 : 12,
             ...(flush ? { borderBottom: '1px solid var(--border)' } : { border: '1px solid var(--border)' }),
           }}>
             <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>
-              {needsCat.size === 1 ? '1 transaction needs a category.' : needsCat.size + ' transactions need a category.'}
+              {bannerNeedsCatCount === 1 ? '1 transaction needs a category.' : bannerNeedsCatCount + ' transactions need a category.'}
             </span>
             <button
               onClick={() => { clearSel(); setListFilter(f => (f === 'needsCat' ? 'all' : 'needsCat')); }}
@@ -1112,7 +1160,7 @@ export default function Transactions() {
                   : <Row
                       key={t.id} t={t} selId={t.id} hideAccount={hideAccountCol} hideMemo={hideMemoCol} foldAccount={foldAccount}
                       checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
-                      onCategorize={openRowCategorize} flash={flashIds.has(t.id)}
+                      onCategorize={openRowCategorize} flash={flashIds.has(t.id)} saved={lastSaved.has(t.id)}
                     />))}
               </tbody>
             </table>

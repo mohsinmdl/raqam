@@ -17,16 +17,28 @@ const chip = (bg, fg) => ({
 // picker for this row); without, a plain pill for hosts that wire the tap
 // elsewhere (the phone row chip). stopPropagation lives here so hosts whose
 // rows are themselves click targets (select-toggle, edit) don't also fire.
-export function NeedsCategoryPill({ fontSize = 12, onClick }) {
-  const look = { ...chip('var(--warn-soft)', 'var(--text)'), fontSize, fontWeight: 500 };
+//
+// tone='accent' (Wave D) is the SAME control — identical shape, size and
+// click target — for a row still holding its post-save completion accent:
+// warm amber reads as a problem, which is wrong the instant after a save
+// succeeded. Soft-tint background / accent-colored text says "one small
+// invitation," not "you made a mistake"; the copy shortens to match ("This
+// needs a category" states a problem, "Categorize?" offers an action). Once
+// the saved-state ends the caller switches tone back to 'warn' — same id,
+// same click handler, no flash.
+export function NeedsCategoryPill({ fontSize = 12, onClick, tone = 'warn' }) {
+  const accent = tone === 'accent';
+  const label = accent ? 'Categorize?' : 'This needs a category';
+  const title = accent ? 'Add a category to this transaction.' : "Assign a category to this transaction so you'll know what you spent your money on.";
+  const look = { ...chip(accent ? 'var(--soft)' : 'var(--warn-soft)', accent ? 'var(--accent)' : 'var(--text)'), fontSize, fontWeight: 500 };
   if (!onClick) {
     return (
       <span
-        title="Assign a category to this transaction so you'll know what you spent your money on."
-        aria-label="This needs a category. Assign a category to this transaction so you'll know what you spent your money on."
+        title={title}
+        aria-label={accent ? title : 'This needs a category. ' + title}
         style={look}
       >
-        This needs a category
+        {label}
       </span>
     );
   }
@@ -34,12 +46,12 @@ export function NeedsCategoryPill({ fontSize = 12, onClick }) {
     <button
       type="button"
       onClick={e => { e.stopPropagation(); onClick(e); }}
-      title="Assign a category to this transaction so you'll know what you spent your money on."
-      aria-label="This needs a category — assign one now"
-      className="hv-soft"
+      title={title}
+      aria-label={accent ? 'Categorize this transaction' : 'This needs a category — assign one now'}
+      className={accent ? 'hv-elev' : 'hv-soft'}
       style={{ ...look, cursor: 'pointer', font: 'inherit' }}
     >
-      This needs a category
+      {label}
     </button>
   );
 }

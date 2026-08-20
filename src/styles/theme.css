@@ -88,6 +88,16 @@ textarea:focus {
 @media (prefers-reduced-motion: reduce) {
   .row-flash { background-color: color-mix(in srgb, var(--accent) 16%, transparent) !important; }
 }
+/* Wave D: once the 1.1s flash above fades, a just-saved row holds a quiet
+   completion accent — NOT a repeat of the flash's bright wash, a calm,
+   hairline-precise "this is done" cue — until the next interaction clears it
+   (Row/UIProvider in Transactions.jsx). The left rule renders as an inset
+   box-shadow on the row's first cell (same technique as the keyboard-cursor
+   accent, one px narrower so the two read as distinct when they coincide);
+   the wash is a fraction of --soft so it never reads as the (also --soft)
+   selection background. No glow/shadow — reduced-motion needs no separate
+   fallback here since nothing animates. */
+.row-saved-wash { background-color: color-mix(in srgb, var(--soft) 55%, var(--surface)); }
 
 /* Hover utilities replacing the prototype's style-hover attributes. */
 .hv-elev:hover { background: var(--elev) !important; }
