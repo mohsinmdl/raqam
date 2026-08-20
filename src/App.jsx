@@ -36,6 +36,7 @@ import { HeaderSlotProvider } from './ui/HeaderSlot.jsx';
 import { useIsPhone } from './lib/useIsPhone.js';
 import MobileTabBar from './components/MobileTabBar.jsx';
 import AddTxPill from './components/AddTxPill.jsx';
+import ManagePayees from './ui/payees/ManagePayees.jsx';
 
 // Sidebar width is user-draggable and remembered on the device (like theme).
 const SB_MIN = 208, SB_MAX = 460, SB_DEFAULT = 236, SB_KEY = 'raqam.sidebarW';
@@ -80,6 +81,7 @@ function Shell() {
       }}
     >
       <GlobalShortcuts />
+      <ManagePayees />
       {!phone && <Sidebar />}
       {/* Drag handle sitting on the sidebar's right seam. A hairline stays
           invisible until hover/drag, then lights up in the accent colour. */}
