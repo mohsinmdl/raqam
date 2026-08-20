@@ -65,3 +65,12 @@ export function applyRenameRules(name, payees) {
   }
   return name;
 }
+
+// The inline editor's prefill decision: returns the category id to patch, or
+// null for "do nothing" (already categorized, no rule, or the rule says
+// Ready-to-Assign — which for an inflow just means stay uncategorized).
+export function autoCategoryPatchArgs(S, name, currentCategory) {
+  if (currentCategory) return null;
+  const auto = autoCategoryFor(S, name);
+  return auto && auto !== 'rta' ? auto : null;
+}
