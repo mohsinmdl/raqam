@@ -72,7 +72,7 @@ export default function TxEditorRow({ hideAccount, colSpan }) {
         </td>
         <td style={cellTd}>
           {splitOn
-            ? <button type="button" className="field hv-soft" onClick={() => setForm({ splitOn: false, splits: undefined, category: (f.splits || [])[0]?.category || '' })}
+            ? <button type="button" className="field hv-soft" onClick={() => setForm({ splitOn: false, splits: undefined, category: (f.splits || [])[0]?.category || '', newCat: (f.splits || [])[0]?.newCat || '', newCatGroup: (f.splits || [])[0]?.newCatGroup || '' })}
                 style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)', cursor: 'pointer', width: '100%' }}>
                 Split ({(f.splits || []).length}) — un-split
               </button>
