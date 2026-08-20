@@ -314,7 +314,7 @@ export default function Dashboard() {
                           <span style={{ display: 'block', fontSize: 11.5, color: u.whenColor }}>{u.when}</span>
                         </span>
                         <span className="tnum" style={{ fontSize: 13, fontWeight: 600 }}>{u.amt}</span>
-                        <button onClick={() => openers.recordRule(S, u.id, openDrawer)} title="Review details and record this transaction" className="hv-soft" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>Record</button>
+                        <button onClick={() => { if (!phone) nav('/transactions'); openers.recordRule(S, u.id, openDrawer); }} title="Review details and record this transaction" className="hv-soft" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>Record</button>
                       </div>
                     ))}
                   </div>
@@ -396,7 +396,7 @@ export default function Dashboard() {
                   <div className="tnum tx-cell-amt" style={{ fontSize: 13.5, fontWeight: 600, textAlign: 'right', color: t.amtColor }}>{t.amtLabel}</div>
                   <div className="tx-cell-edit" style={{ textAlign: 'right' }}>
                     {t.canEdit && (
-                      <button onClick={() => openers.editTx(S, t.id, openDrawer)} aria-label="Edit this transaction" className="hv-soft" style={{ height: 24, padding: '0 9px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
+                      <button onClick={() => { if (!phone) nav('/transactions'); openers.editTx(S, t.id, openDrawer); }} aria-label="Edit this transaction" className="hv-soft" style={{ height: 24, padding: '0 9px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
                     )}
                   </div>
                 </div>

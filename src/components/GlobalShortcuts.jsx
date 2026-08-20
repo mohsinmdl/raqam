@@ -6,6 +6,7 @@ import { useShortcuts, useSequence } from '../ui/useShortcuts.js';
 import { SPEC } from '../lib/shortcuts.js';
 import { openers } from '../drawers/openers.js';
 import { useAppLock } from '../ui/AppLockContext.jsx';
+import { useIsPhone } from '../lib/useIsPhone.js';
 
 // App-level keys that are not tied to a screen: ? toggles the help modal,
 // shift+N opens Add Transaction, ctrl/⌘+shift+L flips the theme, H hides amounts,
@@ -19,9 +20,14 @@ export default function GlobalShortcuts() {
   // Same lockNow the header icon uses (AppLockGate owns the lock state).
   const { enabled: lockEnabled, lockNow } = useAppLock();
   const nav = useNavigate();
+  const phone = useIsPhone();
   const bindings = [
     { spec: SPEC.help,  run: () => (shortcutsOpen ? closeShortcuts() : openShortcuts()) },
-    { spec: SPEC.addTx, when: () => !shortcutsOpen, run: () => openers.addTx(openDrawer) },
+    { spec: SPEC.addTx, when: () => !shortcutsOpen, run: () => {
+        // Desktop addTx renders inline in the register, so get there first.
+        if (!phone) nav('/transactions');
+        openers.addTx(openDrawer);
+      } },
     { spec: SPEC.toggleTheme, when: () => !shortcutsOpen, run: () => setPrefs({ theme: prefs.theme === 'light' ? 'dark' : 'light' }) },
     { spec: SPEC.hideAmounts, when: () => !shortcutsOpen, run: () => setPrefs({ masked: !prefs.masked }) },
     // Lock now: only meaningful once App lock is enrolled (an unenrolled lock

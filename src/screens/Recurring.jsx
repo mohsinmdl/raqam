@@ -15,6 +15,7 @@ import { skipOccurrence, toggleRulePause, deleteRule } from '../store/actions.js
 import RowMenu from '../ui/RowMenu.jsx';
 import { RepeatIcon } from '../ui/icons.jsx';
 import { openers } from '../drawers/openers.js';
+import { useIsPhone } from '../lib/useIsPhone.js';
 
 const GROUPS = [
   { key: 'overdue', label: 'Overdue', dot: 'var(--neg)', note: 'Waiting on you — record or skip each one' },
@@ -41,7 +42,7 @@ const btn = { height: 26, padding: '0 10px', border: '1px solid var(--border)', 
 // rather than a dozen props; destructuring it here documents the dependency
 // list in one place.
 function Row({ r, status, ctx }) {
-  const { S, now, money, menuOpen, setMenuOpen, navigate, openDrawer, skip, remove, togglePause } = ctx;
+  const { S, now, money, menuOpen, setMenuOpen, navigate, openDrawer, skip, remove, togglePause, record } = ctx;
     const cat = catById(S, r.category);
     const actionable = status === 'overdue' || status === 'due' || status === 'later';
     const dueColor = status === 'overdue' ? 'var(--neg)' : status === 'due' ? 'var(--warn)' : 'var(--muted)';
@@ -79,7 +80,7 @@ function Row({ r, status, ctx }) {
         <span onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           {actionable && (
             <>
-              <button onClick={() => openers.recordRule(S, r.id, openDrawer)} className="hv-soft" style={{ ...btn, color: 'var(--accent)' }}>Record</button>
+              <button onClick={() => record(r)} className="hv-soft" style={{ ...btn, color: 'var(--accent)' }}>Record</button>
               <button onClick={() => skip(r)} className="hv-soft" style={{ ...btn, color: 'var(--muted)' }}>Skip</button>
             </>
           )}
@@ -96,7 +97,7 @@ function Row({ r, status, ctx }) {
             items={[
               { label: 'View history', onClick: () => navigate('/recurring/' + r.id) },
               { label: 'Edit rule', onClick: () => openers.editRule(S, r.id, openDrawer) },
-              ...(actionable ? [{ label: 'Record now', onClick: () => openers.recordRule(S, r.id, openDrawer) }, { label: 'Skip this one', onClick: () => skip(r) }] : []),
+              ...(actionable ? [{ label: 'Record now', onClick: () => record(r) }, { label: 'Skip this one', onClick: () => skip(r) }] : []),
               ...(status !== 'ended' ? [{ label: r.status === 'paused' ? 'Resume rule' : 'Pause rule', onClick: () => togglePause(r) }] : []),
               { label: 'Delete rule', onClick: () => remove(r), tone: 'neg', divider: true },
             ]}
@@ -112,6 +113,7 @@ export default function Recurring() {
   const { openDrawer } = useDrawer();
   const { ask, notify } = useUI();
   const navigate = useNavigate();
+  const phone = useIsPhone();
   const [menuOpen, setMenuOpen] = useState(null);
 
   const now = nowIso();
@@ -154,9 +156,15 @@ export default function Recurring() {
     notify(r.status === 'paused' ? '“' + r.name + '” resumed.' : '“' + r.name + '” paused — no more reminders until you resume it.');
   };
 
+  // Desktop addTx renders inline in the register, so get there first.
+  const record = r => {
+    if (!phone) navigate('/transactions');
+    openers.recordRule(S, r.id, openDrawer);
+  };
+
   // Everything Row needs from this screen, in one object. Built after the
   // handlers above so every binding is initialised — no forward references.
-  const ctx = { S, now, money, menuOpen, setMenuOpen, navigate, openDrawer, skip: askSkip, remove: askDelete, togglePause };
+  const ctx = { S, now, money, menuOpen, setMenuOpen, navigate, openDrawer, skip: askSkip, remove: askDelete, togglePause, record };
 
   return (
     <div onClick={() => setMenuOpen(null)} style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 28px 56px' }}>

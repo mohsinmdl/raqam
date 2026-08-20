@@ -14,6 +14,7 @@ import {
 import { skipOccurrence, toggleRulePause, deleteRule } from '../store/actions.js';
 import { openers } from '../drawers/openers.js';
 import { RepeatIcon } from '../ui/icons.jsx';
+import { useIsPhone } from '../lib/useIsPhone.js';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const colHeader = { fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color: 'var(--muted)' };
@@ -47,6 +48,7 @@ export default function RecurringDetail() {
   const { openDrawer } = useDrawer();
   const { ask, notify } = useUI();
   const navigate = useNavigate();
+  const phone = useIsPhone();
 
   const r = S.recurring.find(x => x.id === decodeURIComponent(id || ''));
   if (!r) {
@@ -121,7 +123,7 @@ export default function RecurringDetail() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {actionable && <button onClick={() => openers.recordRule(S, r.id, openDrawer)} className="hv-accent" style={{ ...btn, background: 'var(--accent)', color: 'var(--on-accent)', border: 'none' }}>Record now</button>}
+              {actionable && <button onClick={() => { if (!phone) navigate('/transactions'); openers.recordRule(S, r.id, openDrawer); }} className="hv-accent" style={{ ...btn, background: 'var(--accent)', color: 'var(--on-accent)', border: 'none' }}>Record now</button>}
               {actionable && <button onClick={askSkip} className="hv-soft" style={btn}>Skip</button>}
               {status !== 'ended' && (
                 <button onClick={() => { applyData(data => toggleRulePause(data, { id: r.id })); notify(r.status === 'paused' ? 'Rule resumed.' : 'Rule paused.'); }} className="hv-soft" style={btn}>
