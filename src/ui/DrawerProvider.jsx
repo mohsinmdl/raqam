@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import FocusTrap from './FocusTrap.jsx';
 import { useUI } from './UIProvider.jsx';
 import { useIsPhone } from '../lib/useIsPhone.js';
+import { isMeaningfulDraft } from '../lib/txEditorState.js';
 import TxSheet from './tx/phone/TxSheet.jsx';
 
 // Drawer system — chrome ported from the prototype (template 514-528, footer 742-746).
@@ -89,9 +90,17 @@ export function DrawerProvider({ registry, children }) {
   }, []);
 
   // Discard guard: edited drawers confirm before closing (backdrop, ×, Cancel, Escape).
+  // The addTx INLINE session (desktop register row — phone's TxSheet and the
+  // classic drawer are untouched) is a quiet exception: a draft that never
+  // became "meaningful" (no amount, category, split, or transfer target —
+  // just a payee/memo typed, or nothing at all) closes without asking, since
+  // there's nothing in it a confirm dialog would actually be protecting.
   const { ask } = useUI();
   const requestClose = useCallback(async () => {
-    if (stateRef.current?.dirty) {
+    const s = stateRef.current;
+    const isInlineAddTx = !phone && s?.name === 'addTx';
+    const needsConfirm = s?.dirty && (!isInlineAddTx || isMeaningfulDraft(s.form));
+    if (needsConfirm) {
       const ok = await ask({
         title: 'Discard your changes?',
         body: 'This form has unsaved edits. Closing it now throws them away.',
@@ -100,7 +109,7 @@ export function DrawerProvider({ registry, children }) {
       if (!ok) return;
     }
     setState(null);
-  }, [ask]);
+  }, [ask, phone]);
 
   // Phone renders the addTx drawer as TxSheet (its own Base UI Dialog) instead
   // of the classic DrawerShell, for all five transaction types. TxSheet's own

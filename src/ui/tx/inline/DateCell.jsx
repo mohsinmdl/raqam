@@ -3,7 +3,7 @@
 // Repeat preset dropdown — the same PRESETS the drawer used, so applyRepeat
 // in the store needs no change. Escape closes the popover only (bubbling is
 // stopped so DrawerProvider's session-level Escape does not also fire).
-import { useState } from 'react';
+import { forwardRef, useState } from 'react';
 import { Popover, PopoverTrigger, PopoverPanel } from '../../primitives/Popover.jsx';
 import { calendarCells, shiftMonth } from '../../../lib/calendar.js';
 import { todayStr, addDays } from '../../../lib/dates.js';
@@ -13,17 +13,23 @@ const WD = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const dmy = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? ymd.slice(8) + '/' + ymd.slice(5, 7) + '/' + ymd.slice(0, 4) : 'date');
 const chip = on => ({ height: 24, padding: '0 8px', borderRadius: 6, cursor: 'pointer', fontSize: 11.5, fontWeight: 600, border: '1px solid ' + (on ? 'var(--accent)' : 'var(--border)'), background: on ? 'var(--soft)' : 'var(--surface)', color: on ? 'var(--accent)' : 'var(--text)' });
+const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
+const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
 
-export default function DateCell({ value, onChange, repeat, onRepeat, showRepeat, disabled }) {
+const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepeat, showRepeat, disabled, invalid, errorMsg, errorId }, ref) {
   const today = todayStr();
   const [month, setMonth] = useState(() => String(value || today).slice(0, 7));
   const cells = calendarCells(month, value, today);
+  const id = errorId || 'txeditor-err-date';
   return (
     <Popover>
-      <PopoverTrigger className="field tnum" disabled={disabled} aria-label="Date" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%', height: 28, padding: '0 8px', fontSize: 13, cursor: 'pointer' }}>
+      <PopoverTrigger ref={ref} className="field tnum" disabled={disabled} aria-label="Date"
+        aria-invalid={invalid || undefined} aria-describedby={invalid ? id : undefined}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%', height: 28, padding: '0 8px', fontSize: 13, cursor: 'pointer', ...(invalid ? ringStyle : null) }}>
         <span>{dmy(value)}</span>
         <span aria-hidden="true" style={{ color: 'var(--muted)', fontSize: 10 }}>▾</span>
       </PopoverTrigger>
+      {invalid && <span id={id} role="alert" style={srOnly}>{errorMsg}</span>}
       <PopoverPanel width={272} arrow style={{ padding: 10 }}
         onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
@@ -61,4 +67,6 @@ export default function DateCell({ value, onChange, repeat, onRepeat, showRepeat
       </PopoverPanel>
     </Popover>
   );
-}
+});
+
+export default DateCell;

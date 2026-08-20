@@ -671,15 +671,24 @@ export default function Transactions() {
   const bulkCategorize = categoryId => {
     const canTakeExpenseCat = t => t.type === 'expense' || t.type === 'refund';
     const ids = sel.filter(id => { const t = S.transactions.find(x => x.id === id); return t && canTakeExpenseCat(t); });
-    const skipped = sel.length - ids.length;
+    const skippedIds = sel.filter(id => !ids.includes(id));
     setPickerOpen(false);
     if (ids.length === 0) { notify('Nothing categorized — none of the selected can take an expense category.'); return; }
     // Blink the categorized rows instead of a "Categorized N" toast. A partial
-    // skip is still a warning worth surfacing, so that keeps a (minimal) toast.
+    // skip is still a warning worth surfacing, so that keeps a (minimal) toast —
+    // named, not just counted, so the skip is actually actionable (which rows
+    // to go fix by hand) instead of a bare "3 skipped" the user has to hunt for.
     applyData(data => setTransactionsCategory(data, { ids, categoryId }));
     clearSel();
     flashRows(ids);
-    if (skipped) notify('Skipped ' + skipped + ' that can’t take an expense category.');
+    if (skippedIds.length) {
+      const names = skippedIds.map(id => {
+        const t = S.transactions.find(x => x.id === id);
+        return t ? (t.merchant || (t.type === 'transfer' ? 'Own-account transfer' : 'Uncategorized')) : 'that item';
+      });
+      const shown = names.slice(0, 2).join(', ') + (names.length > 2 ? ', +' + (names.length - 2) + ' more' : '');
+      notify('Skipped ' + skippedIds.length + ' (' + shown + ') that can’t take an expense category.');
+    }
   };
   // The cleared toggle the ⓒ action uses — same rule as the keyboard shortcut.
   // Adaptive so the action is never pointless: on an all-cleared selection it

@@ -3,38 +3,48 @@
 // folded left-to-right by applyCalcExpr on Enter/blur (seeded with the cell's
 // prior committed value, same contract as the plan-cell calculator). The ⌗
 // trigger opens a 2×2 op pad that appends the operator, YNAB-style.
-import { useState } from 'react';
+import { forwardRef, useState } from 'react';
 import { Popover, PopoverTrigger, PopoverPanel } from '../../primitives/Popover.jsx';
 import { applyCalcExpr } from '../../../lib/calcExpr.js';
 import { formatAmountInput } from '../../../lib/amountInput.js';
 import { parseAmt } from '../../../lib/format.js';
 
 const OP_KEYS = /[+\-−×*÷/]/;
+const CALC_MSG = {
+  compute: "Couldn't compute — check the expression.",
+  negative: 'Result is negative — amounts are magnitudes; use the other column for the opposite direction.',
+};
+const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
+const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
 
-export default function AmountCell({ value, onCommit, placeholder, ariaLabel, disabled, autoFocus }) {
+const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder, ariaLabel, disabled, autoFocus, invalid, errorMsg, errorId }, ref) {
   const [draft, setDraft] = useState(null); // null = idle, mirror committed value
+  // A bad calculator expression (can't compute, or resolves negative) is a
+  // SEPARATE invalid source from the submit-time `invalid`/`errorMsg` props —
+  // it lives entirely in this component since validate.js never sees an
+  // unresolved expression. Enter and blur now behave IDENTICALLY: the draft
+  // stays visible either way, the cell just gets marked. No silent revert on
+  // blur, no silent refusal on Enter — the old fromBlur split is gone.
+  const [calcErr, setCalcErr] = useState(null); // null | 'compute' | 'negative'
   const shown = draft !== null ? draft : (value || '');
+  const showInvalid = !!calcErr || !!invalid;
+  const message = calcErr ? CALC_MSG[calcErr] : errorMsg;
+  const id = errorId || (ariaLabel ? 'txeditor-err-' + ariaLabel.toLowerCase() : undefined);
 
-  // fromBlur distinguishes the two ways an invalid/negative expression can be
-  // left behind: Enter keeps the draft open so the user can fix it in place,
-  // but a blur means focus already left — leaving the stale draft shown would
-  // silently hide the real committed value behind text that was never saved,
-  // so blur reverts the draft instead.
-  const commit = fromBlur => {
+  const commit = () => {
     if (draft === null) return;
     const s = draft.trim();
-    if (!s) { onCommit(''); setDraft(null); return; }
+    if (!s) { onCommit(''); setDraft(null); setCalcErr(null); return; }
     if (OP_KEYS.test(s)) {
       const r = applyCalcExpr(parseAmt(value || '') || 0, s);
-      if (r === null || r < 0) {
-        if (fromBlur) setDraft(null); // revert to the real committed value
-        return; // Enter: stay open with the draft so it can be corrected
-      }
+      if (r === null) { setCalcErr('compute'); return; } // keep the draft, mark the cell
+      if (r < 0) { setCalcErr('negative'); return; } // keep the draft, mark the cell
       onCommit(formatAmountInput(String(r)));
     } else {
       onCommit(formatAmountInput(s));
     }
     setDraft(null);
+    setCalcErr(null);
   };
 
   return (
@@ -57,14 +67,18 @@ export default function AmountCell({ value, onCommit, placeholder, ariaLabel, di
           </div>
         </PopoverPanel>
       </Popover>
-      <input className="field tnum" inputMode="decimal" placeholder={placeholder} aria-label={ariaLabel}
+      <input ref={ref} className="field tnum" inputMode="decimal" placeholder={placeholder} aria-label={ariaLabel}
+        aria-invalid={showInvalid || undefined} aria-describedby={showInvalid ? id : undefined}
         disabled={disabled} autoFocus={autoFocus} value={shown}
         onFocus={e => e.target.select()}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={() => commit(true)}
-        onKeyDown={e => { if (e.key === 'Enter' && draft !== null) { e.preventDefault(); commit(false); } }}
-        style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13, textAlign: 'right', minWidth: 0 }}
+        onChange={e => { setDraft(e.target.value); setCalcErr(null); }}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter' && draft !== null) { e.preventDefault(); commit(); } }}
+        style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13, textAlign: 'right', minWidth: 0, ...(showInvalid ? ringStyle : null) }}
       />
+      {showInvalid && <span id={id} role="alert" style={srOnly}>{message}</span>}
     </span>
   );
-}
+});
+
+export default AmountCell;

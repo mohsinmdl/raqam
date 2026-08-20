@@ -4,13 +4,13 @@
 // another). All state lives in the drawer context; all translation lives in
 // txEditorState. Enter saves (unless a popover consumed it), Escape is handled
 // by DrawerProvider's session listener.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDrawer } from '../../DrawerProvider.jsx';
 import { useStore } from '../../../store/StoreProvider.jsx';
 import { txFormDef } from '../../../drawers/TxForm.jsx';
 import { txDefaults } from '../../../drawers/openers.js';
 import { ruleFromTx } from '../../../lib/schedule.js';
-import { cellsFromForm, editorPatch, editableCells, firstEmptyCell, keepForNext, sourceRef } from '../../../lib/txEditorState.js';
+import { cellsFromForm, editorPatch, editableCells, errorCells, firstEmptyCell, keepForNext, sourceRef } from '../../../lib/txEditorState.js';
 import { blankLine, splitHalves } from '../../../lib/splitTx.js';
 import { autoCategoryPatchArgs } from '../../../lib/payees.js';
 import { formatAmountInput } from '../../../lib/amountInput.js';
@@ -43,6 +43,15 @@ export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }
   // Computed once per session: which cell greets the keyboard.
   const [focusKey] = useState(() => firstEmptyCell(cellsFromForm(f), hideAccount));
 
+  // Field-attributed validation (Wave H): which cells a failed submit's
+  // errors belong to, in the row's own left-to-right column order — the
+  // order a failed submit moves focus through below.
+  const cellErrors = errorCells(drawer.errors, f);
+  const CELL_ORDER = ['account', 'date', 'payee', 'category', 'outflow', 'inflow'];
+  const cellRefs = {
+    account: useRef(null), date: useRef(null), payee: useRef(null),
+    category: useRef(null), outflow: useRef(null), inflow: useRef(null),
+  };
   // The store lookup editorPatch/inflowType need but can't reach themselves:
   // whether a category is income- or expense-typed, to decide an income+
   // category pick or an inflow's type inference (see FIX 1 — a blind flip to
@@ -56,8 +65,26 @@ export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }
     // landed on (e.g. an inflow-direction transfer swaps from/to) — mirrors
     // the toolbar's own seeding and keeps the new row visible in this register.
     if (scopeRef) keep.payWith = scopeRef;
-    if (await submit()) openDrawer('addTx', { ...txDefaults('expense'), ...keep });
+    if (await attemptSubmit()) openDrawer('addTx', { ...txDefaults('expense'), ...keep });
   };
+  // Every submit trigger in the row (Enter, Save, Save-and-add-another) goes
+  // through this one path — kept as a named wrapper around submit() so the
+  // intent (attempting a save, which the effect below reacts to) reads clearly
+  // at each call site.
+  const attemptSubmit = () => submit();
+  // drawer.errors only ever gets a NEW reference from fail() (a failed
+  // submit), setDup(), or a fresh openDrawer() — never from setForm (typing),
+  // which carries the existing errors object through unchanged. So reacting
+  // to it here is exactly "a submit just failed" with no separate flag to
+  // race against React's state batching (submit() calls fail() synchronously
+  // before its own promise resolves, so a flag set after `await submit()`
+  // can lose the race with the render this effect depends on).
+  useEffect(() => {
+    for (const key of CELL_ORDER) {
+      if (cellErrors[key] && cellRefs[key].current) { cellRefs[key].current.focus(); break; }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawer.errors]);
   const pickPayee = name => {
     const payeePatch = editorPatch(f, 'payee', name, { catTypeOf });
     const auto = autoCategoryPatchArgs(S, name, f.category);
@@ -67,7 +94,7 @@ export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }
     setForm({ ...payeePatch, ...editorPatch(f2, 'category', auto, { catTypeOf }) });
   };
   const onRowKey = e => {
-    if (e.key === 'Enter' && !e.defaultPrevented && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SELECT') submit();
+    if (e.key === 'Enter' && !e.defaultPrevented && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SELECT') attemptSubmit();
   };
 
   return (
@@ -78,16 +105,19 @@ export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }
         </td>
         {!hideAccount && (
           <td style={cellTd}>
-            <AccountCell value={cells.account} disabled={!can.account} onChange={v => patch('account', v)} autoFocus={focusKey === 'account'} />
+            <AccountCell ref={cellRefs.account} value={cells.account} disabled={!can.account} onChange={v => patch('account', v)} autoFocus={focusKey === 'account'}
+              invalid={!!cellErrors.account} errorMsg={cellErrors.account} />
           </td>
         )}
         <td style={cellTd}>
-          <DateCell value={cells.date} onChange={v => patch('date', v)} repeat={cells.repeat} onRepeat={v => patch('repeat', v)} showRepeat={showRepeat} disabled={!can.date} />
+          <DateCell ref={cellRefs.date} value={cells.date} onChange={v => patch('date', v)} repeat={cells.repeat} onRepeat={v => patch('repeat', v)} showRepeat={showRepeat} disabled={!can.date}
+            invalid={!!cellErrors.date} errorMsg={cellErrors.date} />
         </td>
         <td style={cellTd}>
-          <PayeeCell payee={cells.payee} transferTo={cells.transferTo} sourceRef={sourceRef(f)}
+          <PayeeCell ref={cellRefs.payee} payee={cells.payee} transferTo={cells.transferTo} sourceRef={sourceRef(f)}
             onPickPayee={pickPayee} onPickTransfer={ref => patch('transfer', ref)}
-            disabled={!can.payee} autoFocus={focusKey === 'payee'} />
+            disabled={!can.payee} autoFocus={focusKey === 'payee'}
+            invalid={!!cellErrors.payee} errorMsg={cellErrors.payee} />
         </td>
         <td style={cellTd}>
           {splitOn
@@ -95,7 +125,8 @@ export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }
                 style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)', cursor: 'pointer', width: '100%' }}>
                 Split ({(f.splits || []).length}) — un-split
               </button>
-            : <CategoryCell value={cells.category} catType={catType} isTransfer={isTransfer} disabled={!can.category}
+            : <CategoryCell ref={cellRefs.category} value={cells.category} catType={catType} isTransfer={isTransfer} disabled={!can.category}
+                invalid={!!cellErrors.category} errorMsg={cellErrors.category}
                 onChange={id => patch('category', id)}
                 onCreate={({ name, groupId }) => setForm({ category: '__new', newCat: name, newCatGroup: groupId || '' })}
                 canSplit={canSplit} onSplit={() => {
@@ -127,10 +158,12 @@ export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }
           </td>
         )}
         <td style={cellTd}>
-          <AmountCell value={cells.outflow} onCommit={v => patch('outflow', v)} placeholder="outflow" ariaLabel="Outflow" disabled={!can.outflow} />
+          <AmountCell ref={cellRefs.outflow} value={cells.outflow} onCommit={v => patch('outflow', v)} placeholder="outflow" ariaLabel="Outflow" disabled={!can.outflow}
+            invalid={!!cellErrors.outflow} errorMsg={cellErrors.outflow} />
         </td>
         <td style={cellTd}>
-          <AmountCell value={cells.inflow} onCommit={v => patch('inflow', v)} placeholder="inflow" ariaLabel="Inflow" disabled={!can.inflow} />
+          <AmountCell ref={cellRefs.inflow} value={cells.inflow} onCommit={v => patch('inflow', v)} placeholder="inflow" ariaLabel="Inflow" disabled={!can.inflow}
+            invalid={!!cellErrors.inflow} errorMsg={cellErrors.inflow} />
         </td>
         <td style={{ ...cellTd, textAlign: 'center' }}>
           <button type="button" onClick={() => patch('cleared', !cells.cleared)} aria-pressed={cells.cleared}
@@ -158,7 +191,7 @@ export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }
         <td colSpan={colSpan} style={{ padding: '6px 12px 10px', borderBottom: '1px solid var(--border)', background: 'var(--soft)' }}>
           <div style={{ position: 'sticky', left: 0, display: 'flex', alignItems: 'center', gap: 10, width: 'fit-content', maxWidth: '100%', flexWrap: 'wrap' }}>
             <button type="button" onClick={requestClose} className="hv-elev" style={btn(false)}>Cancel</button>
-            <button type="button" onClick={submit} className="hv-accent" style={btn(true)}>{txFormDef.cta(drawer)}</button>
+            <button type="button" onClick={attemptSubmit} className="hv-accent" style={btn(true)}>{txFormDef.cta(drawer)}</button>
             {!isEdit && (
               <button type="button" onClick={saveAndAdd} className="hv-accent" style={btn(true)}>Save and add another</button>
             )}

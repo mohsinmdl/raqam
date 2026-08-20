@@ -1,6 +1,7 @@
 // Tokened wrapper over Base UI's Select — same contract as Popover.jsx: Base
 // UI supplies positioning, portal, keyboard nav, typeahead and ARIA; we keep
 // "The Trusted Ledger" look. First consumer: the inline editor's account cell.
+import { forwardRef } from 'react';
 import { Select as BaseSelect } from '@base-ui/react/select';
 
 const popupStyle = {
@@ -8,14 +9,16 @@ const popupStyle = {
   boxShadow: 'var(--shadow)', padding: 6, color: 'var(--text)', boxSizing: 'border-box',
   maxHeight: 320, overflowY: 'auto', outline: 'none', minWidth: 'var(--anchor-width)',
 };
+const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 
-export function Select({ value, onValueChange, ariaLabel, renderValue, disabled, children, triggerStyle, autoFocus }) {
+export const Select = forwardRef(function Select({ value, onValueChange, ariaLabel, renderValue, disabled, children, triggerStyle, autoFocus, invalid, describedBy }, ref) {
   return (
     <BaseSelect.Root value={value} onValueChange={onValueChange} disabled={disabled}>
-      <BaseSelect.Trigger autoFocus={autoFocus} aria-label={ariaLabel} className="field" style={{
+      <BaseSelect.Trigger ref={ref} autoFocus={autoFocus} aria-label={ariaLabel}
+        aria-invalid={invalid || undefined} aria-describedby={invalid ? describedBy : undefined} className="field" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
         width: '100%', height: 28, padding: '0 8px', fontSize: 13, cursor: 'pointer',
-        ...triggerStyle,
+        ...(invalid ? ringStyle : null), ...triggerStyle,
       }}>
         <BaseSelect.Value style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {renderValue}
@@ -32,7 +35,7 @@ export function Select({ value, onValueChange, ariaLabel, renderValue, disabled,
       </BaseSelect.Portal>
     </BaseSelect.Root>
   );
-}
+});
 
 export function SelectGroup({ label, children }) {
   return (
