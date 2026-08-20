@@ -135,6 +135,7 @@ export default function PlanCategoryPicker({
     if (e.key === 'ArrowDown') { e.preventDefault(); setHi(h => clampHi(h + 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => clampHi(h - 1)); }
     else if (e.key === 'Enter') { e.preventDefault(); pick(pickable[clampHi(hi)]); }
+    else if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); }
   };
   const availOf = id => (env && env.rows.get(id) || {}).available || 0;
   const tone = v => (v > 0 ? 'var(--pos)' : v < 0 ? 'var(--neg)' : 'var(--muted)');
