@@ -125,8 +125,11 @@ export default function ManagePayees() {
             {hiddenSelCount > 0 && (
               <div style={{ padding: '0 14px 8px', fontSize: 12, color: 'var(--muted)' }}>
                 {hiddenSelCount} selected payee{hiddenSelCount === 1 ? '' : 's'} hidden by this search{' '}
-                <button type="button" onClick={() => setQ('')}
-                  style={{ border: 'none', background: 'none', color: 'var(--accent)', font: 'inherit', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                {/* Disabled with the search input above, for the same reason:
+                    clearing the filter while a delete step is open would
+                    unmount that step out from under the user. */}
+                <button type="button" onClick={() => setQ('')} disabled={stepOpen}
+                  style={{ border: 'none', background: 'none', color: 'var(--accent)', font: 'inherit', fontWeight: 600, cursor: stepOpen ? 'default' : 'pointer', padding: 0, opacity: stepOpen ? 0.5 : 1 }}>
                   clear search
                 </button>
               </div>
