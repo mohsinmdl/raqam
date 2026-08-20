@@ -166,6 +166,19 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
   .plan-inspector { position: static; }
 }
 
+/* Transactions register table wrapper: same container-query convention as
+   dash-root/plan-root above, keyed to the wrapper's real content width (the
+   resizable sidebar) instead of the viewport. COLUMNS (Transactions.jsx)
+   drives <colgroup>, the header row and every cell from one array, so the
+   MEMO/ACCOUNT folds below ~1000px/~900px are resolved in JS against a
+   ResizeObserver reading of this same container (useContainerWidth +
+   registerColumns.js) rather than as a pure CSS rule here — a CSS-only hide
+   would desync colgroup from the cells it's supposed to match. This
+   container-type declaration is what makes that measurement meaningful (and
+   is what a future pure-CSS register rule would key off, same as the two
+   blocks above). */
+.tx-table-wrap { container-type: inline-size; container-name: tx-register; }
+
 /* ---------- Phone shell (≤700px viewport; brief 2026-08-11) ----------
    The shell swaps sidebar for a bottom tab bar (App.jsx renders them
    conditionally); this block carries the CSS-only parts: safe-area

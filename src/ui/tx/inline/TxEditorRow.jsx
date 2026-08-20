@@ -25,7 +25,7 @@ import Checkbox from '../../Checkbox.jsx';
 const cellTd = { padding: '4px 4px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle', background: 'var(--soft)' };
 const btn = accent => ({ height: 30, padding: '0 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: accent ? 'none' : '1px solid var(--border)', background: accent ? 'var(--accent)' : 'var(--surface)', color: accent ? 'var(--on-accent)' : 'var(--text)' });
 
-export default function TxEditorRow({ hideAccount, colSpan, scopeRef }) {
+export default function TxEditorRow({ hideAccount, hideMemo, colSpan, scopeRef }) {
   const { drawer, setForm, setField, openDrawer, requestClose } = useDrawer();
   const { data: S } = useStore();
   const submit = txFormDef.useSubmit();
@@ -113,11 +113,19 @@ export default function TxEditorRow({ hideAccount, colSpan, scopeRef }) {
                   });
                 }} />}
         </td>
-        <td style={cellTd}>
-          <input className="field" placeholder="memo" aria-label="Memo" disabled={!can.memo} value={cells.memo}
-            onChange={e => patch('memo', e.target.value)}
-            style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13 }} />
-        </td>
+        {/* MEMO column folds away under ~1000px container width (registerColumns.js) —
+            same fold as the register's own MEMO cell, driven by the same
+            filtered `columns` the caller passed colSpan from. A hidden memo
+            field keeps whatever value it already held (no data loss, just
+            not editable while folded — matches how a folded ACCOUNT column
+            already works here). */}
+        {!hideMemo && (
+          <td style={cellTd}>
+            <input className="field" placeholder="memo" aria-label="Memo" disabled={!can.memo} value={cells.memo}
+              onChange={e => patch('memo', e.target.value)}
+              style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13 }} />
+          </td>
+        )}
         <td style={cellTd}>
           <AmountCell value={cells.outflow} onCommit={v => patch('outflow', v)} placeholder="outflow" ariaLabel="Outflow" disabled={!can.outflow} />
         </td>
@@ -135,20 +143,32 @@ export default function TxEditorRow({ hideAccount, colSpan, scopeRef }) {
       </tr>
       {splitOn && <SplitRows colSpan={colSpan} />}
       <tr>
+        {/* The register's table wrapper can scroll horizontally on a narrow
+            container (tx-table-wrap, overflow-x: auto in Transactions.jsx) —
+            colSpan makes this td as wide as the whole scrollable row, so
+            Cancel/Save would otherwise sit past the visible edge until the
+            user scrolled all the way over. The action group is its own
+            sticky, shrink-to-fit box (not the full-width td) pinned to
+            left: 0 of the scroll container, so it's the first thing in view
+            at any scroll position — buttons first, messages after, so a long
+            error/dup string can't push Save out of the pinned box. When the
+            table isn't actually overflowing (the common case at 1024/1366+)
+            sticky has nothing to do and this renders exactly as a normal
+            flex row. */}
         <td colSpan={colSpan} style={{ padding: '6px 12px 10px', borderBottom: '1px solid var(--border)', background: 'var(--soft)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            {drawer.errList.length > 0 && (
-              <span role="alert" style={{ fontSize: 12.5, color: 'var(--neg)', marginRight: 'auto' }}>{drawer.errList.join(' ')}</span>
-            )}
-            {drawer.dupMsg && (
-              <span role="alert" style={{ fontSize: 12.5, color: 'var(--warn)', marginRight: 'auto' }}>
-                <b>Possible duplicate — </b>{drawer.dupMsg}
-              </span>
-            )}
+          <div style={{ position: 'sticky', left: 0, display: 'flex', alignItems: 'center', gap: 10, width: 'fit-content', maxWidth: '100%', flexWrap: 'wrap' }}>
             <button type="button" onClick={requestClose} className="hv-elev" style={btn(false)}>Cancel</button>
             <button type="button" onClick={submit} className="hv-accent" style={btn(true)}>{txFormDef.cta(drawer)}</button>
             {!isEdit && (
               <button type="button" onClick={saveAndAdd} className="hv-accent" style={btn(true)}>Save and add another</button>
+            )}
+            {drawer.errList.length > 0 && (
+              <span role="alert" style={{ fontSize: 12.5, color: 'var(--neg)' }}>{drawer.errList.join(' ')}</span>
+            )}
+            {drawer.dupMsg && (
+              <span role="alert" style={{ fontSize: 12.5, color: 'var(--warn)' }}>
+                <b>Possible duplicate — </b>{drawer.dupMsg}
+              </span>
             )}
           </div>
         </td>
