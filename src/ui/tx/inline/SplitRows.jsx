@@ -34,7 +34,7 @@ export default function SplitRows({ colSpan }) {
   const setLine = (i, patch) => setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const removeLine = i => {
     const rest = lines.filter((_, j) => j !== i);
-    if (rest.length < 2) setForm({ splitOn: false, splits: undefined, category: rest[0]?.category || '' });
+    if (rest.length < 2) setForm({ splitOn: false, splits: undefined, category: rest[0]?.category || '', newCat: rest[0]?.newCat || '', newCatGroup: rest[0]?.newCatGroup || '' });
     else setLines(rest);
   };
   const rem = splitRemainder(f.amount, lines);
