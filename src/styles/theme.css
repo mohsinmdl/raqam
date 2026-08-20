@@ -144,6 +144,9 @@ textarea:focus {
 .hv-soft:hover { background: var(--soft) !important; }
 .hv-accent:hover { background: var(--accent-h) !important; }
 .hv-neg-soft:hover { background: var(--neg-soft) !important; }
+/* Solid-red button hover (the Plan "Fix This" over-assignment action): --neg-strong
+   darkens the fill in light and brightens it a touch in dark — a valid hover both ways. */
+.hv-neg:hover { background: var(--neg-strong) !important; }
 .hv-text:hover { color: var(--text) !important; }
 .hv-accent-fg:hover { color: var(--accent-h) !important; }
 

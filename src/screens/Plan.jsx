@@ -326,6 +326,78 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
   );
 }
 
+// The inverse of AssignPopover, shown on the banner only when Ready to Assign
+// is negative (you have assigned more than you have — YNAB's "You assigned more
+// than you have" state). "Un-assign money from" a chosen category pulls money
+// back into Ready to Assign via the SAME moveAssigned contract, reversed
+// (from: category, to: 'rta'). The amount prefills to the exact shortfall
+// (|rta|), the amount that returns the month to zero; the picker is the shared
+// PlanCategoryPicker, so this reads as the same family as the Assign flow.
+function FixThisPopover({ rta, env, S, month, money, applyData }) {
+  const { notify } = useUI();
+  const [open, setOpen] = useState(false);
+  const shortfall = Math.max(0, -rta);
+  const [amount, setAmount] = useState(() => String(shortfall));
+  const [from, setFrom] = useState(null);
+  const rootRef = useRef(null);
+
+  const close = () => setOpen(false);
+  usePopoverDismiss(open, rootRef, close);
+
+  const openPopover = () => {
+    setAmount(String(Math.max(0, -rta)));
+    setFrom(null);
+    setOpen(true);
+  };
+
+  const fromCat = from && S.categories.find(c => c.id === from);
+  const amt = parseAmt(amount);
+  const canFix = !!from && from !== 'rta' && amt > 0;
+
+  const confirm = () => {
+    if (!canFix) return;
+    const name = fromCat ? fromCat.name : from;
+    applyData(data => moveAssigned(data, { from, to: 'rta', month, amount: parseAmt(amount) }));
+    setOpen(false);
+    notify('Un-assigned ' + money(amt) + ' from ' + name + '.');
+  };
+
+  return (
+    <div ref={rootRef} style={{ position: 'relative', flex: 'none' }}>
+      <button
+        onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
+        className="hv-neg"
+        style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--neg)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+      >Fix This ▾</button>
+      {open && (
+        <div role="dialog" aria-label="Un-assign money to fix over-assignment" style={{ ...popCard, top: 40, left: 0, width: 320 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Un-assign:</label>
+          <input
+            className="tnum" value={amount} inputMode="numeric"
+            onFocus={e => e.target.select()}
+            onChange={e => setAmount(e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, marginBottom: 10 }}
+          />
+
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>From:</label>
+          <PlanCategoryPicker
+            env={env} S={S} month={month} money={money} excludeRta
+            value={from} onChange={setFrom}
+          />
+
+          <div style={popBtnRow}>
+            <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
+            <button
+              onClick={confirm} disabled={!canFix} className="hv-accent"
+              style={{ ...popOk, opacity: canFix ? 1 : .5, cursor: canFix ? 'pointer' : 'not-allowed' }}
+            >Un-assign</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Ready-to-Assign card. Lives at the top of the Plan inspector (right column),
 // where it sits with the summary figures it derives from. State colours come
 // from Raqam's own status tokens (the Signal-Only Rule): positive money to
@@ -336,13 +408,20 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
 // at the card's left edge, inside the narrow inspector column.
 function RtaBanner({ env, prevRta, month, money, moneyS, S, applyData }) {
   const rta = env.rta;
+  const over = rta < 0;
   const bg = rta > 0 ? 'var(--pos-soft)' : rta === 0 ? 'var(--elev)' : 'var(--neg-soft)';
   const fg = rta > 0 ? 'var(--pos)' : rta === 0 ? 'var(--muted)' : 'var(--neg)';
   const labelColor = 'var(--muted)';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, padding: '10px 14px 14px', borderRadius: 12, background: bg }}>
       <RtaBreakdown env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} fg={fg} labelColor={labelColor} />
-      {rta !== 0 && <AssignPopover rta={rta} env={env} S={S} month={month} money={money} applyData={applyData} />}
+      {/* Over-assigned (YNAB parity): the red amount alone doesn't say what went
+          wrong, so name it and offer the reverse of Assign — pull money back out
+          of a category. When rta >= 0 the incumbent Assign flow is unchanged. */}
+      {over && <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--neg)', margin: '-2px 0 2px' }}>You assigned more than you have</div>}
+      {over
+        ? <FixThisPopover rta={rta} env={env} S={S} month={month} money={money} applyData={applyData} />
+        : rta > 0 && <AssignPopover rta={rta} env={env} S={S} month={month} money={money} applyData={applyData} />}
     </div>
   );
 }
