@@ -53,8 +53,14 @@ export default function PayeeDetail({ entry, onDeselect, onStepChange = () => {}
   const commitName = async () => {
     if (committing.current) return; // Enter then blur must not ask twice
     const to = nameDraft === null ? '' : nameDraft.trim();
-    if (!to || payeeKey(to) === payeeKey(entry.name)) { setNameDraft(null); return; }
-    const clash = index.find(p => payeeKey(p.name) === payeeKey(to)); // different key by the check above
+    // Byte-equality, not key-equality: a same-key rename ("amazon" → "Amazon")
+    // is a casing normalization, not a no-op — bailing here on key-equality
+    // would make renamePayee's casing branch unreachable from the UI.
+    if (!to || to === entry.name) { setNameDraft(null); return; }
+    // `others` already excludes entry's own key, so this only ever finds a
+    // DIFFERENT-key collision — a same-key casing rename is never a combine
+    // and must skip the ask() dialog.
+    const clash = others.find(p => payeeKey(p.name) === payeeKey(to));
     committing.current = true;
     try {
       if (clash) {
@@ -67,7 +73,9 @@ export default function PayeeDetail({ entry, onDeselect, onStepChange = () => {}
         if (!ok) { setNameDraft(null); return; }
       }
       applyData(d => renamePayee(d, { from: entry.name, to }));
-      onDeselect(); // the selection key just changed
+      // Only a key-changing rename invalidates the selection (it's keyed by
+      // payeeKey) — a same-key casing rename keeps the same selection alive.
+      if (payeeKey(to) !== payeeKey(entry.name)) onDeselect();
       setNameDraft(null);
     } finally {
       committing.current = false;

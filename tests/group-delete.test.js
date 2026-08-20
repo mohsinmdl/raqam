@@ -7,7 +7,7 @@ const store = over => ({
     { id: 'groc', name: 'Groceries', type: 'expense', status: 'active', groupId: 'g1' },
     { id: 'food', name: 'Food', type: 'expense', status: 'active', groupId: 'g1' },
   ],
-  assignments: [], transactions: [], budgets: [], accounts: [], cards: [], recurring: [], snapshots: [], audit: [],
+  assignments: [], transactions: [], budgets: [], accounts: [], cards: [], recurring: [], payees: [], snapshots: [], audit: [],
   ...(over || {}),
 });
 
@@ -51,6 +51,22 @@ describe('deleteCategoryGroupWithEmpties — no orphans into Other', () => {
     expect(groc.groupId).toBeUndefined();    // un-grouped
     expect(next.assignments.find(a => a.category === 'groc')).toBeTruthy(); // money kept
     expect(next.categories.find(c => c.id === 'food')).toBeUndefined();     // empty → deleted
+  });
+
+  // Campaign-close regression: a category referenced only by a payee's
+  // auto-categorize rule must NOT be hard-deleted here — deleteCategory would
+  // leave that payee rule pointing at a dead id. It survives (un-grouped),
+  // same treatment as an assignment-only category above.
+  it('does NOT delete a category referenced only by a payee auto-categorize rule — un-groups it', () => {
+    const s = store();
+    s.payees.push({ id: 'py1', name: 'Whole Foods', autoCategorize: true, autoCategoryId: 'groc' });
+    const next = deleteCategoryGroupWithEmpties(s, { id: 'g1' });
+    expect(next.categoryGroups.find(g => g.id === 'g1')).toBeUndefined();
+    const groc = next.categories.find(c => c.id === 'groc');
+    expect(groc).toBeTruthy();               // survived
+    expect(groc.groupId).toBeUndefined();    // un-grouped
+    expect(next.payees.find(p => p.id === 'py1').autoCategoryId).toBe('groc'); // rule kept
+    expect(next.categories.find(c => c.id === 'food')).toBeUndefined();        // empty → deleted
   });
 
   // An archived category is still a real member the reducer processes: an

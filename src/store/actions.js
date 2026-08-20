@@ -1185,13 +1185,16 @@ export function reassignDeleteCategoryGroup(data, { id, replacementId }) {
 
 // Delete a group AND its truly-empty categories, so nothing orphans into the
 // synthetic "Other" bucket. "Empty" means ZERO references of ANY kind —
-// transactions, budgets, recurring, AND assignments — matching catRefs /
-// deletePolicy. A category with only an assignment is NOT empty: deleteCategory
-// would otherwise drop its assignment rows (its own `used` check omits
-// assignments), silently losing assigned money; so we skip it here and let
-// deleteCategoryGroup un-group it instead. Referenced categories (incl. across
-// ALL statuses — archived ones still carry assignments) should have been routed
-// to the reassign flow before reaching here; this guard is defense in depth.
+// transactions, budgets, recurring, assignments, AND payee auto-categorize
+// rules — matching catRefs / deletePolicy. A category with only an assignment
+// is NOT empty: deleteCategory would otherwise drop its assignment rows (its
+// own `used` check omits assignments), silently losing assigned money; so we
+// skip it here and let deleteCategoryGroup un-group it instead. Same for a
+// category still targeted by a payee's autoCategoryId — deleteCategory would
+// leave that payee rule pointing at nothing. Referenced categories (incl.
+// across ALL statuses — archived ones still carry assignments) should have
+// been routed to the reassign flow before reaching here; this guard is
+// defense in depth.
 export function deleteCategoryGroupWithEmpties(data, { id }) {
   const g = (data.categoryGroups || []).find(x => x.id === id);
   if (!g) return data;
@@ -1201,6 +1204,7 @@ export function deleteCategoryGroupWithEmpties(data, { id }) {
     || data.budgets.some(b => b.category === cid)
     || data.recurring.some(r => r.category === cid)
     || (data.assignments || []).some(a => a.category === cid)
+    || data.payees.some(p => p.autoCategoryId === cid)
   );
   let next = data;
   for (const cid of ids) if (refFree(cid)) next = deleteCategory(next, { id: cid });
