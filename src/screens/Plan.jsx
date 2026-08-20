@@ -733,7 +733,7 @@ function MovesPopover({ open, up, cat, month, S, money, onClose }) {
       // trigger); flipped up (bottom rows) it opens above the cell. The op pad
       // opens from the CalcIcon on the far side and dismisses this one (and vice
       // versa), so the two can't be open together to overlap.
-      style={{ ...popCard, ...(up ? { bottom: 40 } : { top: 36 }), right: 0, width: 340, textAlign: 'left' }}
+      style={{ ...popCard, ...(up ? { bottom: 40 } : { top: 36 }), right: 0, width: 420, textAlign: 'left' }}
     >
       <div style={{ fontSize: 14, fontWeight: 700 }}>Moves</div>
       <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>{cat.name}</div>
@@ -758,7 +758,7 @@ function MovesPopover({ open, up, cat, month, S, money, onClose }) {
                   </div>
                 </td>
                 <td style={{ padding: '6px 0', fontSize: 12.5 }}>{r.label}</td>
-                <td className="tnum" style={{ padding: '6px 0', fontSize: 12.5, textAlign: 'right' }}>{r.amount === null ? '—' : money(r.amount)}</td>
+                <td className="tnum" style={{ padding: '6px 0 6px 12px', fontSize: 12.5, textAlign: 'right', whiteSpace: 'nowrap' }}>{r.amount === null ? '—' : money(r.amount)}</td>
               </tr>
             ))}
           </tbody>
