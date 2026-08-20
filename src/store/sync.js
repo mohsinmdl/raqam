@@ -214,6 +214,23 @@ export const COLLECTIONS = [
     }),
   },
   {
+    name: 'payees', table: 'payees', keyOf: r => r.id,
+    toRow: r => ({
+      id: r.id, name: r.name || '', transfer_ref: r.transferRef ?? null,
+      auto_categorize: !!r.autoCategorize,
+      auto_category_id: r.autoCategoryId && r.autoCategoryId !== 'rta' ? r.autoCategoryId : null,
+      auto_category_rta: r.autoCategoryId === 'rta',
+      rename_rules: r.renameRules || [], hidden: !!r.hidden,
+    }),
+    fromRow: r => stripNulls({
+      id: r.id, name: r.name || '', transferRef: r.transfer_ref,
+      autoCategorize: r.auto_categorize || undefined,
+      autoCategoryId: r.auto_category_rta ? 'rta' : (r.auto_category_id || undefined),
+      renameRules: (r.rename_rules && r.rename_rules.length) ? r.rename_rules : undefined,
+      hidden: r.hidden || undefined,
+    }),
+  },
+  {
     // Append-only: the differ computes adds only (never changed/deletes), and
     // the server RLS has no update/delete policies. It IS fetched now — the
     // Recent Moves panel needs history that outlives the session — but only
