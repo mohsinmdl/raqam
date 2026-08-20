@@ -104,6 +104,12 @@ describe('cellsFromForm round-trips formFromTx output', () => {
     const f = formFromTx({ id: 't2', type: 'transfer', amount: 900, date: '2026-08-17T12:00', status: 'pending', merchant: '', accountId: 'a1', toAccountId: 'a2' });
     expect(cellsFromForm(f)).toMatchObject({ account: 'acc:a1', transferTo: 'acc:a2', outflow: '900', inflow: '', cleared: false });
   });
+  it('inflow-direction transfer: from/to swap in the data (correct), but the cells re-normalize to the outflow side — display still anchors on the source account (a recorded controller ruling; re-anchoring the display to the inflow side is a deferred follow-up, not a bug)', () => {
+    const f = { type: 'transfer', from: 'acc:a1', to: 'acc:a2' };
+    const patch = editorPatch(f, 'inflow', '900');
+    const merged = { ...f, ...patch };
+    expect(cellsFromForm(merged)).toMatchObject({ account: 'acc:a2', transferTo: 'acc:a1', outflow: '900', inflow: '' });
+  });
   it('income lands on inflow', () => {
     const f = formFromTx({ id: 't3', type: 'income', amount: 700, date: '2026-08-17T12:00', status: 'cleared', merchant: 'Payer', accountId: 'a1' });
     expect(cellsFromForm(f)).toMatchObject({ inflow: '700', outflow: '' });
