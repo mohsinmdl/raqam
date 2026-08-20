@@ -45,7 +45,7 @@ export default function SplitRows({ colSpan }) {
         <tr key={l.id}>
           <td style={lineTd} />
           <td colSpan={colSpan - 4} style={{ ...lineTd, paddingLeft: 34 }}>
-            <PlanCategoryPicker env={env} S={S} month={month} money={money}
+            <PlanCategoryPicker env={env} S={S} month={month} money={money} size={28}
               catType="expense" showAmounts excludeRta heading={null} allowCreate showSelected placeholder="category"
               onCreate={({ name, groupId }) => setLine(i, { category: '__new', newCat: name, newCatGroup: groupId || '' })}
               value={l.category} onChange={id => setLine(i, { category: id, newCat: '', newCatGroup: '' })} />

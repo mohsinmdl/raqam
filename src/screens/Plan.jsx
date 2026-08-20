@@ -81,7 +81,12 @@ function usePopoverDismiss(open, ref, onClose, extraRef) {
     const onDown = e => {
       const inTrigger = ref.current && ref.current.contains(e.target);
       const inPortal = extraRef && extraRef.current && extraRef.current.contains(e.target);
-      if (!inTrigger && !inPortal) onClose();
+      // A Base UI overlay opened from INSIDE this popover (the category
+      // picker's portalled list) renders at the end of <body>, so `contains`
+      // says "outside" and picking a category would dismiss the popover before
+      // the click ever landed. The marker is set by ComboboxPanel.
+      const inOverlay = e.target.closest && e.target.closest('[data-rq-overlay]');
+      if (!inTrigger && !inPortal && !inOverlay) onClose();
     };
     const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
     document.addEventListener('mousedown', onDown);

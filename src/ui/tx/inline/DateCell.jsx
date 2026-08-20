@@ -1,36 +1,95 @@
-// The DATE cell: dd/mm/yyyy trigger opening a calendar popover with month
-// stepper, Today/Yesterday chips, and (when the row can become a rule) the
-// Repeat preset dropdown — the same PRESETS the drawer used, so applyRepeat
-// in the store needs no change. Escape closes the popover only (bubbling is
-// stopped so DrawerProvider's session-level Escape does not also fire).
-import { forwardRef, useState } from 'react';
+// The DATE cell: a TYPED dd/mm/yyyy field with a calendar hanging off it. The
+// field is the primary input — '17', '17/8', '17/8/26' and '17/08/2026' all
+// commit on Enter or blur (parseTypedDate does the reading; anything it cannot
+// read keeps the draft and marks the cell with the --neg ring Wave H
+// established, rather than silently reverting). The calendar is the secondary
+// path, opened by focusing the field or pressing the chevron, and still owns
+// the month stepper, the Today/Yesterday chips and (when the row can become a
+// rule) the Repeat preset dropdown — the same PRESETS the drawer used, so
+// applyRepeat in the store needs no change. Escape closes the popover only
+// (propagation is stopped so the editor session's own Escape does not fire).
+import { forwardRef, useRef, useState } from 'react';
 import { Popover, PopoverTrigger, PopoverPanel } from '../../primitives/Popover.jsx';
 import { calendarCells, shiftMonth } from '../../../lib/calendar.js';
-import { todayStr, addDays } from '../../../lib/dates.js';
+import { todayStr, addDays, parseTypedDate } from '../../../lib/dates.js';
 import { PRESETS } from '../../../lib/schedule.js';
 
 const WD = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const dmy = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? ymd.slice(8) + '/' + ymd.slice(5, 7) + '/' + ymd.slice(0, 4) : 'date');
+const dmy = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? ymd.slice(8) + '/' + ymd.slice(5, 7) + '/' + ymd.slice(0, 4) : '');
 const chip = on => ({ height: 24, padding: '0 8px', borderRadius: 6, cursor: 'pointer', fontSize: 11.5, fontWeight: 600, border: '1px solid ' + (on ? 'var(--accent)' : 'var(--border)'), background: on ? 'var(--soft)' : 'var(--surface)', color: on ? 'var(--accent)' : 'var(--text)' });
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
+const TYPE_MSG = "Couldn't read that date — try 17, 17/8 or 17/08/2026.";
+
+function Chevron() {
+  return (
+    <svg width="9" height="6" viewBox="0 0 9 6" fill="none" aria-hidden="true" focusable="false">
+      <path d="M1 1.25 4.5 4.75 8 1.25" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepeat, showRepeat, disabled, invalid, errorMsg, errorId }, ref) {
   const today = todayStr();
   const [month, setMonth] = useState(() => String(value || today).slice(0, 7));
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(null); // null = idle, mirror the committed value
+  const [typeErr, setTypeErr] = useState(false);
+  // The calendar hangs off the whole field, not off the chevron that opens it.
+  const fieldRef = useRef(null);
+  // Which of the two openers fired. Opened from the FIELD, the popup must not
+  // take focus — the caret has to stay put or the date being typed is
+  // interrupted the instant the calendar appears. Opened from the CHEVRON,
+  // focus moves into the popup as Base UI normally does, which is the only way
+  // a keyboard reaches the day grid and the Repeat select.
+  const fromField = useRef(false);
   const cells = calendarCells(month, value, today);
   const id = errorId || 'txeditor-err-date';
+  const showInvalid = typeErr || !!invalid;
+  const shown = draft !== null ? draft : dmy(value);
+
+  // Picking from the calendar fills the field: any half-typed draft is what the
+  // user just abandoned by reaching for the grid.
+  const setFromCalendar = iso => { onChange(iso); setMonth(iso.slice(0, 7)); setDraft(null); setTypeErr(false); };
+  const commit = () => {
+    if (draft === null) return;
+    const iso = parseTypedDate(draft, today);
+    if (!iso) { setTypeErr(true); return; } // keep the draft, mark the cell
+    setFromCalendar(iso);
+  };
+
   return (
-    <Popover>
-      <PopoverTrigger ref={ref} className="field tnum" disabled={disabled} aria-label="Date"
-        aria-invalid={invalid || undefined} aria-describedby={invalid ? id : undefined}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%', height: 28, padding: '0 8px', fontSize: 13, cursor: 'pointer', ...(invalid ? ringStyle : null) }}>
-        <span>{dmy(value)}</span>
-        <span aria-hidden="true" style={{ color: 'var(--muted)', fontSize: 10 }}>▾</span>
-      </PopoverTrigger>
-      {invalid && <span id={id} role="alert" style={srOnly}>{errorMsg}</span>}
-      <PopoverPanel width={272} arrow style={{ padding: 10 }}
+    <Popover open={open} onOpenChange={setOpen}>
+      <span ref={fieldRef} style={{ position: 'relative', display: 'block', width: '100%' }}>
+        <input
+          ref={ref} className="field tnum" inputMode="numeric" disabled={disabled}
+          aria-label="Date" placeholder="dd/mm/yyyy"
+          aria-invalid={showInvalid || undefined} aria-describedby={showInvalid ? id : undefined}
+          value={shown}
+          onFocus={() => { fromField.current = true; setOpen(true); }}
+          onChange={e => { setDraft(e.target.value); setTypeErr(false); }}
+          onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && draft !== null) { e.preventDefault(); commit(); }
+            // Escape belongs to the calendar while it is up; focus sits on this
+            // field (outside the popup), so nothing else would stop it reaching
+            // the editor session and cancelling the whole row.
+            else if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); }
+          }}
+          style={{ width: '100%', height: 28, padding: '0 22px 0 8px', fontSize: 13, ...(showInvalid ? ringStyle : null) }}
+        />
+        <PopoverTrigger
+          aria-label="Open calendar" disabled={disabled} className="hv-soft"
+          onPointerDown={() => { fromField.current = false; }}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') fromField.current = false; }}
+          style={{ position: 'absolute', right: 1, top: 1, bottom: 1, width: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: 3, background: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 0 }}>
+          <Chevron />
+        </PopoverTrigger>
+      </span>
+      {showInvalid && <span id={id} role="alert" style={srOnly}>{typeErr ? TYPE_MSG : errorMsg}</span>}
+      <PopoverPanel width={272} arrow anchor={fieldRef} style={{ padding: 10 }}
+        initialFocus={() => !fromField.current} finalFocus={() => !fromField.current}
         onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
           <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="hv-soft" style={{ ...chip(false), width: 24, padding: 0 }}>‹</button>
@@ -42,7 +101,7 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginTop: 2 }}>
           {cells.map(c => (
-            <button key={c.iso} type="button" onClick={() => { onChange(c.iso); setMonth(c.iso.slice(0, 7)); }}
+            <button key={c.iso} type="button" onClick={() => setFromCalendar(c.iso)}
               aria-current={c.sel ? 'date' : undefined}
               style={{ height: 28, borderRadius: 6, cursor: 'pointer', fontSize: 12,
                 border: '1px solid ' + (c.today && !c.sel ? 'var(--accent)' : 'transparent'),
@@ -52,8 +111,8 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
           ))}
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-          <button type="button" onClick={() => { onChange(today); setMonth(today.slice(0, 7)); }} className="hv-soft" style={chip(value === today)}>Today</button>
-          <button type="button" onClick={() => { onChange(addDays(today, -1)); }} className="hv-soft" style={chip(value === addDays(today, -1))}>Yesterday</button>
+          <button type="button" onClick={() => setFromCalendar(today)} className="hv-soft" style={chip(value === today)}>Today</button>
+          <button type="button" onClick={() => setFromCalendar(addDays(today, -1))} className="hv-soft" style={chip(value === addDays(today, -1))}>Yesterday</button>
           {showRepeat && (
             <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
               <span style={{ fontSize: 11, color: 'var(--muted)', flex: 'none' }}>Repeat:</span>

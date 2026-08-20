@@ -30,7 +30,7 @@ const CategoryCell = forwardRef(function CategoryCell({ value, onChange, onCreat
   const env = envelopeFor(S, month, nowIso());
   return (
     <PlanCategoryPicker
-      ref={ref} env={env} S={S} month={month} money={money}
+      ref={ref} env={env} S={S} month={month} money={money} size={28}
       catType={catType} showAmounts={catType === 'expense'} excludeRta heading={null}
       allowCreate showSelected placeholder="category"
       onCreate={onCreate}

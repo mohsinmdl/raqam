@@ -72,6 +72,17 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // adjustment stores its explanation in adjustmentReason (never notes) —
     // showing only notes left those rows blank in the ledger.
     merchant: t.merchant || (t.type === 'transfer' ? 'Own-account transfer' : '—'),
+    // What to CALL this row when it is named rather than shown: the row
+    // checkbox's label, the keyboard cursor's announcement. The em dash the
+    // ledger prints for a machine-written row with no payee is a typographic
+    // placeholder — spoken, "Select — on 26 Aug" names nothing. Every row can
+    // say what it is instead.
+    a11yName: t.merchant || (t.type === 'transfer' ? 'Own-account transfer'
+      : t.type === 'adjustment' ? 'adjustment'
+        : t.type === 'cardAdjustment' ? 'card correction'
+          : t.type === 'refund' ? 'refund'
+            : t.type === 'income' ? 'income'
+              : 'transaction'),
     notes: [t.adjustmentReason, t.notes].filter(Boolean).join(' · '), hasNotes: !!(t.adjustmentReason || t.notes),
     hasChip: !!chip, chip, chipBg, chipFg, chipIcon,
     // The other end of a transfer, from THIS account's point of view. acctLabel
@@ -183,7 +194,7 @@ export function ruleRowOf(r, S, fmt, now) {
     key: 'rule:' + r.id, ruleId: r.id, isRule: true, isOverdue: overdue,
     sortAt: nd, sortId: 'rule:' + r.id,
     dateLabel: withYear(nd, now), timeLabel: ruleDueLabel(r, now),
-    merchant: r.name, notes: '', hasNotes: false,
+    merchant: r.name, a11yName: r.name, notes: '', hasNotes: false,
     hasChip: false, chip: null, chipBg: '', chipFg: '', chipIcon: null, transferOther: null,
     isRepeating: true,
     catName: cat ? cat.name : '—',

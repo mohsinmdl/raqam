@@ -1,5 +1,6 @@
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useMemo, useRef, useState } from 'react';
 import { sortGroups, sortCats } from '../lib/categoryOrder.js';
+import { Combobox, ComboboxPanel } from './primitives/Combobox.jsx';
 
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
@@ -8,8 +9,18 @@ const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: 
 // Closed, it shows the picked name (or a placeholder); focusing it opens the
 // grouped list right beneath and typing filters. This replaces the old
 // two-box feel (a "Choose a category" trigger that opened a separate
-// "Search categories" input). The HOSTING popover still owns its own
-// open/dismiss; this component only owns the field + list.
+// "Search categories" input).
+//
+// Built on the Base UI Combobox primitive (Wave P1). What that bought:
+//   - the panel is PORTALLED and positioned by Floating UI, so the 25-line
+//     ancestor-walk that used to hunt for the nearest overflow ancestor (and
+//     the app header) to decide dropUp/listMax is gone. A picker inside a
+//     <td>, a drawer or a modal is no longer clipped by its container.
+//   - real listbox/option semantics: role=listbox on the list, role=option on
+//     each row, aria-activedescendant tracking the keyboard highlight. The old
+//     markup put role="combobox" on the input and stopped there.
+// The panel's header (＋ New Category, the heading, the current pick) and its
+// footer (the Split button) are non-scrolling bands; only the list scrolls.
 //
 // Shared by the Budget Assign/Move flows (defaults) and the transaction form.
 // Props:
@@ -19,6 +30,8 @@ const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: 
 //   showAmounts=true   — show each envelope's available beside it; off for
 //                        income categories, which have no envelope balance.
 //   heading='Plan Categories' — panel title; pass null to omit it.
+//   size=34            — field height. The inline register editor passes 28 so
+//                        the category cell matches its sibling cells.
 //   allowCreate=false, onCreate({name, groupId}) — render a "＋ New Category"
 //                        row at the top (YNAB txn picker). Clicking it swaps the
 //                        list for an inline Add Category form (name + group);
@@ -33,22 +46,22 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   excludeRta, excludeId, excludeIds, placeholder = 'Choose a category',
   catType = 'expense', showAmounts = true, heading = 'Plan Categories',
   allowCreate = false, onCreate, showSelected = false, footer = null,
-  invalid, errorMsg, errorId,
+  size = 34, invalid, errorMsg, errorId,
 }, ref) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const [hi, setHi] = useState(0);
-  const [dropUp, setDropUp] = useState(false);
-  const [listMax, setListMax] = useState(240);
   // Inline Add Category form state (allowCreate). While `creating`, the panel
-  // shows the form instead of the list, and the combobox's blur must NOT close
-  // the panel (the form's own inputs legitimately take focus).
+  // shows the form INSTEAD of the list (ComboboxPanel's `body`), and the
+  // popup's open state stops following Base UI — the form's own inputs
+  // legitimately take focus inside the popup, and none of that means "close".
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newGroupId, setNewGroupId] = useState('');
   const [pendingName, setPendingName] = useState('');
-  const inputRef = useRef(null);
-  const activeRowRef = useRef(null); // the highlighted row, scrolled into view on arrow-key nav
+  // Set the instant a pick/save closes the panel, so the focus that stays on
+  // the field afterwards does not read as "the user focused the field" and
+  // immediately reopen the list.
+  const reopenGuard = useRef(false);
 
   const groups = useMemo(() => sortGroups(S.categoryGroups), [S.categoryGroups]);
   const nameOf = v => (v === 'rta' ? 'Ready to Assign'
@@ -59,61 +72,38 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   // excludeIds hides a whole set (e.g. every category already in a group being
   // deleted, or already-budgeted categories); excludeId is the single-id case.
   const excludeSet = useMemo(() => new Set([...(excludeIds || []), ...(excludeId ? [excludeId] : [])]), [excludeIds, excludeId]);
-  const flat = useMemo(() => {
+  // Sections mirror the panel's shape: a header row and the rows under it.
+  // Ready to Assign sits under its own "Inflow:" header (YNAB), just like the
+  // category groups below — an indented row, not a flat one.
+  const sections = useMemo(() => {
     const norm = s => s.toLowerCase();
     const ids = new Set(groups.map(g => g.id));
     const cats = S.categories.filter(c => c.type === catType && c.status === 'active' && !excludeSet.has(c.id)
       && (!q || norm(c.name).includes(norm(q))));
     const out = [];
-    // Ready to Assign sits under its own "Inflow:" header (YNAB), just like the
-    // category groups below — rendered as an indented row, not a flat one.
-    if (!excludeRta && (!q || 'ready to assign'.includes(norm(q)))) { out.push({ kind: 'head', name: 'Inflow' }); out.push({ kind: 'rta' }); }
+    if (!excludeRta && (!q || 'ready to assign'.includes(norm(q)))) out.push({ key: 'inflow', name: 'Inflow', items: [{ kind: 'rta' }] });
     groups.forEach(g => {
       const members = sortCats(cats.filter(c => c.groupId === g.id));
-      if (members.length) { out.push({ kind: 'head', name: g.name }); members.forEach(c => out.push({ kind: 'cat', cat: c })); }
+      if (members.length) out.push({ key: g.id, name: g.name, items: members.map(c => ({ kind: 'cat', cat: c })) });
     });
     const other = sortCats(cats.filter(c => !c.groupId || !ids.has(c.groupId)));
-    if (other.length) { out.push({ kind: 'head', name: 'Other' }); other.forEach(c => out.push({ kind: 'cat', cat: c })); }
+    if (other.length) out.push({ key: 'other', name: 'Other', items: other.map(c => ({ kind: 'cat', cat: c })) });
     return out;
   }, [S, q, excludeRta, excludeSet, catType, groups]);
+  const pickable = useMemo(() => sections.flatMap(s => s.items), [sections]);
+  const labelOf = item => (item.kind === 'rta' ? 'Ready to Assign' : item.cat.name);
 
-  const pickable = flat.filter(x => x.kind !== 'head');
-  const clampHi = i => (pickable.length ? Math.max(0, Math.min(pickable.length - 1, i)) : -1);
-  const openList = () => {
-    setQ(''); setHi(0);
-    // Place the panel inside the field's actually-VISIBLE band, not the
-    // window: overflow ancestors clip it and the app header paints over it,
-    // so both act as ceilings/floors. Prefer below at full height, then
-    // above at full height, else the roomier side with a shrunk list.
-    const CHROME = 60; // heading + panel padding + borders around the scroll area
-    const el = inputRef.current;
-    if (el) {
-      const r = el.getBoundingClientRect();
-      let topLimit = 0, botLimit = window.innerHeight;
-      for (let a = el.parentElement; a; a = a.parentElement) {
-        const s = getComputedStyle(a);
-        if (s.overflowY !== 'visible' || s.overflowX !== 'visible') {
-          const b = a.getBoundingClientRect();
-          topLimit = Math.max(topLimit, b.top);
-          botLimit = Math.min(botLimit, b.bottom);
-        }
-      }
-      const hdr = document.querySelector('header');
-      if (hdr) topLimit = Math.max(topLimit, hdr.getBoundingClientRect().bottom);
-      const above = r.top - 6 - topLimit, below = botLimit - r.bottom - 6;
-      const up = below < 240 + CHROME && above >= 240 + CHROME ? true
-        : below >= 240 + CHROME ? false : above > below;
-      setDropUp(up);
-      setListMax(Math.min(240, Math.max(90, (up ? above : below) - CHROME)));
-    }
-    setOpen(true);
+  const closeAfter = () => {
+    reopenGuard.current = true;
+    setOpen(false);
+    setQ('');
+    setTimeout(() => { reopenGuard.current = false; }, 0);
   };
   const pick = item => {
     if (!item) return;
     setPendingName('');
     onChange(item.kind === 'rta' ? 'rta' : item.cat.id);
-    setOpen(false);
-    if (inputRef.current) inputRef.current.blur();
+    closeAfter();
   };
   const startCreate = () => {
     setNewName(q.trim()); // seed with whatever was typed into the search
@@ -126,129 +116,142 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
     if (onCreate) onCreate({ name, groupId: catType === 'expense' ? (newGroupId || null) : null });
     setPendingName(name);
     setCreating(false);
-    setOpen(false);
-    if (inputRef.current) inputRef.current.blur();
+    closeAfter();
   };
-  const cancelCreate = () => { setCreating(false); if (inputRef.current) inputRef.current.focus(); };
-  // Keep the arrow-key-highlighted row visible: the .picker-scroll list only
-  // shows a few rows at a time, so moving the highlight past the fold must
-  // scroll it into view (block:'nearest' doesn't jump when it's already shown).
-  useEffect(() => { if (open && !creating && activeRowRef.current) activeRowRef.current.scrollIntoView({ block: 'nearest' }); }, [hi, open, creating]);
-  const onKey = e => {
-    if (!open && (e.key === 'ArrowDown' || e.key === 'Enter')) { e.preventDefault(); openList(); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setHi(h => clampHi(h + 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => clampHi(h - 1)); }
-    else if (e.key === 'Enter') { e.preventDefault(); pick(pickable[clampHi(hi)]); }
-    else if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); }
-  };
+  const cancelCreate = () => { setCreating(false); setQ(''); };
+
   const availOf = id => (env && env.rows.get(id) || {}).available || 0;
   const tone = v => (v > 0 ? 'var(--pos)' : v < 0 ? 'var(--neg)' : 'var(--muted)');
 
   // Current pick for the "Selected" section — looked up directly (not via the
-  // filtered list) so an archived category still shows while editing.
+  // filtered list) so an archived category still shows while editing. It sits
+  // in the panel's pinned header rather than scrolling away with the list, and
+  // stays out of the listbox (it is a restatement of a row below, not a
+  // separate option — duplicating it as an option would double it in the
+  // keyboard order and in the screen reader's option count).
   const selectedCat = showSelected && value && value !== 'rta' && value !== '__new'
     ? S.categories.find(c => c.id === value) : null;
 
-  // Category/selected rows indent past the group headers (which sit at the
-  // panel's left edge) so the grouping reads clearly.
-  const rowStyle = active => ({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', border: 'none', textAlign: 'left', padding: '5px 6px 5px 18px', borderRadius: 0, cursor: 'pointer', fontSize: 13, background: active ? 'var(--soft)' : 'transparent', color: 'var(--text)' });
-  const noBlur = e => e.preventDefault(); // keep the combobox focused when clicking a list row
+  // Category rows indent past the group headers (which sit at the panel's left
+  // edge) so the grouping reads clearly.
+  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', border: 'none', textAlign: 'left', padding: '5px 6px 5px 18px', borderRadius: 0, cursor: 'pointer', fontSize: 13, background: 'transparent', color: 'var(--text)' };
+  const headStyle = { fontSize: 12, fontWeight: 600, padding: '4px 0 2px' };
+  const noBlur = e => e.preventDefault(); // keep the field focused when clicking panel chrome
   const fieldLabel = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text)', margin: '0 0 4px' };
   const formField = { width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, marginBottom: 12 };
 
-  let pi = -1; // pickable index while rendering
   const errId = errorId || 'txeditor-err-category';
+  const shown = open && !creating ? q : nameOf(value);
+  const pad = size >= 34 ? { right: 28, left: 10 } : { right: 24, left: 8 };
+
+  // Header band: create row, heading, current pick. Rendered only when it has
+  // something to say (an unheaded picker with nothing selected has no band).
+  const header = (allowCreate || heading || selectedCat) ? (
+    <>
+      {allowCreate && (
+        <button type="button" onMouseDown={noBlur} onClick={startCreate} className="hv-soft"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', padding: '8px 6px' }}>
+          <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: 999, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, lineHeight: 1 }}>＋</span>
+          New Category
+        </button>
+      )}
+      {heading && <div style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>{heading}</div>}
+      {selectedCat && (
+        <>
+          <div style={headStyle}>Selected:</div>
+          <button type="button" onMouseDown={noBlur} onClick={() => pick({ kind: 'cat', cat: selectedCat })} className="hv-elev" style={rowStyle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <span aria-hidden="true" style={{ flex: 'none', color: 'var(--accent)' }}>✓</span>
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedCat.name} <span style={{ color: 'var(--muted)' }}>({groupNameOf(selectedCat)})</span></span>
+            </span>
+            {showAmounts && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(availOf(selectedCat.id)) }}>{money(availOf(selectedCat.id))}</span>}
+          </button>
+        </>
+      )}
+    </>
+  ) : null;
+
+  // Add Category form — replaces the list entirely, so it is the panel's
+  // `body`, not a row inside a listbox. Its inputs do NOT preventDefault on
+  // mousedown: they are meant to take focus.
+  const createForm = (
+    <div>
+      <div style={{ fontSize: 15, fontWeight: 600, margin: '0 0 10px' }}>Add Category</div>
+      <label style={fieldLabel} htmlFor="pcp-newname">Category Name</label>
+      <input id="pcp-newname" autoFocus value={newName} onChange={e => setNewName(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveCreate(); } else if (e.key === 'Escape') { e.stopPropagation(); cancelCreate(); } }}
+        style={formField} />
+      {catType === 'expense' && (
+        <>
+          <label style={fieldLabel} htmlFor="pcp-newgroup">In Category Group</label>
+          <select id="pcp-newgroup" value={newGroupId} onChange={e => setNewGroupId(e.target.value)} style={formField}>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 2 }}>
+        <button type="button" onClick={cancelCreate} className="hv-soft" style={{ border: 'none', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '7px 10px', borderRadius: 8 }}>Cancel</button>
+        <button type="button" onClick={saveCreate} disabled={!newName.trim()} className="hv-accent" style={{ border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 700, cursor: newName.trim() ? 'pointer' : 'default', opacity: newName.trim() ? 1 : .5, padding: '7px 16px' }}>Save</button>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ position: 'relative' }}>
-      <div style={{ position: 'relative' }}>
-        <input
-          ref={node => { inputRef.current = node; if (typeof ref === 'function') ref(node); else if (ref) ref.current = node; }}
-          value={open && !creating ? q : nameOf(value)}
+      <Combobox.Root
+        items={pickable} value={null} onValueChange={pick} filter={null}
+        itemToStringLabel={labelOf} itemToStringValue={labelOf}
+        open={open}
+        // The query is cleared on CLOSE, never on open: Base UI also reports
+        // "opened" for the keystroke that opens a closed field, and clearing
+        // there would eat that first character.
+        onOpenChange={o => { if (creating) return; setOpen(o); if (!o) setQ(''); }}
+      >
+        <Combobox.Input
+          ref={ref}
+          className="field"
+          value={shown}
           placeholder={placeholder}
-          aria-label={placeholder} role="combobox" aria-expanded={String(open)}
+          aria-label={placeholder}
           aria-invalid={invalid || undefined} aria-describedby={invalid ? errId : undefined}
-          onFocus={openList}
-          onBlur={() => { if (!creating) setOpen(false); }}
-          onChange={e => { setQ(e.target.value); setHi(0); if (!open) setOpen(true); }}
-          onKeyDown={onKey}
           readOnly={creating}
-          style={{ width: '100%', boxSizing: 'border-box', height: 34, padding: '0 28px 0 10px', border: '1px solid ' + (open ? 'var(--accent)' : 'var(--border)'), background: 'var(--surface)', color: 'var(--text)', fontSize: 13, ...(invalid ? ringStyle : null) }}
+          onChange={e => { setQ(e.target.value); if (!open) setOpen(true); }}
+          onFocus={() => { if (!creating && !reopenGuard.current) setOpen(true); }}
+          onKeyDown={e => {
+            // Enter on a closed field opens the list (it is a picker, and there
+            // is nothing else Enter could mean here); Escape closes the panel
+            // without also reaching a host drawer/popover's own Escape.
+            if (e.key === 'Enter' && !open) { e.preventDefault(); setOpen(true); }
+            else if (e.key === 'Escape' && open) { e.stopPropagation(); if (creating) cancelCreate(); setOpen(false); }
+          }}
+          style={{ width: '100%', boxSizing: 'border-box', height: size, padding: `0 ${pad.right}px 0 ${pad.left}px`, fontSize: 13, ...(open ? { borderColor: 'var(--accent)' } : null), ...(invalid ? ringStyle : null) }}
         />
-        <span aria-hidden="true" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 10, pointerEvents: 'none' }}>▾</span>
+        <span aria-hidden="true" style={{ position: 'absolute', right: pad.left, top: size / 2, transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 10, pointerEvents: 'none' }}>▾</span>
         {invalid && <span id={errId} role="alert" style={srOnly}>{errorMsg}</span>}
-      </div>
-      {open && (
-        // Panel overlays the popover content below the field (absolute, not
-        // in-flow). Geometry captured from YNAB's .dropdown-modal: 16px padding,
-        // 4px radius, 16/600 heading. List rows carry their own mousedown-
-        // preventDefault (keeps the combobox focused so the click lands); the
-        // Add Category form does NOT, so its own inputs can take focus.
-        <div
-          style={{ position: 'absolute', ...(dropUp ? { bottom: 'calc(100% + 6px)' } : { top: 'calc(100% + 6px)' }), left: 0, right: 0, zIndex: 40, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface)', boxShadow: 'var(--shadow)', padding: '14px 16px 16px' }}>
-          {creating ? (
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 600, margin: '0 0 10px' }}>Add Category</div>
-              <label style={fieldLabel} htmlFor="pcp-newname">Category Name</label>
-              <input id="pcp-newname" autoFocus value={newName} onChange={e => setNewName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveCreate(); } else if (e.key === 'Escape') { e.stopPropagation(); cancelCreate(); } }}
-                style={formField} />
-              {catType === 'expense' && (
-                <>
-                  <label style={fieldLabel} htmlFor="pcp-newgroup">In Category Group</label>
-                  <select id="pcp-newgroup" value={newGroupId} onChange={e => setNewGroupId(e.target.value)} style={formField}>
-                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                </>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 2 }}>
-                <button onClick={cancelCreate} className="hv-soft" style={{ border: 'none', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '7px 10px', borderRadius: 8 }}>Cancel</button>
-                <button onClick={saveCreate} disabled={!newName.trim()} className="hv-accent" style={{ border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 700, cursor: newName.trim() ? 'pointer' : 'default', opacity: newName.trim() ? 1 : .5, padding: '7px 16px' }}>Save</button>
-              </div>
-            </div>
-          ) : (
-            <>
-              {allowCreate && (
-                <button onMouseDown={noBlur} onClick={startCreate} className="hv-soft"
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', padding: '8px 6px', marginBottom: 6 }}>
-                  <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: 999, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, lineHeight: 1 }}>＋</span>
-                  New Category
-                </button>
-              )}
-              {heading && <div style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>{heading}</div>}
-              <div className="picker-scroll" style={{ maxHeight: listMax, padding: '6px 0' }}>
-              {selectedCat && (
-                <>
-                  <div style={{ fontSize: 12, fontWeight: 600, padding: '4px 0 2px' }}>Selected:</div>
-                  <button onMouseDown={noBlur} onClick={() => pick({ kind: 'cat', cat: selectedCat })} className="hv-elev" style={rowStyle(false)}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                      <span aria-hidden="true" style={{ flex: 'none', color: 'var(--accent)' }}>✓</span>
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedCat.name} <span style={{ color: 'var(--muted)' }}>({groupNameOf(selectedCat)})</span></span>
-                    </span>
-                    {showAmounts && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(availOf(selectedCat.id)) }}>{money(availOf(selectedCat.id))}</span>}
-                  </button>
-                </>
-              )}
-              {flat.map((item, i) => {
-                if (item.kind === 'head') return <div key={'h' + i} style={{ fontSize: 12, fontWeight: 600, padding: '4px 0 2px' }}>{item.name}:</div>;
-                pi += 1;
-                const active = pi === clampHi(hi);
+        <ComboboxPanel
+          style={{ minWidth: 240, padding: '10px 12px' }}
+          header={creating ? null : header}
+          body={creating ? createForm : null}
+          footer={creating ? null : footer}
+        >
+          {sections.map(s => (
+            <Combobox.Group key={s.key} items={s.items}>
+              <Combobox.GroupLabel style={headStyle}>{s.name}:</Combobox.GroupLabel>
+              {s.items.map(item => {
                 const isRta = item.kind === 'rta';
                 const val = isRta ? env.rta : availOf(item.cat.id);
                 return (
-                  <button key={isRta ? 'rta' : item.cat.id} ref={active ? activeRowRef : undefined} onMouseDown={noBlur} onClick={() => pick(item)} className={active ? undefined : 'hv-elev'}
-                    style={{ ...rowStyle(active), background: active ? 'var(--soft)' : 'transparent' }}>
+                  <Combobox.Item key={isRta ? 'rta' : item.cat.id} value={item} className="rq-combo-item hv-elev" style={rowStyle}>
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isRta ? 'Ready to Assign' : item.cat.name}</span>
                     {showAmounts && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(val) }}>{money(val)}</span>}
-                  </button>
+                  </Combobox.Item>
                 );
               })}
-              {pickable.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--muted)', padding: 8 }}>No matches.</div>}
-              </div>
-              {footer && <div style={{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)', marginTop: 8 }}>{footer}</div>}
-            </>
-          )}
-        </div>
-      )}
+            </Combobox.Group>
+          ))}
+          {pickable.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--muted)', padding: 8 }}>No matches.</div>}
+        </ComboboxPanel>
+      </Combobox.Root>
     </div>
   );
 });

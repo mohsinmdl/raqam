@@ -9,7 +9,7 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useShortcuts, useSequence } from '../ui/useShortcuts.js';
 import { SPEC, SHORTCUT_BY_ID, isTypingTarget } from '../lib/shortcuts.js';
-import { stepCursor, rangeBetween } from '../lib/rowCursor.js';
+import { stepCursor, rangeBetween, cursorStatusLabel } from '../lib/rowCursor.js';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
@@ -43,6 +43,7 @@ import TxEditorRow from '../ui/tx/inline/TxEditorRow.jsx';
 // none so the outer right edge stays open (the outer left has no border-left).
 const th = { textAlign: 'left', fontSize: 12, fontWeight: 500, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--muted)', padding: '9px 8px', borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)' };
 const td = { padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' };
+const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
 
 // Row and GroupHead live at MODULE scope on purpose. Defined inside
 // Transactions() they were rebuilt on every render, so React saw a new
@@ -212,7 +213,9 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
             fill
             checked={checked}
             onChange={on => onToggleRow(selId, on)}
-            label={'Select ' + t.merchant + ' on ' + t.dateLabel}
+            // a11yName, not the printed merchant: a machine-written row with no
+            // payee shows an em dash, and "Select — on 26 Aug" names nothing.
+            label={'Select ' + (t.a11yName || t.merchant) + ' on ' + t.dateLabel}
           />
         )}
       </td>
@@ -849,6 +852,7 @@ export default function Transactions() {
   // holds the latest state so the listener reads current values without being
   // re-subscribed every render (same pattern as useShortcuts).
   const navEnabled = !drawer && !confirmOpen && !shortcutsOpen;
+  const cursorStatus = cursorStatusLabel(shownRows, cursorId, selected);
   const navRef = useRef();
   navRef.current = { visibleIds, cursorId, anchorId, selected };
   useEffect(() => {
@@ -1090,6 +1094,10 @@ export default function Transactions() {
             overflow-y computing to auto alongside overflow-x here no longer
             risks clipping a popover the way it once did. */}
         <section ref={tableWrapRef} aria-label="Transaction list" className="tx-table-wrap" style={{ background: 'var(--surface)', border: flush ? 'none' : '1px solid var(--border)', borderRadius: flush ? 0 : 12, overflowX: 'auto' }}>
+          {/* The arrow-key cursor's spoken half. The cursor itself is an accent
+              bar on the row — visible only. This says where it landed, and
+              whether that row is selected, so Space has an audible result. */}
+          <span role="status" aria-live="polite" style={srOnly}>{cursorStatus}</span>
           {!phone && (postedRows.length > 0 || scheduled.length > 0 || (inlineTx && !editingId)) && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               {/* Widths declared once, so a header and its cells cannot drift.

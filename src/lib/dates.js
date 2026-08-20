@@ -24,6 +24,38 @@ export function addDays(ymd, k) {
   const dt = new Date(y, m - 1, d + k);
   return `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())}`;
 }
+// A typed date, read the way a person types one. The register's date cell is a
+// text field (dd/mm/yyyy), so this accepts what a hand actually produces:
+//   '17'         → the 17th of the month you are in
+//   '17/8'       → this year
+//   '17/8/26'    → a two-digit year is 20xx
+//   '17/08/2026' → in full
+//   '2026-08-17' → ISO order, recognised by a four-digit FIRST part
+// Separators are anything non-digit-ish (/, -, .), and `today` is injected —
+// like the rest of this file, nothing reads the wall clock. Returns
+// 'YYYY-MM-DD', or null for anything that is not a real date (31/2, 13 as a
+// month, a stray letter): null is what puts the --neg ring on the field, so
+// being strict AFTER being lenient is the whole point.
+export function parseTypedDate(text, today) {
+  const s = String(text == null ? '' : text).trim();
+  if (!s || /[^0-9/.\- ]/.test(s)) return null;
+  const parts = s.split(/[^0-9]+/).filter(Boolean);
+  if (parts.length === 0 || parts.length > 3) return null;
+  let y, m, d;
+  if (parts.length === 3 && parts[0].length === 4) {
+    [y, m, d] = parts.map(Number);
+  } else {
+    d = Number(parts[0]);
+    m = parts.length >= 2 ? Number(parts[1]) : Number(today.slice(5, 7));
+    if (parts.length === 3) y = parts[2].length <= 2 ? 2000 + Number(parts[2]) : Number(parts[2]);
+    else y = Number(today.slice(0, 4));
+  }
+  if (!(y >= 1900 && y <= 2999) || !(m >= 1 && m <= 12)) return null;
+  const ym = `${y}-${p2(m)}`;
+  if (!(d >= 1 && d <= daysInMonth(ym))) return null;
+  return `${ym}-${p2(d)}`;
+}
+
 export function monthsBetween(fromYm, toYm) {
   const [fy, fm] = fromYm.split('-').map(Number);
   const [ty, tm] = toYm.split('-').map(Number);
