@@ -19,6 +19,16 @@ export function UIProvider({ children }) {
   // after add / edit / categorize. A Set so a bulk action can flash many rows
   // at once; consumed by row components via flashIds.has(id).
   const [flashIds, setFlashIds] = useState(() => new Set());
+  // Wave D: the SAME ids stay in `lastSaved` after the 1.1s flash fades, so a
+  // just-saved row keeps a quiet completion accent (left rule + soft wash,
+  // see Row in Transactions.jsx) instead of snapping back to looking like
+  // nothing happened. Unlike flashIds, this does NOT clear on a timer — it
+  // clears on the next user interaction, which the register screen defines as
+  // a pointerdown/keydown anywhere on it outside the saved row itself (see
+  // Transactions.jsx), or is superseded outright by the next flashRows call.
+  // A new save always supersedes rather than merging with the last one — this
+  // models ONE "moment" at a time, not an ever-growing pile of held accents.
+  const [lastSaved, setLastSaved] = useState(() => new Set());
   const toastTimer = useRef(null);
   const flashTimer = useRef(null);
 
@@ -36,8 +46,11 @@ export function UIProvider({ children }) {
     if (!list.length) return;
     clearTimeout(flashTimer.current);
     setFlashIds(new Set(list));
+    setLastSaved(new Set(list));
     flashTimer.current = setTimeout(() => setFlashIds(new Set()), 1300);
   }, []);
+
+  const clearLastSaved = useCallback(() => setLastSaved(new Set()), []);
 
   // ask({ title, body, action }) → resolves true on confirm, false on cancel.
   const ask = useCallback(opts => new Promise(resolve => {
@@ -64,8 +77,8 @@ export function UIProvider({ children }) {
     notify, ask, closeTopOverlay, confirmOpen: !!confirm, setBottomBar,
     shortcutsOpen, openShortcuts, closeShortcuts,
     payeesOpen, openPayees, closePayees,
-    flashRows, flashIds,
-  }), [notify, ask, closeTopOverlay, confirm, shortcutsOpen, openShortcuts, closeShortcuts, payeesOpen, openPayees, closePayees, flashRows, flashIds]);
+    flashRows, flashIds, lastSaved, clearLastSaved,
+  }), [notify, ask, closeTopOverlay, confirm, shortcutsOpen, openShortcuts, closeShortcuts, payeesOpen, openPayees, closePayees, flashRows, flashIds, lastSaved, clearLastSaved]);
 
   return (
     <Ctx.Provider value={value}>
