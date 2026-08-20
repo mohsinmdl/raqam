@@ -7,6 +7,7 @@
 // here — the payee combobox's "Payments and Transfers" section already
 // provides that affordance, and a second path through the category cell
 // would need its own account-target picker for no added capability. YAGNI.
+import { forwardRef } from 'react';
 import { useStore } from '../../../store/StoreProvider.jsx';
 import { useMoney } from '../../../lib/format.js';
 import { currentMonth, nowIso } from '../../../lib/dates.js';
@@ -15,7 +16,7 @@ import PlanCategoryPicker from '../../PlanCategoryPicker.jsx';
 
 const footerBtn = { flex: 1, height: 30, border: 'none', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' };
 
-export default function CategoryCell({ value, onChange, onCreate, onSplit, canSplit, isTransfer, catType, disabled }) {
+const CategoryCell = forwardRef(function CategoryCell({ value, onChange, onCreate, onSplit, canSplit, isTransfer, catType, disabled, invalid, errorMsg, errorId }, ref) {
   const { data: S } = useStore();
   const { money } = useMoney();
   const month = currentMonth();
@@ -29,14 +30,17 @@ export default function CategoryCell({ value, onChange, onCreate, onSplit, canSp
   const env = envelopeFor(S, month, nowIso());
   return (
     <PlanCategoryPicker
-      env={env} S={S} month={month} money={money}
+      ref={ref} env={env} S={S} month={month} money={money}
       catType={catType} showAmounts={catType === 'expense'} excludeRta heading={null}
       allowCreate showSelected placeholder="category"
       onCreate={onCreate}
       value={value} onChange={onChange}
+      invalid={invalid} errorMsg={errorMsg} errorId={errorId || 'txeditor-err-category'}
       footer={canSplit ? (
         <button type="button" onMouseDown={e => e.preventDefault()} onClick={onSplit} className="hv-soft" style={footerBtn}>Split</button>
       ) : null}
     />
   );
-}
+});
+
+export default CategoryCell;

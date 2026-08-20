@@ -2,14 +2,17 @@
 // valid payee (commits on blur / Enter-close); picking a To/From item makes
 // the row a transfer instead. Item values are the section objects
 // themselves — kind tells the pick handler which of the two events happened.
-import { useMemo, useState } from 'react';
+import { forwardRef, useMemo, useState } from 'react';
 import { useStore } from '../../../store/StoreProvider.jsx';
 import { useUI } from '../../UIProvider.jsx';
 import { useIsPhone } from '../../../lib/useIsPhone.js';
 import { payeeSections } from '../../../lib/payeeOptions.js';
 import { Combobox, ComboboxPanel, ComboboxGroupLabel, ComboboxItem } from '../../primitives/Combobox.jsx';
 
-export default function PayeeCell({ payee, transferTo, sourceRef, onPickPayee, onPickTransfer, disabled, autoFocus }) {
+const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
+const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
+
+const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, onPickPayee, onPickTransfer, disabled, autoFocus, invalid, errorMsg, errorId }, ref) {
   const { data: S } = useStore();
   const { openPayees } = useUI();
   // Manage Payees is desktop-only (spec decision 5) — ManagePayees renders
@@ -37,17 +40,20 @@ export default function PayeeCell({ payee, transferTo, sourceRef, onPickPayee, o
     setQ(null);
   };
   const commitText = () => { if (q !== null) { onPickPayee(q); setQ(null); } };
+  const id = errorId || 'txeditor-err-payee';
 
   return (
     <Combobox.Root items={sections.flatMap(s => s.items)} onValueChange={pick} value={null} filter={null}
       itemToStringLabel={itemLabel} itemToStringValue={itemLabel}>
       <Combobox.Input
-        className="field" placeholder="payee" aria-label="Payee" disabled={disabled} autoFocus={autoFocus}
+        ref={ref} className="field" placeholder="payee" aria-label="Payee" disabled={disabled} autoFocus={autoFocus}
+        aria-invalid={invalid || undefined} aria-describedby={invalid ? id : undefined}
         value={shown}
         onChange={e => setQ(e.target.value)}
         onBlur={commitText}
-        style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13 }}
+        style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13, ...(invalid ? ringStyle : null) }}
       />
+      {invalid && <span id={id} role="alert" style={srOnly}>{errorMsg}</span>}
       <ComboboxPanel footer={phone ? null : (
         <button type="button" onMouseDown={e => e.preventDefault()} onClick={openPayees} className="hv-soft"
           style={{ width: '100%', border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '8px 2px 2px', textAlign: 'left' }}>
@@ -67,4 +73,6 @@ export default function PayeeCell({ payee, transferTo, sourceRef, onPickPayee, o
       </ComboboxPanel>
     </Combobox.Root>
   );
-}
+});
+
+export default PayeeCell;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cellsFromForm, editorPatch, sourceRef, editableCells, firstEmptyCell, keepForNext } from '../src/lib/txEditorState.js';
+import { cellsFromForm, editorPatch, sourceRef, editableCells, firstEmptyCell, keepForNext, errorCells, isMeaningfulDraft } from '../src/lib/txEditorState.js';
 import { txDefaults, formFromTx } from '../src/drawers/openers.js';
 
 const base = (over = {}) => ({ ...txDefaults('expense'), ...over });
@@ -173,5 +173,67 @@ describe('firstEmptyCell / keepForNext', () => {
   it('keepForNext keeps source + date, drops the rest', () => {
     const f = base({ payWith: 'acc:a1', date: '2026-08-17', merchant: 'Subway', amount: '5', notes: 'x' });
     expect(keepForNext(f)).toEqual({ payWith: 'acc:a1', date: '2026-08-17' });
+  });
+});
+
+describe('errorCells: maps validate.transaction keys onto editor cells', () => {
+  it('empty submit — no account/amount picked at all', () => {
+    expect(errorCells({ payWith: 'Choose the account or card you paid with.', amount: 'Enter an amount greater than zero.', date: 'Choose a valid date.' }, base())).toEqual({
+      account: 'Choose the account or card you paid with.',
+      date: 'Choose a valid date.',
+      outflow: 'Enter an amount greater than zero.',
+    });
+  });
+  it('account/payWith/transfer all land on the account cell (payWith wins when more than one is set)', () => {
+    expect(errorCells({ account: 'That account is not available.' }, base({ type: 'income' })).account).toBe('That account is not available.');
+    expect(errorCells({ transfer: 'From and To must be different accounts.' }, base({ type: 'transfer' })).account).toBe('From and To must be different accounts.');
+    expect(errorCells({ payWith: 'x', account: 'y' }, base()).account).toBe('x');
+  });
+  it('date → date, merchant → payee, category/split → category', () => {
+    expect(errorCells({ date: 'Choose a valid date.' }, base())).toEqual({ date: 'Choose a valid date.' });
+    expect(errorCells({ merchant: 'Keep this under 240 characters.' }, base())).toEqual({ payee: 'Keep this under 240 characters.' });
+    expect(errorCells({ category: 'That category no longer exists.' }, base())).toEqual({ category: 'That category no longer exists.' });
+    expect(errorCells({ split: 'A split needs at least two lines.' }, base())).toEqual({ category: 'A split needs at least two lines.' });
+  });
+  it('amount lands on outflow for expense/transfer/adjustment-decrease, inflow for income/refund/adjustment-increase', () => {
+    expect(errorCells({ amount: 'e' }, base({ type: 'expense' }))).toEqual({ outflow: 'e' });
+    expect(errorCells({ amount: 'e' }, base({ type: 'transfer' }))).toEqual({ outflow: 'e' });
+    expect(errorCells({ amount: 'e' }, base({ type: 'adjustment', direction: 'decrease' }))).toEqual({ outflow: 'e' });
+    expect(errorCells({ amount: 'e' }, base({ type: 'income' }))).toEqual({ inflow: 'e' });
+    expect(errorCells({ amount: 'e' }, base({ type: 'refund' }))).toEqual({ inflow: 'e' });
+    expect(errorCells({ amount: 'e' }, base({ type: 'adjustment', direction: 'increase' }))).toEqual({ inflow: 'e' });
+  });
+  it('no errors → empty object', () => {
+    expect(errorCells({}, base())).toEqual({});
+    expect(errorCells(null, base())).toEqual({});
+  });
+});
+
+describe('isMeaningfulDraft: what the Escape discard-guard is allowed to skip', () => {
+  it('payee/memo text alone is not meaningful', () => {
+    expect(isMeaningfulDraft(base({ merchant: 'S' }))).toBe(false);
+    expect(isMeaningfulDraft(base({ notes: 'a note' }))).toBe(false);
+    expect(isMeaningfulDraft(base({ merchant: 'S', notes: 'a note' }))).toBe(false);
+  });
+  it('an amount makes it meaningful', () => {
+    expect(isMeaningfulDraft(base({ amount: '500' }))).toBe(true);
+    expect(isMeaningfulDraft(base({ amount: '' }))).toBe(false);
+    expect(isMeaningfulDraft(base({ amount: '   ' }))).toBe(false);
+  });
+  it('a category pick makes it meaningful', () => {
+    expect(isMeaningfulDraft(base({ category: 'c9' }))).toBe(true);
+  });
+  it('a split with at least one line makes it meaningful', () => {
+    expect(isMeaningfulDraft(base({ splitOn: true, splits: [{ category: '' }] }))).toBe(true);
+    expect(isMeaningfulDraft(base({ splitOn: true, splits: [] }))).toBe(false);
+    expect(isMeaningfulDraft(base({ splitOn: false, splits: [{ category: 'c9' }] }))).toBe(false);
+  });
+  it('a transfer only becomes meaningful once To is chosen', () => {
+    expect(isMeaningfulDraft(base({ type: 'transfer', from: 'acc:a1', to: '' }))).toBe(false);
+    expect(isMeaningfulDraft(base({ type: 'transfer', from: 'acc:a1', to: 'acc:a2' }))).toBe(true);
+  });
+  it('a totally blank draft is not meaningful', () => {
+    expect(isMeaningfulDraft(base())).toBe(false);
+    expect(isMeaningfulDraft(null)).toBe(false);
   });
 });

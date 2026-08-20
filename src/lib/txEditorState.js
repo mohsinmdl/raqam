@@ -147,6 +147,50 @@ export function firstEmptyCell(cells, hideAccount) {
   return (!hideAccount && !cells.account) ? 'account' : 'payee';
 }
 
+// Field attribution for validate.transaction / validateSplit's error map —
+// which editor CELL should carry a given error key, so a failed submit can
+// ring the right field instead of leaving the failure only in the footer
+// summary. account absorbs the three source-of-truth keys (payWith/account/
+// transfer) since they're the same visual cell under different type-driven
+// field names (sourceField). amount is special: validate emits one 'amount'
+// key regardless of which side the magnitude is showing on, so the side is
+// re-derived here the same way cellsFromForm does (inflowSide truth table),
+// never assumed. Values are the original message string, so a caller can
+// wire it straight into aria-describedby text with no second lookup.
+export function errorCells(errors, f) {
+  const e = errors || {};
+  const cells = {};
+  const accountMsg = e.payWith || e.account || e.transfer;
+  if (accountMsg) cells.account = accountMsg;
+  if (e.date) cells.date = e.date;
+  if (e.merchant) cells.payee = e.merchant;
+  const categoryMsg = e.category || e.split;
+  if (categoryMsg) cells.category = categoryMsg;
+  if (e.amount) {
+    const type = (f && f.type) || 'expense';
+    const inflowSide = type === 'income' || type === 'refund'
+      || (type === 'adjustment' && f && f.direction === 'increase');
+    cells[inflowSide ? 'inflow' : 'outflow'] = e.amount;
+  }
+  return cells;
+}
+
+// Escape/Cancel discard-guard gate: an empty-ish addTx draft (payee typed, a
+// memo jotted) isn't worth a confirm dialog on the way out — nothing the user
+// would call "work" is at risk. A draft only earns the confirm once it holds
+// something that would actually be lost: a real amount, a category pick, a
+// split in progress, or (for a transfer) a chosen To/From account. Payee and
+// memo text alone are NOT meaningful — closing quietly with just those typed
+// matches YNAB's own quick-add feel.
+export function isMeaningfulDraft(f) {
+  if (!f) return false;
+  if (String(f.amount == null ? '' : f.amount).trim()) return true;
+  if (f.category) return true;
+  if (f.splitOn && (f.splits || []).length > 0) return true;
+  if ((f.type || 'expense') === 'transfer' && f.to) return true;
+  return false;
+}
+
 // "Save and add another" carries the source and date into the next row. The
 // next row always starts as an expense (txDefaults('expense')), and an
 // expense reads its source from payWith — so the ref lands there whatever

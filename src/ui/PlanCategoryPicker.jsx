@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { sortGroups, sortCats } from '../lib/categoryOrder.js';
+
+const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
+const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
 
 // One-field category combobox (YNAB-style): the field IS the search input.
 // Closed, it shows the picked name (or a placeholder); focusing it opens the
@@ -25,12 +28,13 @@ import { sortGroups, sortCats } from '../lib/categoryOrder.js';
 //   footer=null         — extra content rendered inside the panel, below the
 //                        scrollable list, only while not in the create form
 //                        (e.g. the inline transaction editor's Split button).
-export default function PlanCategoryPicker({
+const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   env, S, month, money, value, onChange,
   excludeRta, excludeId, excludeIds, placeholder = 'Choose a category',
   catType = 'expense', showAmounts = true, heading = 'Plan Categories',
   allowCreate = false, onCreate, showSelected = false, footer = null,
-}) {
+  invalid, errorMsg, errorId,
+}, ref) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [hi, setHi] = useState(0);
@@ -153,22 +157,25 @@ export default function PlanCategoryPicker({
   const formField = { width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, marginBottom: 12 };
 
   let pi = -1; // pickable index while rendering
+  const errId = errorId || 'txeditor-err-category';
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ position: 'relative' }}>
         <input
-          ref={inputRef}
+          ref={node => { inputRef.current = node; if (typeof ref === 'function') ref(node); else if (ref) ref.current = node; }}
           value={open && !creating ? q : nameOf(value)}
           placeholder={placeholder}
           aria-label={placeholder} role="combobox" aria-expanded={String(open)}
+          aria-invalid={invalid || undefined} aria-describedby={invalid ? errId : undefined}
           onFocus={openList}
           onBlur={() => { if (!creating) setOpen(false); }}
           onChange={e => { setQ(e.target.value); setHi(0); if (!open) setOpen(true); }}
           onKeyDown={onKey}
           readOnly={creating}
-          style={{ width: '100%', boxSizing: 'border-box', height: 34, padding: '0 28px 0 10px', border: '1px solid ' + (open ? 'var(--accent)' : 'var(--border)'), background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}
+          style={{ width: '100%', boxSizing: 'border-box', height: 34, padding: '0 28px 0 10px', border: '1px solid ' + (open ? 'var(--accent)' : 'var(--border)'), background: 'var(--surface)', color: 'var(--text)', fontSize: 13, ...(invalid ? ringStyle : null) }}
         />
         <span aria-hidden="true" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 10, pointerEvents: 'none' }}>▾</span>
+        {invalid && <span id={errId} role="alert" style={srOnly}>{errorMsg}</span>}
       </div>
       {open && (
         // Panel overlays the popover content below the field (absolute, not
@@ -244,4 +251,6 @@ export default function PlanCategoryPicker({
       )}
     </div>
   );
-}
+});
+
+export default PlanCategoryPicker;
