@@ -15,14 +15,21 @@ export default function AmountCell({ value, onCommit, placeholder, ariaLabel, di
   const [draft, setDraft] = useState(null); // null = idle, mirror committed value
   const shown = draft !== null ? draft : (value || '');
 
-  const commit = () => {
+  // fromBlur distinguishes the two ways an invalid/negative expression can be
+  // left behind: Enter keeps the draft open so the user can fix it in place,
+  // but a blur means focus already left — leaving the stale draft shown would
+  // silently hide the real committed value behind text that was never saved,
+  // so blur reverts the draft instead.
+  const commit = fromBlur => {
     if (draft === null) return;
     const s = draft.trim();
     if (!s) { onCommit(''); setDraft(null); return; }
     if (OP_KEYS.test(s)) {
       const r = applyCalcExpr(parseAmt(value || '') || 0, s);
-      // Invalid expression: stay open with the draft so it can be corrected.
-      if (r === null || r < 0) return;
+      if (r === null || r < 0) {
+        if (fromBlur) setDraft(null); // revert to the real committed value
+        return; // Enter: stay open with the draft so it can be corrected
+      }
       onCommit(formatAmountInput(String(r)));
     } else {
       onCommit(formatAmountInput(s));
@@ -54,8 +61,8 @@ export default function AmountCell({ value, onCommit, placeholder, ariaLabel, di
         disabled={disabled} autoFocus={autoFocus} value={shown}
         onFocus={e => e.target.select()}
         onChange={e => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter' && draft !== null) { e.preventDefault(); commit(); } }}
+        onBlur={() => commit(true)}
+        onKeyDown={e => { if (e.key === 'Enter' && draft !== null) { e.preventDefault(); commit(false); } }}
         style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13, textAlign: 'right', minWidth: 0 }}
       />
     </span>

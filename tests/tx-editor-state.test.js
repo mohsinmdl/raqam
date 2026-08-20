@@ -3,6 +3,10 @@ import { cellsFromForm, editorPatch, sourceRef, editableCells, firstEmptyCell, k
 import { txDefaults, formFromTx } from '../src/drawers/openers.js';
 
 const base = (over = {}) => ({ ...txDefaults('expense'), ...over });
+// c9 is EXPENSE-typed, c5 is INCOME-typed — the ctx editorPatch/inflowType
+// need to tell a refund-eligible category from one that would fail
+// validate.transaction's type check (FIX 1).
+const ctx = { catTypeOf: id => ({ c9: 'expense', c5: 'income' }[id] || null) };
 
 describe('sourceRef', () => {
   it('reads the field the current type stores its source in', () => {
@@ -24,20 +28,32 @@ describe('editorPatch: amounts drive the type (spec §3)', () => {
     expect(editorPatch(f, 'inflow', '500')).toEqual(
       { type: 'income', amount: '500', account: 'acc:a1', payWith: '' });
   });
-  it('inflow with a category → refund (source stays in payWith)', () => {
+  it('inflow with an EXPENSE-typed category → refund (source stays in payWith)', () => {
     const f = base({ type: 'expense', payWith: 'acc:a1', category: 'c9' });
-    expect(editorPatch(f, 'inflow', '500')).toEqual(
+    expect(editorPatch(f, 'inflow', '500', ctx)).toEqual(
       { type: 'refund', amount: '500', payWith: 'acc:a1', account: '' });
+  });
+  it('inflow with an INCOME-typed category stays income, category kept (FIX 1: a refund needs an EXPENSE category)', () => {
+    const f = base({ type: 'expense', payWith: 'acc:a1', category: 'c5' });
+    const patch = editorPatch(f, 'inflow', '500', ctx);
+    expect(patch).toEqual({ type: 'income', amount: '500', account: 'acc:a1', payWith: '' });
+    expect({ ...f, ...patch }.category).toBe('c5');
   });
   it('inflow onto a CARD source → refund regardless of category (income cannot land on a card)', () => {
     const f = base({ type: 'expense', payWith: 'card:k1', category: '' });
-    expect(editorPatch(f, 'inflow', '500').type).toBe('refund');
+    expect(editorPatch(f, 'inflow', '500', ctx).type).toBe('refund');
   });
-  it('outflow/inflow on a transfer only swaps direction, never the type', () => {
+  it('outflow/inflow on a transfer never touch from/to — direction never flips from an amount edit, a re-edit must not reverse a transfer', () => {
     const f = base({ type: 'transfer', from: 'acc:a1', to: 'acc:a2' });
-    expect(editorPatch(f, 'inflow', '900')).toEqual(
-      { amount: '900', from: 'acc:a2', to: 'acc:a1' });
+    expect(editorPatch(f, 'inflow', '900')).toEqual({ amount: '900' });
     expect(editorPatch(f, 'outflow', '900')).toEqual({ amount: '900' });
+  });
+  it('clearing outflow/inflow clears the amount only, never retypes the row', () => {
+    const income = base({ type: 'income', account: 'acc:a1', amount: '500' });
+    expect(editorPatch(income, 'inflow', '')).toEqual({ amount: '' });
+    expect(editorPatch(income, 'inflow', '   ')).toEqual({ amount: '' });
+    const expense = base({ type: 'expense', payWith: 'acc:a1', amount: '500' });
+    expect(editorPatch(expense, 'outflow', '')).toEqual({ amount: '' });
   });
   it('outflow/inflow on an adjustment maps to direction, type untouched', () => {
     const f = base({ type: 'adjustment', account: 'acc:a1' });
@@ -65,10 +81,23 @@ describe('editorPatch: payee and transfer', () => {
 });
 
 describe('editorPatch: category re-infers income vs refund while inflowing', () => {
-  it('picking a category on an income flips to refund', () => {
+  it('picking an EXPENSE-typed category on an income flips to refund', () => {
     const f = base({ type: 'income', account: 'acc:a1', amount: '500' });
-    expect(editorPatch(f, 'category', 'c9')).toEqual(
+    expect(editorPatch(f, 'category', 'c9', ctx)).toEqual(
       { category: 'c9', type: 'refund', payWith: 'acc:a1', account: '' });
+  });
+  // FIX 1 (data-corruption class): a blind flip to refund on ANY category
+  // pick would let an income-typed category — or any category, with no ctx
+  // at all — silently retype the row, and validate.transaction requires a
+  // refund's category to be EXPENSE-typed, so that save would then fail.
+  it('picking an INCOME-typed category on an income stays income', () => {
+    const f = base({ type: 'income', account: 'acc:a1', amount: '500' });
+    expect(editorPatch(f, 'category', 'c5', ctx)).toEqual({ category: 'c5' });
+  });
+  it('picking a category on an income with no ctx (or an unknown category) stays income too', () => {
+    const f = base({ type: 'income', account: 'acc:a1', amount: '500' });
+    expect(editorPatch(f, 'category', 'c9')).toEqual({ category: 'c9' });
+    expect(editorPatch(f, 'category', 'unknown', ctx)).toEqual({ category: 'unknown' });
   });
   it('clearing the category on a refund flips to income', () => {
     const f = base({ type: 'refund', payWith: 'acc:a1', category: 'c9', amount: '500' });
@@ -104,11 +133,14 @@ describe('cellsFromForm round-trips formFromTx output', () => {
     const f = formFromTx({ id: 't2', type: 'transfer', amount: 900, date: '2026-08-17T12:00', status: 'pending', merchant: '', accountId: 'a1', toAccountId: 'a2' });
     expect(cellsFromForm(f)).toMatchObject({ account: 'acc:a1', transferTo: 'acc:a2', outflow: '900', inflow: '', cleared: false });
   });
-  it('inflow-direction transfer: from/to swap in the data (correct), but the cells re-normalize to the outflow side — display still anchors on the source account (a recorded controller ruling; re-anchoring the display to the inflow side is a deferred follow-up, not a bug)', () => {
+  // direction never flips from an amount edit — a re-edit must not reverse a
+  // transfer (FIX 2). from/to are untouched, so the cells still anchor on the
+  // original source account exactly as they did before the inflow edit.
+  it('an inflow edit on a transfer leaves from/to untouched', () => {
     const f = { type: 'transfer', from: 'acc:a1', to: 'acc:a2' };
     const patch = editorPatch(f, 'inflow', '900');
     const merged = { ...f, ...patch };
-    expect(cellsFromForm(merged)).toMatchObject({ account: 'acc:a2', transferTo: 'acc:a1', outflow: '900', inflow: '' });
+    expect(cellsFromForm(merged)).toMatchObject({ account: 'acc:a1', transferTo: 'acc:a2', outflow: '900', inflow: '' });
   });
   it('income lands on inflow', () => {
     const f = formFromTx({ id: 't3', type: 'income', amount: 700, date: '2026-08-17T12:00', status: 'cleared', merchant: 'Payer', accountId: 'a1' });
@@ -133,11 +165,10 @@ describe('editableCells', () => {
 });
 
 describe('firstEmptyCell / keepForNext', () => {
-  it('focuses the first empty cell in column order', () => {
+  it('is account when shown and empty, otherwise payee (date is always seeded by txDefaults)', () => {
     expect(firstEmptyCell({ account: '', date: '2026-08-20', payee: '', outflow: '', inflow: '' }, false)).toBe('account');
     expect(firstEmptyCell({ account: 'acc:a1', date: '2026-08-20', payee: '', outflow: '', inflow: '' }, false)).toBe('payee');
     expect(firstEmptyCell({ account: '', date: '2026-08-20', payee: '', outflow: '', inflow: '' }, true)).toBe('payee');
-    expect(firstEmptyCell({ account: 'acc:a1', date: '2026-08-20', payee: 'x', category: 'c9', memo: 'm', outflow: '5', inflow: '' }, false)).toBe('payee');
   });
   it('keepForNext keeps source + date, drops the rest', () => {
     const f = base({ payWith: 'acc:a1', date: '2026-08-17', merchant: 'Subway', amount: '5', notes: 'x' });

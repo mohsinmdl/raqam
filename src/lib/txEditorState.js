@@ -28,14 +28,21 @@ function sourceField(f) {
 }
 
 // Income cannot land on a card (validate: ownsAcc only), so an inflow with a
-// card source is always a refund; with a bank source the category decides.
-function inflowType(f, categoryOverride) {
+// card source is always a refund; with a bank source the category decides —
+// and only an EXPENSE-typed category counts. Neither this function nor
+// editorPatch can see the store, so the caller passes ctx.catTypeOf; with no
+// ctx (or an unknown category) the safe default is income, never a silent
+// refund flip (data-corruption class: refund requires an EXPENSE category —
+// validate.transaction would reject an income-typed one).
+function inflowType(f, categoryOverride, ctx = {}) {
   const cat = categoryOverride !== undefined ? categoryOverride : f.category;
   const onCard = String(sourceRef(f)).startsWith('card:');
-  return onCard || (cat && cat !== 'rta') ? 'refund' : 'income';
+  const catTypeOf = ctx.catTypeOf || (() => null);
+  const isExpenseCat = !!cat && cat !== 'rta' && catTypeOf(cat) === 'expense';
+  return onCard || isExpenseCat ? 'refund' : 'income';
 }
 
-export function editorPatch(f, key, value) {
+export function editorPatch(f, key, value, ctx = {}) {
   const type = f.type || 'expense';
   if (key === 'date') return { date: value };
   if (key === 'memo') return { notes: value };
@@ -60,13 +67,26 @@ export function editorPatch(f, key, value) {
   }
 
   if (key === 'category') {
-    if (type === 'income' && value) return { category: value, ...retype(f, 'refund', sourceRef(f)) };
+    // Only an EXPENSE-typed pick turns income into a refund — an income- or
+    // unknown-typed category (ctx absent, or the category not found) leaves
+    // the row as income, since validate.transaction requires a refund's
+    // category to be EXPENSE-typed and would otherwise reject the save.
+    if (type === 'income' && value) {
+      const catType = (ctx.catTypeOf || (() => null))(value);
+      if (catType === 'expense') return { category: value, ...retype(f, 'refund', sourceRef(f)) };
+      return { category: value };
+    }
     if (type === 'refund' && !value && !String(sourceRef(f)).startsWith('card:')) {
       return { category: '', ...retype(f, 'income', sourceRef(f)) };
     }
     return { category: value };
   }
 
+  if ((key === 'outflow' || key === 'inflow') && !String(value).trim()) {
+    // An emptied amount cell just clears the amount — it must not retype
+    // the row (e.g. bounce an income row through expense on the way to empty).
+    return { amount: '' };
+  }
   const amount = formatAmountInput(String(value));
   if (key === 'outflow') {
     if (type === 'transfer') return { amount };
@@ -76,11 +96,13 @@ export function editorPatch(f, key, value) {
   }
   // key === 'inflow'
   if (type === 'transfer') {
-    // Direction flip: money arrives INTO the row's account, so from/to swap.
-    return f.to ? { amount, from: f.to, to: f.from } : { amount };
+    // Direction is controlled solely by the account cell and the To/From
+    // payee — an amount edit must never flip it. A re-edit of an existing
+    // inflow-direction transfer would otherwise silently reverse it back.
+    return { amount };
   }
   if (type === 'adjustment') return { amount, direction: 'increase' };
-  const t = inflowType(f);
+  const t = inflowType(f, undefined, ctx);
   if (t === type) return { amount };
   return { amount, ...retype(f, t, sourceRef(f)) };
 }
@@ -117,15 +139,12 @@ export function editableCells(f) {
   return { account: true, date: true, payee: true, category: type !== 'transfer', memo: true, outflow: true, inflow: true, cleared: true };
 }
 
-// Autofocus target: the first empty cell in column order. Amounts count as
-// one slot (either side filled = not empty). Memo/category never take first
-// focus on a fresh row — payee is the natural resting place YNAB uses.
+// Autofocus target: account when it's shown and empty, otherwise payee — the
+// natural resting place YNAB uses. Date is always seeded by txDefaults, so it
+// can never be the first empty cell in practice; memo/category never take
+// first focus on a fresh row either.
 export function firstEmptyCell(cells, hideAccount) {
-  if (!hideAccount && !cells.account) return 'account';
-  if (!cells.date) return 'date';
-  if (!cells.payee) return 'payee';
-  if (!cells.outflow && !cells.inflow) return 'payee';
-  return 'payee';
+  return (!hideAccount && !cells.account) ? 'account' : 'payee';
 }
 
 // "Save and add another" carries the source and date into the next row. The

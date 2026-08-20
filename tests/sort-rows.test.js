@@ -443,7 +443,13 @@ describe('size ignores the sign', () => {
 
 // --- what the header can reach, and what the toggle is for -------------------
 describe('every sort has exactly one route', () => {
-  const HEADER_KEYS = ['date', 'details', 'category', 'account', 'notes', 'status', 'size'];
+  // Transactions.jsx wires a SortableHeader for every COLUMNS entry — account,
+  // date, details, category, notes, the OUTFLOW/INFLOW pair, and status — so
+  // outflow and inflow are now header-producible like any other column. The
+  // AMOUNT header that used to drive 'size' is gone; 'size' now has no header
+  // entry point at all (only the toolbar's Sort-by dropdown reaches it, same
+  // as 'signed').
+  const HEADER_KEYS = ['date', 'details', 'category', 'account', 'notes', 'status', 'outflow', 'inflow'];
 
   it('a header click can reach every column sort, both directions', () => {
     for (const k of HEADER_KEYS) {
@@ -455,19 +461,18 @@ describe('every sort has exactly one route', () => {
     }
   });
 
-  it('leaves signed, outflow, and inflow as the only sorts no header can produce', () => {
-    // Which is why the list header keeps one button for it — clicking a column
-    // gives size (how big), never signed (which way the balance moved).
-    // Outflow and inflow are also not header-reachable; they sort the split columns.
+  it('leaves size and signed as the only sorts no header can produce', () => {
+    // Both are dropdown-only: 'size' lost its header when the AMOUNT column
+    // split into OUTFLOW/INFLOW, and 'signed' never had one — clicking a
+    // column gives that column's own magnitude, never the balance-effect view.
     const reachable = new Set();
     for (const k of HEADER_KEYS) {
       let s = DEFAULT_SORT;
       for (let i = 0; i < 4; i++) { s = nextSortState(s, k); reachable.add(s.key); }
     }
+    expect(reachable.has('size')).toBe(false);
     expect(reachable.has('signed')).toBe(false);
-    expect(reachable.has('outflow')).toBe(false);
-    expect(reachable.has('inflow')).toBe(false);
-    expect(Object.keys(SORT_COLUMNS).filter(k => !reachable.has(k))).toEqual(['signed', 'outflow', 'inflow']);
+    expect(Object.keys(SORT_COLUMNS).filter(k => !reachable.has(k))).toEqual(['size', 'signed']);
   });
 
   it('the toggle round-trips between the default and lowest-first', () => {

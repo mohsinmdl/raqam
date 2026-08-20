@@ -24,7 +24,10 @@ export function Select({ value, onValueChange, ariaLabel, renderValue, disabled,
       </BaseSelect.Trigger>
       <BaseSelect.Portal>
         <BaseSelect.Positioner sideOffset={4} style={{ zIndex: 45 }}>
-          <BaseSelect.Popup style={popupStyle}>{children}</BaseSelect.Popup>
+          {/* Base UI still closes the popup on Escape; stopping propagation
+              here just keeps it from also reaching DrawerProvider's session
+              listener, same contract as every sibling overlay (Popover). */}
+          <BaseSelect.Popup style={popupStyle} onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>{children}</BaseSelect.Popup>
         </BaseSelect.Positioner>
       </BaseSelect.Portal>
     </BaseSelect.Root>
