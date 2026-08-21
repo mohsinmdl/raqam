@@ -71,7 +71,7 @@ export function SelectItem({ value, children }) {
   // highlighted from e.target — Base UI Select gives the highlighted item
   // real focus but exposes no onItemHighlighted like Combobox does.
   return (
-    <BaseSelect.Item value={value} data-value={value} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px 5px 22px', borderRadius: 6, fontSize: 13, cursor: 'pointer', position: 'relative' }} className="hv-elev">
+    <BaseSelect.Item value={value} data-value={value} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px 5px 22px', borderRadius: 6, fontSize: 13, cursor: 'pointer', position: 'relative' }} className="rq-select-item hv-elev">
       <BaseSelect.ItemIndicator style={{ position: 'absolute', left: 6, color: 'var(--accent)' }}>✓</BaseSelect.ItemIndicator>
       <BaseSelect.ItemText>{children}</BaseSelect.ItemText>
     </BaseSelect.Item>

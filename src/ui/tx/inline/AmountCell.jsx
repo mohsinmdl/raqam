@@ -38,6 +38,9 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
   const showInvalid = !!calcErr || !!invalid;
   const message = calcErr ? CALC_MSG[calcErr] : errorMsg;
   const id = errorId || (ariaLabel ? 'txeditor-err-' + ariaLabel.toLowerCase() : undefined);
+  // Distinct per cell (Outflow/Inflow both render one) so the input's
+  // aria-controls can point at ITS pad, not its sibling's.
+  const padId = 'txeditor-oppad-' + (ariaLabel || 'amount').toLowerCase();
 
   const commit = () => {
     if (draft === null) return;
@@ -81,7 +84,7 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 28, border: 'none', borderRadius: 4, background: 'none', color: 'var(--muted)', cursor: 'pointer', flex: 'none', padding: 0 }}>
           <CalcIcon size={14} />
         </PopoverTrigger>
-        <PopoverPanel width={92} arrow style={{ padding: 8 }}
+        <PopoverPanel id={padId} width={92} arrow style={{ padding: 8 }}
           finalFocus={() => (tabbedAway.current ? false : true)}
           onKeyDown={e => {
             if (e.key === 'Escape') e.stopPropagation();
@@ -99,6 +102,11 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
         </PopoverPanel>
       </Popover>
       <input ref={ref} className="field tnum" inputMode="decimal" placeholder={placeholder} aria-label={ariaLabel}
+        // Same contract as the date field: the op pad is this input's popup,
+        // so the input announces it exists, whether it's open, and the chord
+        // (Alt+ArrowDown) that opens it with focus.
+        aria-haspopup="dialog" aria-expanded={padOpen} aria-controls={padOpen ? padId : undefined}
+        aria-keyshortcuts="Alt+ArrowDown"
         aria-invalid={showInvalid || undefined} aria-describedby={showInvalid ? id : undefined}
         disabled={disabled} autoFocus={autoFocus} value={shown}
         onFocus={e => e.target.select()}

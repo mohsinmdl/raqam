@@ -38,6 +38,15 @@ export const SHORTCUT_GROUPS = [
     { id: 'extendSel',    keys: ['shift', '↑', '↓'], label: 'Extend the selection',       spec: { key: 'RowShiftArrow' } },
     { id: 'rangeClick',   keys: ['shift', 'click'],  label: 'Select a range',             spec: { key: 'RowShiftClick' } },
   ] },
+  // The inline add/edit row's keys. Handled inside the editor's own keydown
+  // handlers (TxEditorRow and its cells), never by matchKey — like the row
+  // cursor above, the `spec` only satisfies the registry shape.
+  { title: 'Transaction editor', items: [
+    { id: 'editorNext',     keys: ['tab'],            label: 'Next column (takes the highlighted pick)', spec: { key: 'EditorTab' } },
+    { id: 'editorPrev',     keys: ['shift', 'tab'],   label: 'Previous column',                          spec: { key: 'EditorShiftTab' } },
+    { id: 'editorPopup',    keys: ['alt', '↓'],       label: 'Open the calendar / operator pad',         spec: { key: 'EditorAltDown' } },
+    { id: 'editorDateStep', keys: ['←', '→'],         label: 'Date: previous / next day (↑ ↓ a week)',   spec: { key: 'EditorDateStep' } },
+  ] },
   // Transactions-screen date-range presets: press V, then the second key.
   { title: 'View (Transactions)', items: [
     { id: 'viewToday',     keys: ['V', 'T'], label: 'View: Today',      spec: { seq: ['v', 't'] } },

@@ -23,6 +23,10 @@ const AccountCell = forwardRef(function AccountCell({ value, onChange, disabled,
   const { bankOpts, creditOpts } = useTxOpts();
   const [open, setOpen] = useState(() => !!autoOpen && !disabled);
   const tabbedAway = useRef(false);
+  // Tab-commit announcement (see PayeeCell): the value lands in a cell the
+  // focus just left, so this polite status region is the only way a screen
+  // reader hears WHICH account went in.
+  const [announced, setAnnounced] = useState('');
   // The trigger element, held locally as well as forwarded to the row's cell
   // ref: its aria-controls (set by Base UI while open) is the precise handle
   // on the PORTALLED popup, which no wrapper ref can reach.
@@ -68,7 +72,11 @@ const AccountCell = forwardRef(function AccountCell({ value, onChange, disabled,
     if (e.shiftKey) { e.preventDefault(); setOpen(false); return; } // no commit; default restore parks focus on the trigger
     const item = e.target.closest ? e.target.closest('[data-value]') : null;
     const v = item && item.getAttribute('data-value');
-    if (v) onChange(v);
+    if (v) {
+      onChange(v);
+      const opt = all.find(o => o.id === v);
+      if (opt) setAnnounced('Account set to ' + nameOnly(opt.label));
+    }
     tabbedAway.current = true;
     setOpen(false);
   };
@@ -95,6 +103,7 @@ const AccountCell = forwardRef(function AccountCell({ value, onChange, disabled,
         )}
       </Select>
       {invalid && <span id={id} role="alert" style={srOnly}>{errorMsg}</span>}
+      <span role="status" style={srOnly}>{announced}</span>
     </span>
   );
 });
