@@ -73,6 +73,11 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   // the field afterwards does not read as "the user focused the field" and
   // immediately reopen the list.
   const reopenGuard = useRef(false);
+  // The list's current highlight, mirrored for the Tab-commit below (the
+  // input keeps focus — virtual focus — so only this callback knows which
+  // item is lit). autoHighlight lights the first match while typing; a bare
+  // tab-through of an untyped field highlights nothing and commits nothing.
+  const hl = useRef(undefined);
 
   const groups = useMemo(() => sortGroups(S.categoryGroups), [S.categoryGroups]);
   const nameOf = v => (v === 'rta' ? 'Ready to Assign'
@@ -217,12 +222,13 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
     <div style={{ position: 'relative' }}>
       <Combobox.Root
         items={pickable} value={null} onValueChange={pick} filter={null}
+        autoHighlight onItemHighlighted={v => { hl.current = v; }}
         itemToStringLabel={labelOf} itemToStringValue={labelOf}
         open={open}
         // The query is cleared on CLOSE, never on open: Base UI also reports
         // "opened" for the keystroke that opens a closed field, and clearing
         // there would eat that first character.
-        onOpenChange={o => { if (creating) return; setOpen(o); if (!o) setQ(''); }}
+        onOpenChange={o => { if (creating) return; setOpen(o); if (!o) { setQ(''); hl.current = undefined; } }}
       >
         <Combobox.Input
           ref={ref}
@@ -240,6 +246,10 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
             // without also reaching a host drawer/popover's own Escape.
             if (e.key === 'Enter' && !open) { e.preventDefault(); setOpen(true); }
             else if (e.key === 'Escape' && open) { e.stopPropagation(); if (creating) cancelCreate(); setOpen(false); }
+            // Tab takes the highlighted category with it (YNAB) and bubbles
+            // on so a host that owns Tab (the inline editor row) can move
+            // focus; with nothing highlighted the field closes unchanged.
+            else if (e.key === 'Tab' && open && !creating && hl.current != null) pick(hl.current);
           }}
           style={{ width: '100%', boxSizing: 'border-box', height: size, padding: `0 ${pad.right}px 0 ${pad.left}px`, fontSize: 13, ...(open ? { borderColor: 'var(--accent)' } : null), ...(invalid ? ringStyle : null) }}
         />

@@ -64,8 +64,11 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
             Outflow") rather than naming the machine behind it — "Calculator
             for Outflow" left the reader to guess whether it opened a
             calculator, a converter, or a setting. */}
+        {/* data-calc-trigger: the editor row's Tab handler leaves this stop
+            alone — from here native Tab lands on this cell's own input, and a
+            column jump would skip the field the trigger serves. */}
         <PopoverTrigger aria-label={'Insert an operator into ' + ariaLabel} title="Insert an operator"
-          disabled={disabled} tabIndex={0} className="hv-soft"
+          disabled={disabled} tabIndex={0} data-calc-trigger="" className="hv-soft"
           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 28, border: 'none', borderRadius: 4, background: 'none', color: 'var(--muted)', cursor: 'pointer', flex: 'none', padding: 0 }}>
           <CalcIcon size={14} />
         </PopoverTrigger>

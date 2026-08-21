@@ -69,6 +69,12 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
             // field (outside the popup), so nothing else would stop it reaching
             // the editor session and cancelling the whole row.
             else if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); }
+            // Tab-away (the editor row moves focus cell-to-cell): Base UI only
+            // dismisses this popover on an outside PRESS or on focus leaving
+            // the popup itself — keyboard focus jumping input→next cell is
+            // neither, so the calendar lingered over the payee list. The blur
+            // commit still runs; this just takes the calendar down with it.
+            else if (e.key === 'Tab' && open) setOpen(false);
           }}
           // Tight horizontal padding and minWidth 0: this input has to hold a
           // full dd/mm/yyyy — the placeholder and every committed value are the
