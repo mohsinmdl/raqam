@@ -58,12 +58,17 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   catType = 'expense', showAmounts = true, heading = 'Plan Categories',
   allowCreate = false, onCreate, showSelected = false, footer = null,
   // Opt-in YNAB keyboard entry for hosts that own Tab (the inline tx editor):
-  // typing auto-highlights the first match and Tab commits it. Deliberately
-  // NOT the default — autoHighlight also changes what ENTER does while typing
-  // (Base UI commits a non-null highlight instead of falling through), and
-  // several of this picker's 13 consumers sit one keystroke from a persisted
-  // write (PayeeDetail's auto-category rule, the phone money sheets' Assign),
-  // where an auto-highlighted guess must not be that easy to commit.
+  // the list opens with its FIRST item highlighted (autoHighlight 'always'),
+  // arrows walk from it, Enter takes the highlight — and Tab commits it too,
+  // but only once the user has ENGAGED (typed or arrowed): a bare tab-through
+  // of an untouched field must skip without committing, or the optional
+  // category column would silently assign the first category in the list.
+  // Deliberately NOT the default — autoHighlight also changes what ENTER
+  // does (Base UI commits a non-null highlight instead of falling through),
+  // and several of this picker's 13 consumers sit one keystroke from a
+  // persisted write (PayeeDetail's auto-category rule, the phone money
+  // sheets' Assign), where an auto-highlighted guess must not be that easy
+  // to commit.
   tabCommit = false,
   size = 34, invalid, errorMsg, errorId,
 }, ref) {
@@ -83,9 +88,12 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   const reopenGuard = useRef(false);
   // The list's current highlight, mirrored for the Tab-commit below (the
   // input keeps focus — virtual focus — so only this callback knows which
-  // item is lit). autoHighlight lights the first match while typing; a bare
-  // tab-through of an untyped field highlights nothing and commits nothing.
+  // item is lit). With autoHighlight 'always' the first item is lit from the
+  // moment the list opens, so `engaged` carries the tab-through guard the
+  // highlight itself no longer can: it flips on typing or arrow navigation
+  // and resets when the popup closes.
   const hl = useRef(undefined);
+  const engaged = useRef(false);
 
   const groups = useMemo(() => sortGroups(S.categoryGroups), [S.categoryGroups]);
   const nameOf = v => (v === 'rta' ? 'Ready to Assign'
@@ -122,8 +130,10 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
     setOpen(false);
     setQ('');
     // setOpen here bypasses onOpenChange (that only fires for Base UI-driven
-    // opens/closes), so the highlight mirror is cleared on this path too.
+    // opens/closes), so the highlight mirror and the engagement flag are
+    // cleared on this path too.
     hl.current = undefined;
+    engaged.current = false;
     setTimeout(() => { reopenGuard.current = false; }, 0);
   };
   const pick = item => {
@@ -233,13 +243,13 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
     <div style={{ position: 'relative' }}>
       <Combobox.Root
         items={pickable} value={null} onValueChange={pick} filter={null}
-        autoHighlight={tabCommit} onItemHighlighted={v => { hl.current = v; }}
+        autoHighlight={tabCommit ? 'always' : false} onItemHighlighted={v => { hl.current = v; }}
         itemToStringLabel={labelOf} itemToStringValue={labelOf}
         open={open}
         // The query is cleared on CLOSE, never on open: Base UI also reports
         // "opened" for the keystroke that opens a closed field, and clearing
         // there would eat that first character.
-        onOpenChange={o => { if (creating) return; setOpen(o); if (!o) { setQ(''); hl.current = undefined; } }}
+        onOpenChange={o => { if (creating) return; setOpen(o); if (!o) { setQ(''); hl.current = undefined; engaged.current = false; } }}
       >
         <Combobox.Input
           ref={ref}
@@ -249,7 +259,7 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
           aria-label={placeholder}
           aria-invalid={invalid || undefined} aria-describedby={invalid ? errId : undefined}
           readOnly={creating}
-          onChange={e => { setQ(e.target.value); if (!open) setOpen(true); }}
+          onChange={e => { engaged.current = true; setQ(e.target.value); if (!open) setOpen(true); }}
           onFocus={() => { if (!creating && !reopenGuard.current) setOpen(true); }}
           onKeyDown={e => {
             // Enter on a closed field opens the list (it is a picker, and there
@@ -257,11 +267,16 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
             // without also reaching a host drawer/popover's own Escape.
             if (e.key === 'Enter' && !open) { e.preventDefault(); setOpen(true); }
             else if (e.key === 'Escape' && open) { e.stopPropagation(); if (creating) cancelCreate(); setOpen(false); }
+            // Arrow navigation is engagement: from here the highlight is the
+            // user's own position in the list, not the open-time default.
+            else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') engaged.current = true;
             // Forward Tab takes the highlighted category with it (YNAB) and
             // bubbles on so a host that owns Tab (the inline editor row) can
-            // move focus; with nothing highlighted the field closes
-            // unchanged, and Shift+Tab (backing out) never commits.
-            else if (tabCommit && e.key === 'Tab' && !e.shiftKey && open && !creating && hl.current != null) pick(hl.current);
+            // move focus — but only once the user engaged (typed or arrowed):
+            // a bare tab-through skips the default first-item highlight and
+            // closes the field unchanged. Shift+Tab (backing out) never
+            // commits.
+            else if (tabCommit && e.key === 'Tab' && !e.shiftKey && open && !creating && engaged.current && hl.current != null) pick(hl.current);
           }}
           style={{ width: '100%', boxSizing: 'border-box', height: size, padding: `0 ${pad.right}px 0 ${pad.left}px`, fontSize: 13, ...(open ? { borderColor: 'var(--accent)' } : null), ...(invalid ? ringStyle : null) }}
         />
