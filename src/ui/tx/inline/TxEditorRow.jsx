@@ -59,20 +59,37 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
   // because React portals propagate through the React tree, so Tab pressed on
   // a highlighted account option or a calendar day walks the same path. The
   // cells' own commit-on-Tab handlers run first (target-outward order) and
-  // never preventDefault — that's this handler's job, so a cell that DOES
-  // preventDefault (none today) would opt out of the row move entirely.
+  // leave preventDefault to this handler — a cell that DOES preventDefault
+  // (the account cell's Shift+Tab-while-open) opts out of the row move.
   const tabWalk = tabCells({ hideAccount, hideMemo, can });
+  // Always-fresh mirror of the walk: a cell's Tab-commit can change the form
+  // — and so the walk — INSIDE the same keystroke (committing a To/From payee
+  // turns the row into a transfer, whose walk has no category cell). React
+  // flushes that update synchronously at the end of the event dispatch, so by
+  // the time the microtask below runs this ref holds the post-commit walk.
+  const tabWalkRef = useRef(tabWalk);
+  tabWalkRef.current = tabWalk;
   const onTab = key => e => {
     if (e.key !== 'Tab' || e.defaultPrevented) return;
     // The amount cells' ⌗ trigger sits before its input INSIDE the td; from
     // it, native Tab already lands on that same cell's input — jumping a
     // whole column from there would skip the field the trigger serves.
     if (e.target.closest && e.target.closest('[data-calc-trigger]')) return;
-    const next = tabTarget(tabWalk, key, e.shiftKey);
-    if (!next) return; // off either end: the browser takes over
+    if (!tabTarget(tabWalk, key, e.shiftKey)) return; // off either end: the browser takes over
+    // preventDefault only once the walk has said there IS somewhere to go —
+    // a swallowed keystroke that moves nothing is the worst failure mode.
     e.preventDefault();
-    const el = cellRefs[next] && cellRefs[next].current;
-    if (el) el.focus();
+    const backward = e.shiftKey;
+    queueMicrotask(() => {
+      // Re-derive from the post-flush walk, then take the first target that
+      // still has a mounted element: a cell can vanish between the two reads
+      // (the transfer case above unmounts the category picker), and focus
+      // sent to an unmounting node falls to <body>, stranding the keyboard.
+      const walk = tabWalkRef.current;
+      let next = tabTarget(walk, key, backward);
+      while (next && !(cellRefs[next] && cellRefs[next].current)) next = tabTarget(walk, next, backward);
+      if (next) cellRefs[next].current.focus();
+    });
   };
   // The summary sentence under the row, ordered the way the row reads.
   // drawer.errList arrives in whatever order validate.transaction happened to

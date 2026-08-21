@@ -12,10 +12,10 @@ const popupStyle = {
 };
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 
-export const Select = forwardRef(function Select({ value, onValueChange, ariaLabel, renderValue, disabled, children, triggerStyle, autoFocus, invalid, describedBy, open, onOpenChange, defaultOpen, finalFocus }, ref) {
+export const Select = forwardRef(function Select({ value, onValueChange, ariaLabel, renderValue, disabled, children, triggerStyle, autoFocus, invalid, describedBy, open, onOpenChange, finalFocus }, ref) {
   return (
     <BaseSelect.Root value={value} onValueChange={onValueChange} disabled={disabled}
-      open={open} onOpenChange={onOpenChange} defaultOpen={defaultOpen}>
+      open={open} onOpenChange={onOpenChange}>
       <BaseSelect.Trigger ref={ref} autoFocus={autoFocus} aria-label={ariaLabel}
         aria-invalid={invalid || undefined} aria-describedby={invalid ? describedBy : undefined} className="field" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,

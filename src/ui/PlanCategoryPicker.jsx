@@ -57,6 +57,14 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   amountField = 'available',
   catType = 'expense', showAmounts = true, heading = 'Plan Categories',
   allowCreate = false, onCreate, showSelected = false, footer = null,
+  // Opt-in YNAB keyboard entry for hosts that own Tab (the inline tx editor):
+  // typing auto-highlights the first match and Tab commits it. Deliberately
+  // NOT the default — autoHighlight also changes what ENTER does while typing
+  // (Base UI commits a non-null highlight instead of falling through), and
+  // several of this picker's 13 consumers sit one keystroke from a persisted
+  // write (PayeeDetail's auto-category rule, the phone money sheets' Assign),
+  // where an auto-highlighted guess must not be that easy to commit.
+  tabCommit = false,
   size = 34, invalid, errorMsg, errorId,
 }, ref) {
   const [open, setOpen] = useState(false);
@@ -113,6 +121,9 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
     reopenGuard.current = true;
     setOpen(false);
     setQ('');
+    // setOpen here bypasses onOpenChange (that only fires for Base UI-driven
+    // opens/closes), so the highlight mirror is cleared on this path too.
+    hl.current = undefined;
     setTimeout(() => { reopenGuard.current = false; }, 0);
   };
   const pick = item => {
@@ -222,7 +233,7 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
     <div style={{ position: 'relative' }}>
       <Combobox.Root
         items={pickable} value={null} onValueChange={pick} filter={null}
-        autoHighlight onItemHighlighted={v => { hl.current = v; }}
+        autoHighlight={tabCommit} onItemHighlighted={v => { hl.current = v; }}
         itemToStringLabel={labelOf} itemToStringValue={labelOf}
         open={open}
         // The query is cleared on CLOSE, never on open: Base UI also reports
@@ -246,10 +257,11 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
             // without also reaching a host drawer/popover's own Escape.
             if (e.key === 'Enter' && !open) { e.preventDefault(); setOpen(true); }
             else if (e.key === 'Escape' && open) { e.stopPropagation(); if (creating) cancelCreate(); setOpen(false); }
-            // Tab takes the highlighted category with it (YNAB) and bubbles
-            // on so a host that owns Tab (the inline editor row) can move
-            // focus; with nothing highlighted the field closes unchanged.
-            else if (e.key === 'Tab' && open && !creating && hl.current != null) pick(hl.current);
+            // Forward Tab takes the highlighted category with it (YNAB) and
+            // bubbles on so a host that owns Tab (the inline editor row) can
+            // move focus; with nothing highlighted the field closes
+            // unchanged, and Shift+Tab (backing out) never commits.
+            else if (tabCommit && e.key === 'Tab' && !e.shiftKey && open && !creating && hl.current != null) pick(hl.current);
           }}
           style={{ width: '100%', boxSizing: 'border-box', height: size, padding: `0 ${pad.right}px 0 ${pad.left}px`, fontSize: 13, ...(open ? { borderColor: 'var(--accent)' } : null), ...(invalid ? ringStyle : null) }}
         />
