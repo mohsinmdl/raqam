@@ -174,8 +174,15 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
     ? S.categories.find(c => c.id === value) : null;
 
   // Category rows indent past the group headers (which sit at the panel's left
-  // edge) so the grouping reads clearly.
-  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', border: 'none', textAlign: 'left', padding: '5px 6px 5px 18px', borderRadius: 0, cursor: 'pointer', fontSize: 13, background: 'transparent', color: 'var(--text)' };
+  // edge) so the grouping reads clearly. No background here (Combobox.Item
+  // renders a div, so there is no default chrome to suppress): an inline
+  // `background: 'transparent'` would win over EVERY external stylesheet rule
+  // regardless of selector specificity, including theme.css's own
+  // `.rq-combo-item[data-highlighted]` keyboard-highlight fill — which is
+  // exactly the bug that made arrow-key navigation invisible here (the
+  // highlighted index moved correctly; nothing ever painted). hv-elev's
+  // pointer-hover rule survives today only because it carries `!important`.
+  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', border: 'none', textAlign: 'left', padding: '5px 6px 5px 18px', borderRadius: 0, cursor: 'pointer', fontSize: 13, color: 'var(--text)' };
   const headStyle = { fontSize: 12, fontWeight: 600, padding: '4px 0 2px' };
   const noBlur = e => e.preventDefault(); // keep the field focused when clicking panel chrome
   const fieldLabel = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text)', margin: '0 0 4px' };
@@ -204,7 +211,10 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
       {selectedCat && (
         <>
           <div style={headStyle}>Selected:</div>
-          <button type="button" onMouseDown={noBlur} onClick={() => pick({ kind: 'cat', cat: selectedCat })} className="hv-elev" style={rowStyle}>
+          {/* A real <button>, unlike the Combobox.Item rows below — needs its
+              own background reset (rowStyle intentionally omits one now, see
+              its comment) or the OS's native button chrome would show. */}
+          <button type="button" onMouseDown={noBlur} onClick={() => pick({ kind: 'cat', cat: selectedCat })} className="hv-elev" style={{ ...rowStyle, background: 'transparent' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
               {/* Drawn tick (the inline editor's row marker, shared out) — ✓
                   is U+2713, which several stacks answer with an emoji check. */}
