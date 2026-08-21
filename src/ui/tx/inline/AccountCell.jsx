@@ -1,6 +1,10 @@
 // The editor row's ACCOUNT cell: a grouped Base UI select over the same
-// balance-annotated options the drawer used (useTxOpts). The picked ref lands
-// in whichever legacy field the current type reads (txEditorState 'account').
+// options the drawer used (useTxOpts), YNAB-styled — name only, no balance
+// (the closed trigger already omitted it; the open list now matches), a
+// pinned "Selected" restatement at the top when a value is chosen, and both
+// groups ordered by how often each account has actually been used (most-used
+// first) rather than creation order. The picked ref lands in whichever
+// legacy field the current type reads (txEditorState 'account').
 //
 // Keyboard entry (YNAB): autoOpen starts the list open when this cell greets
 // the keyboard (Shift+N / Add Transaction land here first on an all-accounts
@@ -13,14 +17,26 @@
 // out of a list you never chose from must not assign an account, and the
 // native backward move would otherwise start from a popup that no longer
 // exists (focus would fall to <body>).
-import { forwardRef, useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Select, SelectGroup, SelectItem } from '../../primitives/Select.jsx';
 import { useTxOpts } from '../../../drawers/TxForm.jsx';
+import { useStore } from '../../../store/StoreProvider.jsx';
+import { accountUsageCounts, byUsage } from '../../../lib/accountUsage.js';
+import { CheckIcon } from '../../icons.jsx';
 
 const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
+const noBlur = e => e.preventDefault(); // keep the trigger's own focus handling in charge, same guard PlanCategoryPicker uses for its header chrome
 
 const AccountCell = forwardRef(function AccountCell({ value, onChange, disabled, autoFocus, autoOpen, invalid, errorMsg, errorId }, ref) {
-  const { bankOpts, creditOpts } = useTxOpts();
+  const { bankOpts: rawBankOpts, creditOpts: rawCreditOpts } = useTxOpts();
+  const { data: S } = useStore();
+  // Most-used-first: a transfer counts as usage of BOTH accounts it moves
+  // money between (accountUsageCounts), so paying a card bill every month
+  // keeps both the source account and the card near the top even though
+  // neither is an "expense" in the ordinary sense.
+  const usage = useMemo(() => accountUsageCounts(S.transactions), [S.transactions]);
+  const bankOpts = useMemo(() => byUsage(rawBankOpts, usage), [rawBankOpts, usage]);
+  const creditOpts = useMemo(() => byUsage(rawCreditOpts, usage), [rawCreditOpts, usage]);
   const [open, setOpen] = useState(() => !!autoOpen && !disabled);
   const tabbedAway = useRef(false);
   // Tab-commit announcement (see PayeeCell): the value lands in a cell the
@@ -93,12 +109,30 @@ const AccountCell = forwardRef(function AccountCell({ value, onChange, disabled,
         finalFocus={() => (tabbedAway.current ? false : null)}
         invalid={invalid} describedBy={id}
         renderValue={() => picked ? nameOnly(picked.label) : 'Account'}>
+        {/* A restatement of the row below, not a separate option (same
+            contract as PlanCategoryPicker's own "Selected" — it stays OUT of
+            the real listbox, so it never doubles up the keyboard order or a
+            screen reader's option count). YNAB shows the picked account here
+            even though it also appears, still checked, in its normal group
+            further down — matching that rather than deduping keeps this
+            list's shape identical to the reference. onMouseDown/noBlur stops
+            the click from being read as a blur-then-refocus on the trigger. */}
+        {picked && (
+          <>
+            <div style={{ fontSize: 11.5, fontWeight: 700, padding: '2px 8px 4px' }}>Selected</div>
+            <button type="button" onMouseDown={noBlur} onClick={() => setOpen(false)} className="hv-elev"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', border: 'none', background: 'transparent', textAlign: 'left', padding: '5px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: 'var(--text)' }}>
+              <span aria-hidden="true" style={{ flex: 'none', display: 'inline-flex', color: 'var(--accent)' }}><CheckIcon size={10} /></span>
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nameOnly(picked.label)}</span>
+            </button>
+          </>
+        )}
         <SelectGroup label="Cash Accounts">
-          {bankOpts.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+          {bankOpts.map(o => <SelectItem key={o.id} value={o.id}>{nameOnly(o.label)}</SelectItem>)}
         </SelectGroup>
         {creditOpts.length > 0 && (
           <SelectGroup label="Credit Cards">
-            {creditOpts.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+            {creditOpts.map(o => <SelectItem key={o.id} value={o.id}>{nameOnly(o.label)}</SelectItem>)}
           </SelectGroup>
         )}
       </Select>
