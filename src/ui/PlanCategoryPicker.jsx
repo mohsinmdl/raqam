@@ -94,6 +94,10 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   // and resets when the popup closes.
   const hl = useRef(undefined);
   const engaged = useRef(false);
+  // Tab-commit announcement (tabCommit hosts only — see PayeeCell): the pick
+  // lands in a cell the focus just left, so this polite status region is how
+  // a screen reader hears which category went in.
+  const [announced, setAnnounced] = useState('');
 
   const groups = useMemo(() => sortGroups(S.categoryGroups), [S.categoryGroups]);
   const nameOf = v => (v === 'rta' ? 'Ready to Assign'
@@ -276,12 +280,16 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
             // a bare tab-through skips the default first-item highlight and
             // closes the field unchanged. Shift+Tab (backing out) never
             // commits.
-            else if (tabCommit && e.key === 'Tab' && !e.shiftKey && open && !creating && engaged.current && hl.current != null) pick(hl.current);
+            else if (tabCommit && e.key === 'Tab' && !e.shiftKey && open && !creating && engaged.current && hl.current != null) {
+              setAnnounced('Category set to ' + labelOf(hl.current));
+              pick(hl.current);
+            }
           }}
           style={{ width: '100%', boxSizing: 'border-box', height: size, padding: `0 ${pad.right}px 0 ${pad.left}px`, fontSize: 13, ...(open ? { borderColor: 'var(--accent)' } : null), ...(invalid ? ringStyle : null) }}
         />
         <span aria-hidden="true" style={{ position: 'absolute', right: pad.left, top: size / 2, transform: 'translateY(-50%)', color: 'var(--muted)', display: 'inline-flex', pointerEvents: 'none' }}><Chevron /></span>
         {invalid && <span id={errId} role="alert" style={srOnly}>{errorMsg}</span>}
+        {tabCommit && <span role="status" style={srOnly}>{announced}</span>}
         <ComboboxPanel
           style={{ minWidth: 240, padding: '10px 12px' }}
           header={creating ? null : header}

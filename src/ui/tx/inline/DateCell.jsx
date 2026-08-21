@@ -17,6 +17,10 @@ import { Chevron } from '../../icons.jsx';
 
 const WD = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MFULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// A day button's visible label is a bare number; a screen reader needs the
+// whole date ("21 August 2026") or the grid reads as arbitrary integers.
+const dayName = iso => `${+iso.slice(8)} ${MFULL[+iso.slice(5, 7) - 1]} ${iso.slice(0, 4)}`;
 const dmy = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? ymd.slice(8) + '/' + ymd.slice(5, 7) + '/' + ymd.slice(0, 4) : '');
 const chip = on => ({ height: 24, padding: '0 8px', borderRadius: 6, cursor: 'pointer', fontSize: 11.5, fontWeight: 600, border: '1px solid ' + (on ? 'var(--accent)' : 'var(--border)'), background: on ? 'var(--soft)' : 'var(--surface)', color: on ? 'var(--accent)' : 'var(--text)' });
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
@@ -66,6 +70,11 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
         <input
           ref={ref} className="field tnum" inputMode="numeric" disabled={disabled}
           aria-label="Date" placeholder="dd/mm/yyyy"
+          // The calendar is this field's popup, so the field must SAY so:
+          // haspopup/expanded/controls make the relationship (and its state)
+          // audible, and aria-keyshortcuts names the chord that enters it.
+          aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? CAL_ID : undefined}
+          aria-keyshortcuts="Alt+ArrowDown"
           aria-invalid={showInvalid || undefined} aria-describedby={showInvalid ? id : undefined}
           value={shown}
           onFocus={() => { fromField.current = true; setOpen(true); }}
@@ -186,6 +195,7 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
         <div data-day-grid="" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginTop: 2 }}>
           {cells.map(c => (
             <button key={c.iso} type="button" onClick={() => setFromCalendar(c.iso)}
+              aria-label={dayName(c.iso)}
               aria-current={c.sel ? 'date' : undefined}
               style={{ height: 28, borderRadius: 6, cursor: 'pointer', fontSize: 12,
                 border: '1px solid ' + (c.today && !c.sel ? 'var(--accent)' : 'transparent'),

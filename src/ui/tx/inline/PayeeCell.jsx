@@ -56,6 +56,12 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
   // The flag skips exactly that one blur; free text with no highlight still
   // commits through blur as before.
   const pickedOnTab = useRef(false);
+  // A Tab-commit writes into the field being LEFT, so a screen reader only
+  // hears the next cell's label — this polite status region says what landed
+  // ("Payee set to Grill House"). Rendered empty from the start so the live
+  // region exists before its first message (a region born with content is
+  // not reliably announced).
+  const [announced, setAnnounced] = useState('');
   const id = errorId || 'txeditor-err-payee';
   // Nothing in the list at all — a brand-new merchant, or an empty ledger.
   const noMatches = sections.every(s => s.items.length === 0);
@@ -98,13 +104,18 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
             // (No `open` in this guard, unlike PlanCategoryPicker's: this
             // Root is uncontrolled, and the hl mirror — cleared on close —
             // is the open-list signal.)
-            else if (e.key === 'Tab' && !e.shiftKey && hl.current != null) { pick(hl.current); pickedOnTab.current = true; }
+            else if (e.key === 'Tab' && !e.shiftKey && hl.current != null) {
+              setAnnounced('Payee set to ' + itemLabel(hl.current));
+              pick(hl.current);
+              pickedOnTab.current = true;
+            }
           }}
           style={{ width: '100%', height: 28, padding: '0 22px 0 8px', fontSize: 13, ...(invalid ? ringStyle : null) }}
         />
         <span aria-hidden="true" style={{ position: 'absolute', right: 8, top: 14, transform: 'translateY(-50%)', color: 'var(--muted)', display: 'inline-flex', pointerEvents: 'none' }}><Chevron /></span>
       </span>
       {invalid && <span id={id} role="alert" style={srOnly}>{errorMsg}</span>}
+      <span role="status" style={srOnly}>{announced}</span>
       <ComboboxPanel footer={phone ? null : (
         <button type="button" onMouseDown={e => e.preventDefault()} onClick={openPayees} className="hv-soft"
           style={{ width: '100%', border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: '8px 2px 2px', textAlign: 'left' }}>

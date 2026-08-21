@@ -140,7 +140,11 @@ textarea:focus {
 /* Base UI marks the keyboard-highlighted combobox option with data-highlighted.
    Without this the arrow keys moved an invisible cursor: hv-elev only answers
    the pointer. --soft is the same fill the picker's hand-rolled highlight used. */
-.rq-combo-item[data-highlighted] { background: var(--soft); }
+.rq-combo-item[data-highlighted],
+/* The Select primitive's options carry the same highlight state (there via
+   real roving focus rather than aria-activedescendant); one rule keeps the
+   "you are here" fill identical across both list kinds in the editor row. */
+.rq-select-item[data-highlighted] { background: var(--soft); }
 .hv-soft:hover { background: var(--soft) !important; }
 .hv-accent:hover { background: var(--accent-h) !important; }
 .hv-neg-soft:hover { background: var(--neg-soft) !important; }
