@@ -47,7 +47,7 @@ export default function PayeeTxList({ names, open, onClose }) {
           </table>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 18px', borderTop: '1px solid var(--border)', flex: 'none' }}>
-          <button type="button" onClick={onClose} className="hv-accent" style={{ height: 32, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Close</button>
+          <button type="button" onClick={onClose} className="hv-accent rq-btn-solid" style={{ height: 32, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Close</button>
         </div>
       </ModalPanel>
     </Modal>

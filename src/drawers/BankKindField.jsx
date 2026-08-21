@@ -83,7 +83,7 @@ export default function BankKindField() {
       {refs.total === 0 && (
         <button
           onClick={askRemove}
-          className="hv-neg-soft"
+          className="hv-neg-soft rq-btn-outline"
           style={{ marginTop: 10, height: 30, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--neg)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}
         >
           Remove this bank

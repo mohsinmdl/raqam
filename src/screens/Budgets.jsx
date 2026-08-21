@@ -137,7 +137,7 @@ export default function Budgets() {
             role="switch"
             aria-checked={String(inc)}
             title="Includes advances and other expenses marked as excluded from budgets."
-            className="hv-elev"
+            className="hv-elev rq-btn-outline"
             style={{ display: 'flex', alignItems: 'center', gap: 8, height: 34, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}
           >
             <span aria-hidden="true" style={{ width: 34, height: 20, padding: 2, boxSizing: 'border-box', borderRadius: 999, background: inc ? 'var(--accent)' : 'var(--track)', border: `1px solid ${inc ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: inc ? 'flex-end' : 'flex-start', flex: 'none' }}>
@@ -145,7 +145,7 @@ export default function Budgets() {
             </span>
             Include recoverable spending
           </button>
-          <button onClick={() => openers.addBudget(openDrawer)} className="hv-accent" style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>＋ Add budget</button>
+          <button onClick={() => openers.addBudget(openDrawer)} className="hv-accent rq-btn-solid" style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>＋ Add budget</button>
         </div>
 
         {ov && (
@@ -159,7 +159,7 @@ export default function Budgets() {
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: ov.stateBg, color: ov.stateFg }}>{ov.stateLabel}</span>
                 </div>
               </div>
-              <button onClick={() => openers.editOverallBudget(S, openDrawer)} className="hv-elev" style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Edit</button>
+              <button onClick={() => openers.editOverallBudget(S, openDrawer)} className="hv-elev rq-btn-outline" style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Edit</button>
             </div>
             <div style={{ height: 10, background: 'var(--track)', borderRadius: 5, overflow: 'hidden', marginTop: 14 }}>
               <div style={{ width: ov.w, height: '100%', background: ov.barColor }} />
@@ -181,7 +181,7 @@ export default function Budgets() {
               <div style={{ fontSize: 14, fontWeight: 600 }}>No overall monthly budget</div>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 3 }}>One ceiling for everything you spend in a month, card purchases included. Category budgets sit inside it.</div>
             </div>
-            <button onClick={() => openers.editOverallBudget(S, openDrawer)} className="hv-soft" style={{ height: 34, padding: '0 15px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>Set overall budget</button>
+            <button onClick={() => openers.editOverallBudget(S, openDrawer)} className="hv-soft rq-btn-outline" style={{ height: 34, padding: '0 15px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>Set overall budget</button>
           </section>
         )}
 
@@ -271,7 +271,7 @@ export default function Budgets() {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
               {un.slice(0, 8).map(u => (
-                <button key={u.id} onClick={() => openers.budgetForCat(u.id, openDrawer)} className="hv-soft" style={{ display: 'flex', alignItems: 'center', gap: 8, height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 999, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, cursor: 'pointer' }}>
+                <button key={u.id} onClick={() => openers.budgetForCat(u.id, openDrawer)} className="hv-soft rq-btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 8, height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 999, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, cursor: 'pointer' }}>
                   <span style={{ fontWeight: 600 }}>{u.name}</span>
                   <span className="tnum" style={{ color: 'var(--muted)' }}>{money(u.amt)}</span>
                   <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Set budget</span>
@@ -287,7 +287,7 @@ export default function Budgets() {
             <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6, maxWidth: '48ch', marginLeft: 'auto', marginRight: 'auto' }}>
               Set a monthly amount for a category and every expense in it counts against that amount, on this screen and on your dashboard.
             </div>
-            <button onClick={() => openers.addBudget(openDrawer)} className="hv-accent" style={{ marginTop: 14, height: 36, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>＋ Add your first budget</button>
+            <button onClick={() => openers.addBudget(openDrawer)} className="hv-accent rq-btn-solid" style={{ marginTop: 14, height: 36, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>＋ Add your first budget</button>
           </section>
         )}
       </div>

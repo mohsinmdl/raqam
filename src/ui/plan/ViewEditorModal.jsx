@@ -67,7 +67,7 @@ export default function ViewEditorModal({ open, view, groups, onSave, onCancel }
         <div role="dialog" aria-modal="true" aria-label={view ? 'Edit View' : 'New Custom View'} onClick={e => e.stopPropagation()} style={{ width: 480, maxWidth: '94vw', maxHeight: '84vh', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow)', padding: '22px 26px', animation: 'hsUp .18s ease', color: 'var(--text)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14 }}>
             <div style={{ fontSize: 18, fontWeight: 700 }}>{view ? 'Edit View' : 'New Custom View'}</div>
-            <button onClick={onCancel} aria-label="Close" className="hv-soft" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+            <button onClick={onCancel} aria-label="Close" className="hv-soft rq-btn-outline" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
           </div>
 
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
@@ -115,9 +115,9 @@ export default function ViewEditorModal({ open, view, groups, onSave, onCancel }
           })}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
-            <button onClick={onCancel} className="hv-elev" style={{ height: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={onCancel} className="hv-elev rq-btn-outline" style={{ height: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
             <button
-              onClick={save} disabled={!canSave} className="hv-accent"
+              onClick={save} disabled={!canSave} className="hv-accent rq-btn-solid"
               style={{ height: 36, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: canSave ? 'pointer' : 'not-allowed', opacity: canSave ? 1 : .5 }}
             >Save</button>
           </div>

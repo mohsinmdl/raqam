@@ -184,8 +184,8 @@ export default function Dashboard() {
               <div style={{ fontWeight: 600, fontSize: 14 }}>{v.snapBannerTitle}</div>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>Confirming locks in your starting position, so “change this month” stays trustworthy.</div>
             </div>
-            <button onClick={() => openers.snapshot(S, openDrawer)} className="hv-accent" style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>Review now</button>
-            <button onClick={() => setSnapDismissed(true)} style={{ height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--muted)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Later</button>
+            <button onClick={() => openers.snapshot(S, openDrawer)} className="hv-accent rq-btn-solid" style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>Review now</button>
+            <button onClick={() => setSnapDismissed(true)} className="rq-btn-outline" style={{ height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--muted)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Later</button>
           </div>
         )}
 
@@ -314,7 +314,7 @@ export default function Dashboard() {
                           <span style={{ display: 'block', fontSize: 11.5, color: u.whenColor }}>{u.when}</span>
                         </span>
                         <span className="tnum" style={{ fontSize: 13, fontWeight: 600 }}>{u.amt}</span>
-                        <button onClick={() => { if (!phone) nav('/transactions'); openers.recordRule(S, u.id, openDrawer); }} title="Review details and record this transaction" className="hv-soft" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>Record</button>
+                        <button onClick={() => { if (!phone) nav('/transactions'); openers.recordRule(S, u.id, openDrawer); }} title="Review details and record this transaction" className="hv-soft rq-btn-outline" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>Record</button>
                       </div>
                     ))}
                   </div>
@@ -396,7 +396,7 @@ export default function Dashboard() {
                   <div className="tnum tx-cell-amt" style={{ fontSize: 13.5, fontWeight: 600, textAlign: 'right', color: t.amtColor }}>{t.amtLabel}</div>
                   <div className="tx-cell-edit" style={{ textAlign: 'right' }}>
                     {t.canEdit && (
-                      <button onClick={() => { if (!phone) nav('/transactions'); openers.editTx(S, t.id, openDrawer); }} aria-label="Edit this transaction" className="hv-soft" style={{ height: 24, padding: '0 9px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
+                      <button onClick={() => { if (!phone) nav('/transactions'); openers.editTx(S, t.id, openDrawer); }} aria-label="Edit this transaction" className="hv-soft rq-btn-outline" style={{ height: 24, padding: '0 9px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
                     )}
                   </div>
                 </div>
@@ -436,7 +436,7 @@ export default function Dashboard() {
           <button
             onClick={appLockToggle.onToggleLock}
             aria-pressed={String(appLockToggle.appLock.enabled)}
-            className="hv-elev dash-applock"
+            className="hv-elev dash-applock rq-btn-outline"
             style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 44, padding: '11px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}
           >
             <span aria-hidden="true" style={{ fontSize: 15, flex: 'none' }}>⚿</span>
@@ -450,7 +450,7 @@ export default function Dashboard() {
         {phone && (
           <button
             onClick={() => signOut()}
-            className="hv-elev dash-signout"
+            className="hv-elev dash-signout rq-btn-outline"
             style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 44, padding: '11px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}
           >
             <span aria-hidden="true" style={{ fontSize: 15, flex: 'none' }}>⇥</span>

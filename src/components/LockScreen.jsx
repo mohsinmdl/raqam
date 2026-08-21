@@ -50,10 +50,10 @@ export default function LockScreen({ credId, onUnlock, onSignOut, signingOut = f
       <div role="status" style={{ fontSize: 13, color: 'var(--muted)', minHeight: 18 }}>
         {signingOut ? 'Signing out…' : busy ? 'Waiting for biometrics…' : failed ? 'Not verified. Try again.' : 'Unlock to continue.'}
       </div>
-      <button onClick={attempt} disabled={frozen} className="hv-accent" style={{ height: 44, padding: '0 22px', border: 'none', borderRadius: 10, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 14, fontWeight: 600, cursor: frozen ? 'default' : 'pointer', opacity: frozen ? .6 : 1 }}>
+      <button onClick={attempt} disabled={frozen} className="hv-accent rq-btn-solid" style={{ height: 44, padding: '0 22px', border: 'none', borderRadius: 10, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 14, fontWeight: 600, cursor: frozen ? 'default' : 'pointer', opacity: frozen ? .6 : 1 }}>
         Unlock
       </button>
-      <button onClick={onSignOut} disabled={frozen} className="hv-elev" style={{ height: 40, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: frozen ? 'default' : 'pointer', opacity: frozen ? .6 : 1 }}>
+      <button onClick={onSignOut} disabled={frozen} className="hv-elev rq-btn-outline" style={{ height: 40, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: frozen ? 'default' : 'pointer', opacity: frozen ? .6 : 1 }}>
         {signingOut ? 'Signing out…' : 'Sign out'}
       </button>
     </div>

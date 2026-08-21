@@ -67,7 +67,7 @@ function CoverSheetBody({ sheet, onClose, env, S, month, money, applyData }) {
       <div className="tnum" style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>{money(amount)}</div>
       <PlanCategoryPicker env={env} S={S} month={month} money={money} excludeId={sheet.cat.id} value={from} onChange={setFrom} />
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-        <button onClick={confirm} disabled={!from} className="hv-accent" style={okBtn(!!from)}>OK</button>
+        <button onClick={confirm} disabled={!from} className="hv-accent rq-btn-solid" style={okBtn(!!from)}>OK</button>
       </div>
     </>
   );
@@ -107,7 +107,7 @@ function MoveSheetBody({ sheet, onClose, env, S, month, money, applyData }) {
       <span style={label}>To</span>
       <PlanCategoryPicker env={env} S={S} month={month} money={money} excludeId={sheet.cat.id} value={to} onChange={setTo} />
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-        <button onClick={confirm} disabled={!canMove} className="hv-accent" style={okBtn(canMove)}>OK</button>
+        <button onClick={confirm} disabled={!canMove} className="hv-accent rq-btn-solid" style={okBtn(canMove)}>OK</button>
       </div>
     </>
   );
@@ -157,7 +157,7 @@ function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, apply
       <span style={label}>To</span>
       <PlanCategoryPicker env={env} S={S} month={month} money={money} excludeRta value={to} onChange={setTo} />
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-        <button onClick={confirm} disabled={!canAssign} className="hv-accent" style={okBtn(canAssign)}>Assign</button>
+        <button onClick={confirm} disabled={!canAssign} className="hv-accent rq-btn-solid" style={okBtn(canAssign)}>Assign</button>
       </div>
     </>
   );
@@ -174,7 +174,7 @@ function OverspentSheetBody({ sheet, env, S, money }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {overspent.map(({ cat, row }) => (
         <button
-          key={cat.id} onClick={() => sheet.onPick(cat, row)} className="hv-soft"
+          key={cat.id} onClick={() => sheet.onPick(cat, row)} className="hv-soft rq-btn-outline"
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
             width: '100%', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px',
             background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}

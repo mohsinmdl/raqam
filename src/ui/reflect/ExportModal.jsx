@@ -43,8 +43,8 @@ function Content({ dontShowAgain, setDontShowAgain, onCancel, onExport, headerEx
           Don't show again
         </div>
         <span style={{ flex: 1 }} />
-        <button type="button" onClick={onCancel} className="hv-soft" style={softPillStyle}>Cancel</button>
-        <button type="button" onClick={() => onExport(dontShowAgain)} className="hv-accent" style={accentPillStyle}>Export</button>
+        <button type="button" onClick={onCancel} className="hv-soft rq-btn-outline" style={softPillStyle}>Cancel</button>
+        <button type="button" onClick={() => onExport(dontShowAgain)} className="hv-accent rq-btn-solid" style={accentPillStyle}>Export</button>
       </div>
     </>
   );

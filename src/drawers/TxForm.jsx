@@ -288,7 +288,7 @@ function Body() {
       <div>
         <button
           type="button" onClick={() => setShowMore(v => !v)}
-          className="hv-soft"
+          className="hv-soft rq-btn-outline"
           aria-expanded={showMore} aria-controls="tx-more-region"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 10px', border: '1px dashed var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
         >

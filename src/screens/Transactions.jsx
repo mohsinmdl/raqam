@@ -1091,7 +1091,7 @@ export default function Transactions() {
               ) : (
                 <>
                   {acct && (
-                    <button onClick={() => openers.editAccount(S, acct.id, openDrawer)} className="hv-soft"
+                    <button onClick={() => openers.editAccount(S, acct.id, openDrawer)} className="hv-soft rq-btn-outline"
                       style={{ minHeight: 44, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 999,
                         background: 'var(--elev)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                       Edit
@@ -1100,7 +1100,7 @@ export default function Transactions() {
                   {/* Entering Select mode hides the search row, so a live query
                       would keep filtering invisibly — clear it (and collapse
                       the row) so selection always operates on the full list. */}
-                  <button onClick={() => { setF('q', ''); setPhoneQOpen(false); setPhoneSelect(true); }} className="hv-soft"
+                  <button onClick={() => { setF('q', ''); setPhoneQOpen(false); setPhoneSelect(true); }} className="hv-soft rq-btn-outline"
                     style={{ minHeight: 44, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 999, background: 'var(--elev)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                     Select
                   </button>
@@ -1122,7 +1122,7 @@ export default function Transactions() {
             {!phoneSelect && (needsCat.size > 0 || unclearedIds.size > 0) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '6px 16px 12px' }}>
                 {needsCat.size > 0 && (
-                  <button onClick={() => setListFilter(f => (f === 'needsCat' ? 'all' : 'needsCat'))} aria-pressed={listFilter === 'needsCat'} className="hv-elev"
+                  <button onClick={() => setListFilter(f => (f === 'needsCat' ? 'all' : 'needsCat'))} aria-pressed={listFilter === 'needsCat'} className="hv-elev rq-btn-outline"
                     style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--elev)', color: 'var(--text)', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
                     <span style={{ flex: 'none', minWidth: 22, height: 22, borderRadius: 999, background: 'var(--warn-soft)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{needsCat.size}</span>
                     <span style={{ flex: 1, fontSize: 13.5 }}>{'To categorize'}</span>
@@ -1130,7 +1130,7 @@ export default function Transactions() {
                   </button>
                 )}
                 {unclearedIds.size > 0 && (
-                  <button onClick={() => setListFilter(f => (f === 'uncleared' ? 'all' : 'uncleared'))} aria-pressed={listFilter === 'uncleared'} className="hv-elev"
+                  <button onClick={() => setListFilter(f => (f === 'uncleared' ? 'all' : 'uncleared'))} aria-pressed={listFilter === 'uncleared'} className="hv-elev rq-btn-outline"
                     style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--elev)', color: 'var(--text)', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
                     <span style={{ flex: 1, fontSize: 13.5 }}>{(listFilter === 'uncleared' ? 'Showing ' : 'Show ') + unclearedIds.size + ' uncleared transaction' + (unclearedIds.size === 1 ? '' : 's')}</span>
                     <span aria-hidden="true" style={{ color: 'var(--muted)' }}>{listFilter === 'uncleared' ? '✕' : '›'}</span>
@@ -1155,7 +1155,7 @@ export default function Transactions() {
             <button
               onClick={() => { clearSel(); setListFilter(f => (f === 'needsCat' ? 'all' : 'needsCat')); }}
               aria-pressed={listFilter === 'needsCat'}
-              className="hv-accent"
+              className="hv-accent rq-btn-solid"
               style={{ height: 30, padding: '0 16px', border: 'none', borderRadius: 999,
                 background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}
             >{listFilter === 'needsCat' ? 'Show all' : 'View'}</button>
@@ -1209,7 +1209,7 @@ export default function Transactions() {
             aria-pressed={wide}
             aria-label={wide ? 'Fit table to page width' : 'Expand table to full width'}
             title={wide ? 'Fit width' : 'Full width'}
-            className="hv-soft"
+            className="hv-soft rq-btn-outline"
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 7, background: wide ? 'var(--elev)' : 'transparent', color: wide ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', flex: 'none' }}
           >
             <WideIcon />
@@ -1382,14 +1382,14 @@ export default function Transactions() {
             <div style={{ padding: '44px 20px', textAlign: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>No matches for your search</div>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>Try different words, or step to another month with the arrows in the header.</div>
-              <button onClick={reset} className="hv-soft" style={{ marginTop: 12, height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Reset view</button>
+              <button onClick={reset} className="hv-soft rq-btn-outline" style={{ marginTop: 12, height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Reset view</button>
             </div>
           )}
           {monthTx.length === 0 && scheduled.length === 0 && !inlineTx && (
             <div style={{ padding: '44px 20px', textAlign: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{range.from || range.to ? 'Nothing recorded in ' + rangeLabel(range.from, range.to) : 'Nothing recorded yet'}</div>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4, maxWidth: '44ch', marginLeft: 'auto', marginRight: 'auto' }}>Transactions you add appear here with search and filters. Recording as you spend keeps your dashboard honest.</div>
-              <button onClick={() => openers.addTx(openDrawer, 'expense', accountId ? { payWith: 'acc:' + accountId } : {})} disabled={addDisabled} className="hv-accent" style={{ marginTop: 12, height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: addDisabled ? 'default' : 'pointer', opacity: addDisabled ? .45 : 1 }}>＋ Add transaction</button>
+              <button onClick={() => openers.addTx(openDrawer, 'expense', accountId ? { payWith: 'acc:' + accountId } : {})} disabled={addDisabled} className="hv-accent rq-btn-solid" style={{ marginTop: 12, height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: addDisabled ? 'default' : 'pointer', opacity: addDisabled ? .45 : 1 }}>＋ Add transaction</button>
             </div>
           )}
         </section>
@@ -1423,16 +1423,16 @@ export default function Transactions() {
               bottom: 'var(--phone-nav-clearance)', zIndex: 39,
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
             }}>
-              <button onClick={() => setPickerOpen(true)} disabled={sel.length === 0} className="hv-soft"
+              <button onClick={() => setPickerOpen(true)} disabled={sel.length === 0} className="hv-soft rq-btn-outline"
                 style={{ minHeight: 48, padding: '0 18px', border: '1px solid var(--border)', borderRadius: 999, background: 'var(--surface)', color: sel.length === 0 ? 'var(--muted)' : 'var(--text)', fontSize: 14, fontWeight: 600, cursor: sel.length === 0 ? 'default' : 'pointer', boxShadow: 'var(--shadow)' }}>
                 Categorize
               </button>
-              <button onClick={bulkToggleCleared} disabled={sel.length === 0} aria-label="Toggle cleared" className="hv-soft"
+              <button onClick={bulkToggleCleared} disabled={sel.length === 0} aria-label="Toggle cleared" className="hv-soft rq-btn-outline"
                 style={{ width: 48, height: 48, border: '1px solid var(--border)', borderRadius: 999, background: 'var(--surface)', color: sel.length === 0 ? 'var(--muted)' : 'var(--text)', fontSize: 15, fontWeight: 700, cursor: sel.length === 0 ? 'default' : 'pointer', boxShadow: 'var(--shadow)' }}>
                 ⓒ
               </button>
               <div style={{ position: 'relative' }}>
-                <button onClick={() => setPhoneMoreOpen(o => !o)} disabled={sel.length === 0 && schedSel.size === 0} aria-label="More actions" aria-expanded={phoneMoreOpen} className="hv-soft"
+                <button onClick={() => setPhoneMoreOpen(o => !o)} disabled={sel.length === 0 && schedSel.size === 0} aria-label="More actions" aria-expanded={phoneMoreOpen} className="hv-soft rq-btn-outline"
                   style={{ width: 48, height: 48, border: '1px solid var(--border)', borderRadius: 999, background: 'var(--surface)', color: (sel.length === 0 && schedSel.size === 0) ? 'var(--muted)' : 'var(--text)', fontSize: 18, cursor: 'pointer', boxShadow: 'var(--shadow)' }}>
                   ⋯
                 </button>

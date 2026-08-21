@@ -85,7 +85,7 @@ export default function EditNamePopover({
             {onHide && <button onClick={() => { setOpen(false); onHide(); }} className="hv-soft" style={{ ...softBtn, background: 'var(--soft)', color: 'var(--accent)' }}>Hide</button>}
             {onDelete && <button onClick={() => { setOpen(false); onDelete(); }} className="hv-soft" style={{ ...softBtn, background: 'var(--neg-soft)', color: 'var(--neg)' }}>Delete</button>}
             <button onClick={() => setOpen(false)} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '7px 4px' }}>Cancel</button>
-            <button onClick={doRename} disabled={!canSave}
+            <button onClick={doRename} disabled={!canSave} className="rq-btn-solid"
               style={{ padding: '7px 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 700, cursor: canSave ? 'pointer' : 'default', opacity: canSave ? 1 : .5 }}>OK</button>
           </div>
         </div>,

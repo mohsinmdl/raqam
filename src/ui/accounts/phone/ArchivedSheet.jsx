@@ -43,9 +43,9 @@ export default function ArchivedSheet({ open, onClose, rows }) {
                   <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{r.instLabel} · {r.statusLabel} · excluded from totals</span>
                 </span>
                 {pol.mode === 'delete'
-                  ? <button onClick={() => askDelete(r.acct)} className="hv-neg-soft" style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--neg)', font: 'inherit', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Delete</button>
+                  ? <button onClick={() => askDelete(r.acct)} className="hv-neg-soft rq-btn-outline" style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--neg)', font: 'inherit', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Delete</button>
                   : <span style={{ fontSize: 11.5, color: 'var(--muted)', flex: 'none' }} title={'Kept because of ' + pol.blockers.join(', ')}>Kept</span>}
-                <button onClick={() => restore(r.acct.id)} className="hv-elev" style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', font: 'inherit', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Restore</button>
+                <button onClick={() => restore(r.acct.id)} className="hv-elev rq-btn-outline" style={{ minHeight: 36, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', font: 'inherit', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Restore</button>
               </div>
             );
           })}

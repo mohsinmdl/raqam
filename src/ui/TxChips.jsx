@@ -48,7 +48,7 @@ export function NeedsCategoryPill({ fontSize = 12, onClick, tone = 'warn' }) {
       onClick={e => { e.stopPropagation(); onClick(e); }}
       title={title}
       aria-label={accent ? 'Categorize this transaction' : 'This needs a category — assign one now'}
-      className={accent ? 'hv-elev' : 'hv-soft'}
+      className={(accent ? 'hv-elev' : 'hv-soft') + ' rq-btn-outline'}
       style={{ ...look, cursor: 'pointer', font: 'inherit' }}
     >
       {label}

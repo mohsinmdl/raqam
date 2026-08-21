@@ -164,7 +164,7 @@ function TargetCard({ cat, row, money, applyData }) {
           <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
             <button aria-pressed="true" style={{ flex: 1, padding: '5px 0', border: '1px solid var(--accent)', borderRadius: 6, background: 'var(--soft)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'default' }}>Monthly</button>
             {DISABLED_CADENCES.map(c => (
-              <button key={c} disabled title="Coming later" style={{ flex: 1, padding: '5px 0', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--elev)', color: 'var(--muted)', fontSize: 12, cursor: 'not-allowed' }}>{c}</button>
+              <button key={c} disabled title="Coming later" className="rq-btn-outline" style={{ flex: 1, padding: '5px 0', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--elev)', color: 'var(--muted)', fontSize: 12, cursor: 'not-allowed' }}>{c}</button>
             ))}
           </div>
           <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>I need</label>
@@ -188,7 +188,7 @@ function TargetCard({ cat, row, money, applyData }) {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {has && <button onClick={remove} style={{ marginRight: 'auto', border: 'none', background: 'transparent', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>}
             <button onClick={() => setEditing(false)} style={{ border: 'none', background: 'transparent', color: 'var(--muted)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-            <button onClick={commit} disabled={!(parseAmt(String(amt)) > 0)}
+            <button onClick={commit} disabled={!(parseAmt(String(amt)) > 0)} className="rq-btn-solid"
               style={{ padding: '6px 12px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: parseAmt(String(amt)) > 0 ? 1 : .5 }}>Save Target</button>
           </div>
         </div>

@@ -49,8 +49,8 @@ export default function ConfirmDialog({ confirm, onCancel }) {
           <div style={{ fontSize: 16, fontWeight: 700 }}>{confirm.title}</div>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8, lineHeight: 1.55 }}>{confirm.body}</div>
           <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
-            <button onClick={onCancel} className="hv-elev" style={{ height: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
-            <button onClick={confirm.onConfirm} style={{ height: 36, padding: '0 16px', border: 'none', borderRadius: 8, background: confirm.tone === 'accent' ? 'var(--accent)' : 'var(--neg)', color: confirm.tone === 'accent' ? 'var(--on-accent)' : 'var(--on-neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{confirm.action}</button>
+            <button onClick={onCancel} className="hv-elev rq-btn-outline" style={{ height: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={confirm.onConfirm} className={confirm.tone === 'accent' ? 'rq-btn-solid' : undefined} style={{ height: 36, padding: '0 16px', border: 'none', borderRadius: 8, background: confirm.tone === 'accent' ? 'var(--accent)' : 'var(--neg)', color: confirm.tone === 'accent' ? 'var(--on-accent)' : 'var(--on-neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{confirm.action}</button>
           </div>
         </div>
       </FocusTrap>

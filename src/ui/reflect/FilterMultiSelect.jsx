@@ -150,8 +150,8 @@ export default function FilterMultiSelect({ pillLabel, searchPlaceholder, sectio
       <span aria-hidden="true" style={{ color: 'var(--border)', fontSize: 12.5 }}>·</span>
       <button type="button" onClick={selectNone} style={textBtnStyle}>Select None</button>
       <span style={{ flex: 1 }} />
-      <button type="button" onClick={cancel} className="hv-soft" style={softPillStyle}>Cancel</button>
-      <button type="button" onClick={done} className="hv-accent" style={accentPillStyle}>Done</button>
+      <button type="button" onClick={cancel} className="hv-soft rq-btn-outline" style={softPillStyle}>Cancel</button>
+      <button type="button" onClick={done} className="hv-accent rq-btn-solid" style={accentPillStyle}>Done</button>
     </div>
   );
 

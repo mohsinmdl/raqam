@@ -304,7 +304,7 @@ export default function TxSheet({ def, state, requestClose }) {
                 notes/status values themselves live in the form (f.notes /
                 f.pending), so nothing entered is lost. */}
             <div style={{ marginTop: 12 }}>
-              <button onClick={() => { commitKp(); setShowMore(v => !v); }} className="hv-elev"
+              <button onClick={() => { commitKp(); setShowMore(v => !v); }} className="hv-elev rq-btn-outline"
                 aria-expanded={showMore} aria-controls="tx-more-region"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', height: 44,
                   border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', color: 'var(--muted)',
@@ -355,7 +355,7 @@ export default function TxSheet({ def, state, requestClose }) {
             {kp != null
               ? <Keypad onKey={onKey} onDone={commitKp} />
               : (
-                <button onClick={submit} className="hv-accent"
+                <button onClick={submit} className="hv-accent rq-btn-solid"
                   style={{ width: '100%', height: 48, border: 'none', borderRadius: 999, background: 'var(--accent)',
                     color: 'var(--on-accent)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
                   {def.cta(state)}

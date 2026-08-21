@@ -28,7 +28,7 @@ export default function ExplainDialog({ open, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <div style={{ fontSize: 17, fontWeight: 700 }}>How these numbers are calculated</div>
             <span style={{ flex: 1 }} />
-            <button onClick={onClose} aria-label="Close" className="hv-elev" style={{ width: 30, height: 30, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 15, cursor: 'pointer' }}>×</button>
+            <button onClick={onClose} aria-label="Close" className="hv-elev rq-btn-outline" style={{ width: 30, height: 30, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 15, cursor: 'pointer' }}>×</button>
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>All figures come from data you entered manually. Nothing is bank-verified.</div>
           <div style={{ display: 'flex', flexDirection: 'column', marginTop: 14 }}>

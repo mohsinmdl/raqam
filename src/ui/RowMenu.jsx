@@ -33,7 +33,7 @@ export default function RowMenu({ open, onToggle, onClose, label, items, trigger
         aria-haspopup="menu"
         aria-expanded={String(!!open)}
         aria-label={label}
-        className="hv-elev"
+        className="hv-elev rq-btn-outline"
         style={{ width: triggerSize, height: triggerSize, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 15, cursor: 'pointer', lineHeight: 1 }}
       >
         ⋯

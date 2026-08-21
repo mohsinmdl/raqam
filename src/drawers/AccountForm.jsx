@@ -110,7 +110,7 @@ function Body() {
       {editing && (
         <div style={{ marginTop: 8, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <span style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>Removes it from your totals and the sidebar. History is kept — you can restore it later from Accounts.</span>
-          <button type="button" onClick={() => runClose(f.editId)} className="hv-neg-soft"
+          <button type="button" onClick={() => runClose(f.editId)} className="hv-neg-soft rq-btn-outline"
             style={{ flex: 'none', height: 36, padding: '0 14px', border: '1px solid var(--neg)', borderRadius: 8, background: 'var(--surface)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             Close account
           </button>

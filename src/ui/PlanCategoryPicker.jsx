@@ -248,7 +248,7 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
       )}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 2 }}>
         <button type="button" onClick={cancelCreate} className="hv-soft" style={{ border: 'none', background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '7px 10px', borderRadius: 8 }}>Cancel</button>
-        <button type="button" onClick={saveCreate} disabled={!newName.trim()} className="hv-accent" style={{ border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 700, cursor: newName.trim() ? 'pointer' : 'default', opacity: newName.trim() ? 1 : .5, padding: '7px 16px' }}>Save</button>
+        <button type="button" onClick={saveCreate} disabled={!newName.trim()} className="hv-accent rq-btn-solid" style={{ border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 700, cursor: newName.trim() ? 'pointer' : 'default', opacity: newName.trim() ? 1 : .5, padding: '7px 16px' }}>Save</button>
       </div>
     </div>
   );

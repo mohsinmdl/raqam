@@ -298,14 +298,14 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
               </span>
             )}
             <div style={{ position: 'sticky', right: 0, display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }}>
-              <button type="button" onClick={requestClose} className="hv-elev" style={btn(false)}>Cancel</button>
+              <button type="button" onClick={requestClose} className="hv-elev rq-btn-outline" style={btn(false)}>Cancel</button>
               {/* Secondary, not a second filled accent button: two identical
                   primaries side by side made the row ask which one is THE
                   save. The CTA is the only filled control here. */}
               {!isEdit && (
-                <button type="button" onClick={saveAndAdd} className="hv-elev" style={btn(false)}>Save and add another</button>
+                <button type="button" onClick={saveAndAdd} className="hv-elev rq-btn-outline" style={btn(false)}>Save and add another</button>
               )}
-              <button type="button" onClick={attemptSubmit} className="hv-accent" style={btn(true)}>{txFormDef.cta(drawer)}</button>
+              <button type="button" onClick={attemptSubmit} className="hv-accent rq-btn-solid" style={btn(true)}>{txFormDef.cta(drawer)}</button>
             </div>
           </div>
         </td>

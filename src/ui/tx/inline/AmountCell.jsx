@@ -92,7 +92,7 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
           }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             {['+', '−', '×', '÷'].map(op => (
-              <button key={op} type="button" className="hv-soft"
+              <button key={op} type="button" className="hv-soft rq-btn-outline"
                 onClick={() => setDraft(d => (d !== null ? d : (value || '')) + op)}
                 style={{ height: 30, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                 {op}
