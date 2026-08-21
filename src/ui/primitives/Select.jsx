@@ -12,9 +12,10 @@ const popupStyle = {
 };
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 
-export const Select = forwardRef(function Select({ value, onValueChange, ariaLabel, renderValue, disabled, children, triggerStyle, autoFocus, invalid, describedBy }, ref) {
+export const Select = forwardRef(function Select({ value, onValueChange, ariaLabel, renderValue, disabled, children, triggerStyle, autoFocus, invalid, describedBy, open, onOpenChange, defaultOpen, finalFocus }, ref) {
   return (
-    <BaseSelect.Root value={value} onValueChange={onValueChange} disabled={disabled}>
+    <BaseSelect.Root value={value} onValueChange={onValueChange} disabled={disabled}
+      open={open} onOpenChange={onOpenChange} defaultOpen={defaultOpen}>
       <BaseSelect.Trigger ref={ref} autoFocus={autoFocus} aria-label={ariaLabel}
         aria-invalid={invalid || undefined} aria-describedby={invalid ? describedBy : undefined} className="field" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
@@ -42,7 +43,11 @@ export const Select = forwardRef(function Select({ value, onValueChange, ariaLab
           {/* Base UI still closes the popup on Escape; stopping propagation
               here just keeps it from also reaching DrawerProvider's session
               listener, same contract as every sibling overlay (Popover). */}
-          <BaseSelect.Popup style={popupStyle} onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>{children}</BaseSelect.Popup>
+          {/* finalFocus: a caller that moves focus ITSELF on close (the inline
+              editor's Tab-commit walks to the next cell) passes a function
+              returning false so the closing popup doesn't yank focus back to
+              the trigger; every other close keeps the default restore. */}
+          <BaseSelect.Popup style={popupStyle} finalFocus={finalFocus} onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>{children}</BaseSelect.Popup>
         </BaseSelect.Positioner>
       </BaseSelect.Portal>
     </BaseSelect.Root>
@@ -61,8 +66,12 @@ export function SelectGroup({ label, children }) {
 }
 
 export function SelectItem({ value, children }) {
+  // data-value mirrors the item's value onto the DOM node so a keydown
+  // handler up the tree (the editor row's Tab-commit) can read WHICH item is
+  // highlighted from e.target — Base UI Select gives the highlighted item
+  // real focus but exposes no onItemHighlighted like Combobox does.
   return (
-    <BaseSelect.Item value={value} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px 5px 22px', borderRadius: 6, fontSize: 13, cursor: 'pointer', position: 'relative' }} className="hv-elev">
+    <BaseSelect.Item value={value} data-value={value} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px 5px 22px', borderRadius: 6, fontSize: 13, cursor: 'pointer', position: 'relative' }} className="hv-elev">
       <BaseSelect.ItemIndicator style={{ position: 'absolute', left: 6, color: 'var(--accent)' }}>✓</BaseSelect.ItemIndicator>
       <BaseSelect.ItemText>{children}</BaseSelect.ItemText>
     </BaseSelect.Item>

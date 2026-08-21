@@ -2,7 +2,7 @@
 // valid payee (commits on blur / Enter-close); picking a To/From item makes
 // the row a transfer instead. Item values are the section objects
 // themselves — kind tells the pick handler which of the two events happened.
-import { forwardRef, useMemo, useState } from 'react';
+import { forwardRef, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../../store/StoreProvider.jsx';
 import { useUI } from '../../UIProvider.jsx';
 import { useIsPhone } from '../../../lib/useIsPhone.js';
@@ -41,12 +41,27 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
     setQ(null);
   };
   const commitText = () => { if (q !== null) { onPickPayee(q); setQ(null); } };
+  // The list's current highlight, mirrored for the Tab-commit below. Base UI's
+  // Combobox keeps focus in the input (virtual focus), so at Tab time only
+  // this callback knows which item is lit: autoHighlight lights the first
+  // match while typing, arrows move it, and it reports undefined when the
+  // highlight clears or the popup closes — which is what gates the commit.
+  const hl = useRef(undefined);
+  // Tab-committed a highlighted item: the row moves focus in the SAME event
+  // dispatch, so this input's blur fires before React applies pick()'s
+  // setQ(null) — commitText's closure still sees the stale query and would
+  // overwrite the just-picked payee with it ("gri" beating "Grill House").
+  // The flag skips exactly that one blur; free text with no highlight still
+  // commits through blur as before.
+  const pickedOnTab = useRef(false);
   const id = errorId || 'txeditor-err-payee';
   // Nothing in the list at all — a brand-new merchant, or an empty ledger.
   const noMatches = sections.every(s => s.items.length === 0);
 
   return (
     <Combobox.Root items={sections.flatMap(s => s.items)} onValueChange={pick} value={null} filter={null}
+      autoHighlight onItemHighlighted={v => { hl.current = v; }}
+      onOpenChange={o => { if (!o) hl.current = undefined; }}
       itemToStringLabel={itemLabel} itemToStringValue={itemLabel}>
       {/* The chevron says this field is a picker as well as a text box —
           without it the cell looked like plain free text, and the To/From
@@ -59,7 +74,7 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
           aria-invalid={invalid || undefined} aria-describedby={invalid ? id : undefined}
           value={shown}
           onChange={e => setQ(e.target.value)}
-          onBlur={commitText}
+          onBlur={() => { if (pickedOnTab.current) { pickedOnTab.current = false; return; } commitText(); }}
           // With no item to pick, Enter has to MEAN what the empty state
           // promises: take the typed text as the payee. preventDefault stops
           // the same keystroke also reaching the editor row's Enter-to-save
@@ -69,6 +84,11 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
           // saves.
           onKeyDown={e => {
             if (e.key === 'Enter' && noMatches && q !== null && q !== '') { e.preventDefault(); commitText(); }
+            // Tab takes the HIGHLIGHTED item with it (YNAB), then lets the
+            // keystroke bubble on — the editor row's td handler owns the
+            // focus move. With no highlight the existing blur commit keeps
+            // free text as the payee, so brand-new merchants still work.
+            else if (e.key === 'Tab' && hl.current != null) { pick(hl.current); pickedOnTab.current = true; }
           }}
           style={{ width: '100%', height: 28, padding: '0 22px 0 8px', fontSize: 13, ...(invalid ? ringStyle : null) }}
         />

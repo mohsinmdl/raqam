@@ -139,6 +139,22 @@ export function editableCells(f) {
   return { account: true, date: true, payee: true, category: type !== 'transfer', memo: true, outflow: true, inflow: true, cleared: true };
 }
 
+// The row owns Tab (strict column-to-column, YNAB-style): these two derive
+// the walk. tabCells lists the cells that participate — hidden columns and
+// non-editable cells (editableCells) drop out, so Tab can never land on a
+// disabled control and appear dead. tabTarget steps through that list; null
+// off either end means the row hands the keystroke back to the browser
+// (backward to whatever precedes the row, forward to the action buttons).
+export function tabCells({ hideAccount, hideMemo, can }) {
+  return ['account', 'date', 'payee', 'category', 'memo', 'outflow', 'inflow', 'cleared']
+    .filter(k => !(k === 'account' && hideAccount) && !(k === 'memo' && hideMemo) && can[k] !== false);
+}
+export function tabTarget(cells, current, backward) {
+  const i = cells.indexOf(current);
+  if (i === -1) return null;
+  return cells[backward ? i - 1 : i + 1] || null;
+}
+
 // Autofocus target: account when it's shown and empty, otherwise payee — the
 // natural resting place YNAB uses. Date is always seeded by txDefaults, so it
 // can never be the first empty cell in practice; memo/category never take

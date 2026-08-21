@@ -10,7 +10,7 @@ import { useStore } from '../../../store/StoreProvider.jsx';
 import { txFormDef } from '../../../drawers/TxForm.jsx';
 import { txDefaults } from '../../../drawers/openers.js';
 import { ruleFromTx } from '../../../lib/schedule.js';
-import { cellsFromForm, editorPatch, editableCells, errorCells, firstEmptyCell, keepForNext, sourceRef } from '../../../lib/txEditorState.js';
+import { cellsFromForm, editorPatch, editableCells, errorCells, firstEmptyCell, keepForNext, sourceRef, tabCells, tabTarget } from '../../../lib/txEditorState.js';
 import { blankLine, splitHalves } from '../../../lib/splitTx.js';
 import { autoCategoryPatchArgs } from '../../../lib/payees.js';
 import { formatAmountInput } from '../../../lib/amountInput.js';
@@ -50,7 +50,29 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
   const CELL_ORDER = ['account', 'date', 'payee', 'category', 'outflow', 'inflow'];
   const cellRefs = {
     account: useRef(null), date: useRef(null), payee: useRef(null),
-    category: useRef(null), outflow: useRef(null), inflow: useRef(null),
+    category: useRef(null), memo: useRef(null), outflow: useRef(null),
+    inflow: useRef(null), cleared: useRef(null),
+  };
+  // The row owns Tab: strict column-to-column, never into an open popup's
+  // internals (the calendar alone contributes ~45 native stops). Each td
+  // carries onTab(key); a keydown inside a PORTALLED popup still bubbles here
+  // because React portals propagate through the React tree, so Tab pressed on
+  // a highlighted account option or a calendar day walks the same path. The
+  // cells' own commit-on-Tab handlers run first (target-outward order) and
+  // never preventDefault — that's this handler's job, so a cell that DOES
+  // preventDefault (none today) would opt out of the row move entirely.
+  const tabWalk = tabCells({ hideAccount, hideMemo, can });
+  const onTab = key => e => {
+    if (e.key !== 'Tab' || e.defaultPrevented) return;
+    // The amount cells' ⌗ trigger sits before its input INSIDE the td; from
+    // it, native Tab already lands on that same cell's input — jumping a
+    // whole column from there would skip the field the trigger serves.
+    if (e.target.closest && e.target.closest('[data-calc-trigger]')) return;
+    const next = tabTarget(tabWalk, key, e.shiftKey);
+    if (!next) return; // off either end: the browser takes over
+    e.preventDefault();
+    const el = cellRefs[next] && cellRefs[next].current;
+    if (el) el.focus();
   };
   // The summary sentence under the row, ordered the way the row reads.
   // drawer.errList arrives in whatever order validate.transaction happened to
@@ -131,24 +153,25 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
           </span>
         </td>
         {!hideAccount && (
-          <td style={cellTd}>
+          <td style={cellTd} onKeyDown={onTab('account')}>
             <AccountCell ref={cellRefs.account} value={cells.account} disabled={!can.account} onChange={v => patch('account', v)} autoFocus={focusKey === 'account'}
+              autoOpen={focusKey === 'account'}
               invalid={!!cellErrors.account} errorMsg={cellErrors.account} />
           </td>
         )}
-        <td style={cellTd}>
+        <td style={cellTd} onKeyDown={onTab('date')}>
           <DateCell ref={cellRefs.date} value={cells.date} onChange={v => patch('date', v)} repeat={cells.repeat} onRepeat={v => patch('repeat', v)} showRepeat={showRepeat} disabled={!can.date}
             invalid={!!cellErrors.date} errorMsg={cellErrors.date} />
         </td>
-        <td style={cellTd}>
+        <td style={cellTd} onKeyDown={onTab('payee')}>
           <PayeeCell ref={cellRefs.payee} payee={cells.payee} transferTo={cells.transferTo} sourceRef={sourceRef(f)}
             onPickPayee={pickPayee} onPickTransfer={ref => patch('transfer', ref)}
             disabled={!can.payee} autoFocus={focusKey === 'payee'}
             invalid={!!cellErrors.payee} errorMsg={cellErrors.payee} />
         </td>
-        <td style={cellTd}>
+        <td style={cellTd} onKeyDown={onTab('category')}>
           {splitOn
-            ? <button type="button" className="field hv-soft" onClick={() => setForm({ splitOn: false, splits: undefined, category: (f.splits || [])[0]?.category || '', newCat: (f.splits || [])[0]?.newCat || '', newCatGroup: (f.splits || [])[0]?.newCatGroup || '' })}
+            ? <button type="button" ref={cellRefs.category} className="field hv-soft" onClick={() => setForm({ splitOn: false, splits: undefined, category: (f.splits || [])[0]?.category || '', newCat: (f.splits || [])[0]?.newCat || '', newCatGroup: (f.splits || [])[0]?.newCatGroup || '' })}
                 style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)', cursor: 'pointer', width: '100%' }}>
                 Split ({(f.splits || []).length}) — un-split
               </button>
@@ -178,17 +201,17 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
             not editable while folded — matches how a folded ACCOUNT column
             already works here). */}
         {!hideMemo && (
-          <td style={cellTd}>
-            <input className="field" placeholder="Memo" aria-label="Memo" disabled={!can.memo} value={cells.memo}
+          <td style={cellTd} onKeyDown={onTab('memo')}>
+            <input ref={cellRefs.memo} className="field" placeholder="Memo" aria-label="Memo" disabled={!can.memo} value={cells.memo}
               onChange={e => patch('memo', e.target.value)}
               style={{ width: '100%', height: 28, padding: '0 8px', fontSize: 13 }} />
           </td>
         )}
-        <td style={cellTd}>
+        <td style={cellTd} onKeyDown={onTab('outflow')}>
           <AmountCell ref={cellRefs.outflow} value={cells.outflow} onCommit={v => patch('outflow', v)} placeholder="Outflow" ariaLabel="Outflow" disabled={!can.outflow}
             invalid={!!cellErrors.outflow} errorMsg={cellErrors.outflow} />
         </td>
-        <td style={cellTd}>
+        <td style={cellTd} onKeyDown={onTab('inflow')}>
           <AmountCell ref={cellRefs.inflow} value={cells.inflow} onCommit={v => patch('inflow', v)} placeholder="Inflow" ariaLabel="Inflow" disabled={!can.inflow}
             invalid={!!cellErrors.inflow} errorMsg={cellErrors.inflow} />
         </td>
@@ -198,8 +221,8 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
             it does. The cell still has to EXIST or every cell after it shifts
             one column left of its header. */}
         {showBalance && <td style={cellTd} />}
-        <td style={{ ...cellTd, textAlign: 'center' }}>
-          <button type="button" onClick={() => patch('cleared', !cells.cleared)} aria-pressed={cells.cleared}
+        <td style={{ ...cellTd, textAlign: 'center' }} onKeyDown={onTab('cleared')}>
+          <button type="button" ref={cellRefs.cleared} onClick={() => patch('cleared', !cells.cleared)} aria-pressed={cells.cleared}
             aria-label={cells.cleared ? 'Cleared — click to unclear' : 'Uncleared — click to clear'} className="hv-soft"
             style={{ width: 22, height: 22, borderRadius: 999, cursor: 'pointer', fontSize: 10, fontWeight: 700,
               border: cells.cleared ? 'none' : '1.25px solid var(--muted)',
