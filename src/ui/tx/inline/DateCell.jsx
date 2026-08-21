@@ -97,6 +97,19 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
             // neither, so the calendar lingered over the payee list. The blur
             // commit still runs; this just takes the calendar down with it.
             else if (e.key === 'Tab' && open) setOpen(false);
+            // With the calendar up and no typing in progress, the arrows step
+            // the DATE (←/→ a day, ↑/↓ a week — the grid's own axes), through
+            // setFromCalendar so the field text, the selected-day highlight
+            // and the visible month all move together. Only while draft is
+            // null: once characters are being edited the arrows belong to the
+            // caret again. (!altKey keeps Alt+Down's open-the-calendar chord,
+            // handled above, out of this branch.)
+            else if (open && draft === null && !e.altKey
+              && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+              e.preventDefault();
+              const delta = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' ? -7 : 7;
+              setFromCalendar(addDays(value || today, delta));
+            }
           }}
           // Tight horizontal padding and minWidth 0: this input has to hold a
           // full dd/mm/yyyy — the placeholder and every committed value are the
