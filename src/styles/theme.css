@@ -35,7 +35,16 @@ select,
 textarea { border-radius: var(--field-radius) !important; }
 input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus,
-textarea:focus {
+textarea:focus,
+/* A trigger dressed as a field (Select.jsx's Account/Category-picker
+   button, the inline editor's "un-split" button) reads as the SAME kind of
+   box as its text-input siblings, but a bare <button> matches neither this
+   selector list nor the excluded checkbox/radio types — only the generic
+   :focus-visible two rows up. That left it wearing the field's own static
+   1px border PLUS a second, larger ring floating 2px outside it: two
+   concentric rounded boxes where every other field in the row shows one.
+   Folding it into this rule gives it the same inset recolor. */
+button.field:focus {
   outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
