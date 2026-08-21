@@ -194,7 +194,7 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
         </div>
         <div data-day-grid="" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginTop: 2 }}>
           {cells.map(c => (
-            <button key={c.iso} type="button" onClick={() => setFromCalendar(c.iso)}
+            <button key={c.iso} type="button" className="rq-cal-day" onClick={() => setFromCalendar(c.iso)}
               aria-label={dayName(c.iso)}
               aria-current={c.sel ? 'date' : undefined}
               style={{ height: 28, borderRadius: 6, cursor: 'pointer', fontSize: 12,
