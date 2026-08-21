@@ -22,6 +22,10 @@ const chip = on => ({ height: 24, padding: '0 8px', borderRadius: 6, cursor: 'po
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
 const TYPE_MSG = "Couldn't read that date — try 17, 17/8 or 17/08/2026.";
+// The Alt+Down handler needs to find the portalled panel to focus a day
+// button when the calendar is ALREADY open; an id is the precise handle
+// (only one editor row — add or edit — exists at a time, so it stays unique).
+const CAL_ID = 'txeditor-datecal';
 
 const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepeat, showRepeat, disabled, invalid, errorMsg, errorId }, ref) {
   const today = todayStr();
@@ -31,11 +35,15 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
   const [typeErr, setTypeErr] = useState(false);
   // The calendar hangs off the whole field, not off the chevron that opens it.
   const fieldRef = useRef(null);
-  // Which of the two openers fired. Opened from the FIELD, the popup must not
-  // take focus — the caret has to stay put or the date being typed is
-  // interrupted the instant the calendar appears. Opened from the CHEVRON,
-  // focus moves into the popup as Base UI normally does, which is the only way
-  // a keyboard reaches the day grid and the Repeat select.
+  // Set when the row's Tab walk is about to move focus itself — finalFocus
+  // then returns false so the closing popover doesn't yank focus back here
+  // mid-walk. Escape and click-away keep their normal restore.
+  const tabbedAway = useRef(false);
+  // Which opener fired. Opened from the FIELD, the popup must not take
+  // focus — the caret has to stay put or the date being typed is interrupted
+  // the instant the calendar appears. Opened from the CHEVRON (pointer) or
+  // Alt+Down (keyboard), focus moves into the popup as Base UI normally
+  // does — the route to the day grid and the Repeat select.
   const fromField = useRef(false);
   const cells = calendarCells(month, value, today);
   const id = errorId || 'txeditor-err-date';
@@ -53,7 +61,7 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={o => { if (o) tabbedAway.current = false; setOpen(o); }}>
       <span ref={fieldRef} style={{ position: 'relative', display: 'block', width: '100%' }}>
         <input
           ref={ref} className="field tnum" inputMode="numeric" disabled={disabled}
@@ -69,6 +77,20 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
             // field (outside the popup), so nothing else would stop it reaching
             // the editor session and cancelling the whole row.
             else if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); }
+            // Alt+Down (the ARIA combobox idiom) is the KEYBOARD path into the
+            // calendar now that the row's Tab walk skips the chevron: it moves
+            // focus into the day grid — and on to the Repeat select, whose only
+            // inline home is this popup. Already-open (the field-focus flow
+            // never takes focus), the day buttons are focused directly;
+            // otherwise opening chevron-style lets initialFocus do it.
+            else if (e.key === 'ArrowDown' && e.altKey && !disabled) {
+              e.preventDefault();
+              fromField.current = false;
+              if (!open) { setOpen(true); return; }
+              const panel = document.getElementById(CAL_ID);
+              const day = panel && (panel.querySelector('[aria-current="date"]') || panel.querySelector('button'));
+              if (day) day.focus();
+            }
             // Tab-away (the editor row moves focus cell-to-cell): Base UI only
             // dismisses this popover on an outside PRESS or on focus leaving
             // the popup itself — keyboard focus jumping input→next cell is
@@ -88,8 +110,13 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
           // from asserting a min-content floor of its own inside the cell.
           style={{ width: '100%', minWidth: 0, height: 28, padding: '0 4px', fontSize: 13, ...(showInvalid ? ringStyle : null) }}
         />
+        {/* tabIndex -1: the row's Tab walk goes strictly column-to-column, so
+            this chevron left the tab order — Alt+Down on the field is the
+            keyboard path into the calendar now. The chevron stays a pointer
+            affordance (and the Escape-close restore target when the popup
+            was opened from it). */}
         <PopoverTrigger
-          aria-label="Open calendar" disabled={disabled} className="hv-soft"
+          aria-label="Open calendar" disabled={disabled} className="hv-soft" tabIndex={-1}
           onPointerDown={() => { fromField.current = false; }}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') fromField.current = false; }}
           style={{ position: 'absolute', right: 1, top: 1, bottom: 1, width: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRadius: 3, background: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 0 }}>
@@ -97,9 +124,44 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
         </PopoverTrigger>
       </span>
       {showInvalid && <span id={id} role="alert" style={srOnly}>{typeErr ? TYPE_MSG : errorMsg}</span>}
-      <PopoverPanel width={272} arrow anchor={fieldRef} style={{ padding: 10 }}
-        initialFocus={() => !fromField.current} finalFocus={() => !fromField.current}
-        onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>
+      <PopoverPanel id={CAL_ID} width={272} arrow anchor={fieldRef} style={{ padding: 10 }}
+        initialFocus={() => !fromField.current}
+        // Three closes, three focus answers: tab-away → false (the row already
+        // moved focus; a restore would yank it back mid-walk), field-opened →
+        // false (focus never left the field), chevron/Alt+Down-opened Escape →
+        // true (restore to the trigger as Base UI normally would).
+        finalFocus={() => (tabbedAway.current ? false : !fromField.current)}
+        onKeyDown={e => {
+          if (e.key === 'Escape') { e.stopPropagation(); return; }
+          if (e.key === 'Tab') { tabbedAway.current = true; setOpen(false); return; }
+          // Arrow navigation inside the panel (plain buttons in a CSS grid
+          // have no roving tabindex of their own): ←/→ step a day, ↑/↓ a
+          // week; ↓ off the last row lands on the chips (Today → Yesterday →
+          // Repeat, ←/→ between them, ↑ back to the grid). The Repeat select
+          // itself keeps native arrow behavior (changing its value), so it is
+          // entered from the left and left by Tab — and Alt+Arrow is skipped
+          // everywhere (that chord belongs to open/close idioms).
+          if (e.altKey || !e.key.startsWith('Arrow')) return;
+          const panel = document.getElementById(CAL_ID);
+          if (!panel || e.target.tagName === 'SELECT') return;
+          const days = [...panel.querySelectorAll('[data-day-grid] button')];
+          const chips = [...panel.querySelectorAll('[data-cal-chip]')];
+          const di = days.indexOf(e.target);
+          if (di !== -1) {
+            e.preventDefault();
+            const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 7, ArrowUp: -7 }[e.key];
+            const ni = di + step;
+            if (e.key === 'ArrowDown' && ni >= days.length) { (chips[0] || days[days.length - 1]).focus(); return; }
+            if (ni >= 0 && ni < days.length) days[ni].focus();
+            return;
+          }
+          const ci = chips.indexOf(e.target);
+          if (ci !== -1) {
+            if (e.key === 'ArrowRight' && chips[ci + 1]) { e.preventDefault(); chips[ci + 1].focus(); }
+            else if (e.key === 'ArrowLeft' && chips[ci - 1]) { e.preventDefault(); chips[ci - 1].focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); (panel.querySelector('[data-day-grid] [aria-current="date"]') || days[0]).focus(); }
+          }
+        }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
           <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="hv-soft" style={{ ...chip(false), width: 24, padding: 0 }}>‹</button>
           <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600 }}>{MN[+month.slice(5) - 1] + ' ' + month.slice(0, 4)}</span>
@@ -108,7 +170,7 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
           {WD.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 10.5, color: 'var(--muted)', fontWeight: 600 }}>{d}</span>)}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginTop: 2 }}>
+        <div data-day-grid="" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginTop: 2 }}>
           {cells.map(c => (
             <button key={c.iso} type="button" onClick={() => setFromCalendar(c.iso)}
               aria-current={c.sel ? 'date' : undefined}
@@ -120,12 +182,12 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
           ))}
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-          <button type="button" onClick={() => setFromCalendar(today)} className="hv-soft" style={chip(value === today)}>Today</button>
-          <button type="button" onClick={() => setFromCalendar(addDays(today, -1))} className="hv-soft" style={chip(value === addDays(today, -1))}>Yesterday</button>
+          <button type="button" data-cal-chip="" onClick={() => setFromCalendar(today)} className="hv-soft" style={chip(value === today)}>Today</button>
+          <button type="button" data-cal-chip="" onClick={() => setFromCalendar(addDays(today, -1))} className="hv-soft" style={chip(value === addDays(today, -1))}>Yesterday</button>
           {showRepeat && (
             <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
               <span style={{ fontSize: 11, color: 'var(--muted)', flex: 'none' }}>Repeat:</span>
-              <select aria-label="Repeat" value={repeat || 'never'} onChange={e => onRepeat(e.target.value)}
+              <select aria-label="Repeat" data-cal-chip="" value={repeat || 'never'} onChange={e => onRepeat(e.target.value)}
                 style={{ height: 24, minWidth: 0, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 11.5, fontWeight: 600, padding: '0 4px', cursor: 'pointer' }}>
                 {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
               </select>

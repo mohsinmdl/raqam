@@ -144,7 +144,8 @@ export function editableCells(f) {
 // non-editable cells (editableCells) drop out, so Tab can never land on a
 // disabled control and appear dead. tabTarget steps through that list; null
 // off either end means the row hands the keystroke back to the browser
-// (backward to whatever precedes the row, forward to the action buttons).
+// (backward to whatever precedes the row, forward to whatever follows it —
+// the split lines when a split is open, else the action buttons).
 export function tabCells({ hideAccount, hideMemo, can }) {
   return ['account', 'date', 'payee', 'category', 'memo', 'outflow', 'inflow', 'cleared']
     .filter(k => !(k === 'account' && hideAccount) && !(k === 'memo' && hideMemo) && can[k] !== false);

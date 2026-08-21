@@ -44,8 +44,10 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
   // The list's current highlight, mirrored for the Tab-commit below. Base UI's
   // Combobox keeps focus in the input (virtual focus), so at Tab time only
   // this callback knows which item is lit: autoHighlight lights the first
-  // match while typing, arrows move it, and it reports undefined when the
-  // highlight clears or the popup closes — which is what gates the commit.
+  // match while typing, arrows move it. The library reports undefined only
+  // once a close finishes UNMOUNTING (handleUnmount), so onOpenChange clears
+  // the mirror at close-request time as well — without that, a Tab in the
+  // gap would commit a highlight from a list that already closed.
   const hl = useRef(undefined);
   // Tab-committed a highlighted item: the row moves focus in the SAME event
   // dispatch, so this input's blur fires before React applies pick()'s
@@ -73,7 +75,11 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
           ref={ref} className="field" placeholder="Payee" aria-label="Payee" disabled={disabled} autoFocus={autoFocus}
           aria-invalid={invalid || undefined} aria-describedby={invalid ? id : undefined}
           value={shown}
-          onChange={e => setQ(e.target.value)}
+          // Also re-arms a pickedOnTab that never got consumed (its blur only
+          // fires if the row's focus move landed) — typing again is proof the
+          // user is back here, and a stranded flag would eat the next
+          // free-text blur commit.
+          onChange={e => { pickedOnTab.current = false; setQ(e.target.value); }}
           onBlur={() => { if (pickedOnTab.current) { pickedOnTab.current = false; return; } commitText(); }}
           // With no item to pick, Enter has to MEAN what the empty state
           // promises: take the typed text as the payee. preventDefault stops
@@ -84,11 +90,15 @@ const PayeeCell = forwardRef(function PayeeCell({ payee, transferTo, sourceRef, 
           // saves.
           onKeyDown={e => {
             if (e.key === 'Enter' && noMatches && q !== null && q !== '') { e.preventDefault(); commitText(); }
-            // Tab takes the HIGHLIGHTED item with it (YNAB), then lets the
-            // keystroke bubble on — the editor row's td handler owns the
-            // focus move. With no highlight the existing blur commit keeps
-            // free text as the payee, so brand-new merchants still work.
-            else if (e.key === 'Tab' && hl.current != null) { pick(hl.current); pickedOnTab.current = true; }
+            // Forward Tab takes the HIGHLIGHTED item with it (YNAB), then
+            // lets the keystroke bubble on — the editor row's td handler owns
+            // the focus move. With no highlight the existing blur commit
+            // keeps free text as the payee, so brand-new merchants still
+            // work; Shift+Tab (backing out) never commits a highlight.
+            // (No `open` in this guard, unlike PlanCategoryPicker's: this
+            // Root is uncontrolled, and the hl mirror — cleared on close —
+            // is the open-list signal.)
+            else if (e.key === 'Tab' && !e.shiftKey && hl.current != null) { pick(hl.current); pickedOnTab.current = true; }
           }}
           style={{ width: '100%', height: 28, padding: '0 22px 0 8px', fontSize: 13, ...(invalid ? ringStyle : null) }}
         />
