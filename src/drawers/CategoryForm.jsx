@@ -53,6 +53,7 @@ function Body() {
               onClick={() => setField('icon', ic)}
               aria-pressed={String((f.icon || 'square') === ic)}
               aria-label={ic}
+              className="rq-btn-outline"
               style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${(f.icon || 'square') === ic ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 8, background: 'var(--surface)', cursor: 'pointer' }}
             >
               <span style={iconStyle(ic, f.color || '#0F766E', 14)} />
@@ -100,6 +101,7 @@ function Body() {
             role="switch"
             aria-checked={String(!!f.excludeFromBudget)}
             aria-label="Exclude from budgets"
+            className={f.excludeFromBudget ? 'rq-btn-solid' : 'rq-btn-outline'}
             style={{ width: 44, height: 26, flex: 'none', padding: 2, border: `1px solid ${f.excludeFromBudget ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 999, background: f.excludeFromBudget ? 'var(--accent)' : 'var(--track)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: f.excludeFromBudget ? 'flex-end' : 'flex-start' }}
           >
             <span aria-hidden="true" style={{ display: 'block', width: 20, height: 20, borderRadius: 999, background: f.excludeFromBudget ? 'var(--on-accent)' : 'var(--surface)' }} />

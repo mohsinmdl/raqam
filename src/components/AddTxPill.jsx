@@ -14,7 +14,7 @@ export default function AddTxPill() {
   const disabled = S.accounts.filter(a => a.status === 'active').length === 0;
   if (phoneSelect || disabled) return null;
   return (
-    <button onClick={() => openers.addTx(openDrawer)} className="hv-accent"
+    <button onClick={() => openers.addTx(openDrawer)} className="hv-accent rq-btn-solid"
       aria-label="Add transaction"
       style={{
         position: 'fixed', right: 16,

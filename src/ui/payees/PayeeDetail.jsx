@@ -108,7 +108,7 @@ export default function PayeeDetail({ entry, onDeselect, onStepChange = () => {}
           {others.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
         </select>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" onClick={() => setDeleting(null)} className="hv-elev" style={{ height: 34, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+          <button type="button" onClick={() => setDeleting(null)} className="hv-elev rq-btn-outline" style={{ height: 34, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
           <button type="button" className="hv-neg-soft"
             onClick={() => { applyData(d => deletePayees(d, { names: deleting.names, replacement })); setDeleting(null); onDeselect(); }}
             style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--neg-soft)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>
@@ -175,7 +175,7 @@ export default function PayeeDetail({ entry, onDeselect, onStepChange = () => {}
           <input className="field" aria-label="Rule pattern" value={rulePattern} onChange={e => setRulePattern(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addRule(); } }}
             style={{ flex: 1, height: 34, padding: '0 10px', fontSize: 13 }} />
-          <button type="button" onClick={addRule} aria-label="Add rule" className="hv-soft" disabled={!canAddRule}
+          <button type="button" onClick={addRule} aria-label="Add rule" className="hv-soft rq-btn-outline" disabled={!canAddRule}
             title={ruleDuplicate ? 'This rule already exists' : undefined}
             style={{ width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 16, cursor: canAddRule ? 'pointer' : 'default', opacity: canAddRule ? 1 : 0.45, flex: 'none' }}>＋</button>
         </div>

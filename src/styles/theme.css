@@ -48,6 +48,29 @@ button.field:focus {
   outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
+/* The same bug, app-wide: every screen hand-rolls its own button style
+   (there is no shared <Button> component), and any button that already
+   draws its OWN visible box — a resting 1px border, or a solid --accent
+   fill — falls through to the generic floating ring above and shows two
+   concentric shapes instead of one recoloring in place. Two markers cover
+   the app's two recurring shapes:
+   - rq-btn-outline: a bordered secondary/ghost button (Cancel, "Save and
+     add another", …). Same inset-recolor treatment as button.field — the
+     ring overlays the button's own existing border exactly.
+   - rq-btn-solid: a solid --accent-filled primary CTA (Save, Record
+     expense, …), which has NO border to recolor. --on-accent is already
+     this system's chosen contrast color FOR TEXT on that exact fill in
+     both themes (white on teal light, dark ink on the brighter teal dark),
+     so an inset ring in that color reads as one deliberate edge rather
+     than a second teal shape competing with the fill underneath it. */
+.rq-btn-outline:focus {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.rq-btn-solid:focus {
+  outline: 1px solid var(--on-accent);
+  outline-offset: -1px;
+}
 
 :root {
   --bg: #F7F7F3; --surface: #FFFFFF; --elev: #FCFCFA; --text: #14201B; --muted: #66736C;

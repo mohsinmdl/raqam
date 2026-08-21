@@ -153,12 +153,12 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
     <>
       <div ref={rowRef} style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={() => setOpen(open === 'date' ? null : 'date')}
-          aria-haspopup="dialog" aria-expanded={open === 'date'} style={{ ...trigger(open === 'date'), flex: 1 }}>
+          aria-haspopup="dialog" aria-expanded={open === 'date'} className="rq-btn-outline" style={{ ...trigger(open === 'date'), flex: 1 }}>
           <span aria-hidden="true" style={{ width: 13, height: 13, border: '1.5px solid var(--muted)', borderRadius: 3, flex: 'none' }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dateLabel(f.date, today)}</span>
         </button>
         <button type="button" onClick={() => setOpen(open === 'time' ? null : 'time')}
-          aria-haspopup="dialog" aria-expanded={open === 'time'} className="tnum" style={{ ...trigger(open === 'time'), width: 118, flex: 'none' }}>
+          aria-haspopup="dialog" aria-expanded={open === 'time'} className="tnum rq-btn-outline" style={{ ...trigger(open === 'time'), width: 118, flex: 'none' }}>
           <span aria-hidden="true" style={{ width: 13, height: 13, border: '1.5px solid var(--muted)', borderRadius: 999, flex: 'none' }} />
           <span>{timeLabel12(f.time)}</span>
         </button>
@@ -171,9 +171,9 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
           {open === 'date' && (
             <div ref={panelRef} role="dialog" aria-label="Choose a date" style={{ ...panel, top: pos.top, left: pos.left, width: calW, maxHeight: pos.maxHeight }}>
               <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 6px', flex: 'none' }}>
-                <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="hv-soft" style={{ ...chip(false), width: 26, padding: 0 }}>‹</button>
+                <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="hv-soft rq-btn-outline" style={{ ...chip(false), width: 26, padding: 0 }}>‹</button>
                 <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600 }}>{MN[+month.slice(5) - 1] + ' ' + month.slice(0, 4)}</span>
-                <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" className="hv-soft" style={{ ...chip(false), width: 26, padding: 0 }}>›</button>
+                <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" className="hv-soft rq-btn-outline" style={{ ...chip(false), width: 26, padding: 0 }}>›</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', padding: '0 10px', flex: 'none' }}>
                 {WD.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 10.5, color: 'var(--muted)', fontWeight: 600 }}>{d}</span>)}
@@ -182,6 +182,7 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
                 {cells.map(c => (
                   <button key={c.iso} type="button" onClick={() => pickDate(c.iso)} aria-label={shortDate(c.iso + 'T00:00')}
                     aria-current={c.sel ? 'date' : undefined}
+                    className={c.sel ? 'rq-btn-solid' : c.today ? 'rq-btn-outline' : undefined}
                     style={{
                       height: 32, borderRadius: 7, cursor: 'pointer', fontSize: 12.5,
                       border: '1px solid ' + (c.today && !c.sel ? 'var(--accent)' : 'transparent'),
@@ -192,8 +193,8 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 8, padding: '8px 10px', borderTop: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', bottom: 0, flex: 'none', borderRadius: '0 0 12px 12px' }}>
-                <button type="button" onClick={() => pickDate(today)} className="hv-soft" style={chip(f.date === today)}>Today</button>
-                <button type="button" onClick={() => pickDate(addDays(today, -1))} className="hv-soft" style={chip(f.date === addDays(today, -1))}>Yesterday</button>
+                <button type="button" onClick={() => pickDate(today)} className="hv-soft rq-btn-outline" style={chip(f.date === today)}>Today</button>
+                <button type="button" onClick={() => pickDate(addDays(today, -1))} className="hv-soft rq-btn-outline" style={chip(f.date === addDays(today, -1))}>Yesterday</button>
                 {showRepeat && (
                   <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <span style={{ fontSize: 11, color: 'var(--muted)', flex: 'none' }}>{repeatLabel}</span>
@@ -216,7 +217,7 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
             <div ref={panelRef} role="dialog" aria-label="Choose a time" style={{ ...panel, top: pos.top, left: pos.left, width: TIME_W, maxHeight: pos.maxHeight }}>
               <div style={{ display: 'flex', gap: 6, padding: '10px 10px 8px', flexWrap: 'wrap', flex: 'none' }}>
                 {QUICK.map(q => (
-                  <button key={q.v} type="button" onClick={() => setForm({ time: q.v })} className="hv-soft" style={chip(f.time === q.v)}>{q.l}</button>
+                  <button key={q.v} type="button" onClick={() => setForm({ time: q.v })} className="hv-soft rq-btn-outline" style={chip(f.time === q.v)}>{q.l}</button>
                 ))}
               </div>
               <div ref={colsRef} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 58px', gap: 6, padding: '0 10px 8px', minHeight: 0, flex: 1 }}>
@@ -245,7 +246,7 @@ function Column({ label, items, isOn, onPick }) {
         const on = isOn(it.v);
         return (
           <button key={String(it.v)} type="button" data-on={String(on)} role="option" aria-selected={on}
-            onClick={() => onPick(it.v)} className="hv-soft" style={{ ...chip(on), height: 28, flex: 'none' }}>{it.l}</button>
+            onClick={() => onPick(it.v)} className="hv-soft rq-btn-outline" style={{ ...chip(on), height: 28, flex: 'none' }}>{it.l}</button>
         );
       })}
     </div>

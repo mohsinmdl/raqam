@@ -25,7 +25,7 @@ export default function Keypad({ onKey, onDone, doneLabel = 'Done' }) {
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <button style={{ ...opBtn, flex: 1, height: 44 }} className="hv-soft" aria-label="Equals" onClick={() => onKey('equals')}>=</button>
-        <button onClick={onDone}
+        <button onClick={onDone} className="rq-btn-solid"
           style={{ flex: 2, height: 44, border: 'none', borderRadius: 999, background: 'var(--accent)',
             color: 'var(--on-accent)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
           {doneLabel}

@@ -26,7 +26,7 @@ const knob = { width: 16, height: 16, borderRadius: 999, background: 'var(--surf
 
 function Switch({ id, on, onClick, label }) {
   return (
-    <button id={id} type="button" role="switch" aria-checked={on} aria-label={label} onClick={onClick} style={sw(on)}>
+    <button id={id} type="button" role="switch" aria-checked={on} aria-label={label} onClick={onClick} className={on ? 'rq-btn-solid' : 'rq-btn-outline'} style={sw(on)}>
       <span style={knob} />
     </button>
   );
@@ -157,13 +157,13 @@ function Body() {
                 )}
                 {rules.length > 1 && (
                   <button type="button" onClick={() => removeRule(i)} aria-label="Remove this day"
-                    className="hv-neg-soft" style={{ flex: 'none', width: 32, height: 40, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer' }}>×</button>
+                    className="hv-neg-soft rq-btn-outline" style={{ flex: 'none', width: 32, height: 40, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer' }}>×</button>
                 )}
               </div>
             ))}
           </div>
           {unit === 'month' && rules.length < MAX_DAY_RULES && (
-            <button type="button" onClick={addRule} className="hv-soft" style={{ marginTop: 8, height: 30, padding: '0 10px', border: '1px dashed var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            <button type="button" onClick={addRule} className="hv-soft rq-btn-outline" style={{ marginTop: 8, height: 30, padding: '0 10px', border: '1px dashed var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               ＋ Add another day
             </button>
           )}

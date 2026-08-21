@@ -58,7 +58,7 @@ export default function FirstUse({ setup, onSkip }) {
               </span>
               {s.done && <span style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 9px', borderRadius: 999, background: 'var(--pos-soft)', color: 'var(--pos)' }}>Done</span>}
               {s.showCta && (
-                <button onClick={() => stepAct(s.act)} disabled={s.disabled} title={s.ctaTitle} style={{ height: 30, padding: '0 13px', border: 'none', borderRadius: 8, background: s.ctaBg, color: s.ctaFg, fontSize: 12.5, fontWeight: 600, cursor: s.disabled ? 'default' : 'pointer', flex: 'none', opacity: s.ctaOpacity }}>{s.cta}</button>
+                <button onClick={() => stepAct(s.act)} disabled={s.disabled} title={s.ctaTitle} className="rq-btn-solid" style={{ height: 30, padding: '0 13px', border: 'none', borderRadius: 8, background: s.ctaBg, color: s.ctaFg, fontSize: 12.5, fontWeight: 600, cursor: s.disabled ? 'default' : 'pointer', flex: 'none', opacity: s.ctaOpacity }}>{s.cta}</button>
               )}
             </div>
           ))}

@@ -123,15 +123,15 @@ export default function RecurringDetail() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {actionable && <button onClick={() => { if (!phone) navigate('/transactions'); openers.recordRule(S, r.id, openDrawer); }} className="hv-accent" style={{ ...btn, background: 'var(--accent)', color: 'var(--on-accent)', border: 'none' }}>Record now</button>}
-              {actionable && <button onClick={askSkip} className="hv-soft" style={btn}>Skip</button>}
+              {actionable && <button onClick={() => { if (!phone) navigate('/transactions'); openers.recordRule(S, r.id, openDrawer); }} className="hv-accent rq-btn-solid" style={{ ...btn, background: 'var(--accent)', color: 'var(--on-accent)', border: 'none' }}>Record now</button>}
+              {actionable && <button onClick={askSkip} className="hv-soft rq-btn-outline" style={btn}>Skip</button>}
               {status !== 'ended' && (
-                <button onClick={() => { applyData(data => toggleRulePause(data, { id: r.id })); notify(r.status === 'paused' ? 'Rule resumed.' : 'Rule paused.'); }} className="hv-soft" style={btn}>
+                <button onClick={() => { applyData(data => toggleRulePause(data, { id: r.id })); notify(r.status === 'paused' ? 'Rule resumed.' : 'Rule paused.'); }} className="hv-soft rq-btn-outline" style={btn}>
                   {r.status === 'paused' ? 'Resume' : 'Pause'}
                 </button>
               )}
-              <button onClick={() => openers.editRule(S, r.id, openDrawer)} className="hv-soft" style={btn}>Edit</button>
-              <button onClick={askDelete} className="hv-neg-soft" style={{ ...btn, color: 'var(--neg)' }}>Delete</button>
+              <button onClick={() => openers.editRule(S, r.id, openDrawer)} className="hv-soft rq-btn-outline" style={btn}>Edit</button>
+              <button onClick={askDelete} className="hv-neg-soft rq-btn-outline" style={{ ...btn, color: 'var(--neg)' }}>Delete</button>
             </div>
           </div>
         </section>

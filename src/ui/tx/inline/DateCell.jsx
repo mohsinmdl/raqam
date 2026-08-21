@@ -185,9 +185,9 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
           }
         }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-          <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="hv-soft" style={{ ...chip(false), width: 24, padding: 0 }}>‹</button>
+          <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="hv-soft rq-btn-outline" style={{ ...chip(false), width: 24, padding: 0 }}>‹</button>
           <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600 }}>{MN[+month.slice(5) - 1] + ' ' + month.slice(0, 4)}</span>
-          <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" className="hv-soft" style={{ ...chip(false), width: 24, padding: 0 }}>›</button>
+          <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" className="hv-soft rq-btn-outline" style={{ ...chip(false), width: 24, padding: 0 }}>›</button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
           {WD.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 10.5, color: 'var(--muted)', fontWeight: 600 }}>{d}</span>)}
@@ -205,8 +205,8 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
           ))}
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-          <button type="button" data-cal-chip="" onClick={() => setFromCalendar(today)} className="hv-soft" style={chip(value === today)}>Today</button>
-          <button type="button" data-cal-chip="" onClick={() => setFromCalendar(addDays(today, -1))} className="hv-soft" style={chip(value === addDays(today, -1))}>Yesterday</button>
+          <button type="button" data-cal-chip="" onClick={() => setFromCalendar(today)} className="hv-soft rq-btn-outline" style={chip(value === today)}>Today</button>
+          <button type="button" data-cal-chip="" onClick={() => setFromCalendar(addDays(today, -1))} className="hv-soft rq-btn-outline" style={chip(value === addDays(today, -1))}>Yesterday</button>
           {showRepeat && (
             <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
               <span style={{ fontSize: 11, color: 'var(--muted)', flex: 'none' }}>Repeat:</span>

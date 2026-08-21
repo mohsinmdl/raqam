@@ -174,12 +174,12 @@ export default function ManagePayees() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderTop: '1px solid var(--border)', flex: 'none' }}>
-          <button type="button" onClick={modalUndo} disabled={!(scope && canUndoScoped(scope, undoSeq) && canUndo)} className="hv-elev"
+          <button type="button" onClick={modalUndo} disabled={!(scope && canUndoScoped(scope, undoSeq) && canUndo)} className="hv-elev rq-btn-outline"
             style={{ height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', opacity: scope && canUndoScoped(scope, undoSeq) && canUndo ? 1 : 0.45 }}>↺ Undo</button>
-          <button type="button" onClick={modalRedo} disabled={!(scope && canRedoScoped(scope) && canRedo)} className="hv-elev"
+          <button type="button" onClick={modalRedo} disabled={!(scope && canRedoScoped(scope) && canRedo)} className="hv-elev rq-btn-outline"
             style={{ height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', opacity: scope && canRedoScoped(scope) && canRedo ? 1 : 0.45 }}>↻ Redo</button>
           <span style={{ flex: 1 }} />
-          <button type="button" onClick={close} className="hv-accent" style={{ height: 34, padding: '0 20px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>Done</button>
+          <button type="button" onClick={close} className="hv-accent rq-btn-solid" style={{ height: 34, padding: '0 20px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>Done</button>
         </div>
       </ModalPanel>
     </Modal>

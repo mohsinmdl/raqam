@@ -80,12 +80,12 @@ function Row({ r, status, ctx }) {
         <span onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           {actionable && (
             <>
-              <button onClick={() => record(r)} className="hv-soft" style={{ ...btn, color: 'var(--accent)' }}>Record</button>
-              <button onClick={() => skip(r)} className="hv-soft" style={{ ...btn, color: 'var(--muted)' }}>Skip</button>
+              <button onClick={() => record(r)} className="hv-soft rq-btn-outline" style={{ ...btn, color: 'var(--accent)' }}>Record</button>
+              <button onClick={() => skip(r)} className="hv-soft rq-btn-outline" style={{ ...btn, color: 'var(--muted)' }}>Skip</button>
             </>
           )}
           {status === 'paused' && (
-            <button onClick={() => togglePause(r)} className="hv-soft" style={{ ...btn, color: 'var(--accent)' }}>Resume</button>
+            <button onClick={() => togglePause(r)} className="hv-soft rq-btn-outline" style={{ ...btn, color: 'var(--accent)' }}>Resume</button>
           )}
         </span>
         <span onClick={e => e.stopPropagation()} style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -175,7 +175,7 @@ export default function Recurring() {
           </p>
           {/* marginLeft:auto, not flex:1 on the paragraph — the intro is capped
               at 640px, so it can't grow to push the button to the edge itself. */}
-          <button onClick={() => openers.addRule(openDrawer)} className="hv-accent" style={{ ...btn, marginLeft: 'auto', height: 34, padding: '0 14px', background: 'var(--accent)', color: 'var(--on-accent)', border: 'none', fontSize: 13 }}>＋ Add rule</button>
+          <button onClick={() => openers.addRule(openDrawer)} className="hv-accent rq-btn-solid" style={{ ...btn, marginLeft: 'auto', height: 34, padding: '0 14px', background: 'var(--accent)', color: 'var(--on-accent)', border: 'none', fontSize: 13 }}>＋ Add rule</button>
         </div>
 
         {overdue.length > 0 && (
@@ -211,7 +211,7 @@ export default function Recurring() {
             <p style={{ fontSize: 12.5, color: 'var(--muted)', maxWidth: 420, margin: '6px auto 14px' }}>
               Rent, salary, a subscription — anything that comes back on a schedule. You can also turn any transaction into a rule with its Repeat field.
             </p>
-            <button onClick={() => openers.addRule(openDrawer)} className="hv-accent" style={{ ...btn, height: 34, padding: '0 14px', background: 'var(--accent)', color: 'var(--on-accent)', border: 'none', fontSize: 13 }}>＋ Add your first rule</button>
+            <button onClick={() => openers.addRule(openDrawer)} className="hv-accent rq-btn-solid" style={{ ...btn, height: 34, padding: '0 14px', background: 'var(--accent)', color: 'var(--on-accent)', border: 'none', fontSize: 13 }}>＋ Add your first rule</button>
           </section>
         )}
 

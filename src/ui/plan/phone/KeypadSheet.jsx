@@ -15,13 +15,13 @@ export default function KeypadSheet({ open, cat, hint, canAutoAssign, onKey, onD
             borderRadius: '12px 12px 0 0', boxShadow: 'var(--shadow)',
             padding: '10px 12px calc(10px + env(safe-area-inset-bottom))', outline: 'none' }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <button onClick={onAutoAssign} disabled={!canAutoAssign} className="hv-soft"
+            <button onClick={onAutoAssign} disabled={!canAutoAssign} className="hv-soft rq-btn-outline"
               style={{ flex: 1, height: 40, border: '1px solid var(--border)', borderRadius: 999,
                 background: 'var(--surface)', color: canAutoAssign ? 'var(--text)' : 'var(--muted)',
                 fontSize: 13, fontWeight: 600, cursor: canAutoAssign ? 'pointer' : 'default' }}>
               ⚡ Auto-Assign
             </button>
-            <button onClick={onMoveMoney} className="hv-soft"
+            <button onClick={onMoveMoney} className="hv-soft rq-btn-outline"
               style={{ flex: 1, height: 40, border: '1px solid var(--border)', borderRadius: 999,
                 background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               ➡ Move Money

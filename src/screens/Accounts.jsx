@@ -63,7 +63,7 @@ export default function Accounts() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, flex: 1 }}>Balances are computed from your confirmed opening balance plus recorded activity. Only the last 4 digits of any account are ever stored.</p>
-          <button onClick={() => openers.addAccount(openDrawer)} className="hv-accent" style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>＋ Add account</button>
+          <button onClick={() => openers.addAccount(openDrawer)} className="hv-accent rq-btn-solid" style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>＋ Add account</button>
         </div>
 
         {rows.length > 0 ? (
@@ -93,8 +93,8 @@ export default function Accounts() {
                 </div>
                 <div className="tnum" style={{ fontSize: 12.5, color: 'var(--muted)' }}>{a.last4}</div>
                 <div style={{ textAlign: 'right', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                  <button onClick={e => { e.stopPropagation(); openers.editAccount(S, a.id, openDrawer); }} className="hv-elev" style={{ height: 28, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Edit</button>
-                  <button onClick={e => { e.stopPropagation(); nav(`/transactions/${a.id}`); }} className="hv-soft" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>View</button>
+                  <button onClick={e => { e.stopPropagation(); openers.editAccount(S, a.id, openDrawer); }} className="hv-elev rq-btn-outline" style={{ height: 28, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Edit</button>
+                  <button onClick={e => { e.stopPropagation(); nav(`/transactions/${a.id}`); }} className="hv-soft rq-btn-outline" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>View</button>
                 </div>
               </div>
             ))}
@@ -103,7 +103,7 @@ export default function Accounts() {
           <section style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '48px 20px', textAlign: 'center' }}>
             <div style={{ fontSize: 15, fontWeight: 600 }}>No accounts yet</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6, maxWidth: '46ch', marginLeft: 'auto', marginRight: 'auto' }}>Add each Pakistani bank account you use — institution, a nickname, and today's balance. Everything else builds on this.</div>
-            <button onClick={() => openers.addAccount(openDrawer)} className="hv-accent" style={{ marginTop: 14, height: 36, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>＋ Add your first account</button>
+            <button onClick={() => openers.addAccount(openDrawer)} className="hv-accent rq-btn-solid" style={{ marginTop: 14, height: 36, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>＋ Add your first account</button>
           </section>
         )}
 
@@ -119,9 +119,9 @@ export default function Accounts() {
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}> · {instName(S, a.instId)} · {a.status === 'closed' ? 'closed' : 'archived'} · excluded from totals</span>
                 </span>
                 {pol.mode === 'delete'
-                  ? <button onClick={() => askDelete(a)} className="hv-neg-soft" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--neg)', fontSize: 12, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Delete</button>
+                  ? <button onClick={() => askDelete(a)} className="hv-neg-soft rq-btn-outline" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--neg)', fontSize: 12, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Delete</button>
                   : <span style={{ fontSize: 11.5, color: 'var(--muted)', flex: 'none' }} title={'Kept because of ' + pol.blockers.join(', ')}>Kept · {pol.blockers.join(', ')}</span>}
-                <button onClick={() => restore(a.id)} className="hv-elev" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Restore</button>
+                <button onClick={() => restore(a.id)} className="hv-elev rq-btn-outline" style={{ height: 28, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 500, cursor: 'pointer', flex: 'none' }}>Restore</button>
               </div>
               );
             })}

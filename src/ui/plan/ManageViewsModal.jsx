@@ -44,10 +44,10 @@ function ViewRow({ view, atTop, atBottom, renaming, draft, onDraftChange, onStar
           >{view.name}</button>
         )}
       </div>
-      <button aria-label={'Move ' + view.name + ' up'} disabled={atTop} onClick={onMoveUp} className="hv-soft" style={atTop ? iconBtnOff : iconBtn}>↑</button>
-      <button aria-label={'Move ' + view.name + ' down'} disabled={atBottom} onClick={onMoveDown} className="hv-soft" style={atBottom ? iconBtnOff : iconBtn}>↓</button>
-      <button aria-label={'Edit ' + view.name} onClick={onEdit} className="hv-soft" style={iconBtn}>✎</button>
-      <button aria-label={'Delete ' + view.name} onClick={onDelete} className="hv-soft" style={{ ...iconBtn, color: 'var(--neg)' }}>🗑</button>
+      <button aria-label={'Move ' + view.name + ' up'} disabled={atTop} onClick={onMoveUp} className="hv-soft rq-btn-outline" style={atTop ? iconBtnOff : iconBtn}>↑</button>
+      <button aria-label={'Move ' + view.name + ' down'} disabled={atBottom} onClick={onMoveDown} className="hv-soft rq-btn-outline" style={atBottom ? iconBtnOff : iconBtn}>↓</button>
+      <button aria-label={'Edit ' + view.name} onClick={onEdit} className="hv-soft rq-btn-outline" style={iconBtn}>✎</button>
+      <button aria-label={'Delete ' + view.name} onClick={onDelete} className="hv-soft rq-btn-outline" style={{ ...iconBtn, color: 'var(--neg)' }}>🗑</button>
     </div>
   );
 }
@@ -67,9 +67,9 @@ function BuiltinRow({ view, atTop, atBottom, onDragStart, onDrop, onMoveUp, onMo
         style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 14, flex: 'none', padding: '4px 2px', userSelect: 'none' }}
       >⠿</span>
       <div style={{ flex: 1, minWidth: 0, padding: '6px 8px', fontSize: 13, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: view.hidden ? 'line-through' : 'none' }}>{view.label}</div>
-      <button aria-label={'Move ' + view.label + ' up'} disabled={atTop} onClick={onMoveUp} className="hv-soft" style={atTop ? iconBtnOff : iconBtn}>↑</button>
-      <button aria-label={'Move ' + view.label + ' down'} disabled={atBottom} onClick={onMoveDown} className="hv-soft" style={atBottom ? iconBtnOff : iconBtn}>↓</button>
-      <button aria-label={(view.hidden ? 'Show ' : 'Hide ') + view.label} aria-pressed={!view.hidden} title={view.hidden ? 'Hidden — click to show' : 'Shown — click to hide'} onClick={onToggle} className="hv-soft" style={iconBtn}>{view.hidden ? '🚫' : '👁'}</button>
+      <button aria-label={'Move ' + view.label + ' up'} disabled={atTop} onClick={onMoveUp} className="hv-soft rq-btn-outline" style={atTop ? iconBtnOff : iconBtn}>↑</button>
+      <button aria-label={'Move ' + view.label + ' down'} disabled={atBottom} onClick={onMoveDown} className="hv-soft rq-btn-outline" style={atBottom ? iconBtnOff : iconBtn}>↓</button>
+      <button aria-label={(view.hidden ? 'Show ' : 'Hide ') + view.label} aria-pressed={!view.hidden} title={view.hidden ? 'Hidden — click to show' : 'Shown — click to hide'} onClick={onToggle} className="hv-soft rq-btn-outline" style={iconBtn}>{view.hidden ? '🚫' : '👁'}</button>
     </div>
   );
 }
@@ -138,7 +138,7 @@ export default function ManageViewsModal({ open, builtins, onToggleBuiltin, onRe
         <div role="dialog" aria-modal="true" aria-label="Manage Views" onClick={e => e.stopPropagation()} style={{ width: 420, maxWidth: '94vw', maxHeight: '84vh', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow)', padding: '22px 26px', animation: 'hsUp .18s ease', color: 'var(--text)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14 }}>
             <div style={{ fontSize: 18, fontWeight: 700 }}>Manage Views</div>
-            <button onClick={onClose} aria-label="Close" className="hv-soft" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+            <button onClick={onClose} aria-label="Close" className="hv-soft rq-btn-outline" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
           </div>
 
           <div style={sectionLabel}>Built-in views</div>
@@ -199,8 +199,8 @@ export default function ManageViewsModal({ open, builtins, onToggleBuiltin, onRe
           )}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
-            <button onClick={onNew} className="hv-elev" style={{ height: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>New View</button>
-            <button onClick={onClose} className="hv-accent" style={{ height: 36, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Done</button>
+            <button onClick={onNew} className="hv-elev rq-btn-outline" style={{ height: 36, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>New View</button>
+            <button onClick={onClose} className="hv-accent rq-btn-solid" style={{ height: 36, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Done</button>
           </div>
         </div>
       </FocusTrap>

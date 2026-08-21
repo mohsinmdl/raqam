@@ -205,9 +205,9 @@ function AdoptionBanner({ noGroups, needsImport, onAdopt, onImport, onDismiss })
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, flex: 'none' }}>
-        {noGroups && <button onClick={onAdopt} className="hv-accent" style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Organize into groups</button>}
-        {needsImport && <button onClick={onImport} className="hv-soft" style={{ height: 34, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Import budgets</button>}
-        <button onClick={onDismiss} aria-label="Dismiss" className="hv-soft" style={{ width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 16, lineHeight: 1, cursor: 'pointer' }}>×</button>
+        {noGroups && <button onClick={onAdopt} className="hv-accent rq-btn-solid" style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Organize into groups</button>}
+        {needsImport && <button onClick={onImport} className="hv-soft rq-btn-outline" style={{ height: 34, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Import budgets</button>}
+        <button onClick={onDismiss} aria-label="Dismiss" className="hv-soft rq-btn-outline" style={{ width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 16, lineHeight: 1, cursor: 'pointer' }}>×</button>
       </div>
     </div>
   );
@@ -292,7 +292,7 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
     <div ref={rootRef} style={{ position: 'relative', flex: 'none' }}>
       <button
         onClick={() => (open ? close() : openPopover())} aria-haspopup="dialog" aria-expanded={String(open)}
-        className="hv-accent"
+        className="hv-accent rq-btn-solid"
         style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
       >Assign ▾</button>
       {open && (
@@ -320,9 +320,9 @@ function AssignPopover({ rta, env, S, month, money, applyData }) {
           />
 
           <div style={popBtnRow}>
-            <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
+            <button onClick={close} className="hv-soft rq-btn-outline" style={popCancel}>Cancel</button>
             <button
-              onClick={confirm} disabled={!canAssign} className="hv-accent"
+              onClick={confirm} disabled={!canAssign} className="hv-accent rq-btn-solid"
               style={{ ...popOk, opacity: canAssign ? 1 : .5, cursor: canAssign ? 'pointer' : 'not-allowed' }}
             >Assign</button>
           </div>
@@ -404,9 +404,9 @@ function FixThisPopover({ rta, env, S, month, money, applyData }) {
           />
 
           <div style={popBtnRow}>
-            <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
+            <button onClick={close} className="hv-soft rq-btn-outline" style={popCancel}>Cancel</button>
             <button
-              onClick={confirm} disabled={!canFix} className="hv-accent"
+              onClick={confirm} disabled={!canFix} className="hv-accent rq-btn-solid"
               style={{ ...popOk, opacity: canFix ? 1 : .5, cursor: canFix ? 'pointer' : 'not-allowed' }}
             >Un-assign</button>
           </div>
@@ -451,6 +451,7 @@ function ViewToggle({ view, onChange }) {
   const seg = (key, label) => (
     <button
       key={key} onClick={() => onChange(key)} aria-pressed={val === key}
+      className={val === key ? 'rq-btn-outline' : undefined}
       style={{
         height: 28, padding: '0 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
         // Flat selection cue (no in-page shadow — Flat Ledger Rule): the active
@@ -482,7 +483,7 @@ function WidthToggle({ wide, onToggle }) {
     <button
       onClick={onToggle} aria-pressed={wide}
       aria-label={wide ? 'Fit budget to page width' : 'Expand budget to full width'}
-      title={wide ? 'Fit width' : 'Full width'} className="hv-soft"
+      title={wide ? 'Fit width' : 'Full width'} className="hv-soft rq-btn-outline"
       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 7, background: wide ? 'var(--elev)' : 'transparent', color: wide ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', flex: 'none' }}
     >
       <WideIcon />
@@ -521,8 +522,8 @@ function AddGroupButton({ onAdd }) {
             style={{ height: 34, fontSize: 13 }}
           />
           <div style={popBtnRow}>
-            <button onClick={() => { setOpen(false); setName(''); }} className="hv-soft" style={popCancel}>Cancel</button>
-            <button onClick={submit} className="hv-accent" style={popOk}>OK</button>
+            <button onClick={() => { setOpen(false); setName(''); }} className="hv-soft rq-btn-outline" style={popCancel}>Cancel</button>
+            <button onClick={submit} className="hv-accent rq-btn-solid" style={popOk}>OK</button>
           </div>
         </div>
       )}
@@ -633,6 +634,7 @@ function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, befor
               ref={addBtnRef}
               onClick={() => (addOpen ? close() : openAdd())} aria-label={'Add category to ' + group.name}
               aria-haspopup="dialog" aria-expanded={String(addOpen)}
+              className="rq-btn-outline"
               style={{ width: 20, height: 20, borderRadius: 999, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--accent)', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             >＋</button>
             {addOpen && (
@@ -644,8 +646,8 @@ function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, befor
                   style={{ height: 34, fontSize: 13 }}
                 />
                 <div style={popBtnRow}>
-                  <button onClick={() => { setAddOpen(false); setName(''); }} className="hv-soft" style={popCancel}>Cancel</button>
-                  <button onClick={submit} className="hv-accent" style={popOk}>OK</button>
+                  <button onClick={() => { setAddOpen(false); setName(''); }} className="hv-soft rq-btn-outline" style={popCancel}>Cancel</button>
+                  <button onClick={submit} className="hv-accent rq-btn-solid" style={popOk}>OK</button>
                 </div>
               </div>
             )}
@@ -765,7 +767,7 @@ function MovesPopover({ open, up, cat, month, S, money, onClose }) {
         </table>
       )}
       <div style={popBtnRow}>
-        <button onClick={onClose} className="hv-soft" style={popCancel}>Close</button>
+        <button onClick={onClose} className="hv-soft rq-btn-outline" style={popCancel}>Close</button>
       </div>
     </div>
   );
@@ -836,9 +838,9 @@ function CoverPopover({ cat, month, available, env, S, money, applyData }) {
         value={from} onChange={setFrom}
       />
       <div style={popBtnRow}>
-        <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
+        <button onClick={close} className="hv-soft rq-btn-outline" style={popCancel}>Cancel</button>
         <button
-          onClick={confirm} disabled={!canCover} className="hv-accent"
+          onClick={confirm} disabled={!canCover} className="hv-accent rq-btn-solid"
           style={{ ...popOk, opacity: canCover ? 1 : .5, cursor: canCover ? 'pointer' : 'not-allowed' }}
         >OK</button>
       </div>
@@ -889,9 +891,9 @@ function MovePopover({ cat, month, available, env, S, money, applyData }) {
         value={to} onChange={setTo}
       />
       <div style={popBtnRow}>
-        <button onClick={close} className="hv-soft" style={popCancel}>Cancel</button>
+        <button onClick={close} className="hv-soft rq-btn-outline" style={popCancel}>Cancel</button>
         <button
-          onClick={confirm} disabled={!canMove} className="hv-accent"
+          onClick={confirm} disabled={!canMove} className="hv-accent rq-btn-solid"
           style={{ ...popOk, opacity: canMove ? 1 : .5, cursor: canMove ? 'pointer' : 'not-allowed' }}
         >OK</button>
       </div>
@@ -1097,7 +1099,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
                       {OP_GLYPHS.map(op => (
                         <button
                           key={op} type="button" onClick={() => insertOp(op)}
-                          className="hv-soft"
+                          className="hv-soft rq-btn-outline"
                           style={{ height: 30, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
                         >{op}</button>
                       ))}
@@ -1583,7 +1585,7 @@ export default function Plan() {
               <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
                 No categories match this view.
                 <div style={{ marginTop: 10 }}>
-                  <button onClick={() => setPrefs({ planViewId: 'all' })} className="hv-soft"
+                  <button onClick={() => setPrefs({ planViewId: 'all' })} className="hv-soft rq-btn-outline"
                     style={{ height: 30, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
                     Show all
                   </button>

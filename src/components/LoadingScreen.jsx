@@ -12,7 +12,7 @@ export default function LoadingScreen({ message = 'Loading…', error = null, on
             <div style={{ fontSize: 15, fontWeight: 600 }}>Couldn't load your data</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6 }}>{error}</div>
             {onRetry && (
-              <button onClick={onRetry} style={{ marginTop: 16, height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={onRetry} className="rq-btn-solid" style={{ marginTop: 16, height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Try again
               </button>
             )}

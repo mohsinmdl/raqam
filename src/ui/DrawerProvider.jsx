@@ -36,7 +36,7 @@ function DrawerShell({ def, state, closeDrawer, requestClose }) {
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>{def.sub(state)}</div>
             </div>
             <span style={{ flex: 1 }} />
-            <button onClick={requestClose} aria-label="Close" className="hv-elev" style={{ width: 30, height: 30, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 15, cursor: 'pointer' }}>×</button>
+            <button onClick={requestClose} aria-label="Close" className="hv-elev rq-btn-outline" style={{ width: 30, height: 30, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', fontSize: 15, cursor: 'pointer' }}>×</button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {state.errList.length > 0 && (
@@ -50,13 +50,13 @@ function DrawerShell({ def, state, closeDrawer, requestClose }) {
           <div style={{ display: 'flex', gap: 10, padding: '14px 22px', borderTop: '1px solid var(--border)', flex: 'none', background: 'var(--surface)', alignItems: 'center' }}>
             {danger && (
               <>
-                <button onClick={danger.onClick} className="hv-neg-soft" style={{ height: 38, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--neg)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>{danger.label}</button>
+                <button onClick={danger.onClick} className="hv-neg-soft rq-btn-outline" style={{ height: 38, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--neg)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>{danger.label}</button>
                 <span aria-hidden="true" style={{ width: 1, height: 22, background: 'var(--border)' }} />
               </>
             )}
-            <button onClick={requestClose} className="hv-elev" style={{ height: 38, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={requestClose} className="hv-elev rq-btn-outline" style={{ height: 38, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
             <span style={{ flex: 1 }} />
-            <button onClick={submit} className="hv-accent" style={{ height: 38, padding: '0 20px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
+            <button onClick={submit} className="hv-accent rq-btn-solid" style={{ height: 38, padding: '0 20px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
               {def.cta(state)}
             </button>
           </div>

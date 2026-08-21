@@ -95,7 +95,7 @@ export function Pill({ on, warn, onClick, children }) {
   const fg = on ? (warn ? 'var(--on-warn)' : 'var(--on-accent)') : 'var(--muted)';
   const br = on ? (warn ? 'var(--warn)' : 'var(--accent)') : 'var(--border)';
   return (
-    <button onClick={onClick} aria-pressed={String(on)} style={{ height: 30, padding: '0 12px', border: `1px solid ${br}`, borderRadius: 999, background: bg, color: fg, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+    <button onClick={onClick} aria-pressed={String(on)} className={on ? (warn ? undefined : 'rq-btn-solid') : 'rq-btn-outline'} style={{ height: 30, padding: '0 12px', border: `1px solid ${br}`, borderRadius: 999, background: bg, color: fg, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
       {children}
     </button>
   );

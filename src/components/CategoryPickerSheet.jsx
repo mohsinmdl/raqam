@@ -57,7 +57,7 @@ export default function CategoryPickerSheet({ open, onClose, onPick, catType = '
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 76px' }}>
           {allowCreate && (
-            <button onClick={() => { onClose(); openers.addCategory(openDrawer); }} className="hv-elev"
+            <button onClick={() => { onClose(); openers.addCategory(openDrawer); }} className="hv-elev rq-btn-outline"
               style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', color: 'var(--accent)', font: 'inherit', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
               ＋ New Category
             </button>

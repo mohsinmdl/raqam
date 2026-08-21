@@ -139,7 +139,7 @@ export default function RecentMoves() {
                   key={f.id}
                   onClick={() => setFilter(f.id)}
                   aria-pressed={String(filter === f.id)}
-                  className="hv-soft"
+                  className={filter === f.id ? 'hv-soft rq-btn-solid' : 'hv-soft rq-btn-outline'}
                   style={chipStyle(filter === f.id)}
                 >
                   {f.label}

@@ -81,7 +81,7 @@ export default function AccountsPhone() {
       )}
 
       {archived.length > 0 && (
-        <button onClick={() => setArchOpen(true)} className="hv-elev"
+        <button onClick={() => setArchOpen(true)} className="hv-elev rq-btn-outline"
           style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48, padding: '0 14px',
             ...cardStyle, color: 'var(--text)', font: 'inherit', fontSize: 14, cursor: 'pointer', textAlign: 'left' }}>
           <span style={{ flex: 1 }}>{archived.length} archived account{archived.length === 1 ? '' : 's'}</span>
@@ -89,7 +89,7 @@ export default function AccountsPhone() {
         </button>
       )}
 
-      <button onClick={() => openers.addAccount(openDrawer)} className="hv-elev"
+      <button onClick={() => openers.addAccount(openDrawer)} className="hv-elev rq-btn-outline"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 48,
           ...cardStyle, color: 'var(--accent)', font: 'inherit', fontSize: 14.5, fontWeight: 600, cursor: 'pointer' }}>
         ＋ Add account

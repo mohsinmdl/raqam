@@ -62,7 +62,7 @@ export default function Cards() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, flex: 1 }}>Your wallet of owned cards. Card purchases add to the card's outstanding amount; paying the bill is a transfer, never a second expense. Only last-4 digits are stored.</p>
-          <button onClick={() => openers.addCard(openDrawer)} className="hv-accent" style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>＋ Add card</button>
+          <button onClick={() => openers.addCard(openDrawer)} className="hv-accent rq-btn-solid" style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>＋ Add card</button>
         </div>
 
         {tiles.length > 0 ? (
@@ -102,8 +102,8 @@ export default function Cards() {
                         <span>Due: <span style={{ color: c.dueColor, fontWeight: 600 }}>{c.due}</span></span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2, flexWrap: 'wrap' }}>
-                        <button onClick={() => openers.payCard(S, c.id, openDrawer)} disabled={c.isClosed} className="hv-accent" style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: c.isClosed ? 'default' : 'pointer', opacity: c.isClosed ? .45 : 1 }}>Record payment</button>
-                        <button onClick={() => openers.adjustCard(S, c.id, openDrawer)} className="hv-elev" style={{ height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>Correct outstanding</button>
+                        <button onClick={() => openers.payCard(S, c.id, openDrawer)} disabled={c.isClosed} className="hv-accent rq-btn-solid" style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: c.isClosed ? 'default' : 'pointer', opacity: c.isClosed ? .45 : 1 }}>Record payment</button>
+                        <button onClick={() => openers.adjustCard(S, c.id, openDrawer)} className="hv-elev rq-btn-outline" style={{ height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>Correct outstanding</button>
                         <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Transfer — never a second expense</span>
                       </div>
                     </>
@@ -127,7 +127,7 @@ export default function Cards() {
                     <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: c.stBg, color: c.stFg }}>{c.status}</span>
                     {c.edited && <span title={c.editedLabel} style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--muted)' }}>Edited</span>}
                     <span style={{ fontSize: 11.5, color: 'var(--muted)', flex: 1 }}>{c.feeNote}</span>
-                    <button onClick={() => openers.editCard(S, c.id, openDrawer)} className="hv-soft" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
+                    <button onClick={() => openers.editCard(S, c.id, openDrawer)} className="hv-soft rq-btn-outline" style={{ height: 26, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--accent)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
                   </div>
                 </div>
               </section>
@@ -137,7 +137,7 @@ export default function Cards() {
           <section style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '48px 20px', textAlign: 'center' }}>
             <div style={{ fontSize: 15, fontWeight: 600 }}>No cards in your wallet</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6, maxWidth: '48ch', marginLeft: 'auto', marginRight: 'auto' }}>Add debit cards to link them to accounts, and credit cards to track outstanding amounts, available credit, and due dates.</div>
-            <button onClick={() => openers.addCard(openDrawer)} className="hv-accent" style={{ marginTop: 14, height: 36, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>＋ Add a card</button>
+            <button onClick={() => openers.addCard(openDrawer)} className="hv-accent rq-btn-solid" style={{ marginTop: 14, height: 36, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>＋ Add a card</button>
           </section>
         )}
       </div>

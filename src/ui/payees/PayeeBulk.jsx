@@ -54,7 +54,7 @@ export default function PayeeBulk({ entries, onDeselect, onStepChange = () => {}
           {others.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
         </select>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" onClick={() => setDeleting(null)} className="hv-elev" style={{ height: 34, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+          <button type="button" onClick={() => setDeleting(null)} className="hv-elev rq-btn-outline" style={{ height: 34, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
           <button type="button" className="hv-neg-soft"
             onClick={() => { applyData(d => deletePayees(d, { names: deleting.names, replacement })); setDeleting(null); onDeselect(); }}
             style={{ height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--neg-soft)', color: 'var(--neg)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>
@@ -80,7 +80,7 @@ export default function PayeeBulk({ entries, onDeselect, onStepChange = () => {}
         <div style={{ display: 'flex', gap: 8 }}>
           <input className="field" aria-label="Combined payee name" value={into} onChange={e => setIntoDraft(e.target.value)}
             style={{ flex: 1, height: 36, padding: '0 10px', fontSize: 13.5 }} />
-          <button type="button" disabled={!into.trim()} className="hv-accent"
+          <button type="button" disabled={!into.trim()} className="hv-accent rq-btn-solid"
             onClick={() => { applyData(d => combinePayees(d, { names, into: into.trim() })); setIntoDraft(null); onDeselect(); }}
             style={{ height: 36, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: into.trim() ? 'pointer' : 'default', opacity: into.trim() ? 1 : 0.5, flex: 'none' }}>Combine</button>
         </div>

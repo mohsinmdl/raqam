@@ -79,6 +79,7 @@ function Body() {
           role="switch"
           aria-checked={String(on)}
           aria-label="Roll over what is left"
+          className={on ? 'rq-btn-solid' : 'rq-btn-outline'}
           style={{ width: 44, height: 26, flex: 'none', padding: 2, border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 999, background: on ? 'var(--accent)' : 'var(--track)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: on ? 'flex-end' : 'flex-start' }}
         >
           <span aria-hidden="true" style={{ display: 'block', width: 20, height: 20, borderRadius: 999, background: on ? 'var(--on-accent)' : 'var(--surface)' }} />
