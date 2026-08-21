@@ -36,9 +36,17 @@ export function addDays(ymd, k) {
 // 'YYYY-MM-DD', or null for anything that is not a real date (31/2, 13 as a
 // month, a stray letter): null is what puts the --neg ring on the field, so
 // being strict AFTER being lenient is the whole point.
+// The characters a typed date is ever allowed to contain — digits and the
+// three separators parseTypedDate reads (/, ., -) plus a bare space. Shared
+// with filterDateChars below so the DATE cell can strip anything else AS THE
+// USER TYPES (garbage never appears in the field at all) using the exact same
+// definition parseTypedDate itself rejects on, rather than two charsets that
+// could drift apart.
+const DATE_CHAR = /[0-9/.\- ]/;
+
 export function parseTypedDate(text, today) {
   const s = String(text == null ? '' : text).trim();
-  if (!s || /[^0-9/.\- ]/.test(s)) return null;
+  if (!s || [...s].some(ch => !DATE_CHAR.test(ch))) return null;
   const parts = s.split(/[^0-9]+/).filter(Boolean);
   if (parts.length === 0 || parts.length > 3) return null;
   let y, m, d;
@@ -62,6 +70,15 @@ export function monthsBetween(fromYm, toYm) {
   return (ty * 12 + tm) - (fy * 12 + fm);
 }
 export function clampDay(ym, day) { return Math.min(day, daysInMonth(ym)); }
+
+// Strips anything parseTypedDate would reject BEFORE it ever reaches the
+// field — so typing "17aug" leaves "17" on screen instead of a rejected
+// draft, and the --neg invalid ring only ever means "a real date string that
+// still doesn't resolve" (an impossible day/month), never "you typed a
+// letter".
+export function filterDateChars(s) {
+  return [...String(s == null ? '' : s)].filter(ch => DATE_CHAR.test(ch)).join('');
+}
 
 // Contiguous month list from the earliest month with data up to the current
 // month, plus an opt-in lookahead of future months tacked on past `cur`.

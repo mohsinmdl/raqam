@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calendarCells, shiftMonth } from '../src/lib/calendar.js';
+import { calendarCells, shiftMonth, yearGridFor } from '../src/lib/calendar.js';
 
 describe('shiftMonth', () => {
   it('steps forward across a year boundary', () => {
@@ -27,5 +27,22 @@ describe('calendarCells', () => {
     const cells = calendarCells('2026-08', '2026-08-17', '2026-08-20');
     expect(cells.find(c => c.iso === '2026-08-17').sel).toBe(true);
     expect(cells.find(c => c.iso === '2026-08-20').today).toBe(true);
+  });
+});
+
+describe('yearGridFor', () => {
+  it('returns 12 years with the center year 5 in from the start', () => {
+    const years = yearGridFor(2026);
+    expect(years.length).toBe(12);
+    expect(years[5]).toBe(2026);
+  });
+  it('spans 5 years back and 6 years forward of the center', () => {
+    const years = yearGridFor(2026);
+    expect(years[0]).toBe(2021);
+    expect(years[years.length - 1]).toBe(2032);
+  });
+  it('is contiguous', () => {
+    const years = yearGridFor(2000);
+    for (let i = 1; i < years.length; i++) expect(years[i]).toBe(years[i - 1] + 1);
   });
 });

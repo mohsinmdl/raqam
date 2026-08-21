@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTypedDate } from '../src/lib/dates.js';
+import { parseTypedDate, filterDateChars } from '../src/lib/dates.js';
 
 // The register's DATE cell is a typed field. These pin what a hand is allowed
 // to produce — and, just as importantly, what must come back null so the cell
@@ -81,5 +81,25 @@ describe('parseTypedDate — the strict half', () => {
   it('rejects a year outside the range a ledger plausibly holds', () => {
     expect(parseTypedDate('1/1/1899', TODAY)).toBe(null);
     expect(parseTypedDate('1/1/3001', TODAY)).toBe(null);
+  });
+});
+
+describe('filterDateChars — strips what parseTypedDate would reject, before it lands', () => {
+  it('leaves a plain typed date untouched', () => {
+    expect(filterDateChars('17/08/2026')).toBe('17/08/2026');
+  });
+  it('drops letters mid-type, keeping what is still a valid draft', () => {
+    expect(filterDateChars('17aug')).toBe('17');
+    expect(filterDateChars('yesterday')).toBe('');
+  });
+  it('keeps every separator parseTypedDate itself accepts', () => {
+    expect(filterDateChars('17-08.2026 3')).toBe('17-08.2026 3');
+  });
+  it('drops punctuation parseTypedDate does not accept', () => {
+    expect(filterDateChars('17,08,2026')).toBe('17082026');
+    expect(filterDateChars("17'8")).toBe('178');
+  });
+  it('is a no-op on empty input', () => {
+    expect(filterDateChars('')).toBe('');
   });
 });

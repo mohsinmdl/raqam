@@ -12,6 +12,17 @@ export function shiftMonth(ym, n) {
 // Whole weeks from the Sunday on or before the 1st. The trailing week is
 // dropped when it holds nothing but next month, which is what keeps most
 // months to five rows.
+// The date cell's year quick-jump: a fixed 12-year window with the currently
+// VIEWED year (not necessarily today's) centered — a few more years forward
+// than back, since a transaction is more often post-dated a little than
+// dated deep into the past via this picker (typed entry already covers old
+// dates faster than paging would).
+export function yearGridFor(centerYear) {
+  const years = [];
+  for (let i = -5; i <= 6; i++) years.push(centerYear + i);
+  return years;
+}
+
 export function calendarCells(ym, selected, today) {
   const [y, m] = ym.split('-').map(Number);
   const first = new Date(y, m - 1, 1);

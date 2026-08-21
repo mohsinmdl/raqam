@@ -2,16 +2,23 @@
 // field is the primary input — '17', '17/8', '17/8/26' and '17/08/2026' all
 // commit on Enter or blur (parseTypedDate does the reading; anything it cannot
 // read keeps the draft and marks the cell with the --neg ring Wave H
-// established, rather than silently reverting). The calendar is the secondary
-// path, opened by focusing the field or pressing the chevron, and still owns
-// the month stepper, the Today/Yesterday chips and (when the row can become a
-// rule) the Repeat preset dropdown — the same PRESETS the drawer used, so
+// established, rather than silently reverting). filterDateChars strips any
+// character parseTypedDate would reject as you type, so garbage never shows.
+//
+// A pointer click opens the calendar in a DISPLAY-ONLY state first (no
+// caret, no typing) — a second click while already focused switches the
+// field into edit mode. Keyboard arrival (Tab into the cell, autoFocus) skips
+// that and is editable immediately, matching the row's own keyboard-first
+// design elsewhere. The calendar is the secondary path, opened by a click,
+// the chevron, or Alt+Down, and still owns the month stepper, a month/year
+// quick-jump, the Today/Yesterday chips and (when the row can become a rule)
+// the Repeat preset dropdown — the same PRESETS the drawer used, so
 // applyRepeat in the store needs no change. Escape closes the popover only
 // (propagation is stopped so the editor session's own Escape does not fire).
 import { forwardRef, useRef, useState } from 'react';
 import { Popover, PopoverTrigger, PopoverPanel } from '../../primitives/Popover.jsx';
-import { calendarCells, shiftMonth } from '../../../lib/calendar.js';
-import { todayStr, addDays, parseTypedDate } from '../../../lib/dates.js';
+import { calendarCells, shiftMonth, yearGridFor } from '../../../lib/calendar.js';
+import { todayStr, addDays, parseTypedDate, filterDateChars } from '../../../lib/dates.js';
 import { PRESETS } from '../../../lib/schedule.js';
 import { Chevron } from '../../icons.jsx';
 
@@ -23,6 +30,8 @@ const MFULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', '
 const dayName = iso => `${+iso.slice(8)} ${MFULL[+iso.slice(5, 7) - 1]} ${iso.slice(0, 4)}`;
 const dmy = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? ymd.slice(8) + '/' + ymd.slice(5, 7) + '/' + ymd.slice(0, 4) : '');
 const chip = on => ({ height: 24, padding: '0 8px', borderRadius: 6, cursor: 'pointer', fontSize: 11.5, fontWeight: 600, border: '1px solid ' + (on ? 'var(--accent)' : 'var(--border)'), background: on ? 'var(--soft)' : 'var(--surface)', color: on ? 'var(--accent)' : 'var(--text)' });
+const navBtn = { ...chip(false), width: 24, padding: 0 };
+const headLabel = { flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, border: 'none', background: 'none', color: 'var(--text)', cursor: 'pointer', padding: '2px 4px', borderRadius: 6 };
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 };
 const TYPE_MSG = "Couldn't read that date — try 17, 17/8 or 17/08/2026.";
@@ -35,8 +44,16 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
   const today = todayStr();
   const [month, setMonth] = useState(() => String(value || today).slice(0, 7));
   const [open, setOpen] = useState(false);
+  // null = day grid (the calendar proper); 'month' | 'year' = the quick-jump
+  // grids that temporarily replace it. Both read/write `month` directly
+  // (via shiftMonth) rather than their own paging state, so there is exactly
+  // one source of truth for "which month/year is the calendar showing".
+  const [subView, setSubView] = useState(null);
   const [draft, setDraft] = useState(null); // null = idle, mirror the committed value
   const [typeErr, setTypeErr] = useState(false);
+  // Display-only until a SECOND pointer interaction (or keyboard arrival)
+  // promotes it — see the onMouseDown/onFocus pair below.
+  const [editable, setEditable] = useState(false);
   // The calendar hangs off the whole field, not off the chevron that opens it.
   const fieldRef = useRef(null);
   // Set when the row's Tab walk is about to move focus itself — finalFocus
@@ -49,27 +66,53 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
   // Alt+Down (keyboard), focus moves into the popup as Base UI normally
   // does — the route to the day grid and the Repeat select.
   const fromField = useRef(false);
+  // Set by onMouseDown the instant BEFORE a click that will newly focus the
+  // field (i.e. it wasn't already the active element) — read once by the
+  // onFocus that same click triggers, then cleared. Distinguishes "this
+  // click just opened the field" (stay display-only) from "the field was
+  // already open and focused, so this click means edit" (onMouseDown handles
+  // that case directly, since focus won't re-fire).
+  const openingByClick = useRef(false);
   const cells = calendarCells(month, value, today);
   const id = errorId || 'txeditor-err-date';
   const showInvalid = typeErr || !!invalid;
   const shown = draft !== null ? draft : dmy(value);
+  const year = +month.slice(0, 4);
 
   // Picking from the calendar fills the field: any half-typed draft is what the
   // user just abandoned by reaching for the grid.
-  const setFromCalendar = iso => { onChange(iso); setMonth(iso.slice(0, 7)); setDraft(null); setTypeErr(false); };
+  const setFromCalendar = iso => { onChange(iso); setMonth(iso.slice(0, 7)); setDraft(null); setTypeErr(false); setSubView(null); };
   const commit = () => {
     if (draft === null) return;
     const iso = parseTypedDate(draft, today);
     if (!iso) { setTypeErr(true); return; } // keep the draft, mark the cell
     setFromCalendar(iso);
   };
+  const pickMonth = mIdx => { setMonth(month.slice(0, 4) + '-' + String(mIdx + 1).padStart(2, '0')); setSubView(null); };
+  const pickYear = y => { setMonth(y + '-' + month.slice(5)); setSubView(null); };
 
   return (
-    <Popover open={open} onOpenChange={o => { if (o) tabbedAway.current = false; setOpen(o); }}>
+    <Popover open={open} onOpenChange={(o, ev) => {
+      // Base UI's own outside-press dismiss only recognizes a click as "on
+      // the trigger" through a <PopoverTrigger> (the chevron below), which
+      // registers itself with Floating UI's reference tracking. The FIELD
+      // opens the calendar by setting `open` directly (see onMouseDown/
+      // onFocus) — it was never registered that way — so Floating UI's own
+      // outside-press check sees no recognized reference/floating ancestor
+      // for a click landing back on the field and misreads it as "outside",
+      // firing this callback with o=false the instant it opens (first click)
+      // and again on every later click meant to promote it to edit (second
+      // click). A dismiss whose event target is the field itself is that
+      // false positive — swallow only that one case; a real outside click
+      // (or Escape, handled separately below) still closes normally.
+      if (!o && ev && ev.reason === 'outside-press' && fieldRef.current && ev.event && fieldRef.current.contains(ev.event.target)) return;
+      if (o) tabbedAway.current = false; else { setEditable(false); setSubView(null); }
+      setOpen(o);
+    }}>
       <span ref={fieldRef} style={{ position: 'relative', display: 'block', width: '100%' }}>
         <input
           ref={ref} className="field tnum" inputMode="numeric" disabled={disabled}
-          aria-label="Date" placeholder="dd/mm/yyyy"
+          aria-label="Date" placeholder="dd/mm/yyyy" readOnly={!editable} aria-readonly={!editable}
           // The calendar is this field's popup, so the field must SAY so:
           // haspopup/expanded/controls make the relationship (and its state)
           // audible, and aria-keyshortcuts names the chord that enters it.
@@ -77,8 +120,28 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
           aria-keyshortcuts="Alt+ArrowDown"
           aria-invalid={showInvalid || undefined} aria-describedby={showInvalid ? id : undefined}
           value={shown}
-          onFocus={() => { fromField.current = true; setOpen(true); }}
-          onChange={e => { setDraft(e.target.value); setTypeErr(false); }}
+          // Runs BEFORE focus changes: if the field is already the active
+          // element (it's open, in display mode, and this is a SECOND click),
+          // promote straight to editable — onFocus won't fire again since
+          // focus isn't moving. Otherwise this click is the one ABOUT to
+          // focus the field for the first time; mark it so the onFocus it
+          // triggers knows to stay display-only rather than edit-first.
+          onMouseDown={e => {
+            // Already the focused element (for any reason, popover open or
+            // not): this click is a repeat interaction, so it means edit —
+            // not gated on `open` too, or a popover that closed while focus
+            // lingered would leave openingByClick set with no onFocus ever
+            // coming along to consume it.
+            if (document.activeElement === e.currentTarget) { if (!open) setOpen(true); if (!editable) setEditable(true); }
+            else openingByClick.current = true;
+          }}
+          onFocus={() => {
+            fromField.current = true;
+            setOpen(true);
+            if (openingByClick.current) { openingByClick.current = false; setEditable(false); }
+            else setEditable(true); // Tab arrival / autoFocus: keyboard entry stays immediate
+          }}
+          onChange={e => { setDraft(filterDateChars(e.target.value)); setTypeErr(false); }}
           onBlur={commit}
           onKeyDown={e => {
             if (e.key === 'Enter' && draft !== null) { e.preventDefault(); commit(); }
@@ -130,7 +193,7 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
           // fits with room to spare and still stops well short of the calendar
           // chevron's 20px box at the right edge. minWidth 0 keeps the input
           // from asserting a min-content floor of its own inside the cell.
-          style={{ width: '100%', minWidth: 0, height: 28, padding: '0 4px', fontSize: 13, ...(showInvalid ? ringStyle : null) }}
+          style={{ width: '100%', minWidth: 0, height: 28, padding: '0 4px', fontSize: 13, cursor: editable ? 'text' : 'pointer', ...(showInvalid ? ringStyle : null) }}
         />
         {/* tabIndex -1: the row's Tab walk goes strictly column-to-column, so
             this chevron left the tab order — Alt+Down on the field is the
@@ -162,18 +225,22 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
           // Repeat, ←/→ between them, ↑ back to the grid). The Repeat select
           // itself keeps native arrow behavior (changing its value), so it is
           // entered from the left and left by Tab — and Alt+Arrow is skipped
-          // everywhere (that chord belongs to open/close idioms).
+          // everywhere (that chord belongs to open/close idioms). The same
+          // grid walk covers the month-grid and year-grid sub-views: whichever
+          // data-*-grid is present is the one with buttons in it.
           if (e.altKey || !e.key.startsWith('Arrow')) return;
           const panel = document.getElementById(CAL_ID);
           if (!panel || e.target.tagName === 'SELECT') return;
-          const days = [...panel.querySelectorAll('[data-day-grid] button')];
+          const grid = panel.querySelector('[data-day-grid], [data-month-grid], [data-year-grid]');
+          const cols = grid && grid.hasAttribute('data-day-grid') ? 7 : 4;
+          const days = grid ? [...grid.querySelectorAll('button')] : [];
           const chips = [...panel.querySelectorAll('[data-cal-chip]')];
           const di = days.indexOf(e.target);
           if (di !== -1) {
             e.preventDefault();
-            const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 7, ArrowUp: -7 }[e.key];
+            const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols }[e.key];
             const ni = di + step;
-            if (e.key === 'ArrowDown' && ni >= days.length) { (chips[0] || days[days.length - 1]).focus(); return; }
+            if (subView === null && e.key === 'ArrowDown' && ni >= days.length) { (chips[0] || days[days.length - 1]).focus(); return; }
             if (ni >= 0 && ni < days.length) days[ni].focus();
             return;
           }
@@ -185,38 +252,93 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
           }
         }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-          <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="hv-soft rq-btn-outline" style={{ ...chip(false), width: 24, padding: 0 }}>‹</button>
-          <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600 }}>{MN[+month.slice(5) - 1] + ' ' + month.slice(0, 4)}</span>
-          <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" className="hv-soft rq-btn-outline" style={{ ...chip(false), width: 24, padding: 0 }}>›</button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
-          {WD.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 10.5, color: 'var(--muted)', fontWeight: 600 }}>{d}</span>)}
-        </div>
-        <div data-day-grid="" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginTop: 2 }}>
-          {cells.map(c => (
-            <button key={c.iso} type="button" className="rq-cal-day" onClick={() => setFromCalendar(c.iso)}
-              aria-label={dayName(c.iso)}
-              aria-current={c.sel ? 'date' : undefined}
-              style={{ height: 28, borderRadius: 6, cursor: 'pointer', fontSize: 12,
-                border: '1px solid ' + (c.today && !c.sel ? 'var(--accent)' : 'transparent'),
-                background: c.sel ? 'var(--accent)' : 'transparent',
-                color: c.sel ? 'var(--on-accent)' : c.out ? 'var(--border)' : 'var(--text)',
-                fontWeight: c.sel || c.today ? 600 : 400 }}>{c.n}</button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-          <button type="button" data-cal-chip="" onClick={() => setFromCalendar(today)} className="hv-soft rq-btn-outline" style={chip(value === today)}>Today</button>
-          <button type="button" data-cal-chip="" onClick={() => setFromCalendar(addDays(today, -1))} className="hv-soft rq-btn-outline" style={chip(value === addDays(today, -1))}>Yesterday</button>
-          {showRepeat && (
-            <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-              <span style={{ fontSize: 11, color: 'var(--muted)', flex: 'none' }}>Repeat:</span>
-              <select aria-label="Repeat" data-cal-chip="" value={repeat || 'never'} onChange={e => onRepeat(e.target.value)}
-                style={{ height: 24, minWidth: 0, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 11.5, fontWeight: 600, padding: '0 4px', cursor: 'pointer' }}>
-                {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-              </select>
-            </label>
+          {/* Prev/next means a different step depending on what's showing:
+              a month in the day grid, a year while picking a month, or a
+              whole 12-year page while picking a year — so paging never
+              leaves the level you're actually browsing. */}
+          <button type="button"
+            onClick={() => setMonth(shiftMonth(month, subView === 'year' ? -144 : subView === 'month' ? -12 : -1))}
+            aria-label={subView === 'year' ? 'Previous years' : subView === 'month' ? 'Previous year' : 'Previous month'}
+            className="hv-soft rq-btn-outline" style={navBtn}>‹</button>
+          {subView === null ? (
+            <>
+              <button type="button" onClick={() => setSubView('month')} className="hv-soft rq-btn-outline" style={headLabel}>{MN[+month.slice(5) - 1]}</button>
+              <button type="button" onClick={() => setSubView('year')} className="hv-soft rq-btn-outline" style={headLabel}>{year}</button>
+            </>
+          ) : (
+            // Clicking the label again backs out to the day grid — the same
+            // toggle that opened it, mirroring the day-grid's own two labels.
+            // Month-picking shows the year it belongs to; year-picking shows
+            // the visible range, so the label always states what's on screen.
+            <button type="button" onClick={() => setSubView(null)} className="hv-soft rq-btn-outline tnum" style={headLabel}>
+              {subView === 'month' ? year : `${year - 5}–${year + 6}`}
+            </button>
           )}
+          <button type="button"
+            onClick={() => setMonth(shiftMonth(month, subView === 'year' ? 144 : subView === 'month' ? 12 : 1))}
+            aria-label={subView === 'year' ? 'Next years' : subView === 'month' ? 'Next year' : 'Next month'}
+            className="hv-soft rq-btn-outline" style={navBtn}>›</button>
         </div>
+        {subView === 'month' && (
+          <div data-month-grid="" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 4 }}>
+            {MN.map((label, i) => {
+              const cur = i === +month.slice(5) - 1;
+              return (
+                <button key={label} type="button" onClick={() => pickMonth(i)} aria-current={cur ? 'date' : undefined}
+                  style={{ height: 32, borderRadius: 6, cursor: 'pointer', fontSize: 12.5, border: 'none',
+                    background: cur ? 'var(--accent)' : 'transparent', color: cur ? 'var(--on-accent)' : 'var(--text)', fontWeight: cur ? 600 : 400 }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {subView === 'year' && (
+          <div data-year-grid="" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 4 }}>
+            {yearGridFor(year).map(y => {
+              const cur = y === year;
+              return (
+                <button key={y} type="button" className="tnum" onClick={() => pickYear(y)} aria-current={cur ? 'date' : undefined}
+                  style={{ height: 32, borderRadius: 6, cursor: 'pointer', fontSize: 12.5, border: 'none',
+                    background: cur ? 'var(--accent)' : 'transparent', color: cur ? 'var(--on-accent)' : 'var(--text)', fontWeight: cur ? 600 : 400 }}>
+                  {y}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {subView === null && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
+              {WD.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 10.5, color: 'var(--muted)', fontWeight: 600 }}>{d}</span>)}
+            </div>
+            <div data-day-grid="" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginTop: 2 }}>
+              {cells.map(c => (
+                <button key={c.iso} type="button" className="rq-cal-day" onClick={() => setFromCalendar(c.iso)}
+                  aria-label={dayName(c.iso)}
+                  aria-current={c.sel ? 'date' : undefined}
+                  style={{ height: 28, borderRadius: 6, cursor: 'pointer', fontSize: 12,
+                    border: '1px solid ' + (c.today && !c.sel ? 'var(--accent)' : 'transparent'),
+                    background: c.sel ? 'var(--accent)' : 'transparent',
+                    color: c.sel ? 'var(--on-accent)' : c.out ? 'var(--border)' : 'var(--text)',
+                    fontWeight: c.sel || c.today ? 600 : 400 }}>{c.n}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+              <button type="button" data-cal-chip="" onClick={() => setFromCalendar(today)} className="hv-soft rq-btn-outline" style={chip(value === today)}>Today</button>
+              <button type="button" data-cal-chip="" onClick={() => setFromCalendar(addDays(today, -1))} className="hv-soft rq-btn-outline" style={chip(value === addDays(today, -1))}>Yesterday</button>
+              {showRepeat && (
+                <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', flex: 'none' }}>Repeat:</span>
+                  <select aria-label="Repeat" data-cal-chip="" value={repeat || 'never'} onChange={e => onRepeat(e.target.value)}
+                    style={{ height: 24, minWidth: 0, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 11.5, fontWeight: 600, padding: '0 4px', cursor: 'pointer' }}>
+                    {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
+          </>
+        )}
       </PopoverPanel>
     </Popover>
   );
