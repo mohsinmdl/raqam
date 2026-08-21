@@ -245,6 +245,17 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
 .rq-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
 @supports not selector(::-webkit-scrollbar) { .rq-scroll { scrollbar-width: thin; scrollbar-color: var(--border) transparent; } }
 
+/* Base UI's ScrollArea primitive (src/ui/primitives/ScrollArea.jsx) — a real
+   draggable Thumb element, not a pseudo-element, so plain :hover works
+   directly instead of needing the ::-webkit-scrollbar-thumb + @supports
+   fallback pair above. Same resting look as .rq-scroll on purpose: only
+   Select.jsx has migrated to this primitive so far (Combobox's
+   ComboboxPanel still uses .rq-scroll) — the two must read as one scrollbar
+   system until the rest migrate too. */
+.rq-scrollbar { display: flex; justify-content: center; width: 11px; padding: 2px; box-sizing: border-box; }
+.rq-scrollbar-thumb { width: 5px; border-radius: 999px; background: var(--border); }
+.rq-scrollbar-thumb:hover { background: var(--muted); }
+
 /* Reflect report tabs — a minimal underline strip that scrolls horizontally
    rather than wrapping when the six labels exceed the width (mobile). The
    scrollbar is hidden; the clipped peek of the next tab at the scroll edge is

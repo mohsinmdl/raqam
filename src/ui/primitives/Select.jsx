@@ -3,12 +3,17 @@
 // "The Trusted Ledger" look. First consumer: the inline editor's account cell.
 import { forwardRef } from 'react';
 import { Select as BaseSelect } from '@base-ui/react/select';
+import { ScrollArea, ScrollAreaViewport, ScrollAreaContent, ScrollAreaScrollbar } from './ScrollArea.jsx';
 import { Chevron } from '../icons.jsx';
 
+// maxHeight + overflow:hidden here is the CARD's hard ceiling; the actual
+// scrolling now belongs to ScrollArea/Viewport inside it (a real Base UI
+// scrollbar, not the browser's native one — see ScrollArea.jsx). Padding
+// moved to ScrollAreaContent so it wraps the scrolled list, not the card.
 const popupStyle = {
   background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
-  boxShadow: 'var(--shadow)', padding: 6, color: 'var(--text)', boxSizing: 'border-box',
-  maxHeight: 320, overflowY: 'auto', outline: 'none', minWidth: 'var(--anchor-width)',
+  boxShadow: 'var(--shadow)', color: 'var(--text)', boxSizing: 'border-box',
+  maxHeight: 320, overflow: 'hidden', outline: 'none', minWidth: 'var(--anchor-width)',
 };
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 
@@ -47,7 +52,14 @@ export const Select = forwardRef(function Select({ value, onValueChange, ariaLab
               editor's Tab-commit walks to the next cell) passes a function
               returning false so the closing popup doesn't yank focus back to
               the trigger; every other close keeps the default restore. */}
-          <BaseSelect.Popup style={popupStyle} finalFocus={finalFocus} onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>{children}</BaseSelect.Popup>
+          <BaseSelect.Popup style={popupStyle} finalFocus={finalFocus} onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>
+            <ScrollArea style={{ height: '100%', maxHeight: 320 }}>
+              <ScrollAreaViewport style={{ height: '100%', maxHeight: 320 }}>
+                <ScrollAreaContent style={{ padding: 6 }}>{children}</ScrollAreaContent>
+              </ScrollAreaViewport>
+              <ScrollAreaScrollbar />
+            </ScrollArea>
+          </BaseSelect.Popup>
         </BaseSelect.Positioner>
       </BaseSelect.Portal>
     </BaseSelect.Root>
