@@ -145,6 +145,21 @@ textarea:focus {
    real roving focus rather than aria-activedescendant); one rule keeps the
    "you are here" fill identical across both list kinds in the editor row. */
 .rq-select-item[data-highlighted] { background: var(--soft); }
+/* Select's highlighted option is REAL DOM focus (roving tabindex), so it was
+   painting the global :focus-visible ring on top of the fill above — a soft
+   mint pill wearing a bold teal outline, the opposite of this system's calm,
+   single-signal states (theme.css intro). The combobox rows never had this:
+   their highlight is virtual (aria-activedescendant), which never triggers
+   :focus-visible. The fill alone already says "here"; drop the redundant
+   ring only where it would double up, and only exactly there. */
+.rq-select-item[data-highlighted]:focus-visible { outline: none; }
+/* Same doubling on the date cell's calendar: the selected day already carries
+   a solid --accent fill (opened via Alt+Down or the chevron, real DOM focus
+   lands on it), so the generic ring on top read as a filled teal circle
+   wearing its own teal halo. The fill is a stronger signal than the ring
+   ever was; every other day button (today's outline, a plain day someone
+   tabs to) keeps the ring as its only indicator. */
+.rq-cal-day[aria-current="date"]:focus-visible { outline: none; }
 .hv-soft:hover { background: var(--soft) !important; }
 .hv-accent:hover { background: var(--accent-h) !important; }
 .hv-neg-soft:hover { background: var(--neg-soft) !important; }
