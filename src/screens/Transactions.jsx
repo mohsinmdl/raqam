@@ -77,8 +77,8 @@ const COLUMNS = [
   // altKeys, every stored sort) — only the printed label changes, so the column
   // is called the same thing here, in the editor's field, and in the product
   // doc. "Details" named a cell that holds exactly one thing: who was paid.
-  { key: 'details', label: 'PAYEE', width: 260 },
-  { key: 'category', label: 'CATEGORY', width: 220 },
+  { key: 'details', label: 'PAYEE', width: null },
+  { key: 'category', label: 'CATEGORY', width: 190 },
   { key: 'notes', label: 'MEMO', width: 180 },
   // Two amount columns (YNAB). altKeys keep the toolbar's size/signed modes
   // lighting a header: both are magnitude-family sorts, closest to OUTFLOW.
@@ -308,7 +308,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
             that one account, so a sub-label would be pure noise. */}
         {foldAccount && <AccountLabel t={t} fontSize={11.5} color="var(--muted)" />}
       </td>
-      <td style={{ ...td, ...dim, maxWidth: 220, padding: pad, verticalAlign: 'middle' }}>
+      <td style={{ ...td, ...dim, maxWidth: 190, padding: pad, verticalAlign: 'middle' }}>
         {t.needsCategory
           // Wave D: while the row is still holding its saved-state accent, the
           // same CTA (opens the identical categorize flow) renders as an
@@ -1271,10 +1271,10 @@ export default function Transactions() {
                whose min-content is the whole string) widened the PAYEE column
                past the wrapper and put a horizontal scrollbar under a table
                that had already folded ACCOUNT and MEMO away to avoid exactly
-               that. Fixed layout means the declared widths win, any surplus
-               is spread across the columns in proportion to those widths, and
-               every over-long cell ellipsises inside its column instead of
-               pushing it. */
+               that. Fixed layout means the declared widths win, the one
+               width-less column (PAYEE) takes the remainder, and every
+               over-long cell ellipsises inside its column instead of pushing
+               it. */
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               {/* Widths declared once, so a header and its cells cannot drift.
                   `columns` is already filtered by container width (registerColumns.js)
