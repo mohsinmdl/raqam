@@ -192,7 +192,7 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
                 style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)', cursor: 'pointer', width: '100%' }}>
                 Split ({(f.splits || []).length}) — un-split
               </button>
-            : <CategoryCell ref={cellRefs.category} value={cells.category} catType={catType} isTransfer={isTransfer} disabled={!can.category}
+            : <CategoryCell ref={cellRefs.category} value={cells.category} catType={catType} inflow={type === 'income'} isTransfer={isTransfer} disabled={!can.category}
                 invalid={!!cellErrors.category} errorMsg={cellErrors.category}
                 onChange={id => patch('category', id)}
                 onCreate={({ name, groupId }) => setForm({ category: '__new', newCat: name, newCatGroup: groupId || '' })}
