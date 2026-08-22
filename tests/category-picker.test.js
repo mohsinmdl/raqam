@@ -52,7 +52,8 @@ describe('inflowPickerSections', () => {
     const secs = inflowPickerSections(S, '');
     expect(secs.map(s => s.name)).toEqual(['Income', 'Refund to…']);
     expect(itemsBy(secs, 'Income')).toEqual(['salary']);
-    // Expense categories, name-sorted, flat (grouping is dropped in the refund context).
+    // Expense categories, flat (grouping dropped), name-sorted here since the
+    // fixture carries no explicit sortOrder — byOrderThenName falls back to name.
     expect(itemsBy(secs, 'Refund to…')).toEqual(['games', 'loose', 'phone', 'rent']);
     // Items carry the PlanCategoryPicker row shape so the component renders them directly.
     expect(secs[0].items[0]).toEqual({ kind: 'cat', cat: expect.objectContaining({ id: 'salary' }) });
@@ -65,10 +66,24 @@ describe('inflowPickerSections', () => {
     expect(all).not.toContain('phone');  // explicitly excluded
   });
 
-  it('filters by a case-insensitive search across both sections', () => {
-    const secs = inflowPickerSections(S, 'sa');   // matches income 'Salary' only
-    expect(secs.map(s => s.name)).toEqual(['Income']);
-    expect(itemsBy(secs, 'Income')).toEqual(['salary']);
+  it('filters case-insensitively within BOTH sections at once', () => {
+    const secs = inflowPickerSections(S, 'A');   // upper-case 'A' -> also proves case-insensitivity
+    expect(secs.map(s => s.name)).toEqual(['Income', 'Refund to…']);
+    expect(itemsBy(secs, 'Income')).toEqual(['salary']);      // 'Salary'
+    expect(itemsBy(secs, 'Refund to…')).toEqual(['games']);   // 'Games' (Rent/Phone/Loose lack an 'a')
+  });
+
+  it('returns [] when nothing matches', () => {
+    expect(inflowPickerSections(S, 'zzz')).toEqual([]);
+  });
+
+  it('honors sortOrder before name (Plan order, not alphabetical)', () => {
+    const ordered = { categoryGroups: [], categories: [
+      { id: 'zeta', name: 'Zeta', type: 'expense', status: 'active', sortOrder: 0 },
+      { id: 'alpha', name: 'Alpha', type: 'expense', status: 'active', sortOrder: 1 },
+    ] };
+    // Zeta (sortOrder 0) leads Alpha (sortOrder 1) despite Z > A by name.
+    expect(itemsBy(inflowPickerSections(ordered, ''), 'Refund to…')).toEqual(['zeta', 'alpha']);
   });
 
   it('drops an empty section', () => {

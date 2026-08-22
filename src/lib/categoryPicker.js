@@ -21,9 +21,9 @@ export function categoryPickerSections(S, catType, q) {
 // income by default, but pointing it at an EXPENSE category makes it a refund
 // (the editor's state machine flips income→refund on an expense-typed pick), so
 // the picker must offer both: an `Income` section and a `Refund to…` section of
-// expense categories. Flat and name-ordered (grouping is dropped in the refund
-// context — this is the compact inline picker, and typeahead covers long lists);
-// archived + excludeIds filtered out. RTA is the caller's concern (the inline
+// expense categories. Flat and Plan-ordered (byOrderThenName — sortOrder then
+// name; grouping is dropped in the refund context, and typeahead covers long
+// lists); archived + excludeIds filtered out. RTA is the caller's concern (the inline
 // editor excludes it). Items use PlanCategoryPicker's row shape so the component
 // renders them directly. Empty sections are dropped.
 export function inflowPickerSections(S, q, excludeIds) {
