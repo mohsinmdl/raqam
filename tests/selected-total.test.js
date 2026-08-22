@@ -1,9 +1,9 @@
-// The "Selected Total" net — YNAB's rule: inflows positive, outflows
-// negative, one signed figure. Summed from the rows' DISPLAYED sides
-// (outflowValue/inflowValue), never amtValue: a transfer's amtValue is the
-// raw +amount even though the register shows it in the OUTFLOW column, so an
-// amtValue sum silently counted transfers backwards. Deriving from the
-// columns means the total can never disagree with what the eye adds up.
+// The "Selected Total" net: inflows positive, outflows negative, one signed
+// figure — and own-account transfers (bank→bank or bank→card) contribute
+// ZERO: the money moved between the user's own accounts, never leaving the
+// ledger, so counting a transfer's OUTFLOW-column figure made a selection
+// look poorer than it is. Non-transfer rows sum from their DISPLAYED sides
+// (outflowValue/inflowValue), never amtValue.
 import { describe, it, expect } from 'vitest';
 import { txRowOf, netTotal } from '../src/lib/txRow.js';
 
@@ -32,8 +32,12 @@ describe('netTotal', () => {
     expect(netTotal([row({ type: 'refund', amount: 250 })])).toBe(250);
   });
 
-  it('counts a transfer as an outflow — the side its register column shows', () => {
-    expect(netTotal([row({ type: 'transfer', toAccountId: 'a2', category: undefined, amount: 5500 })])).toBe(-5500);
+  it('counts an own-account transfer as ZERO — the money never left the ledger', () => {
+    expect(netTotal([row({ type: 'transfer', toAccountId: 'a2', category: undefined, amount: 5500 })])).toBe(0);
+  });
+
+  it('counts a card-payment transfer (bank → card) as zero too', () => {
+    expect(netTotal([row({ type: 'transfer', toAccountId: undefined, toCardId: 'c1', isCardPayment: true, category: undefined, amount: 3000 })])).toBe(0);
   });
 
   it('follows an adjustment\'s stored sign', () => {
@@ -41,13 +45,13 @@ describe('netTotal', () => {
     expect(netTotal([row({ type: 'adjustment', amount: 400, category: undefined })])).toBe(400);
   });
 
-  it('nets a mixed selection', () => {
+  it('nets a mixed selection — the transfer contributes nothing', () => {
     const rows = [
       row({ amount: 300 }),                                              // -300
       row({ id: 'i', type: 'income', amount: 1000 }),                    // +1000
-      row({ id: 'tr', type: 'transfer', toAccountId: 'a2', category: undefined, amount: 200 }), // -200
+      row({ id: 'tr', type: 'transfer', toAccountId: 'a2', category: undefined, amount: 200 }), // 0
     ];
-    expect(netTotal(rows)).toBe(500);
+    expect(netTotal(rows)).toBe(700);
   });
 
   it('is 0 for an empty selection and ignores rows with neither side', () => {

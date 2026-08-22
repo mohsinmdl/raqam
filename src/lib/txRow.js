@@ -99,6 +99,9 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // Category is optional at entry; categorizable types without one surface a
     // "This needs a category" pill wherever the category cell renders.
     needsCategory: !cat && (t.type === 'expense' || t.type === 'income' || t.type === 'refund'),
+    // netTotal's skip flag: acctFrom/acctTo also mark a transfer, but they
+    // are display-label fields — a sum shouldn't key off how a cell renders.
+    isTransfer: t.type === 'transfer',
     acctLabel, acctFrom, acctTo, amtLabel, amtColor, amtValue,
     outflowValue, inflowValue,
     outflowLabel: outflowValue != null ? fmt.money(outflowValue) : '',
@@ -128,16 +131,18 @@ export function txRowOf(t, S, fmt, forAccountId) {
   };
 }
 
-// The "Selected Total" net (YNAB): inflows positive, outflows negative, one
-// signed figure. Summed from the rows' DISPLAYED sides — outflowValue/
-// inflowValue — never amtValue: a transfer's amtValue is the raw +amount even
-// though the register shows it in the OUTFLOW column, so an amtValue sum
-// (the old inline reduce this replaced) silently counted transfers
-// backwards. Deriving from the columns means the total can never disagree
-// with what the eye adds up down the two amount columns. Shared by the
-// position strip's Selected Total, both BulkBars, and the phone select pill.
+// The "Selected Total" net: inflows positive, outflows negative, one signed
+// figure — and own-account transfers contribute ZERO. A transfer (bank→bank
+// or the bank→card bill payment) moves money between the user's own
+// accounts; it never leaves the ledger, so counting its OUTFLOW-column
+// figure made a selection look Rs 22k poorer for two transfers that changed
+// nothing (user-reported). Non-transfer rows sum from their DISPLAYED sides
+// — outflowValue/inflowValue — never amtValue (whose transfer sign was
+// backwards vs the column anyway, the bug the first version of this helper
+// fixed). Shared by the position strip's Selected Total, both BulkBars, and
+// the phone select pill.
 export function netTotal(rows) {
-  return (rows || []).reduce((s, r) => s + (r.inflowValue || 0) - (r.outflowValue || 0), 0);
+  return (rows || []).reduce((s, r) => (r.isTransfer ? s : s + (r.inflowValue || 0) - (r.outflowValue || 0)), 0);
 }
 
 // "6 Mar" is unambiguous inside a month view, which is all dayLabel was ever
