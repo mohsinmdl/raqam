@@ -86,7 +86,19 @@ const AccountCell = forwardRef(function AccountCell({ value, onChange, disabled,
   const onKeyDown = e => {
     if (e.key !== 'Tab' || !open) return;
     if (e.shiftKey) { e.preventDefault(); setOpen(false); return; } // no commit; default restore parks focus on the trigger
-    const item = e.target.closest ? e.target.closest('[data-value]') : null;
+    // e.target is normally the highlighted option itself (Select gives it
+    // real DOM focus), but a scrollbar drag can leave focus somewhere else
+    // entirely inside the popup (ScrollArea.jsx's own onPointerDown guards
+    // against this for the mouse path, but this fallback covers any other
+    // way focus could land off the highlighted item) — fall back to
+    // whichever option Base UI has ACTUALLY highlighted, scoped to this
+    // cell's own popup via aria-controls, never a document-wide sweep.
+    let item = e.target.closest ? e.target.closest('[data-value]') : null;
+    if (!item) {
+      const popupId = triggerRef.current && triggerRef.current.getAttribute('aria-controls');
+      const popup = popupId ? document.getElementById(popupId) : null;
+      item = popup && popup.querySelector('[data-value][data-highlighted]');
+    }
     const v = item && item.getAttribute('data-value');
     if (v) {
       onChange(v);

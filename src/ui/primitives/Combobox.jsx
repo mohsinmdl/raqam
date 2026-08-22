@@ -60,6 +60,12 @@ export function ComboboxPanel({ children, header, body, footer, style }) {
         <BaseCombobox.Popup style={{ ...popupStyle, ...style }}
           onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>
           {header ? <div style={headerStyle}>{header}</div> : null}
+          {/* TODO(scrollbar-migration): still the CSS-only .rq-scroll
+              approach (::-webkit-scrollbar pseudo-elements). Select.jsx has
+              moved to a real Base UI ScrollArea (src/ui/primitives/
+              ScrollArea.jsx) — the two currently look the same but are built
+              differently; migrating this List onto ScrollArea too would
+              unify them for real. */}
           {body || <BaseCombobox.List className="rq-scroll" style={listStyle}>{children}</BaseCombobox.List>}
           {footer ? <div style={footerStyle}>{footer}</div> : null}
         </BaseCombobox.Popup>
