@@ -112,8 +112,8 @@ describe('presetOf', () => {
 });
 
 describe('rangeLabel', () => {
-  it('names a single month in full', () => {
-    expect(rangeLabel('2026-08', '2026-08')).toBe('August 2026');
+  it('abbreviates a single month, matching every other branch here', () => {
+    expect(rangeLabel('2026-08', '2026-08')).toBe('Aug 2026');
   });
 
   it('collapses a same-year span to one year', () => {
@@ -126,8 +126,8 @@ describe('rangeLabel', () => {
 
   it('handles unbounded ranges', () => {
     expect(rangeLabel(null, null)).toBe('All dates');
-    expect(rangeLabel('2026-08', null)).toBe('From August 2026');
-    expect(rangeLabel(null, '2026-08')).toBe('Up to August 2026');
+    expect(rangeLabel('2026-08', null)).toBe('From Aug 2026');
+    expect(rangeLabel(null, '2026-08')).toBe('Up to Aug 2026');
   });
 
   it('names a single day, using Today/Yesterday when today is known', () => {
