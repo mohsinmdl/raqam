@@ -33,6 +33,7 @@ import { matchesQuery } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { useContainerWidth } from '../lib/useContainerWidth.js';
 import { visibleColumnKeys } from '../lib/registerColumns.js';
+import { ScrollArea, ScrollAreaViewport, ScrollAreaContent, ScrollAreaScrollbar } from '../ui/primitives/ScrollArea.jsx';
 import { needsCategoryBannerCount } from '../lib/needsCategoryBanner.js';
 import TxPhoneList from '../components/TxPhoneList.jsx';
 import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
@@ -1251,14 +1252,26 @@ export default function Transactions() {
         {/* container-type: inline-size (tx-table-wrap in theme.css) so the
             container-width state above tracks real content width — the
             resizable sidebar, not the viewport, same convention as
-            .dash-cols/.plan-grid. overflow-x: auto is the fallback for
+            .dash-cols/.plan-grid. The overflow role itself now lives on the
+            nested ScrollArea/Viewport below (a real Base UI scrollbar, not
+            the browser's native one — see src/ui/primitives/ScrollArea.jsx),
+            not on this section: container-type only measures THIS element's
+            own box, unaffected by what scrolls inside it, so the section
+            keeps its ref/className exactly as before and only its CHILDREN
+            changed. The horizontal scroll itself is the fallback for
             containers narrower than even the folded column set (ACCOUNT and
             MEMO both dropped) can fit — a LOCAL scrollbar here instead of a
-            page-level one; TxEditorRow's action row stays sticky through it.
-            No per-row ⋯ menu exists any more (bulk bar replaced it), so
-            overflow-y computing to auto alongside overflow-x here no longer
-            risks clipping a popover the way it once did. */}
-        <section ref={tableWrapRef} aria-label="Transaction list" className="tx-table-wrap" style={{ background: 'var(--surface)', border: flush ? 'none' : '1px solid var(--border)', borderRadius: flush ? 0 : 12, overflowX: 'auto' }}>
+            page-level one; TxEditorRow's action row stays sticky through it
+            (ScrollAreaContent renders a plain, unstyled div — no grid/flex/
+            transform to break the sticky chain, same as the header's own
+            `position:sticky` against <main>'s unrelated vertical scroll).
+            overflowY is explicitly hidden on the Viewport: this wrapper's
+            height is never capped, so vertical scrolling belongs solely to
+            <main>, never to this local wrapper. */}
+        <section ref={tableWrapRef} aria-label="Transaction list" className="tx-table-wrap" style={{ background: 'var(--surface)', border: flush ? 'none' : '1px solid var(--border)', borderRadius: flush ? 0 : 12 }}>
+        <ScrollArea style={{ width: '100%' }}>
+        <ScrollAreaViewport style={{ width: '100%', overflowY: 'hidden' }}>
+        <ScrollAreaContent>
           {/* The arrow-key cursor's spoken half. The cursor itself is an accent
               bar on the row — visible only. This says where it landed, and
               whether that row is selected, so Space has an audible result. */}
@@ -1392,6 +1405,10 @@ export default function Transactions() {
               <button onClick={() => openers.addTx(openDrawer, 'expense', accountId ? { payWith: 'acc:' + accountId } : {})} disabled={addDisabled} className="hv-accent rq-btn-solid" style={{ marginTop: 12, height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: addDisabled ? 'default' : 'pointer', opacity: addDisabled ? .45 : 1 }}>＋ Add transaction</button>
             </div>
           )}
+        </ScrollAreaContent>
+        </ScrollAreaViewport>
+        <ScrollAreaScrollbar orientation="horizontal" />
+        </ScrollArea>
         </section>
 
         {/* Phone Select mode: floating selected-total pill + action bar. The

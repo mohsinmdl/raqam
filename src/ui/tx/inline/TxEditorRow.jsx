@@ -250,8 +250,9 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
       {splitOn && <SplitRows colSpan={colSpan} showBalance={showBalance} hideMemo={hideMemo} />}
       <tr>
         {/* The register's table wrapper can scroll horizontally on a narrow
-            container (tx-table-wrap, overflow-x: auto in Transactions.jsx) —
-            colSpan makes this td as wide as the whole scrollable row, so the
+            container (tx-table-wrap in Transactions.jsx, via a Base UI
+            ScrollArea — src/ui/primitives/ScrollArea.jsx) — colSpan makes
+            this td as wide as the whole scrollable row, so the
             actions would otherwise sit past the visible edge until the user
             scrolled all the way over.
             The td holds a full-width flex row that pushes its single child to
