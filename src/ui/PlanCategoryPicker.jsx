@@ -1,5 +1,6 @@
 import { forwardRef, useMemo, useRef, useState } from 'react';
 import { sortGroups, sortCats } from '../lib/categoryOrder.js';
+import { inflowPickerSections } from '../lib/categoryPicker.js';
 import { Combobox, ComboboxPanel } from './primitives/Combobox.jsx';
 import { CheckIcon, Chevron } from './icons.jsx';
 import { PlusCircle } from './ToolbarAction.jsx';
@@ -56,6 +57,12 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   // shown is the THIS-MONTH assignment that moveAssigned actually decrements.
   amountField = 'available',
   catType = 'expense', showAmounts = true, heading = 'Plan Categories',
+  // Opt-in inflow mode (the inline tx editor's income rows): the list shows an
+  // `Income` section AND a `Refund to…` section of expense categories, so picking
+  // an expense category flips the row income→refund. Off by default — every other
+  // consumer keeps the single-`catType` list. Only set on an income row, never a
+  // refund row (an income-typed pick on a refund would be an invalid refund).
+  inflow = false,
   allowCreate = false, onCreate, showSelected = false, footer = null,
   // Opt-in YNAB keyboard entry for hosts that own Tab (the inline tx editor):
   // the list opens with its FIRST item highlighted (autoHighlight 'always'),
@@ -113,11 +120,14 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   // category groups below — an indented row, not a flat one.
   const sections = useMemo(() => {
     const norm = s => s.toLowerCase();
+    const rtaRow = !excludeRta && (!q || 'ready to assign'.includes(norm(q)))
+      ? [{ key: 'inflow', name: 'Inflow', items: [{ kind: 'rta' }] }] : [];
+    // Inflow mode: Income + "Refund to…" (expense) sections from the shared helper.
+    if (inflow) return rtaRow.concat(inflowPickerSections(S, q, [...excludeSet]));
     const ids = new Set(groups.map(g => g.id));
     const cats = S.categories.filter(c => c.type === catType && c.status === 'active' && !excludeSet.has(c.id)
       && (!q || norm(c.name).includes(norm(q))));
-    const out = [];
-    if (!excludeRta && (!q || 'ready to assign'.includes(norm(q)))) out.push({ key: 'inflow', name: 'Inflow', items: [{ kind: 'rta' }] });
+    const out = [...rtaRow];
     groups.forEach(g => {
       const members = sortCats(cats.filter(c => c.groupId === g.id));
       if (members.length) out.push({ key: g.id, name: g.name, items: members.map(c => ({ kind: 'cat', cat: c })) });
@@ -125,7 +135,7 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
     const other = sortCats(cats.filter(c => !c.groupId || !ids.has(c.groupId)));
     if (other.length) out.push({ key: 'other', name: 'Other', items: other.map(c => ({ kind: 'cat', cat: c })) });
     return out;
-  }, [S, q, excludeRta, excludeSet, catType, groups]);
+  }, [S, q, excludeRta, excludeSet, catType, groups, inflow]);
   const pickable = useMemo(() => sections.flatMap(s => s.items), [sections]);
   const labelOf = item => (item.kind === 'rta' ? 'Ready to Assign' : item.cat.name);
 
@@ -221,7 +231,7 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
               <span aria-hidden="true" style={{ flex: 'none', display: 'inline-flex', color: 'var(--accent)' }}><CheckIcon size={10} /></span>
               <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedCat.name} <span style={{ color: 'var(--muted)' }}>({groupNameOf(selectedCat)})</span></span>
             </span>
-            {showAmounts && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(availOf(selectedCat.id)) }}>{money(availOf(selectedCat.id))}</span>}
+            {showAmounts && selectedCat.type === 'expense' && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(availOf(selectedCat.id)) }}>{money(availOf(selectedCat.id))}</span>}
           </button>
         </>
       )}
@@ -315,10 +325,13 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
               {s.items.map(item => {
                 const isRta = item.kind === 'rta';
                 const val = isRta ? env.rta : availOf(item.cat.id);
+                // Amounts are envelope balances: only expense categories (and the
+                // RTA inflow row) have one — an income row (inflow mode) does not.
+                const showAmt = showAmounts && (isRta || item.cat.type === 'expense');
                 return (
                   <Combobox.Item key={isRta ? 'rta' : item.cat.id} value={item} className="rq-combo-item hv-elev" style={rowStyle}>
                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isRta ? 'Ready to Assign' : item.cat.name}</span>
-                    {showAmounts && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(val) }}>{money(val)}</span>}
+                    {showAmt && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(val) }}>{money(val)}</span>}
                   </Combobox.Item>
                 );
               })}

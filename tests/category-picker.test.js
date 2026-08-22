@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categoryPickerSections } from '../src/lib/categoryPicker.js';
+import { categoryPickerSections, inflowPickerSections } from '../src/lib/categoryPicker.js';
 
 const S = {
   categoryGroups: [
@@ -42,5 +42,38 @@ describe('categoryPickerSections', () => {
     const secs = categoryPickerSections(S, 'expense', 'ph');
     expect(secs.map(s => s.name)).toEqual(['Bills']);       // Fun/Other emptied out
     expect(idsBy(secs, 'Bills')).toEqual(['phone']);
+  });
+});
+
+const itemsBy = (secs, name) => (secs.find(s => s.name === name)?.items || []).map(i => i.cat.id);
+
+describe('inflowPickerSections', () => {
+  it('returns an Income section and a "Refund to…" expense section', () => {
+    const secs = inflowPickerSections(S, '');
+    expect(secs.map(s => s.name)).toEqual(['Income', 'Refund to…']);
+    expect(itemsBy(secs, 'Income')).toEqual(['salary']);
+    // Expense categories, name-sorted, flat (grouping is dropped in the refund context).
+    expect(itemsBy(secs, 'Refund to…')).toEqual(['games', 'loose', 'phone', 'rent']);
+    // Items carry the PlanCategoryPicker row shape so the component renders them directly.
+    expect(secs[0].items[0]).toEqual({ kind: 'cat', cat: expect.objectContaining({ id: 'salary' }) });
+  });
+
+  it('excludes archived categories and any excludeIds', () => {
+    const secs = inflowPickerSections(S, '', ['phone']);
+    const all = secs.flatMap(s => s.items.map(i => i.cat.id));
+    expect(all).not.toContain('old');    // archived
+    expect(all).not.toContain('phone');  // explicitly excluded
+  });
+
+  it('filters by a case-insensitive search across both sections', () => {
+    const secs = inflowPickerSections(S, 'sa');   // matches income 'Salary' only
+    expect(secs.map(s => s.name)).toEqual(['Income']);
+    expect(itemsBy(secs, 'Income')).toEqual(['salary']);
+  });
+
+  it('drops an empty section', () => {
+    const incomeOnly = { ...S, categories: S.categories.filter(c => c.type === 'income') };
+    const secs = inflowPickerSections(incomeOnly, '');
+    expect(secs.map(s => s.name)).toEqual(['Income']);   // no expense cats -> no Refund section
   });
 });
