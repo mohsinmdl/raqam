@@ -255,6 +255,13 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
 .rq-scrollbar { display: flex; justify-content: center; width: 11px; padding: 2px; box-sizing: border-box; }
 .rq-scrollbar-thumb { width: 5px; border-radius: 999px; background: var(--border); }
 .rq-scrollbar-thumb:hover { background: var(--muted); }
+/* Base UI stamps data-orientation on both the track and the thumb (read
+   directly off the DOM in its own pointerdown handler, so this is a stable
+   attribute to key off): the transactions table's horizontal scrollbar
+   (Transactions.jsx's tx-table-wrap) is the first horizontal consumer —
+   same geometry as the vertical rule above, rotated. */
+.rq-scrollbar[data-orientation="horizontal"] { width: auto; height: 11px; align-items: center; justify-content: flex-start; }
+.rq-scrollbar-thumb[data-orientation="horizontal"] { width: auto; height: 5px; }
 
 /* Reflect report tabs — a minimal underline strip that scrolls horizontally
    rather than wrapping when the six labels exceed the width (mobile). The
