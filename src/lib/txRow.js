@@ -128,6 +128,18 @@ export function txRowOf(t, S, fmt, forAccountId) {
   };
 }
 
+// The "Selected Total" net (YNAB): inflows positive, outflows negative, one
+// signed figure. Summed from the rows' DISPLAYED sides — outflowValue/
+// inflowValue — never amtValue: a transfer's amtValue is the raw +amount even
+// though the register shows it in the OUTFLOW column, so an amtValue sum
+// (the old inline reduce this replaced) silently counted transfers
+// backwards. Deriving from the columns means the total can never disagree
+// with what the eye adds up down the two amount columns. Shared by the
+// position strip's Selected Total, both BulkBars, and the phone select pill.
+export function netTotal(rows) {
+  return (rows || []).reduce((s, r) => s + (r.inflowValue || 0) - (r.outflowValue || 0), 0);
+}
+
 // "6 Mar" is unambiguous inside a month view, which is all dayLabel was ever
 // asked for. The scheduled group reads forward across years, where a bare
 // "6 Mar" is indistinguishable from a date that has already passed — so out-of-

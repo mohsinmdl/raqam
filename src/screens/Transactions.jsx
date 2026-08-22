@@ -16,7 +16,7 @@ import { openingOf } from '../lib/calc.js';
 import { useMonth } from '../store/MonthContext.jsx';
 import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
 import { selectionForSel } from '../lib/activityDrill.js';
-import { instName, schedNote, txGroups, withRunningBalances } from '../lib/txRow.js';
+import { instName, netTotal, schedNote, txGroups, withRunningBalances } from '../lib/txRow.js';
 import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import { Chevron } from '../ui/icons.jsx';
@@ -954,10 +954,16 @@ export default function Transactions() {
 
   const addDisabled = S.accounts.filter(a => a.status === 'active').length === 0;
 
-  // Signed sum of the current selection, shown in the bulk bar (like YNAB's
-  // "Selected Total"). amtValue is the same signed figure the AMOUNT column shows.
-  const selectedTotal = postedRows.reduce((s, r) => (selected.has(r.id) ? s + (r.amtValue || 0) : s), 0);
-  const schedSelectedTotal = selSched.reduce((s, x) => s + (x.row.amtValue || 0), 0);
+  // Signed sum of the current selection (YNAB's "Selected Total"), shown in
+  // the bulk bar, the phone pill, and the position strip's trailing slot.
+  // netTotal sums the DISPLAYED outflow/inflow sides, not amtValue — the old
+  // amtValue reduce counted a transfer positively even though the register
+  // shows it in the OUTFLOW column. Summed over shownRows (not postedRows,
+  // as before): `sel` and every visible count come from shownRows, so a row
+  // hidden by the banner list-filter but lingering in the selection Set no
+  // longer counts toward a total whose stated (N) excludes it.
+  const selectedTotal = netTotal(shownRows.filter(r => selected.has(r.id)));
+  const schedSelectedTotal = netTotal(selSched.map(x => x.row));
 
   // Keyboard shortcuts for the register. Each reuses the function that already
   // backs the bulk bar; preconditions (`when`) make an unmet key a silent no-op.
@@ -1035,8 +1041,27 @@ export default function Transactions() {
           a single divider line rather than sitting apart as separate cards. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: flush ? 0 : 14, animation: 'hsFade .25s ease' }}>
         {/* Balance strip: Cleared + Uncleared = Working (scoped to the account
-            when one is selected). The account header now lives in the top bar. */}
-        <PositionStrip compact wide={flush} accountId={accountId} />
+            when one is selected). The account header now lives in the top bar.
+            trailing: YNAB's "Selected Total (N)" at the band's far right,
+            rendered only while a selection exists (recorded wins over
+            scheduled, same rule as the bulk bar) and only on desktop — the
+            phone select mode already has its own floating total pill. It is a
+            ROW-amount aggregate, so it renders through fmt.moneyS (the
+            register eye / prefs.masked), NOT the strip's own moneySPos — the
+            strip's eye masks the three POSITION figures beside it, and this
+            deliberately doesn't follow it, same split the two eyes were
+            built to keep (PositionStrip's own comment on the two masks). */}
+        <PositionStrip compact wide={flush} accountId={accountId}
+          trailing={!phone && (sel.length > 0 || schedSel.size > 0) ? (() => {
+            const n = sel.length > 0 ? selectedTotal : schedSelectedTotal;
+            const count = sel.length > 0 ? sel.length : schedSel.size;
+            return (
+              <div style={{ textAlign: 'right' }}>
+                <div className="tnum" style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.2, color: n > 0 ? 'var(--pos)' : n < 0 ? 'var(--neg)' : 'var(--muted)' }}>{fmt.moneyS(n)}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>Selected Total ({count})</div>
+              </div>
+            );
+          })() : null} />
 
         {/* One bar at a time: recorded selection wins, else the scheduled one.
             The two selections are mutually exclusive, so only one has a count.
