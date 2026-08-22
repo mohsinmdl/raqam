@@ -34,40 +34,31 @@ Two paths for validation:
    branch switches, worktree add/remove, rebases, and resets — and never shows in
    `git status`. **Reuse what's already there before creating anything new.**
 
-## UI probes — two modes
+## UI probes — real app against remote Supabase
 
-Both resolve app source + `node_modules` against the **CURRENT worktree** via
-`RAQAM_WT="$(git rev-parse --show-toplevel)"` (never the main checkout or the git
-common dir), and run with the worktree's own toolchain
-(`pnpm --dir "$RAQAM_WT" exec vite …`).
-
-5. **Local-DB mode (default — real app, real data).** Runs the real app against a
-   **local seeded Supabase stack** (Docker), never production.
+5. **Run the real app against the hosted (production) Supabase**, auto-logged-in
+   as a **dedicated test account** — never your own:
 
    ```sh
-   ~/.cache/claude-harness/raqam/up.sh      # start stack (if down) + db reset → seed
-   ~/.cache/claude-harness/raqam/serve.sh   # app on http://127.0.0.1:5173, auto-logged-in
+   ~/.cache/claude-harness/raqam/serve.remote.sh   # → http://127.0.0.1:5173
    ```
 
-   - Requires Docker running. The stack is **one per machine, shared across
-     worktrees** (`supabase/config.toml` `project_id="raqam"`); first `supabase
-     start` pulls images (slow, one-time).
-   - Seed lives in `supabase/seed.sql` (synthetic, committed); harness login is
-     `harness@raqam.test` / `harness-password`. `up.sh`/`db reset` restores a
-     known state. All probe writes (auto-synced ~300ms by `src/store/sync.js`)
-     land in **local** Postgres only, RLS-scoped to the harness user.
-   - Drive with Playwright MCP against `http://127.0.0.1:5173`. Verify isolation:
-     `browser_network_requests` must show only `127.0.0.1:54321`, never the prod
-     project.
-   - The harness Vite config (`vite.harness.local.mjs`) sets `root=$RAQAM_WT`,
-     overrides only `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` via `define`, and
-     injects auto-login. **Do NOT edit the worktree's `.env.local`** (it holds the
-     prod URL, copied in by `.worktreeinclude`).
+   Then drive it with Playwright MCP against `http://127.0.0.1:5173`.
 
-6. **Stub mode (isolate one component, no DB).** For probing a single component
-   in isolation, use `vite.harness.config.mjs` + `supabase.stub.js` in the scratch
-   dir — it stubs `src/lib/supabase.js` via a `resolveId` plugin (not `alias`).
-   See memories `verifying-ui-without-jsdom`, `verifying-native-dnd`.
+   - **SAFETY (critical): writes auto-sync to the DB in ~300ms** (`src/store/sync.js`).
+     Only ever sign in as the dedicated test account, whose rows RLS isolates from
+     the real ledger. **Never** point a write-capable probe at your own account.
+     Before interacting, confirm you are signed in as the test account.
+   - The account starts empty under RLS — seed it once (CSV import / a few entries).
+   - Credentials live in a **gitignored** `~/.cache/claude-harness/raqam/.harness-creds`
+     (copy `.harness-creds.example`), never in the repo or a committed file.
+
+6. **Resolve against the CURRENT worktree.** `serve.remote.sh` sets
+   `RAQAM_WT="$(git rev-parse --show-toplevel)"` and the harness Vite config uses
+   `root=$RAQAM_WT`, so the app + its prod `.env.local` + `node_modules` all come
+   from the active worktree (never the main checkout or the git common dir).
+   **Do NOT edit `.env.local`** — it already holds the prod URL/key
+   (copied in by `.worktreeinclude`); the harness needs no env override.
 
 7. **Run the suite before finishing.** `pnpm test` (or the relevant subset) must
    pass before you call the work done.
