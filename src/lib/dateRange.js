@@ -11,7 +11,7 @@
 // The date arithmetic lives here rather than in the screen because the awkward
 // cases (a three-month window in February reaching back into last year) are
 // worth testing, and a component is not.
-import { MN, monthLabel } from './calc.js';
+import { MN } from './calc.js';
 import { addDays, addMonths, currentMonth, todayStr } from './dates.js';
 
 // A bound is either a month ('YYYY-MM'), a day ('YYYY-MM-DD'), or null
@@ -98,6 +98,15 @@ export function presetOf(from, to, today, presets = RANGE_PRESETS) {
 
 // `today` (optional, day-precise) lets a single-day range name itself
 // 'Today' / 'Yesterday'; without it a day range reads as its date ('8 Aug 2026').
+// slice(5,7) so a stray day bound still resolves to its month here.
+const shortM = ym => MN[Number(ym.slice(5, 7)) - 1].slice(0, 3);
+// 'YYYY-MM' -> 'Aug 2026' — every month-level branch below uses this, never
+// the full monthLabel(): the header's own stepper abbreviates the same way
+// (Header.jsx), and this function's own day-precision/cross-month branches
+// already did too — 'August 2026' surviving in three OTHER branches here was
+// the one inconsistency, not a deliberate design choice.
+const shortMY = ym => shortM(ym) + ' ' + ym.slice(0, 4);
+
 export function rangeLabel(from, to, today) {
   if (!from && !to) return 'All dates';
   // A day-precise single day (both bounds the same 10-char date).
@@ -107,11 +116,9 @@ export function rangeLabel(from, to, today) {
     const [y, m, d] = from.split('-').map(Number);
     return d + ' ' + MN[m - 1].slice(0, 3) + ' ' + y;
   }
-  if (from && !to) return 'From ' + monthLabel(from);
-  if (!from && to) return 'Up to ' + monthLabel(to);
-  if (from === to) return monthLabel(from);
-  // slice(5,7) so a stray day bound still resolves to its month here.
-  const shortM = ym => MN[Number(ym.slice(5, 7)) - 1].slice(0, 3);
+  if (from && !to) return 'From ' + shortMY(from);
+  if (!from && to) return 'Up to ' + shortMY(to);
+  if (from === to) return shortMY(from);
   // Same year reads as one span rather than repeating it: 'Jun – Aug 2026'.
   if (from.slice(0, 4) === to.slice(0, 4)) return shortM(from) + ' – ' + shortM(to) + ' ' + from.slice(0, 4);
   return shortM(from) + ' ' + from.slice(0, 4) + ' – ' + shortM(to) + ' ' + to.slice(0, 4);
