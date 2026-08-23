@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { sortGroups, sortCats } from '../../../lib/categoryOrder.js';
+import MaskPositionEye from '../../MaskPositionEye.jsx';
 
 // Phone render path for the Plan screen — YNAB's mobile anatomy in ledger
 // tokens. Read-only skeleton in PR1: taps are wired by the keypad (PR2) and
@@ -52,7 +53,7 @@ const pillTone = v => v > 0 ? { background: 'var(--pos-soft)', color: 'var(--pos
   : { background: 'var(--track)', color: 'var(--muted)' };
 
 export default function PlanPhone({
-  S, env, month, money, collapsed, toggleGroup,
+  S, env, month, money, moneyPos, collapsed, toggleGroup,
   onAssignTap = () => {}, onPillTap = () => {}, onRtaTap = null, onCoverTap = null,
   onHiddenTap = null,
   assignDraft = null, // { catId, text } while the keypad edits a row (PR2)
@@ -66,16 +67,24 @@ export default function PlanPhone({
           static region, so render a div, not a dead button. */}
       {(() => {
         const Tag = onRtaTap ? 'button' : 'div';
+        // The big RTA follows `maskedPosition` (moneyPos), shared with the
+        // Dashboard hero. The eye sits beside the banner, not inside it — the
+        // banner is itself a <button>, so a nested button would be invalid.
         return (
-          <Tag onClick={onRtaTap || undefined}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-              width: '100%', border: 'none', borderRadius: 12, padding: '14px 16px', marginBottom: 10,
-              cursor: onRtaTap ? 'pointer' : 'default', textAlign: 'left',
-              background: rtaNeg ? 'var(--neg-soft)' : 'var(--pos-soft)',
-              color: rtaNeg ? 'var(--neg)' : 'var(--pos)' }}>
-            <span className="tnum" style={{ fontSize: 22, fontWeight: 700 }}>{money(env.rta)}</span>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Ready to Assign{onRtaTap ? ' ›' : ''}</span>
-          </Tag>
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 8, marginBottom: 10 }}>
+            <Tag onClick={onRtaTap || undefined}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                flex: 1, border: 'none', borderRadius: 12, padding: '14px 16px',
+                cursor: onRtaTap ? 'pointer' : 'default', textAlign: 'left',
+                background: rtaNeg ? 'var(--neg-soft)' : 'var(--pos-soft)',
+                color: rtaNeg ? 'var(--neg)' : 'var(--pos)' }}>
+              <span className="tnum" style={{ fontSize: 22, fontWeight: 700 }}>{moneyPos(env.rta)}</span>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Ready to Assign{onRtaTap ? ' ›' : ''}</span>
+            </Tag>
+            <div style={{ display: 'flex', alignItems: 'center', flex: 'none' }}>
+              <MaskPositionEye label="Ready to Assign" size={40} iconSize={18} />
+            </div>
+          </div>
         );
       })()}
       {overspent.length > 0 && (
