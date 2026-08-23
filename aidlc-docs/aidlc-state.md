@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-08-23T03:23:45Z
-- **Current Stage**: CONSTRUCTION — U1 db-plans / Functional Design
+- **Current Stage**: COMPLETE — Operations hand-off done (PR #208 open; 0017 apply + merge = human runsheet)
 - **Feature**: YNAB-style multi-Plan system (plan switcher, New Plan modal, Open Plan, per-plan data scoping)
 
 ## Workspace State
