@@ -66,12 +66,24 @@ export function validateSplit(totalStr, lines, store, fmt) {
     return 'Choose a category for every line.';
   const ids = lines.filter(l => l.category !== '__new').map(l => l.category);
   if (new Set(ids).size !== ids.length) return 'Two lines use the same category — merge them.';
-  const newNames = lines.filter(l => l.category === '__new').map(l => catName(l.newCat));
-  if (new Set(newNames).size !== newNames.length) return 'Two lines create the same new category — merge them.';
+  // New-category names are unique per GROUP now (0018), not plan-wide: the same
+  // name under two groups is fine, so the "same new category" and "already
+  // called" checks are keyed on (group, name) — a __new line's group is its
+  // newCatGroup, or the ungrouped "Other" bucket when it names none.
+  const newLines = lines.filter(l => l.category === '__new');
+  const seenNew = new Set();
+  for (const l of newLines) {
+    const k = (l.newCatGroup || '') + '\0' + catName(l.newCat);
+    if (seenNew.has(k)) return 'Two lines create the same new category — merge them.';
+    seenNew.add(k);
+  }
   if (store) {
-    for (const n of new Set(newNames)) {
-      const collide = store.categories.find(c => c.type === 'expense' && c.status === 'active' && catName(c.name) === n);
-      if (collide) return 'Another expense category is already called “' + collide.name + '”.';
+    for (const l of newLines) {
+      const n = catName(l.newCat);
+      const g = l.newCatGroup || null;
+      const collide = store.categories.find(c => c.type === 'expense' && c.status === 'active'
+        && (c.groupId ?? null) === g && catName(c.name) === n);
+      if (collide) return 'Another expense category in this group is already called “' + collide.name + '”.';
     }
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];

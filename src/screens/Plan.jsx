@@ -13,7 +13,7 @@ import { envelopeFor } from '../lib/envelope.js';
 import { currentMonth, nowIso } from '../lib/dates.js';
 import { sortGroups, byOrderThenName } from '../lib/categoryOrder.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
-import { prevMonth, catRefs, fmtDate } from '../lib/calc.js';
+import { prevMonth, catRefs, fmtDate, duplicateCat } from '../lib/calc.js';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
@@ -557,6 +557,7 @@ function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, befor
   const [addOpen, setAddOpen] = useState(false);
   const [addUp, setAddUp] = useState(false);
   const [name, setName] = useState('');
+  const [addErr, setAddErr] = useState('');
   const popRef = useRef(null);
   const addBtnRef = useRef(null);
   const close = () => setAddOpen(false);
@@ -569,8 +570,12 @@ function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, befor
   const submit = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
+    // Names are unique per group (0018). The inline adder bypasses the drawer
+    // validator, so guard here — otherwise a duplicate silently 23505s on sync.
+    const dup = duplicateCat(S, { name: trimmed, type: 'expense', groupId: group.id });
+    if (dup) { setAddErr('Already a category called “' + dup.name + '” here.'); return; }
     addCategoryToGroup(applyData, trimmed, group.id);
-    setName(''); setAddOpen(false);
+    setName(''); setAddErr(''); setAddOpen(false);
   };
 
   const t = totals || { assigned: 0, activity: 0, available: 0 };
@@ -650,12 +655,16 @@ function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, befor
               <div role="dialog" aria-label={'Add category to ' + group.name} style={{ ...popCard, ...(addUp ? { bottom: 26 } : { top: 26 }), left: 0, width: 220 }}>
                 <input
                   autoFocus className="field" placeholder="Category name" value={name}
-                  onChange={e => setName(e.target.value)}
+                  aria-invalid={addErr ? 'true' : undefined}
+                  onChange={e => { setName(e.target.value); if (addErr) setAddErr(''); }}
                   onKeyDown={e => { if (e.key === 'Enter') submit(); }}
                   style={{ height: 34, fontSize: 13 }}
                 />
+                {addErr && (
+                  <div role="alert" style={{ marginTop: 6, fontSize: 12, color: 'var(--neg)' }}>{addErr}</div>
+                )}
                 <div style={popBtnRow}>
-                  <button onClick={() => { setAddOpen(false); setName(''); }} className="hv-soft rq-btn-outline" style={popCancel}>Cancel</button>
+                  <button onClick={() => { setAddOpen(false); setName(''); setAddErr(''); }} className="hv-soft rq-btn-outline" style={popCancel}>Cancel</button>
                   <button onClick={submit} className="hv-accent rq-btn-solid" style={popOk}>OK</button>
                 </div>
               </div>
@@ -1161,6 +1170,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
 
 export default function Plan() {
   const { data: S, applyData, prefs, setPrefs, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
+  const { notify } = useUI();
   const { month } = useMonth();
   const { money, moneyS, moneyPos, moneySPos } = useMoney();
   const phone = useIsPhone();
@@ -1272,7 +1282,7 @@ export default function Plan() {
   );
   const shownSections = useMemo(() => visibleSections(sections, activeView, env), [sections, activeView, env]);
   const visibleCatIdList = useMemo(() => shownSections.flatMap(s => s.cats.map(c => c.id)), [shownSections]);
-  const dnd = usePlanDnd({ selected, visibleCatIdList, applyData });
+  const dnd = usePlanDnd({ selected, visibleCatIdList, applyData, data: S, notify });
   const visibleCatIds = useMemo(() => new Set(visibleCatIdList), [visibleCatIdList]);
   // The live cursor: the tracked row if it's still visible, otherwise the first
   // visible category — so on first load the cursor sits on the first category of
