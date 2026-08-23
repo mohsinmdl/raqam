@@ -480,3 +480,11 @@ however i can see in the raw md file." (with 2 screenshots: rendered preview hid
 **Context**: OPERATIONS — delivery
 
 ---
+
+## Operations — Verify Script Split (user feedback)
+**Timestamp**: 2026-08-23T12:05:00Z
+**User Input**: (screenshot) "2. Run the pre-apply block of scripts/plans-migration-verify.sql, keep the output" — Supabase SQL editor error: "42P01: relation \"public.plans\" does not exist, LINE 38: select count(*) as default_plans from public.plans where id = 'default';"
+**AI Response**: Root cause: the SQL editor executes a whole file as one batch, so the combined script's post-apply section (referencing public.plans) aborted everything pre-migration — nothing ran, no snapshot kept. Split into scripts/plans-migration-verify-preapply.sql and -postapply.sql; updated all references (0017 header, build/integration/summary docs). Committed + pushed to PR #208. Instructed user to run the preapply file.
+**Context**: OPERATIONS — runsheet fix
+
+---

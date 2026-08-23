@@ -2,7 +2,7 @@
 
 ## Created
 - `supabase/migrations/0017_plans.sql` — plans table (CHECK-constrained settings, canonical policy quartet RLS); idempotent "My Plan"/`'default'` backfill for every data-owning user; `do $$` scoping pass over the 11 ledger tables (add `plan_id` → stamp → NOT NULL → composite FK `on delete cascade` → `(user_id, plan_id)` index); per-plan recreation of `categories_user_type_normname_key` → `categories_user_plan_type_normname_key` and `budgets_user_id_category_id_key` → `budgets_user_plan_category_key`. Header carries design rationale, apply procedure, and full rollback script.
-- `scripts/plans-migration-verify.sql` — pre-apply snapshot (row counts, data-owning-user count) + post-apply checks (default-plan count, zero unstamped rows, count equivalence, ownership-integrity joins, constraint-shape probe, idempotency re-run procedure).
+- `scripts/plans-migration-verify-{pre,post}apply.sql` — pre-apply snapshot (row counts, data-owning-user count) + post-apply checks (default-plan count, zero unstamped rows, count equivalence, ownership-integrity joins, constraint-shape probe, idempotency re-run procedure).
 
 ## Stories
 - US-1 ✅ implemented (backfill + defaults reproduce today's rendering; idempotent re-run)

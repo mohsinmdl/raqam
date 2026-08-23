@@ -11,9 +11,9 @@ The repo has no jsdom; UI integration is verified by mounting the real app in a 
 
 ## B. Database proofs (at 0017 apply time)
 1. **Backup** the Supabase project.
-2. Run the PRE-APPLY block of `scripts/plans-migration-verify.sql`; keep output.
+2. Run `scripts/plans-migration-verify-preapply.sql`; keep output. (Separate file on purpose — the SQL editor runs a file as one batch, and post-apply queries reference `public.plans`, which doesn't exist yet.)
 3. Apply `supabase/migrations/0017_plans.sql` (SQL editor or `supabase db push`).
-4. Run the POST-APPLY checks (default-plan count, zero unstamped rows, count equivalence, ownership joins, constraint shape).
+4. Run `scripts/plans-migration-verify-postapply.sql` (default-plan count, zero unstamped rows, count equivalence, ownership joins, constraint shape).
 5. **Idempotency**: re-apply 0017; repeat checks — identical output required.
 6. **Constraint probes** (SQL editor, as an authenticated test where relevant):
    - insert a row with a `plan_id` not owned by that user → composite FK violation
