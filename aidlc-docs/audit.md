@@ -488,3 +488,11 @@ however i can see in the raw md file." (with 2 screenshots: rendered preview hid
 **Context**: OPERATIONS — runsheet fix
 
 ---
+
+## Operations — 0017 Applied to Production (US-1/US-2 DB proofs)
+**Timestamp**: 2026-08-23T12:35:00Z
+**User Input**: (screenshots) pre-apply data_owning_users = 4; post-apply rollup: default_plans 4/4 PASS, unstamped_total 0 PASS, orphan_transactions 0 PASS, orphan_categories 0 PASS, plan_fks 11 PASS, plan_indexes 11 PASS, old_cat_name_index_gone PASS, new_cat_name_index PASS, old_budgets_unique_gone PASS, new_budgets_unique PASS
+**AI Response**: All structural post-apply checks PASS on production — US-1 (backfill) and US-2 (ownership scaffolding) DB-level proofs recorded. Remaining: row-count comparison vs snapshot, idempotency re-run, merge PR #208, live smoke.
+**Context**: OPERATIONS — migration applied
+
+---
