@@ -26,10 +26,36 @@ export function readJson(key, fallback, storage = localStorage) {
   } catch { return { ...fallback }; }
 }
 
+// Defaults: skippedSetup stays account-global; openPlanId (last-opened plan on
+// this device) and pendingSeed (one-shot plan id to seed at next hydrate) are
+// simply absent until set — JSON drops undefined, so absence IS the default.
+// prefs.plans namespaces the per-plan view prefs (BR-U2-7):
+//   plans: { [planId]: { customViews: [...], builtinViews: [...] } }
 export function loadUserPrefs(uid, storage = localStorage) {
-  return readJson(userPrefsKey(uid), { skippedSetup: false }, storage);
+  // Migrating on every load (idempotent, pure) means no reader ever sees the
+  // pre-plans flat keys, even before the migrated shape is first written back.
+  return migrateFlatViewPrefs(readJson(userPrefsKey(uid), { skippedSetup: false, plans: {} }, storage));
 }
 
 export function writeUserPrefs(uid, obj, storage = localStorage) {
   return writeJson(userPrefsKey(uid), obj, storage);
+}
+
+// One-shot fold of the pre-plans flat Plan-screen view keys into the
+// 'default' plan's namespace — that is where migration 0017 filed all
+// existing data. `planViews` was the flat key for custom views (the screen's
+// name for them); the namespace uses the design name `customViews`. The
+// namespaced value wins over a flat leftover, so re-running never clobbers.
+export function migrateFlatViewPrefs(prefs) {
+  const { planViews, builtinViews, ...rest } = prefs;
+  if (planViews === undefined && builtinViews === undefined) return prefs;
+  const ns = { ...((rest.plans || {}).default || {}) };
+  if (planViews !== undefined && ns.customViews === undefined) ns.customViews = planViews;
+  if (builtinViews !== undefined && ns.builtinViews === undefined) ns.builtinViews = builtinViews;
+  return { ...rest, plans: { ...(rest.plans || {}), default: ns } };
+}
+
+// The open plan's view namespace; {} for a plan with nothing saved yet.
+export function planPrefs(prefs, planId) {
+  return (prefs.plans || {})[planId] || {};
 }

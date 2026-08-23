@@ -1,12 +1,12 @@
 // Reflect — Spending Breakdown's two-file CSV export, mirroring YNAB's shapes:
 // a per-month summary matrix and a register-style transaction detail.
-import { MN } from './calc.js';
+import { MN, fmtDate } from './calc.js';
 import { downloadCsv, toCsv } from './csv.js';
 import { todayStr } from './dates.js';
 import { breakdownByCategory, catKeyFn, rangeMonths, reportTxns } from './spendingReport.js';
 
 const monthCol = ym => MN[Number(ym.slice(5, 7)) - 1].slice(0, 3) + '-' + ym.slice(2, 4);
-const ddmmyyyy = d => { const [y, m, day] = d.slice(0, 10).split('-'); return day + '/' + m + '/' + y; };
+const ddmmyyyy = d => fmtDate(d); // the register detail's Date column follows the plan's date format
 const base = () => 'raqam-reflect-spending-breakdown-' + todayStr();
 
 // Category/group names carry user-typed emoji for on-screen identity (the

@@ -6,13 +6,16 @@ import { Dialog } from '@base-ui/react/dialog';
 export const Modal = Dialog.Root;
 export const ModalClose = Dialog.Close;
 
-export function ModalPanel({ children, label, width = 980 }) {
+// `height` defaults to the fixed workspace shape the big modals (Manage
+// Payees) rely on; form-sized dialogs pass 'auto' so the card hugs its
+// content instead of towering over a five-field form.
+export function ModalPanel({ children, label, width = 980, height = '86vh' }) {
   return (
     <Dialog.Portal>
       <Dialog.Backdrop style={{ position: 'fixed', inset: 0, background: 'var(--scrim)', animation: 'hsFade .18s ease', zIndex: 60 }} />
       <Dialog.Popup aria-label={label} style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-        width, maxWidth: '96vw', height: '86vh', maxHeight: '92vh',
+        width, maxWidth: '96vw', height, maxHeight: '92vh',
         background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
         boxShadow: 'var(--shadow)', color: 'var(--text)', zIndex: 60,
         display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none',

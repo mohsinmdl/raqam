@@ -11,6 +11,7 @@ vi.mock('../src/lib/supabase.js', () => {
     const builder = {
       data: [], error: null,
       select: () => builder,
+      eq: () => builder, // plan_id scoping (U2) — asserted in plan-scoping.test.js, transparent here
       order: (col, opts) => { calls.push([table, 'order', col, opts]); return builder; },
       limit: n => { calls.push([table, 'limit', n]); return builder; },
     };
@@ -124,7 +125,7 @@ describe('fetchAll actually applies fetchQuery, not just the hook that defines i
   // client and checks the bound is scoped to audit_log specifically.
   it('orders and limits the audit_log query but leaves other tables alone', async () => {
     fetchCalls.length = 0;
-    await fetchAll();
+    await fetchAll('p1');
 
     const auditCalls = fetchCalls.filter(c => c[0] === 'audit_log');
     expect(auditCalls).toEqual([

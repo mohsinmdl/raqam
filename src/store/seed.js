@@ -51,6 +51,15 @@ export const CATEGORIES = [
   { id: 'otherinc', name: 'Other income', type: 'income', color: '#2563EB', icon: 'diamond', sortOrder: 3, isSystem: true, status: 'active', description: '' },
 ];
 
+// Plan display-settings catalogues — mirror the CHECK constraints in
+// supabase/migrations/0017_plans.sql (the U1↔U3 contract). A value outside
+// these would be rejected server-side, so actions clamp to the defaults
+// (today's hardcoded rendering) rather than queueing a doomed push.
+export const PLAN_PLACEMENTS = ['before', 'after', 'none'];
+export const PLAN_NUMBER_FORMATS = ['comma-dot', 'dot-comma', 'space-dot', 'apostrophe-dot', 'space-dash', 'space-comma', 'comma-slash', 'lakh'];
+export const PLAN_DATE_FORMATS = ['YYYY/MM/DD', 'YYYY-MM-DD', 'DD-MM-YYYY', 'DD/MM/YYYY', 'DD.MM.YYYY', 'MM/DD/YYYY', 'YYYY.MM.DD'];
+export const PLAN_DEFAULTS = { currency: 'PKR', currencyPlacement: 'none', numberFormat: 'comma-dot', dateFormat: 'DD/MM/YYYY' };
+
 export function freshStore() {
   return {
     institutions: INSTITUTIONS.map(x => ({ ...x })),

@@ -9,6 +9,14 @@
 //   card_products  — fetch-only (global catalogue; no client writes, RLS would deny them)
 //   institutions   — fetch + insert/delete of the user's OWN Custom rows only
 //   everything else — full upsert/delete sync of the user's rows
+//
+// Plan scoping (0017): every ledger collection carries `planScoped: true` and
+// belongs to exactly one plan. The store itself stays plan-ignorant — mappers
+// never read or write plan_id; instead the row is stamped with the module-level
+// active plan at the single place rows are serialized for the differ (pushRow),
+// so baseline rows (fromRow'd server data) and store rows stamp identically and
+// can never phantom-diff on the column. fetches/deletes filter by the same id.
+// institutions and card_products are shared reference data, never scoped.
 import { supabase } from '../lib/supabase.js';
 import { normalizeSchedule } from '../lib/schedule.js';
 
@@ -28,6 +36,25 @@ export const AUDIT_FETCH_LIMIT = 300;
 
 export const COLLECTIONS = [
   {
+    // First so PUSH_ORDER creates a plan before any row that references it,
+    // and the reversed DELETE_ORDER removes it last (normally the server
+    // cascade has already taken the children — the ordering is belt-and-braces
+    // for the rare local child-delete queued in the same diff).
+    name: 'plans', table: 'plans', keyOf: r => r.id,
+    // created_at is fetch-only: the server default stamps it on insert, and
+    // pushing it back would make a client clock the authority on creation time.
+    toRow: r => ({
+      id: r.id, name: r.name, currency: r.currency,
+      currency_placement: r.currencyPlacement, number_format: r.numberFormat,
+      date_format: r.dateFormat,
+    }),
+    fromRow: r => stripNulls({
+      id: r.id, name: r.name, currency: r.currency,
+      currencyPlacement: r.currency_placement, numberFormat: r.number_format,
+      dateFormat: r.date_format, createdAt: r.created_at,
+    }),
+  },
+  {
     name: 'institutions', table: 'institutions', keyOf: r => r.id,
     // Only the user's OWN institutions are writable; global catalogue rows are
     // fetch-only. Ownership, never kind: `own` rows may be reclassified freely
@@ -44,12 +71,12 @@ export const COLLECTIONS = [
     fromRow: r => ({ id: r.id, instId: r.inst_id, name: r.name, type: r.type, network: r.network, tier: r.tier }),
   },
   {
-    name: 'categoryGroups', table: 'category_groups', keyOf: r => r.id,
+    name: 'categoryGroups', table: 'category_groups', keyOf: r => r.id, planScoped: true,
     toRow: r => ({ id: r.id, name: r.name, sort_order: r.sortOrder ?? 99 }),
     fromRow: r => ({ id: r.id, name: r.name, sortOrder: r.sort_order ?? 99 }),
   },
   {
-    name: 'categories', table: 'categories', keyOf: r => r.id,
+    name: 'categories', table: 'categories', keyOf: r => r.id, planScoped: true,
     // Explicit nulls (see transactions): archived_at clears on restore.
     toRow: r => ({
       id: r.id, name: r.name, type: r.type, color: r.color,
@@ -85,14 +112,14 @@ export const COLLECTIONS = [
     // runs inserts before deletes — so the insert hit the still-present old row
     // and violated the unique key, wedging into a permanent 23505 retry loop.
     // Keying on the composite instead makes the same edit a single UPDATE.
-    name: 'assignments', table: 'assignments', keyOf: r => r.category + '|' + r.month,
+    name: 'assignments', table: 'assignments', keyOf: r => r.category + '|' + r.month, planScoped: true,
     conflictKey: 'user_id,category_id,month',
     deleteKeys: ['category_id', 'month'],
     toRow: r => ({ id: r.id, category_id: r.category, month: r.month, amount: r.amount }), // surrogate id kept — harmless, unused for identity
     fromRow: r => ({ id: r.id, category: r.category_id, month: r.month, amount: Number(r.amount) || 0 }),
   },
   {
-    name: 'accounts', table: 'accounts', keyOf: r => r.id,
+    name: 'accounts', table: 'accounts', keyOf: r => r.id, planScoped: true,
     // Explicit nulls (see transactions): archived_at clears on restore.
     toRow: r => ({
       id: r.id, inst_id: r.instId, nickname: r.nickname, type: r.type,
@@ -108,7 +135,7 @@ export const COLLECTIONS = [
     }),
   },
   {
-    name: 'cards', table: 'cards', keyOf: r => r.id,
+    name: 'cards', table: 'cards', keyOf: r => r.id, planScoped: true,
     // Explicit nulls (see transactions): editing prunes type-specific fields.
     toRow: r => ({
       id: r.id, inst_id: r.instId, product_id: r.productId ?? null, nickname: r.nickname, type: r.type,
@@ -133,7 +160,7 @@ export const COLLECTIONS = [
   },
   {
     // No surrogate id: identity is (accountId, month) — mirrors the server PK.
-    name: 'snapshots', table: 'snapshots', keyOf: r => `${r.accountId}|${r.month}`,
+    name: 'snapshots', table: 'snapshots', keyOf: r => `${r.accountId}|${r.month}`, planScoped: true,
     conflictKey: 'user_id,account_id,month',
     deleteKeys: ['account_id', 'month'],
     // Opt-in only (see pushDiff): a second device's rollover (or StrictMode
@@ -152,7 +179,7 @@ export const COLLECTIONS = [
     }),
   },
   {
-    name: 'transactions', table: 'transactions', keyOf: r => r.id,
+    name: 'transactions', table: 'transactions', keyOf: r => r.id, planScoped: true,
     // Explicit nulls, NOT stripNulls: an edit can CLEAR fields (type change drops
     // cardId, fee, etc.) and PostgREST upserts only touch columns present in the
     // payload — absent keys would leave stale values on the server.
@@ -178,7 +205,7 @@ export const COLLECTIONS = [
     }),
   },
   {
-    name: 'budgets', table: 'budgets', keyOf: r => r.id,
+    name: 'budgets', table: 'budgets', keyOf: r => r.id, planScoped: true,
     toRow: r => ({
       id: r.id, category_id: r.category ?? null, amount: r.amount, label: r.label ?? null,
       rollover: !!r.rollover,
@@ -191,7 +218,7 @@ export const COLLECTIONS = [
     }),
   },
   {
-    name: 'recurring', table: 'recurring', keyOf: r => r.id,
+    name: 'recurring', table: 'recurring', keyOf: r => r.id, planScoped: true,
     // Explicit nulls, not stripNulls: switching a rule's funding source from a
     // card to an account has to clear the other column. Objects and booleans
     // are always emitted so an absent field can't read as a change.
@@ -214,7 +241,7 @@ export const COLLECTIONS = [
     }),
   },
   {
-    name: 'payees', table: 'payees', keyOf: r => r.id,
+    name: 'payees', table: 'payees', keyOf: r => r.id, planScoped: true,
     // The overlay's one asymmetry: locally `autoCategoryId` holds either a
     // category id or the string sentinel 'rta' ("leave it uncategorized"),
     // which is not an id and must not land in auto_category_id — the column
@@ -244,7 +271,7 @@ export const COLLECTIONS = [
     // Recent Moves panel needs history that outlives the session — but only
     // the most recent rows, newest first, which is also the order the rest of
     // the app assumes (actions prepend, and undo's labelFor reads audit[0]).
-    name: 'audit', table: 'audit_log', keyOf: r => r.id,
+    name: 'audit', table: 'audit_log', keyOf: r => r.id, planScoped: true,
     appendOnly: true,
     fetchQuery: q => q.order('at', { ascending: false }).limit(AUDIT_FETCH_LIMIT),
     toRow: r => stripNulls({
@@ -269,6 +296,24 @@ export const COLLECTIONS = [
 const PUSH_ORDER = COLLECTIONS;
 const DELETE_ORDER = [...COLLECTIONS].reverse();
 
+// ---- active plan -----------------------------------------------------------
+
+// The one plan this app lifetime belongs to (BR-U2-1): set by PlanProvider
+// before StoreProvider hydrates, and only ever changed via location.reload().
+// Module state rather than a parameter threaded through every mapper keeps the
+// mappers pure and the store shape plan-free.
+let activePlanId = null;
+export function setActivePlanId(id) { activePlanId = id; }
+
+// The single serialization point for push payloads AND baseline comparison.
+// Stamping here — not inside toRow — keeps the symmetry automatic: a baseline
+// row (fromRow'd server data, plan_id deliberately dropped) and a store row
+// serialize identically, so the differ can never see a phantom plan_id change.
+export function pushRow(c, r) {
+  const row = c.toRow(r);
+  return c.planScoped ? { ...row, plan_id: activePlanId } : row;
+}
+
 // ---- fetch -----------------------------------------------------------------
 
 // PostgREST rejects a token whose iat sits ahead of its own clock — Supabase's
@@ -280,21 +325,52 @@ const DELETE_ORDER = [...COLLECTIONS].reverse();
 const CLOCK_SKEW_RE = /issued at future/i;
 export const CLOCK_SKEW_RETRY_MS = 2000;
 
-export async function fetchAll() {
+async function withSkewRetry(run) {
   try {
-    return await fetchAllOnce();
+    return await run();
   } catch (e) {
     if (!CLOCK_SKEW_RE.test(e.message || '')) throw e;
     await new Promise(r => setTimeout(r, CLOCK_SKEW_RETRY_MS));
-    return fetchAllOnce();
+    return run();
   }
 }
 
-async function fetchAllOnce() {
+export function fetchAll(planId) {
+  return withSkewRetry(() => fetchAllOnce(planId));
+}
+
+// Pre-hydration list for PlanProvider: plans only, before any plan is active.
+// Runs even earlier after login than fetchAll, so it shares the skew retry.
+export async function fetchPlans() {
+  return withSkewRetry(async () => {
+    const c = COLLECTIONS.find(x => x.name === 'plans');
+    const { data, error } = await supabase.from(c.table).select('*');
+    if (error) throw new Error(`${c.table}: ${error.message}`);
+    return data.map(c.fromRow);
+  });
+}
+
+// FirstPlanSetup's direct write: in the zero-plan state there is no store and
+// no queue, so the first plan goes straight to the server through the same
+// descriptor mapping the queue would use. A plain insert, not an upsert — a
+// colliding id should fail loudly, never overwrite.
+export async function insertPlan(plan) {
+  return withSkewRetry(async () => {
+    const c = COLLECTIONS.find(x => x.name === 'plans');
+    const { error } = await supabase.from(c.table).insert(c.toRow(plan));
+    if (error) throw new Error(`${c.table}: ${error.message}`);
+  });
+}
+
+async function fetchAllOnce(planId) {
   const fetched = COLLECTIONS.filter(c => !c.skipFetch);
   const results = await Promise.all(
     fetched.map(c => {
-      const q = supabase.from(c.table).select('*');
+      let q = supabase.from(c.table).select('*');
+      // Convenience filter only — RLS + the composite (user_id, plan_id) FK
+      // remain the real boundary. Filtering here keeps a plan switch from
+      // hauling every other plan's history into memory.
+      if (c.planScoped) q = q.eq('plan_id', planId);
       return c.fetchQuery ? c.fetchQuery(q) : q;
     })
   );
@@ -327,8 +403,8 @@ export function diffStores(prev, next) {
       const k = c.keyOf(r);
       seen.add(k);
       const p = prevRows.get(k);
-      if (!p) added.push(c.toRow(r));
-      else if (!c.appendOnly && JSON.stringify(c.toRow(p)) !== JSON.stringify(c.toRow(r))) changed.push(c.toRow(r));
+      if (!p) added.push(pushRow(c, r));
+      else if (!c.appendOnly && JSON.stringify(pushRow(c, p)) !== JSON.stringify(pushRow(c, r))) changed.push(pushRow(c, r));
     }
     const deletes = c.appendOnly ? [] : [...prevRows.keys()].filter(k => !seen.has(k));
     if (added.length || changed.length || deletes.length) {
@@ -382,11 +458,16 @@ async function pushDiff(diff) {
         const parts = key.split('|');
         const match = {};
         c.deleteKeys.forEach((col, i) => { match[col] = parts[i]; });
+        // Scoped deletes carry the plan filter too (defense-in-depth,
+        // BR-U2-3): a stale key can then never reach across plans.
+        if (c.planScoped) match.plan_id = activePlanId;
         const { error } = await supabase.from(c.table).delete().match(match);
         if (error) throw Object.assign(new Error(`${c.table} delete: ${error.message}`), { code: error.code, status: error.status });
       }
     } else {
-      const { error } = await supabase.from(c.table).delete().in('id', d.deletes);
+      let q = supabase.from(c.table).delete().in('id', d.deletes);
+      if (c.planScoped) q = q.eq('plan_id', activePlanId);
+      const { error } = await q;
       if (error) throw Object.assign(new Error(`${c.table} delete: ${error.message}`), { code: error.code, status: error.status });
     }
   }

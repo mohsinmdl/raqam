@@ -38,19 +38,28 @@ describe('prefsStore', () => {
   it('loadUserPrefs merges stored prefs over the default and survives malformed JSON', () => {
     const s = makeStorage();
     s.setItem('raqam.prefs.u.u1', '{"planViewId":"available"}');
-    expect(loadUserPrefs('u1', s)).toEqual({ skippedSetup: false, planViewId: 'available' });
+    expect(loadUserPrefs('u1', s)).toEqual({ skippedSetup: false, plans: {}, planViewId: 'available' });
     s.map.set('raqam.prefs.u.u2', 'not json');
-    expect(loadUserPrefs('u2', s)).toEqual({ skippedSetup: false });
+    expect(loadUserPrefs('u2', s)).toEqual({ skippedSetup: false, plans: {} });
+  });
+
+  it('loadUserPrefs migrates pre-plans flat view keys into the default namespace', () => {
+    const s = makeStorage();
+    s.setItem('raqam.prefs.u.u1', '{"planViews":[{"id":"v1"}],"builtinViews":[{"id":"overspent","hidden":true}]}');
+    expect(loadUserPrefs('u1', s)).toEqual({
+      skippedSetup: false,
+      plans: { default: { customViews: [{ id: 'v1' }], builtinViews: [{ id: 'overspent', hidden: true }] } },
+    });
   });
 
   it('loadUserPrefs returns defaults (no throw) when getItem itself throws', () => {
     const s = makeThrowingReadStorage();
-    expect(loadUserPrefs('u1', s)).toEqual({ skippedSetup: false });
+    expect(loadUserPrefs('u1', s)).toEqual({ skippedSetup: false, plans: {} });
   });
 
   it('loadUserPrefs returns defaults when the key was never set', () => {
     const s = makeStorage();
-    expect(loadUserPrefs('nobody-yet', s)).toEqual({ skippedSetup: false });
+    expect(loadUserPrefs('nobody-yet', s)).toEqual({ skippedSetup: false, plans: {} });
   });
 
   it('writeUserPrefs returns false and persists nothing for an unserializable (circular) object', () => {
@@ -63,7 +72,7 @@ describe('prefsStore', () => {
   it.each(['[1,2,3]', '5', 'null'])('loadUserPrefs ignores a stored JSON array/primitive (%s) and returns exactly the defaults', raw => {
     const s = makeStorage();
     s.map.set('raqam.prefs.u.u1', raw);
-    expect(loadUserPrefs('u1', s)).toEqual({ skippedSetup: false });
+    expect(loadUserPrefs('u1', s)).toEqual({ skippedSetup: false, plans: {} });
   });
 
   describe('readJson / writeJson (generalized helpers)', () => {
