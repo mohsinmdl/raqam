@@ -69,7 +69,8 @@ export default function PlanPhone({
         const Tag = onRtaTap ? 'button' : 'div';
         // The big RTA follows `maskedPosition` (moneyPos), shared with the
         // Dashboard hero. The eye sits beside the banner, not inside it — the
-        // banner is itself a <button>, so a nested button would be invalid.
+        // banner can be a <button> (when onRtaTap makes it tappable), so a
+        // nested button would be invalid.
         return (
           <div style={{ display: 'flex', alignItems: 'stretch', gap: 8, marginBottom: 10 }}>
             <Tag onClick={onRtaTap || undefined}

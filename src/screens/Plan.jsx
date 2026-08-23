@@ -433,10 +433,11 @@ function RtaBanner({ env, prevRta, month, money, moneyS, moneyPos, moneySPos, S,
   const labelColor = 'var(--muted)';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, padding: '10px 14px 14px', borderRadius: 12, background: bg }}>
-      {/* The big RTA figure follows `maskedPosition` (the big-number eye), shared
-          with the Dashboard "Current position" — NOT the global `masked`. The
-          eye sits outside the breakdown trigger so tapping it doesn't open the
-          popover. Assign / FixThis below stay on plain `money` (write flows). */}
+      {/* The RTA figure AND its breakdown popover follow `maskedPosition` (the
+          big-number eye), shared with the Dashboard "Current position" — NOT the
+          global `masked`. The eye sits outside the breakdown trigger so tapping
+          it doesn't open the popover. Assign / FixThis below stay on plain
+          `money` (write flows). */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, alignSelf: 'stretch' }}>
         <RtaBreakdown env={env} prevRta={prevRta} month={month} money={moneyPos} moneyS={moneySPos} fg={fg} labelColor={labelColor} />
         <div style={{ marginLeft: 'auto', flex: 'none' }}><MaskPositionEye label="Ready to Assign" /></div>

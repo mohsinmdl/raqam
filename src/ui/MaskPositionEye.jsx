@@ -6,8 +6,10 @@ import { useStore } from '../store/StoreProvider.jsx';
 // instance drives the one `maskedPosition` pref, so they all stay in lockstep;
 // the profile "Hide amounts" (`masked`) toggle is independent and untouched.
 //
-// stopPropagation because this eye often sits inside/beside a clickable surface
-// (the phone RTA banner, a popover trigger) whose click must not also fire.
+// stopPropagation is defensive: today the eye renders as a SIBLING of the
+// clickable surfaces beside it (the phone RTA banner, the desktop breakdown
+// trigger), so nothing bubbles to their handlers — but it guards a future
+// placement inside a clickable parent from also firing that parent's click.
 // `label` names the figures it protects — "balances" by default; the Plan RTA
 // passes "Ready to Assign".
 export default function MaskPositionEye({ label = 'balances', size = 24, iconSize = 15 }) {
