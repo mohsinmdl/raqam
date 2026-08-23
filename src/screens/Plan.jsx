@@ -42,6 +42,7 @@ import { useDrawer } from '../ui/DrawerProvider.jsx';
 import EditNamePopover from '../ui/plan/EditNamePopover.jsx';
 import { Popover, PopoverTrigger, PopoverPanel } from '../ui/primitives/Popover.jsx';
 import { CalcIcon, HistoryIcon } from '../ui/icons.jsx';
+import MaskPositionEye from '../ui/MaskPositionEye.jsx';
 import { askDeleteCategory } from '../ui/categoryActions.js';
 import { openers } from '../drawers/openers.js';
 import {
@@ -424,7 +425,7 @@ function FixThisPopover({ rta, env, S, month, money, applyData }) {
 // RtaBreakdown) over a teal Assign ▾ button (opens AssignPopover) — both
 // left-aligned on a shared left rail, which also keeps their popovers anchored
 // at the card's left edge, inside the narrow inspector column.
-function RtaBanner({ env, prevRta, month, money, moneyS, S, applyData }) {
+function RtaBanner({ env, prevRta, month, money, moneyS, moneyPos, moneySPos, S, applyData }) {
   const rta = env.rta;
   const over = rta < 0;
   const bg = rta > 0 ? 'var(--pos-soft)' : rta === 0 ? 'var(--elev)' : 'var(--neg-soft)';
@@ -432,7 +433,14 @@ function RtaBanner({ env, prevRta, month, money, moneyS, S, applyData }) {
   const labelColor = 'var(--muted)';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, padding: '10px 14px 14px', borderRadius: 12, background: bg }}>
-      <RtaBreakdown env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} fg={fg} labelColor={labelColor} />
+      {/* The big RTA figure follows `maskedPosition` (the big-number eye), shared
+          with the Dashboard "Current position" — NOT the global `masked`. The
+          eye sits outside the breakdown trigger so tapping it doesn't open the
+          popover. Assign / FixThis below stay on plain `money` (write flows). */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, alignSelf: 'stretch' }}>
+        <RtaBreakdown env={env} prevRta={prevRta} month={month} money={moneyPos} moneyS={moneySPos} fg={fg} labelColor={labelColor} />
+        <div style={{ marginLeft: 'auto', flex: 'none' }}><MaskPositionEye label="Ready to Assign" /></div>
+      </div>
       {/* Over-assigned (YNAB parity): the red amount alone doesn't say what went
           wrong, so name it and offer the reverse of Assign — pull money back out
           of a category. When rta >= 0 the incumbent Assign flow is unchanged. */}
@@ -1158,7 +1166,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
 export default function Plan() {
   const { data: S, applyData, prefs, setPrefs, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useStore();
   const { month } = useMonth();
-  const { money, moneyS } = useMoney();
+  const { money, moneyS, moneyPos, moneySPos } = useMoney();
   const phone = useIsPhone();
 
   const env = useMemo(() => envelopeFor(S, month, nowIso()), [S, month]);
@@ -1459,7 +1467,7 @@ export default function Plan() {
             maskedOn={prefs.masked} onToggleMasked={() => setPrefs({ masked: !prefs.masked })}
           />
         </div>
-        <PlanPhone S={S} env={env} month={month} money={money}
+        <PlanPhone S={S} env={env} month={month} money={money} moneyPos={moneyPos}
           collapsed={collapsed} toggleGroup={toggleGroup}
           onAssignTap={openKeypad}
           onPillTap={(cat, row) => {
@@ -1595,7 +1603,7 @@ export default function Plan() {
             </div>
           </div>
           <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected}
-            rtaBanner={<RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} S={S} applyData={applyData} />} />
+            rtaBanner={<RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} moneyPos={moneyPos} moneySPos={moneySPos} S={S} applyData={applyData} />} />
         </div>
       </div>
 

@@ -13,6 +13,7 @@ import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { monthMetrics } from '../lib/calc.js';
 import ExplainDialog from '../ui/ExplainDialog.jsx';
+import MaskPositionEye from '../ui/MaskPositionEye.jsx';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 const linkBtn = { border: 'none', background: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 };
@@ -31,7 +32,7 @@ const statVal = { fontSize: 15, fontWeight: 600, marginTop: 2 };
 // figures (opening, change) live on the Dashboard, and this screen just wants
 // the balances that a ledger cares about.
 export default function PositionStrip({ trailing, compact, wide, accountId }) {
-  const { data: S, prefs, setPrefs } = useStore();
+  const { data: S } = useStore();
   // Every figure this strip shows is a balance (bank total, net worth, card
   // liability, opening, change, cleared/uncleared/working) — none of it is
   // month-flow (income/expenses), so the whole metrics read clamps to
@@ -45,27 +46,13 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
   const [explain, setExplain] = useState(false);
 
   // One eye toggle, rendered in both modes (Dashboard card + Transactions
-  // strip). Every instance flips the same `maskedPosition`, so the two eyes
-  // stay in lockstep — masking only these "bigger number" position figures.
-  const eyeToggle = (
-    // "balances", not "amounts": the register toolbar has its own eye a few
-    // pixels away that hides the ROW amounts (prefs.masked), and both were
-    // called "Hide amounts" — two controls, one name, different effects. This
-    // one masks the position figures only, which are balances.
-    // No aria-pressed either: the label already names the action, so
-    // aria-pressed=false read as "Hide balances, not pressed" while the
-    // balances were showing — the inverse of the state it was asserting.
-    <button onClick={() => setPrefs({ maskedPosition: !prefs.maskedPosition })} className="hv-soft"
-      aria-label={prefs.maskedPosition ? 'Show balances' : 'Hide balances'}
-      title={prefs.maskedPosition ? 'Show balances' : 'Hide balances'}
-      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        {prefs.maskedPosition
-          ? <><path d="M17.94 17.94A10.4 10.4 0 0 1 12 19.5C5.5 19.5 2 12 2 12a19.8 19.8 0 0 1 4.87-5.62M9.9 4.75A9.9 9.9 0 0 1 12 4.5c6.5 0 10 7.5 10 7.5a19.9 19.9 0 0 1-2.24 3.31M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M2 2l20 20" /></>
-          : <><path d="M2 12s3.5-7.5 10-7.5S22 12 22 12s-3.5 7.5-10 7.5S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>}
-      </svg>
-    </button>
-  );
+  // strip) and shared with the Plan RTA banner. Every instance flips the same
+  // `maskedPosition`, so all the eyes stay in lockstep — masking only these
+  // "bigger number" position figures, never the row amounts (`masked`).
+  // "balances", not "amounts": the register toolbar has its own eye a few
+  // pixels away that hides the ROW amounts (prefs.masked), and both were called
+  // "Hide amounts" — two controls, one name, different effects.
+  const eyeToggle = <MaskPositionEye label="balances" />;
 
   const now = nowIso();
   const M = monthMetrics(S, balanceMonth, now, accountId);
