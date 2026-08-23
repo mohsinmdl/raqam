@@ -22,12 +22,18 @@ export const SHORTCUT_GROUPS = [
     { id: 'reconcile',     keys: ['shift', 'E'],      label: 'Reconcile account (no selection)', spec: { key: 'e', shift: true } },
     { id: 'focusSearch',   keys: ['⌘', 'shift', 'F'], label: 'Focus the search bar',       spec: { key: 'f', meta: true, shift: true } },
   ] },
-  // Two-key "leader" sequences: press G, then the second key (within ~1.2s).
+  // Navigation to the main screens. Two flavours: two-key "leader" sequences
+  // (press G, then the second key within ~1.2s) and single-chord Alt+digit
+  // jumps. The Alt+digit specs match by physical key (`code: 'Digit1'`) because
+  // on macOS Option composes characters — Option+1 emits '¡', not '1'.
   { title: 'Navigation', items: [
     { id: 'goDashboard',    keys: ['G', 'D'], label: 'Go to Reflect (Overview)', spec: { seq: ['g', 'd'] } },
     { id: 'goTransactions', keys: ['G', 'T'], label: 'Go to Transactions',    spec: { seq: ['g', 't'] } },
     { id: 'goAccounts',     keys: ['G', 'A'], label: 'Go to Accounts',        spec: { seq: ['g', 'a'] } },
     { id: 'goBudget',       keys: ['G', 'B'], label: 'Go to Budget',          spec: { seq: ['g', 'b'] } },
+    { id: 'jumpBudget',     keys: ['alt', '1'], label: 'Go to Budget',        spec: { code: 'Digit1', altKey: true } },
+    { id: 'jumpReflect',    keys: ['alt', '2'], label: 'Go to Reflect',       spec: { code: 'Digit2', altKey: true } },
+    { id: 'jumpAccounts',   keys: ['alt', '3'], label: 'Go to All Accounts',  spec: { code: 'Digit3', altKey: true } },
   ] },
   // Keyboard cursor over the recorded rows. These are handled by a raw keydown
   // listener + click handler in Transactions, not matchKey — the `spec` here is
@@ -74,13 +80,22 @@ export function isTypingTarget(el) {
 
 // metaKey OR ctrlKey both count as "meta" (cross-platform). Shift equality is
 // enforced only for alphanumeric keys, so '?' (itself Shift+/) still matches.
+// `spec.code` matches the physical key (e.code) instead of e.key — needed for
+// Alt+digit, since macOS Option-composition makes e.key '¡' rather than '1'.
+// Note `spec.alt` is an *alternate key string* (e.g. Backspace for Delete); the
+// Alt *modifier* is `spec.altKey`, enforced like `meta`.
 export function matchKey(e, spec) {
-  if (!spec || !spec.key) return false; // sequence specs (`{ seq: […] }`) are handled elsewhere
-  const want = spec.key.length === 1 ? spec.key.toLowerCase() : spec.key;
-  const got = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  const keyHit = got === want || (spec.alt && e.key === spec.alt);
-  if (!keyHit) return false;
+  if (!spec || (!spec.key && !spec.code)) return false; // sequence specs (`{ seq: […] }`) are handled elsewhere
+  if (spec.code) {
+    if (e.code !== spec.code) return false;
+  } else {
+    const want = spec.key.length === 1 ? spec.key.toLowerCase() : spec.key;
+    const got = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    const keyHit = got === want || (spec.alt && e.key === spec.alt);
+    if (!keyHit) return false;
+    if (/^[a-z0-9]$/.test(want) && !!spec.shift !== e.shiftKey) return false;
+  }
   if (!!spec.meta !== (e.metaKey || e.ctrlKey)) return false;
-  if (/^[a-z0-9]$/.test(want) && !!spec.shift !== e.shiftKey) return false;
+  if (!!spec.altKey !== !!e.altKey) return false;
   return true;
 }

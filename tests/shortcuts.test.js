@@ -59,6 +59,22 @@ describe('matchKey', () => {
     expect(matchKey(ev('g'), SPEC.goDashboard)).toBe(false);
     expect(matchKey(ev('d'), SPEC.goDashboard)).toBe(false);
   });
+
+  it('matches Alt+digit jumps by physical code (macOS Option composes the key)', () => {
+    // On macOS Option+1 emits '¡', so e.key is unreliable — match e.code instead.
+    expect(matchKey(ev('¡', { altKey: true, code: 'Digit1' }), SPEC.jumpBudget)).toBe(true);
+    expect(matchKey(ev('2', { altKey: true, code: 'Digit2' }), SPEC.jumpReflect)).toBe(true);
+    expect(matchKey(ev('3', { altKey: true, code: 'Digit3' }), SPEC.jumpAccounts)).toBe(true);
+  });
+
+  it('requires Alt to be held for an Alt+digit jump, and matches only its own code', () => {
+    expect(matchKey(ev('1', { code: 'Digit1' }), SPEC.jumpBudget)).toBe(false);           // no Alt
+    expect(matchKey(ev('2', { altKey: true, code: 'Digit2' }), SPEC.jumpBudget)).toBe(false); // wrong code
+  });
+
+  it('a bare letter chord no longer fires while Alt is held', () => {
+    expect(matchKey(ev('h', { altKey: true }), SPEC.hideAmounts)).toBe(false);
+  });
 });
 
 describe('isTypingTarget', () => {
