@@ -1,7 +1,7 @@
 // Pure data-store actions: every function takes the current data store (and a payload)
 // and returns a NEW store. The reducer in StoreProvider applies them immutably.
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
-import { accountBalance, accountDeletePolicy, cardOutstanding, INST_KINDS } from '../lib/calc.js';
+import { accountBalance, accountDeletePolicy, cardOutstanding, duplicateCat, moveCollision, INST_KINDS } from '../lib/calc.js';
 import { addMonths, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
@@ -936,7 +936,13 @@ export function renameCategory(data, { id, name }) {
   const val = (name || '').trim();
   const existing = data.categories[i].name;
   if (val === '' || val === existing) return data;
-  const cat = stampUpdate({ ...data.categories[i], name: val });
+  // Names are unique per group (0018): a rename that would collide with a
+  // sibling in the same group is refused here too — inline rename callers
+  // (Inspector, Plan) don't run the drawer validator, and a colliding row
+  // 23505s on sync. Same defense as setCategoryGroup/moveCategories below.
+  const cur = data.categories[i];
+  if (duplicateCat(data, { name: val, type: cur.type, groupId: cur.groupId, excludeId: id })) return data;
+  const cat = stampUpdate({ ...cur, name: val });
   const categories = [...data.categories];
   categories[i] = cat;
   return {
@@ -1221,6 +1227,9 @@ export function deleteCategoryGroupWithEmpties(data, { id }) {
 export function setCategoryGroup(data, { categoryId, groupId }) {
   const c = data.categories.find(x => x.id === categoryId);
   if (!c || c.groupId === groupId) return data;
+  // Refuse a move that would collide with a same-name sibling in the target
+  // group (0018 per-group uniqueness) — it would 23505 on sync otherwise.
+  if (duplicateCat(data, { name: c.name, type: c.type, groupId, excludeId: categoryId })) return data;
   return {
     ...data,
     categories: data.categories.map(x => (x.id === categoryId ? stampUpdate({ ...x, groupId }) : x)),
@@ -1246,6 +1255,11 @@ export function moveCategories(data, { ids, groupId, beforeId }) {
   if (!moving.length) return data;
   const type = moving[0].type;
   const movingIds = new Set(moving.map(c => c.id));
+  // Refuse the whole move if any mover would break per-group name uniqueness
+  // (0018) — colliding with an existing member of the target group or with
+  // another mover landing there. The Plan drag-drop pre-checks with the same
+  // helper to toast; this is the reducer-level backstop (see moveCollision).
+  if (moveCollision(data, { ids: moving.map(c => c.id), groupId })) return data;
   // A drop whose beforeId is itself one of the dragged rows is a drop-in-place,
   // not a reposition (the UI hides the insertion line over dragged rows). Bail
   // as a no-op rather than fall through to the "beforeId not in keep → append

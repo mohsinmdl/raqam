@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { moveCategories, reorderCategoryGroup } from '../../store/actions.js';
+import { moveCollision } from '../../lib/calc.js';
 
 // Which ids a category drag carries: the whole current selection (in visible,
 // top-to-bottom order) when the grabbed row is part of a multi-selection,
@@ -44,7 +45,7 @@ function edgeAutoScroll(e) {
 // Transient drag-state controller for the Plan screen. Holds the active drag
 // and the current drop target so rows can draw the insertion line; dispatches
 // the pure reducers on drop. Native HTML5 DnD, desktop mouse only.
-export default function usePlanDnd({ selected, visibleCatIdList, applyData }) {
+export default function usePlanDnd({ selected, visibleCatIdList, applyData, data, notify }) {
   const [drag, setDrag] = useState(null);
   const [target, setTarget] = useState(null);
 
@@ -89,14 +90,22 @@ export default function usePlanDnd({ selected, visibleCatIdList, applyData }) {
     if (drag && target) {
       if (drag.kind === 'category' && target.kind === 'category') {
         const { ids } = drag; const { groupId, beforeId } = target;
-        applyData(d => moveCategories(d, { ids, groupId, beforeId }));
+        // Per-group name uniqueness (0018): a move into a group that already
+        // holds a same-named category would 23505 on sync. Refuse + explain
+        // rather than let the reducer silently no-op the drop.
+        const col = data && moveCollision(data, { ids, groupId });
+        if (col) {
+          notify?.('A category called “' + col.mover.name + '” already exists in that group.');
+        } else {
+          applyData(d => moveCategories(d, { ids, groupId, beforeId }));
+        }
       } else if (drag.kind === 'group' && target.kind === 'group') {
         const id = drag.ids[0]; const { beforeId } = target;
         applyData(d => reorderCategoryGroup(d, { id, beforeId }));
       }
     }
     endDrag();
-  }, [drag, target, applyData, endDrag]);
+  }, [drag, target, applyData, endDrag, data, notify]);
 
   return { drag, target, startCategoryDrag, startGroupDrag, overCategory, overGroupHeader, overGroupGap, drop, endDrag };
 }

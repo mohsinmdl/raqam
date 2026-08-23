@@ -48,8 +48,19 @@ export const validate = {
     // in the register's "To categorize" review flow. A NON-empty pick is still
     // fully validated below.
     if (!o.skipCategory && (type === 'expense' || type === 'income' || type === 'refund') && req(f.category)) {
-      if (f.category === '__new' && !req(f.newCat)) e.category = 'Name the new category.';
-      else if (f.category !== '__new') {
+      if (f.category === '__new') {
+        // A __new line mints a category (resolveCategory) in its newCatGroup.
+        // Guard the per-group name uniqueness (0018) here too, or the insert
+        // 23505s on sync — same class as the inline Plan adder.
+        if (!req(f.newCat)) e.category = 'Name the new category.';
+        else {
+          const dup = duplicateCat(store, {
+            name: f.newCat.trim(), type: type === 'income' ? 'income' : 'expense',
+            groupId: f.newCatGroup || null,
+          });
+          if (dup) e.category = 'Another category here is already called “' + dup.name + '”.';
+        }
+      } else {
         const cat = catById(store, f.category);
         if (!cat) e.category = 'That category no longer exists.';
         else if (cat.type !== (type === 'income' ? 'income' : 'expense')) e.category = 'That category is an ' + cat.type + ' category — choose one that matches this transaction.';
@@ -118,8 +129,14 @@ export const validate = {
     else if (name.length > 40) e.name = 'Keep the name under 40 characters.';
     if (!['expense', 'income'].includes(f.type)) e.type = 'Choose income or expense.';
     if (name && f.type) {
-      const dup = duplicateCat(store, { name, type: f.type, excludeId: o.id });
-      if (dup) e.name = 'Another ' + f.type + ' category is already called “' + dup.name + '”.';
+      // Names are unique per group now (0018), not per plan. An edit keeps the
+      // category where it already lives; a create lands in the group the form
+      // names, or the ungrouped "Other" bucket when it names none.
+      const groupId = o.id
+        ? (store.categories.find(c => c.id === o.id)?.groupId ?? null)
+        : (f.groupId ?? null);
+      const dup = duplicateCat(store, { name, type: f.type, groupId, excludeId: o.id });
+      if (dup) e.name = 'Another ' + f.type + ' category in this group is already called “' + dup.name + '”.';
     }
     if (f.icon && !['square', 'circle', 'diamond', 'ring', 'bar', 'triangle'].includes(f.icon)) e.icon = 'Choose an icon from the set.';
     if (f.color && !/^#[0-9A-Fa-f]{6}$/.test(f.color)) e.color = 'Choose a colour from the palette.';

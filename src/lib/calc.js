@@ -216,10 +216,43 @@ export function listCats(store, type, includeArchived) {
     .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
 }
 export function normalizeName(s) { return String(s == null ? '' : s).trim().replace(/\s+/g, ' ').toLowerCase(); }
-// Duplicate check scoped to type, case-insensitive.
-export function duplicateCat(store, { name, type, excludeId }) {
+// The ungrouped ("Other") bucket key: null and undefined groupId collapse to the
+// SAME bucket, mirroring the DB index's `nulls not distinct` — so two ungrouped
+// "Travelling" still collide, but "Travelling" under two real groups does not.
+export function groupKey(groupId) { return groupId ?? null; }
+// Duplicate check scoped to type AND group, case-insensitive. Names are unique
+// per (type, group), not per plan (0018): the same name may repeat across
+// groups. Pass the group the category will live in; omit for the "Other" bucket.
+export function duplicateCat(store, { name, type, groupId, excludeId }) {
   const n = normalizeName(name);
-  return store.categories.find(c => c.id !== excludeId && normalizeName(c.name) === n && c.type === type) || null;
+  const g = groupKey(groupId);
+  return store.categories.find(c =>
+    c.id !== excludeId && c.type === type
+    && groupKey(c.groupId) === g && normalizeName(c.name) === n) || null;
+}
+// Would moving `ids` into `groupId` break per-group name uniqueness (0018)?
+// Returns { mover, hit } for the first offender — a mover colliding with an
+// existing member of the target group, or with another mover landing there —
+// else null. Shared by the moveCategories reducer (refuse) and the Plan
+// drag-drop (toast) so the two never disagree on what counts as a collision.
+export function moveCollision(store, { ids, groupId }) {
+  const moving = new Set(ids);
+  const g = groupKey(groupId);
+  const keyOf = c => c.type + ' ' + normalizeName(c.name);
+  const taken = new Set();
+  for (const c of store.categories) {
+    if (moving.has(c.id) || groupKey(c.groupId) !== g) continue;
+    taken.add(keyOf(c));
+  }
+  const landing = new Set();
+  for (const id of ids) {
+    const c = store.categories.find(x => x.id === id);
+    if (!c) continue;
+    const k = keyOf(c);
+    if (taken.has(k) || landing.has(k)) return { mover: c, hit: c };
+    landing.add(k);
+  }
+  return null;
 }
 // Everything that points at a category, so deletion can be explained precisely.
 // Includes envelope assignments (I3): a category with money assigned to it in
