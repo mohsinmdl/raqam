@@ -1,7 +1,7 @@
 // Pure data-store actions: every function takes the current data store (and a payload)
 // and returns a NEW store. The reducer in StoreProvider applies them immutably.
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
-import { accountBalance, accountDeletePolicy, cardOutstanding, duplicateCat, moveCollision, INST_KINDS } from '../lib/calc.js';
+import { accountBalance, accountDeletePolicy, cardOutstanding, duplicateCat, moveCollision, normalizeName, INST_KINDS } from '../lib/calc.js';
 import { addMonths, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
@@ -73,10 +73,17 @@ export function buildTx(f, type, amt, fee, catId, id) {
 function resolveCategory(next, f, type) {
   let catId = f.category;
   if (catId === '__new') {
+    const catType = type === 'income' ? 'income' : 'expense';
+    const groupId = f.newCatGroup || null;
+    // Reuse an existing same-(type, group, name) category rather than minting a
+    // duplicate — the validators block this at the UI, so this is the reducer
+    // backstop that keeps an unvalidated caller from 23505-ing the sync (0018).
+    const dup = duplicateCat(next, { name: f.newCat.trim(), type: catType, groupId });
+    if (dup) return dup.id;
     catId = uid();
     next.categories = [...next.categories, {
-      id: catId, name: f.newCat.trim(), type: type === 'income' ? 'income' : 'expense',
-      groupId: f.newCatGroup || null,
+      id: catId, name: f.newCat.trim(), type: catType,
+      groupId,
       color: '#0F766E', icon: 'square', sortOrder: 99, isSystem: false, status: 'active', description: '',
     }];
   }
@@ -1167,13 +1174,32 @@ export function renameCategoryGroup(data, { id, name }) {
 export function deleteCategoryGroup(data, { id }) {
   const g = (data.categoryGroups || []).find(x => x.id === id);
   if (!g) return data;
+  // Un-grouping survivors moves them into the ungrouped "Other" bucket, which
+  // enforces its own per-(type, name) uniqueness (0018, NULLS NOT DISTINCT). If
+  // a survivor's name already exists ungrouped — or two survivors share one —
+  // the un-group would 23505 and wedge sync. Disambiguate by suffixing the
+  // deleted group's name (then a counter) so the name lands unique and visible.
+  const keyOf = (type, name) => type + '\0' + normalizeName(name);
+  const taken = new Set();
+  for (const c of data.categories) {
+    if (c.groupId != null) continue; // already ungrouped, and never touched here
+    taken.add(keyOf(c.type, c.name));
+  }
+  const uniqueName = (type, name) => {
+    if (!taken.has(keyOf(type, name))) return name;
+    let candidate = name + ' (' + g.name + ')';
+    for (let n = 2; taken.has(keyOf(type, candidate)); n++) candidate = name + ' (' + g.name + ' ' + n + ')';
+    return candidate;
+  };
   return {
     ...data,
     categoryGroups: data.categoryGroups.filter(x => x.id !== id),
     categories: data.categories.map(c => {
       if (c.groupId !== id) return c;
       const { groupId, ...rest } = c;
-      return rest;
+      const name = uniqueName(rest.type, rest.name);
+      taken.add(keyOf(rest.type, name));
+      return name === rest.name ? rest : stampUpdate({ ...rest, name });
     }),
     audit: [makeAudit({ entityType: 'categoryGroup', entityId: id, action: 'delete', summary: 'Deleted group ' + g.name }), ...(data.audit || [])],
   };

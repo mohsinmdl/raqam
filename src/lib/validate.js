@@ -130,8 +130,10 @@ export const validate = {
     if (!['expense', 'income'].includes(f.type)) e.type = 'Choose income or expense.';
     if (name && f.type) {
       // Names are unique per group now (0018), not per plan. An edit keeps the
-      // category where it already lives; a create lands in the group the form
-      // names, or the ungrouped "Other" bucket when it names none.
+      // category where it already lives; a drawer create always lands ungrouped
+      // (the form never sets a group — see addCategoryToGroup in Plan.jsx, which
+      // applies the group as a separate step). The f.groupId branch is defensive
+      // for a future grouped-create form.
       const groupId = o.id
         ? (store.categories.find(c => c.id === o.id)?.groupId ?? null)
         : (f.groupId ?? null);

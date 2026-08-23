@@ -52,7 +52,7 @@ describe('moveCollision — moving into a group that already has the name', () =
   it('flags a mover colliding with an existing target-group member', () => {
     const col = moveCollision(s(), { ids: ['h-trav'], groupId: 'g1' });
     expect(col).toBeTruthy();
-    expect(col.mover.id).toBe('h-trav');
+    expect(col.id).toBe('h-trav'); // returns the offending category itself
   });
   it('allows a move into a group without that name', () => {
     expect(moveCollision(s(), { ids: ['h-trav'], groupId: 'gX' })).toBeNull();
@@ -85,6 +85,34 @@ describe('validate.category — group-aware', () => {
     const e = validate.category(store(), { name: 'Food', type: 'expense' }, { id: 'b-trav' }); // b-trav is in g1, Food is ungrouped
     expect(e.name).toBeUndefined();
   });
+  it('editing an ungrouped category into an existing ungrouped sibling name collides', () => {
+    const s = store();
+    s.categories.push({ id: 'other-x', name: 'X', type: 'expense', status: 'active' }); // ungrouped
+    const e = validate.category(s, { name: 'Food', type: 'expense' }, { id: 'other-x' }); // both ungrouped
+    expect(e.name).toBeTruthy();
+  });
+});
+
+describe('validate.transaction — inline __new category is group-scoped', () => {
+  const tx = (over) => ({ type: 'expense', amount: '10', account: 'acc:a1', date: '2026-08-24', category: '__new', ...over });
+  it('a __new name colliding with an existing ungrouped category is rejected', () => {
+    const e = validate.transaction(store(), tx({ newCat: 'Food' }), {}); // Food is ungrouped
+    expect(e.category).toBeTruthy();
+  });
+  it('a __new name matching a category only in a group is allowed (lands ungrouped)', () => {
+    const e = validate.transaction(store(), tx({ newCat: 'Travelling' }), {}); // Travelling only in g1
+    expect(e.category).toBeUndefined();
+  });
+  it('a __new name in its own newCatGroup collides only within that group', () => {
+    const collides = validate.transaction(store(), tx({ newCat: 'Travelling', newCatGroup: 'g1' }), {});
+    expect(collides.category).toBeTruthy();
+    const ok = validate.transaction(store(), tx({ newCat: 'Travelling', newCatGroup: 'g2' }), {});
+    expect(ok.category).toBeUndefined();
+  });
+  it('still requires a name for a __new line', () => {
+    const e = validate.transaction(store(), tx({ newCat: '' }), {});
+    expect(e.category).toBeTruthy();
+  });
 });
 
 describe('validateSplit — new-category collision is group-scoped', () => {
@@ -102,5 +130,26 @@ describe('validateSplit — new-category collision is group-scoped', () => {
       line({ id: 'l2', category: 'b-trav', amount: '40' }),
     ];
     expect(validateSplit('100', lines, store())).toBeNull();
+  });
+  it('two __new lines with the same name in the SAME group must merge', () => {
+    const lines = [
+      line({ id: 'l1', category: '__new', newCat: 'Gifts', newCatGroup: 'g2', amount: '60' }),
+      line({ id: 'l2', category: '__new', newCat: 'Gifts', newCatGroup: 'g2', amount: '40' }),
+    ];
+    expect(validateSplit('100', lines, store())).toMatch(/same new category/i);
+  });
+  it('two __new lines with the same name in DIFFERENT groups are allowed', () => {
+    const lines = [
+      line({ id: 'l1', category: '__new', newCat: 'Gifts', newCatGroup: 'g1', amount: '60' }),
+      line({ id: 'l2', category: '__new', newCat: 'Gifts', newCatGroup: 'g2', amount: '40' }),
+    ];
+    expect(validateSplit('100', lines, store())).toBeNull();
+  });
+  it('two ungrouped __new lines with the same name must merge (nulls not distinct)', () => {
+    const lines = [
+      line({ id: 'l1', category: '__new', newCat: 'Gifts', amount: '60' }),
+      line({ id: 'l2', category: '__new', newCat: 'Gifts', amount: '40' }),
+    ];
+    expect(validateSplit('100', lines, store())).toMatch(/same new category/i);
   });
 });

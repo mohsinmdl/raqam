@@ -95,7 +95,7 @@ export default function usePlanDnd({ selected, visibleCatIdList, applyData, data
         // rather than let the reducer silently no-op the drop.
         const col = data && moveCollision(data, { ids, groupId });
         if (col) {
-          notify?.('A category called “' + col.mover.name + '” already exists in that group.');
+          notify?.('A category called “' + col.name + '” already exists in that group.');
         } else {
           applyData(d => moveCategories(d, { ids, groupId, beforeId }));
         }
