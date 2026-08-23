@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI-DLC Setup — Raqam</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 20px; color: #222; line-height: 1.45; }
+  h1 { border-bottom: 2px solid #333; padding-bottom: 6px; }
+  h2 { border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 32px; }
+  .meta { background: #f4f4f4; border: 1px solid #ddd; padding: 10px 14px; border-radius: 4px; margin: 12px 0; font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 14px; }
+  th, td { border: 1px solid #bbb; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eee; }
+  .status { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px; white-space: nowrap; }
+  .pending      { background: #e8e8e8; color: #555; }
+  .awaiting     { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+  .in-progress  { background: #cce5ff; color: #004085; border: 1px solid #b8daff; }
+  .done         { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+  .blocked      { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+  .risk-high    { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; font-weight: bold; }
+  .risk-med     { background: #ffe5b4; color: #7a4a00; border: 1px solid #ffd180; font-weight: bold; }
+  .risk-low     { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; font-weight: bold; }
+  .portable     { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; font-weight: bold; }
+  .disp         { background: #e7e9f0; color: #33406b; border: 1px solid #c7cde0; font-weight: bold; }
+  /* Priority chips — alternative severity axis to risk-* (urgency/importance, not danger). */
+  .priority-1   { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; font-weight: bold; }
+  .priority-2   { background: #ffe5b4; color: #7a4a00; border: 1px solid #ffd180; font-weight: bold; }
+  .priority-3   { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; font-weight: bold; }
+  details { margin: 4px 0; }
+  details summary { cursor: pointer; padding: 2px 0; }
+  button.toggle-all { font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; padding: 3px 10px; border: 1px solid #bbb; border-radius: 3px; background: #eee; color: #333; margin-left: 12px; vertical-align: middle; }
+  button.toggle-all:hover { background: #e0e0e0; }
+  code, pre { background: #f6f6f6; padding: 1px 5px; border-radius: 3px; font-size: 13px; }
+  pre { padding: 8px 12px; overflow-x: auto; }
+  .item-card { border: 1px solid #ddd; border-radius: 4px; padding: 12px; margin: 10px 0; background: #fafafa; }
+  .item-card.high { border-left: 4px solid #d9534f; }
+  .item-card.med { border-left: 4px solid #f0ad4e; }
+  .item-card.low { border-left: 4px solid #ffc107; }
+  .item-card.ok { border-left: 4px solid #5cb85c; }
+  .item-card.p1 { border-left: 4px solid #d9534f; }
+  .item-card.p2 { border-left: 4px solid #f0ad4e; }
+  .item-card.p3 { border-left: 4px solid #ffc107; }
+  .small { font-size: 12px; color: #666; }
+  /* Dark mode — default is light; Ctrl/Cmd+Shift+L toggles (persisted in localStorage). */
+  body.dark { background: #16181d; color: #d6d8dd; }
+  body.dark h1 { border-color: #999; }
+  body.dark h2 { border-color: #444; }
+  body.dark .meta { background: #1f2229; border-color: #3a3f4a; }
+  body.dark th { background: #262a33; }
+  body.dark th, body.dark td { border-color: #3a3f4a; }
+  body.dark code, body.dark pre { background: #23262e; }
+  body.dark .item-card { background: #1c1f26; border-color: #3a3f4a; }
+  body.dark .small { color: #9aa0aa; }
+  body.dark .pending { background: #2c2f36; color: #b6bac2; }
+  body.dark button.toggle-all { background: #262a33; color: #d6d8dd; border-color: #555; }
+  body.dark button.toggle-all:hover { background: #303540; }
+  body.dark a { color: #7ab7ff; }
+</style>
+</head>
+<body>
+
+<h1>AI-DLC setup in the Raqam repo <span class="status done">DONE</span></h1>
+
+<div class="meta">
+  <strong>Related:</strong> Official install instructions at <code>github.com/awslabs/aidlc-workflows</code> (README) — this doc is the plan of record for the approved chat plan<br>
+  <strong>Context:</strong> The original ask was a YNAB-style multi-Plan feature; exploration showed that is an architectural change (Raqam is single-budget today: every table scoped by <code>user_id</code> only in <code>supabase/migrations/0001_init.sql</code>, sync trusts RLS with no filters in <code>src/store/sync.js</code>, currency hardwired to PKR/<code>Rs</code>/en-PK in <code>src/lib/calc.js</code>). Mid-planning the user pivoted: adopt the AI-DLC methodology first, then drive multi-Plan through it.<br>
+  <strong>Purpose:</strong> Install AWS's AI-DLC workflow rules into the Raqam repo per the official awslabs/aidlc-workflows instructions, then walk the user through how the methodology works. The multi-Plan feature becomes the first AIDLC-run task afterwards.<br>
+  <strong>Scope:</strong> IN — download/extract the rules release, vendor <code>.aidlc-rule-details/</code>, create repo <code>CLAUDE.md</code> from <code>core-workflow.md</code>, commit + push on branch <code>worktree-aidlc-setup</code>, guided walkthrough. OUT — the multi-Plan feature itself and any app/schema/currency code changes.<br>
+  <strong>Created:</strong> 2026-08-23<br>
+  <strong>Updated:</strong> 2026-08-23 — runbook created from the approved plan; execution already under way (plan approved in chat, no review gate). &middot; 2026-08-23 — items 1–5 executed and verified; chips flipped; correction recorded on the "Using AI-DLC" trigger-phrase claim (item 3 / verification row 2); doc marked DONE.
+</div>
+
+<div class="meta">
+  <strong>Status legend:</strong>
+  <span class="status pending">PENDING</span>
+  <span class="status awaiting">AWAITING REVIEW</span>
+  <span class="status in-progress">IN PROGRESS</span>
+  <span class="status done">DONE</span>
+  <span class="status blocked">BLOCKED</span>
+  &nbsp;|&nbsp;
+  <strong>Risk legend:</strong>
+  <span class="status risk-high">HIGH</span>
+  <span class="status risk-med">MED</span>
+  <span class="status risk-low">LOW</span>
+  <span class="status portable">PORTABLE</span>
+</div>
+
+<h2>Verdict</h2>
+<p><strong>Purely additive, low-risk setup: vendor AWS's AI-DLC rule files into the repo and create the repo's first <code>CLAUDE.md</code> from the official core workflow, all on an isolated worktree branch. No app code, schema, or deploy path is touched; full undo is deleting the added files or dropping the branch.</strong></p>
+
+<h2>Locked decisions</h2>
+<table>
+  <tr><th>Decision</th><th>Choice</th><th>Why</th></tr>
+  <tr><td>Order of work</td><td>Adopt AI-DLC first; run the multi-Plan feature through it afterwards</td><td>User pivot mid-planning: multi-Plan is architectural (single-budget schema, RLS-trusting sync, hardwired PKR formatter), so the methodology goes in before that work starts.</td></tr>
+  <tr><td><code>CLAUDE.md</code> handling</td><td>Deviate from the official <code>cp core-workflow.md ./CLAUDE.md</code>: merge, don't clobber. The repo has NO <code>CLAUDE.md</code> of its own (verified via <code>ls /Users/dev/projects/raqam/CLAUDE.md</code> — no such file), so create it from <code>core-workflow.md</code> verbatim.</td><td>The official instruction would silently overwrite existing project instructions; the merge rule stays on record for future upstream updates even though a verbatim copy is safe today.</td></tr>
+  <tr><td>Source of rules</td><td>Latest release zip <code>ai-dlc-rules-v&lt;n&gt;.zip</code> from <code>github.com/awslabs/aidlc-workflows/releases/latest</code></td><td>Releases are the officially supported install artifact — no repo clone needed.</td></tr>
+  <tr><td>Isolation &amp; push</td><td>Branch <code>worktree-aidlc-setup</code> in worktree <code>.claude/worktrees/aidlc-setup</code>; push via the SSH remote (<code>git@github.com</code>)</td><td>Standard repo worktree convention; SSH push is the proven-reliable transport where HTTPS credentials have flaked.</td></tr>
+</table>
+
+<h2 id="summary">Summary</h2>
+<table>
+  <!-- Effort column is OPTIONAL: drop the Effort th+td for feasibility docs where time-per-item isn't meaningful. -->
+  <tr><th>#</th><th>Item</th><th>Risk</th><th>Status</th><th>Effort</th><th>One-line verdict</th></tr>
+  <tr><td>1</td><td><a href="#item-1">Download &amp; extract the latest AI-DLC rules release</a></td><td><span class="status risk-low">LOW</span></td><td><span class="status done">DONE</span></td><td>~2 min</td><td>Fetch-only into the job tmp dir; fails loud if the GitHub release is unreachable, repo untouched.</td></tr>
+  <tr><td>2</td><td><a href="#item-2">Vendor rule details into <code>.aidlc-rule-details/</code></a></td><td><span class="status risk-low">LOW</span></td><td><span class="status done">DONE</span></td><td>~1 min</td><td>Pure file copy at repo root — five subfolders of markdown, app code untouched.</td></tr>
+  <tr><td>3</td><td><a href="#item-3">Create repo <code>CLAUDE.md</code> from <code>core-workflow.md</code></a></td><td><span class="status risk-med">MED</span></td><td><span class="status done">DONE</span></td><td>~2 min</td><td>Creates the repo's first CLAUDE.md — it will steer every future Claude Code session, hence MED despite being additive.</td></tr>
+  <tr><td>4</td><td><a href="#item-4">Commit &amp; push on <code>worktree-aidlc-setup</code></a></td><td><span class="status risk-low">LOW</span></td><td><span class="status done">DONE</span></td><td>~5 min</td><td>Additive commit on an isolated worktree branch; SSH push; main untouched.</td></tr>
+  <tr><td>5</td><td><a href="#item-5">Guided walkthrough of the AI-DLC workflow</a></td><td><span class="status portable">NONE</span></td><td><span class="status done">DONE</span></td><td>~10 min</td><td>No repo change — restart Claude Code, state any dev intent (or "Using AI-DLC, …"), hand over this session's exploration findings.</td></tr>
+</table>
+
+<!-- ALWAYS-ON: every service/tool named anywhere in this doc gets a row (including out-of-scope or rejected ones), and every acronym gets its full form. Duplicate the example rows. -->
+<h2>Glossary</h2>
+<p class="small">Every service/tool named in this doc, and every acronym expanded — read this first if any name is unfamiliar.</p>
+<table>
+  <tr><th>Service / tool</th><th>What it is</th><th>Role in this plan</th></tr>
+  <tr><td><strong>AI-DLC (awslabs/aidlc-workflows)</strong></td><td>AWS's open-source AI-Driven Development Lifecycle methodology: tasks run through Inception (questions → requirements → stories → design), Construction (component design, code, tests), and Operations phases, in user-validated units called "bolts".</td><td>The methodology being installed; its rule files will drive future Claude Code sessions in this repo.</td></tr>
+  <tr><td><strong>Raqam</strong></td><td>The user's personal-finance web app (React + Vite, YNAB-inspired), backed by Supabase; live at raqam.pages.dev.</td><td>The repo receiving the AI-DLC setup.</td></tr>
+  <tr><td><strong>YNAB</strong></td><td>"You Need A Budget" — the commercial envelope-budgeting app Raqam emulates.</td><td>Source of the multi-Plan feature design that triggered this pivot.</td></tr>
+  <tr><td><strong>Supabase</strong></td><td>Hosted Postgres backend (database, auth, row-level security) that Raqam runs on.</td><td>Context only — its single-budget schema is why multi-Plan needs methodology-grade planning; nothing in it changes here.</td></tr>
+  <tr><td><strong>Claude Code</strong></td><td>Anthropic's terminal coding agent; automatically loads a repo's <code>CLAUDE.md</code> as project instructions at session start.</td><td>Executes this plan, and will read the new <code>CLAUDE.md</code> to run AI-DLC.</td></tr>
+  <tr><td><strong>CLAUDE.md</strong></td><td>The project instruction file Claude Code auto-loads.</td><td>Created from AI-DLC's <code>core-workflow.md</code> — the switch that turns the methodology on.</td></tr>
+  <tr><td><strong>git worktree</strong></td><td>An isolated extra checkout of a branch alongside the main clone.</td><td>Isolation for this change: <code>.claude/worktrees/aidlc-setup</code> on branch <code>worktree-aidlc-setup</code>.</td></tr>
+  <tr><td><strong>GitHub Releases</strong></td><td>GitHub's mechanism for publishing versioned downloadable artifacts of a repo.</td><td>Where the official <code>ai-dlc-rules-v&lt;n&gt;.zip</code> install artifact comes from.</td></tr>
+</table>
+<table>
+  <tr><th>Acronym</th><th>Full form</th><th>Meaning here</th></tr>
+  <tr><td><strong>AI-DLC / AIDLC</strong></td><td>AI-Driven Development Lifecycle</td><td>The AWS methodology being adopted (github.com/awslabs/aidlc-workflows).</td></tr>
+  <tr><td><strong>YNAB</strong></td><td>You Need A Budget</td><td>The envelope-budgeting app Raqam emulates.</td></tr>
+  <tr><td><strong>RLS</strong></td><td>Row-Level Security</td><td>Postgres per-row access control; Raqam's sync (<code>src/store/sync.js</code>) trusts it with no extra filters — part of why multi-Plan is architectural.</td></tr>
+  <tr><td><strong>PKR</strong></td><td>Pakistani Rupee</td><td>The currency hardwired in <code>src/lib/calc.js</code> (<code>Rs</code>/en-PK); per-plan currency is a multi-Plan goal, not touched here.</td></tr>
+  <tr><td><strong>SSH</strong></td><td>Secure Shell</td><td>Transport for the git push (<code>git@github.com</code>), proven reliable where HTTPS credentials flake.</td></tr>
+</table>
+
+<h2>Items <button type="button" class="toggle-all" id="toggleAll">Expand all</button></h2>
+
+<div class="item-card low" id="item-1">
+  <strong>1. Download &amp; extract the latest AI-DLC rules release</strong>
+  <span class="status risk-low">LOW</span>
+  <span class="status done">DONE</span>
+  <p class="small"><em>Completed: 2026-08-23 — v1.0.1 fetched via <code>curl</code> (release URL resolved from the GitHub API; <code>gh</code> stays user-terminal-only per repo convention) and extracted to the job tmp dir; <code>aws-aidlc-rules/</code> + <code>aws-aidlc-rule-details/</code> with all five subfolders confirmed present.</em></p>
+  <details>
+    <summary>Brief</summary>
+    <p><strong>What's involved:</strong> Fetch the latest release zip <code>ai-dlc-rules-v&lt;n&gt;.zip</code> from <code>github.com/awslabs/aidlc-workflows/releases/latest</code> into the job tmp dir and extract it.</p>
+    <p><strong>Why / how:</strong> Releases are the official install artifact per the awslabs/aidlc-workflows README — no repo clone needed. Everything lands in a throwaway tmp dir first, so a bad download touches nothing repo-side.</p>
+    <pre>TMP=$(mktemp -d)
+gh release download --repo awslabs/aidlc-workflows --pattern 'ai-dlc-rules-*.zip' --dir "$TMP"
+unzip -q "$TMP"/ai-dlc-rules-*.zip -d "$TMP/aidlc"</pre>
+    <p><strong>What carries over / result:</strong> Extracted tree in tmp containing <code>aws-aidlc-rule-details/</code> and <code>core-workflow.md</code> — the inputs for items 2 and 3.</p>
+    <p class="small"><strong>Verify:</strong> <code>ls "$TMP/aidlc"</code> shows <code>aws-aidlc-rule-details/</code> and <code>core-workflow.md</code>.</p>
+    <p><strong>Cost:</strong> $0 &middot; <strong>Risk:</strong> Network-only; GitHub flakiness (known per-IP TCP resets) just retries — nothing partial lands in the repo.</p>
+  </details>
+</div>
+
+<div class="item-card low" id="item-2">
+  <strong>2. Vendor rule details into <code>.aidlc-rule-details/</code></strong>
+  <span class="status risk-low">LOW</span>
+  <span class="status done">DONE</span>
+  <p class="small"><em>Completed: 2026-08-23 — copied to repo root; verified via <code>find .aidlc-rule-details -name '*.md' | wc -l</code> → 31 files across <code>common construction extensions inception operations</code>.</em></p>
+  <details>
+    <summary>Brief</summary>
+    <p><strong>What's involved:</strong> Copy <code>aws-aidlc-rule-details/*</code> from the extracted release to <code>.aidlc-rule-details/</code> at the repo root.</p>
+    <p><strong>Why / how:</strong> This is the official target layout — the core workflow references rules by that path. Expected subfolders: <code>common/</code>, <code>inception/</code>, <code>construction/</code>, <code>operations/</code>, <code>extensions/</code>.</p>
+    <pre>mkdir -p .aidlc-rule-details
+cp -R "$TMP/aidlc/aws-aidlc-rule-details/." .aidlc-rule-details/</pre>
+    <p><strong>What carries over / result:</strong> Repo root gains a self-contained markdown rules directory; no app file is touched.</p>
+    <p class="small"><strong>Verify:</strong> <code>ls .aidlc-rule-details</code> lists the five subfolders; <code>find .aidlc-rule-details -name '*.md' -size +0c</code> is non-empty.</p>
+    <p><strong>Cost:</strong> $0 &middot; <strong>Risk:</strong> Purely additive new directory; undo is <code>rm -rf .aidlc-rule-details</code>.</p>
+  </details>
+</div>
+
+<div class="item-card med" id="item-3">
+  <strong>3. Create repo <code>CLAUDE.md</code> from <code>core-workflow.md</code></strong>
+  <span class="status risk-med">MED</span>
+  <span class="status done">DONE</span>
+  <span class="status awaiting">CORRECTED 2026-08-23</span>
+  <p class="small"><em>Completed: 2026-08-23 — <code>CLAUDE.md</code> created verbatim from <code>core-workflow.md</code> (539 lines).</em></p>
+  <p class="small"><strong>Correction 2026-08-23:</strong> originally said to verify via <code>grep -n "Using AI-DLC" CLAUDE.md</code>; actually the core workflow contains no "Using AI-DLC" literal — it activates on ANY software-development request ("When user requests software development, ALWAYS follow this workflow FIRST", line 2, verified via <code>grep -in "when user" CLAUDE.md</code>). The "Using AI-DLC, …" phrase is the README's suggested explicit invocation, not a required trigger.</p>
+  <details>
+    <summary>Brief</summary>
+    <p><strong>What's involved:</strong> Create a repo-root <code>CLAUDE.md</code> containing the AI-DLC core workflow, verbatim from the release's <code>core-workflow.md</code>.</p>
+    <p><strong>Why / how:</strong> The official instruction is <code>cp core-workflow.md ./CLAUDE.md</code>, which would clobber existing project instructions. Locked deviation: merge, don't clobber. The repo has no <code>CLAUDE.md</code> of its own — verified via <code>ls /Users/dev/projects/raqam/CLAUDE.md</code> (no such file) — so a verbatim copy IS the merge here.</p>
+    <pre>cp "$TMP/aidlc/core-workflow.md" ./CLAUDE.md</pre>
+    <p><strong>What carries over / result:</strong> Every future Claude Code session in this repo auto-loads the AI-DLC workflow; the <code>"Using AI-DLC, &lt;intent&gt;"</code> trigger phrase becomes live after a restart.</p>
+    <p class="small"><strong>Verify:</strong> <code>grep -n "Using AI-DLC" CLAUDE.md</code> finds the trigger phrase.</p>
+    <p><strong>Cost:</strong> $0 &middot; <strong>Risk:</strong> MED because it steers all future sessions' behavior; still additive — undo is deleting the file (there was no prior version to restore).</p>
+  </details>
+</div>
+
+<div class="item-card low" id="item-4">
+  <strong>4. Commit &amp; push on <code>worktree-aidlc-setup</code></strong>
+  <span class="status risk-low">LOW</span>
+  <span class="status done">DONE</span>
+  <p class="small"><em>Completed: 2026-08-23 — scaffolding committed as <code>6186e54</code> (32 files, 6,309 insertions) and pushed via SSH (<code>git@github.com:mohsinmdl/raqam.git</code>, new branch <code>worktree-aidlc-setup</code>); this runbook added in a follow-up commit on the same branch and pushed.</em></p>
+  <details>
+    <summary>Brief</summary>
+    <p><strong>What's involved:</strong> Commit <code>CLAUDE.md</code>, <code>.aidlc-rule-details/</code>, and this runbook (<code>docs/aidlc-setup.html</code>) on branch <code>worktree-aidlc-setup</code> in the worktree at <code>.claude/worktrees/aidlc-setup</code>; push via the SSH remote.</p>
+    <p><strong>Why / how:</strong> Worktree isolation is the repo's standard convention; SSH (<code>git@github.com</code>, <code>~/.ssh/id_ed25519</code>) is the proven push transport where HTTPS credentials have flaked.</p>
+    <pre>git add CLAUDE.md .aidlc-rule-details docs/aidlc-setup.html
+git commit -m "Adopt AI-DLC workflow: core workflow as CLAUDE.md + vendored rule details"
+git push -u origin worktree-aidlc-setup</pre>
+    <p><strong>What carries over / result:</strong> The setup exists on a pushed branch; <code>main</code> (and the auto-deploy that watches it) is untouched until a merge is decided later.</p>
+    <p class="small"><strong>Verify:</strong> <code>git status --porcelain</code> empty; <code>git log origin/worktree-aidlc-setup..HEAD</code> empty (nothing unpushed).</p>
+    <p><strong>Cost:</strong> $0 &middot; <strong>Risk:</strong> Isolated branch; worst case is deleting the branch. No PR is opened as part of this plan.</p>
+  </details>
+</div>
+
+<div class="item-card ok" id="item-5">
+  <strong>5. Guided walkthrough of the AI-DLC workflow</strong>
+  <span class="status portable">NONE</span>
+  <span class="status done">DONE</span>
+  <p class="small"><em>Completed: 2026-08-23 — walkthrough delivered in chat: automatic activation (any dev request), the three phases, <code>aidlc-docs/</code> + <code>aidlc-state.md</code> artifacts, opt-in extensions (security / resiliency / property-based testing), and the ready-made multi-Plan Inception kickoff prompt with this session's schema findings.</em></p>
+  <details>
+    <summary>Brief</summary>
+    <p><strong>What's involved:</strong> Walk the user through how AI-DLC runs now that it is installed. No further repo changes.</p>
+    <p><strong>Why / how:</strong></p>
+    <ol>
+      <li>Restart Claude Code in the repo — <code>CLAUDE.md</code> rules load at session start, so the current session does not see them.</li>
+      <li>Kick off any task with <strong>"Using AI-DLC, &lt;intent&gt;"</strong> — e.g. <em>"Using AI-DLC, add a YNAB-style multi-Plan system (plan switcher, New Plan modal, per-plan currency &amp; formats)"</em>.</li>
+      <li>The agent runs <strong>Inception</strong> (structured questions → requirements → stories → design, all user-validated), then <strong>Construction</strong> (component design, code, tests), then <strong>Operations</strong>. Artifacts accumulate in <code>aidlc-docs/</code>.</li>
+      <li>Hand over this session's exploration findings as Inception input: single-budget schema (<code>supabase/migrations/0001_init.sql</code> scopes every table by <code>user_id</code> only), sync trusts RLS with no filters (<code>src/store/sync.js</code>), currency hardwired to PKR/<code>Rs</code>/en-PK (<code>src/lib/calc.js</code>).</li>
+    </ol>
+    <p><strong>What carries over / result:</strong> User can drive the multi-Plan feature — and any later task — through AI-DLC as the first real run.</p>
+    <p class="small"><strong>Verify:</strong> In a fresh session, "Using AI-DLC, …" visibly enters the Inception question flow instead of ad-hoc coding.</p>
+    <p><strong>Cost:</strong> $0 &middot; <strong>Risk:</strong> None — informational only.</p>
+  </details>
+</div>
+
+<h2>What gets worse</h2>
+<ul>
+  <li>Every future Claude Code session in this repo loads the AI-DLC workflow instructions — the full flow is gated behind the trigger phrase, but the instructions still occupy context on every session, including one-line fixes.</li>
+  <li><code>aidlc-docs/</code> artifacts will accumulate in-repo once tasks run through the methodology.</li>
+  <li>Upstream rule updates now require manual re-vendoring — and re-applying the merge-don't-clobber rule once a real project <code>CLAUDE.md</code> has grown around the workflow.</li>
+</ul>
+
+<h2>Out of scope (explicitly NOT doing)</h2>
+<ul>
+  <li><strong>The multi-Plan feature itself</strong> (plan switcher, New Plan modal, per-plan currency/formatting) — it becomes the first AIDLC-run task after this setup; building it now would defeat the pivot.</li>
+  <li><strong>Any schema/sync/currency changes</strong> (<code>supabase/migrations/0001_init.sql</code>, <code>src/store/sync.js</code>, <code>src/lib/calc.js</code>) — this session's findings about them are handed to Inception as context, not acted on.</li>
+  <li><strong>Merging or opening a PR for the setup branch</strong> — the approved plan ends at commit + push; integration is decided after the walkthrough.</li>
+</ul>
+
+<h2>Recommended sequence</h2>
+<ol>
+  <li>Download &amp; extract the latest <code>ai-dlc-rules</code> release into a tmp dir (<a href="#item-1">item 1</a>).</li>
+  <li>Copy the rule details to <code>.aidlc-rule-details/</code> at the repo root (<a href="#item-2">item 2</a>).</li>
+  <li>Create repo <code>CLAUDE.md</code> from <code>core-workflow.md</code> verbatim (<a href="#item-3">item 3</a>).</li>
+  <li>Run the Verification checks below, then commit and push on <code>worktree-aidlc-setup</code> (<a href="#item-4">item 4</a>).</li>
+  <li>Guided walkthrough: restart, trigger phrase, hand over exploration findings (<a href="#item-5">item 5</a>).</li>
+</ol>
+
+<h2>Verification</h2>
+<table>
+  <tr><th>Check</th><th>Command / where</th><th>Expected</th><th>Status</th></tr>
+  <tr><td>Rule details vendored</td><td><code>ls .aidlc-rule-details &amp;&amp; find .aidlc-rule-details -name '*.md' -size +0c | head</code></td><td>Five subfolders (<code>common construction extensions inception operations</code>); non-empty <code>.md</code> files listed</td><td><span class="status done">DONE</span> <span class="small">31 .md files, all five subfolders (2026-08-23)</span></td></tr>
+  <tr><td>Core workflow live in <code>CLAUDE.md</code></td><td><code>grep -in "when user" CLAUDE.md</code> <span class="small">(corrected — see item 3: no "Using AI-DLC" literal exists in the file)</span></td><td>Line 2: "When user requests software development, ALWAYS follow this workflow FIRST"</td><td><span class="status done">DONE</span> <span class="small">verified 2026-08-23</span></td></tr>
+  <tr><td>Clean tree after commit</td><td><code>git status --porcelain</code></td><td>Empty output</td><td><span class="status done">DONE</span> <span class="small">clean after runbook follow-up commit (2026-08-23)</span></td></tr>
+  <tr><td>Branch pushed</td><td><code>git log origin/worktree-aidlc-setup..HEAD --oneline</code></td><td>Empty output (no unpushed commits)</td><td><span class="status done">DONE</span> <span class="small">verified 2026-08-23 after final push</span></td></tr>
+</table>
+
+<h2>Rollback</h2>
+<table>
+  <tr><th>If this went wrong</th><th>Undo with</th></tr>
+  <tr><td><code>CLAUDE.md</code> unwanted or steering sessions badly</td><td><code>git rm CLAUDE.md &amp;&amp; git commit -m "Remove AIDLC workflow"</code> — the repo had no prior <code>CLAUDE.md</code>, so deletion fully restores the old state</td></tr>
+  <tr><td>Rule details wrong / stale release</td><td><code>git rm -r .aidlc-rule-details</code> (or re-run items 1–2 with the correct release)</td></tr>
+  <tr><td>Whole change unwanted before merge</td><td><code>git worktree remove .claude/worktrees/aidlc-setup &amp;&amp; git branch -D worktree-aidlc-setup &amp;&amp; git push origin --delete worktree-aidlc-setup</code> — main was never touched</td></tr>
+</table>
+<p class="small">The change is purely additive — no existing file is modified anywhere in the plan — so every rollback is "delete what was added"; there is no state to restore.</p>
+
+<h2>How to use this doc</h2>
+<p class="small">
+  This runbook is the plan of record. It is written before execution and reviewed by the owner;
+  work starts only after go-ahead. As steps complete, chips flip
+  <span class="status pending">PENDING</span> → <span class="status in-progress">IN PROGRESS</span> →
+  <span class="status done">DONE</span> with a dated <em>Completed:</em> note, so the doc always mirrors reality.
+  Press <code>Ctrl/⌘+Shift+L</code> to toggle dark mode.
+  Last updated: 2026-08-23.
+</p>
+
+<script>
+(function () {
+  var btn = document.getElementById('toggleAll');
+  if (!btn) return;
+  var all = function () { return document.querySelectorAll('details'); };
+  var anyClosed = function () { return [].some.call(all(), function (d) { return !d.open; }); };
+  var sync = function () { btn.textContent = anyClosed() ? 'Expand all' : 'Collapse all'; };
+  btn.addEventListener('click', function () {
+    var open = anyClosed();
+    [].forEach.call(all(), function (d) { d.open = open; });
+    sync();
+  });
+  document.addEventListener('toggle', sync, true);
+  sync();
+})();
+(function () {
+  try { if (localStorage.getItem('runbook-theme') === 'dark') document.body.classList.add('dark'); } catch (e) {}
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
+      e.preventDefault();
+      var dark = document.body.classList.toggle('dark');
+      try { localStorage.setItem('runbook-theme', dark ? 'dark' : 'light'); } catch (e2) {}
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
