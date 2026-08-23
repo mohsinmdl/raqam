@@ -6,7 +6,7 @@
 - **Unit/PBT suite**: `pnpm test` = **95 files / 1363 tests, 0 failures** — including the untouched equivalence-oracle files and P1–P9 fast-check properties (seeds logged per PBT-08)
 - **Build**: `pnpm build` = success (pre-existing chunk-size warning only)
 - **Live browser verification (Playwright, stubbed sync boundary)**: **15 of 17 stories PASS end-to-end** (desktop; US-4/7/8/10/11/13 also on 390×844 phone), including the fail-closed switch under simulated 503s, ghost-openPlanId self-heal, open-plan delete switch-away with 0 orphans, lakh/USD/legacy-Rs rendering, and zero console errors in organic flows. **Zero app bugs found — no src/ edits needed.** Screenshots in the session scratchpad (`harness/shots/01–08`).
-- **US-1 / US-2** (migration backfill, RLS + cross-user composite FK): schema-level — provable only at 0017 apply time via `scripts/plans-migration-verify.sql` + the constraint probes in `integration-test-instructions.md` §B. This is the sole remaining verification gap, by design.
+- **US-1 / US-2** (migration backfill, RLS + cross-user composite FK): schema-level — provable only at 0017 apply time via `scripts/plans-migration-verify-{pre,post}apply.sql` + the constraint probes in `integration-test-instructions.md` §B. This is the sole remaining verification gap, by design.
 
 ## Extension compliance (stage summary)
 - **Security**: SECURITY-05 ✅ (CHECKs + inline validation verified live) · SECURITY-08 ✅ design + stub-level (real RLS/FK proof at apply) · SECURITY-13 ✅ (transactional idempotent migration; audit continuity) · SECURITY-15 ✅ (fail-closed switch/delete verified live incl. outage simulation) · SECURITY-03/09/10/11/12/14 unchanged posture · SECURITY-01/02/04/06/07 N/A (managed platform). **No blocking findings.**

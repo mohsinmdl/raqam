@@ -25,10 +25,10 @@
 -- 'none' remains the COLUMN default because the New Plan modal defaults to
 -- "Don't show", matching YNAB.
 --
--- APPLY (production): 1) take a DB backup; 2) run the pre-apply snapshot
--- block of scripts/plans-migration-verify.sql and keep the output; 3) apply
+-- APPLY (production): 1) take a DB backup; 2) run
+-- scripts/plans-migration-verify-preapply.sql and keep the output; 3) apply
 -- this file (SQL editor or `supabase db push` — runs in one transaction);
--- 4) run the post-apply checks in the same script; 5) deploy the plans-aware
+-- 4) run scripts/plans-migration-verify-postapply.sql; 5) deploy the plans-aware
 -- app build in the same sitting (plan_id is NOT NULL, so an old client's
 -- INSERTs fail loudly rather than misfile — do not leave the window open).
 --

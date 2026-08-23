@@ -11,7 +11,7 @@
 3. **Verify**: build ends `✓ built`; the long-standing chunk-size warning is expected and acceptable
 
 ## Deployment coupling (CRITICAL for this feature)
-Merging to `main` auto-deploys to raqam.pages.dev (`.github/workflows/deploy.yml`: test → build → wrangler). The deployed build REQUIRES migration `0017_plans.sql` to be applied first — an un-migrated DB has no `plans` table, so boot fails at `fetchPlans`; conversely an old client against a migrated DB fails loudly on NOT NULL inserts (never misfiles). **Procedure: apply 0017 (with backup + verify script) and merge in the same sitting — migration first.** Details: header of `supabase/migrations/0017_plans.sql` and `scripts/plans-migration-verify.sql`.
+Merging to `main` auto-deploys to raqam.pages.dev (`.github/workflows/deploy.yml`: test → build → wrangler). The deployed build REQUIRES migration `0017_plans.sql` to be applied first — an un-migrated DB has no `plans` table, so boot fails at `fetchPlans`; conversely an old client against a migrated DB fails loudly on NOT NULL inserts (never misfiles). **Procedure: apply 0017 (with backup + verify script) and merge in the same sitting — migration first.** Details: header of `supabase/migrations/0017_plans.sql` and `scripts/plans-migration-verify-{pre,post}apply.sql`.
 
 ## Troubleshooting
 - **Install fails**: check pnpm version (`corepack enable` / repo-pinned pnpm)
