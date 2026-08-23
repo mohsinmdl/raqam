@@ -43,6 +43,12 @@ export default function GlobalShortcuts() {
     // would trap the user — the lock screen needs a credId to unlock), so it is
     // gated on `enabled` and calls the shared lockNow (same path as the header icon).
     { spec: SPEC.lockNow, when: () => !shortcutsOpen && lockEnabled, run: () => lockNow() },
+    // Alt+1/2/3 jump straight to the three main tabs (alongside the G-then-key
+    // sequences below). Alt+3 targets /transactions to match the sidebar's
+    // "All Accounts" tab.
+    { spec: SPEC.jumpBudget,   when: () => !shortcutsOpen, run: () => nav('/budget') },
+    { spec: SPEC.jumpReflect,  when: () => !shortcutsOpen, run: () => nav('/reflect') },
+    { spec: SPEC.jumpAccounts, when: () => !shortcutsOpen, run: () => nav('/transactions') },
   ];
   useShortcuts(bindings, !drawer && !confirmOpen);
   // G-then-key navigation to the main screens.
