@@ -19,7 +19,11 @@
 -- Backfill: every user owning at least one ledger row gets plan 'default'
 -- named "My Plan" and all their rows stamped onto it. The constant id makes
 -- the whole file idempotent (re-run = no-op). Zero-data users get no plan;
--- the app's first-use flow creates their first one.
+-- the app's first-use flow creates their first one. The migrated plan's
+-- placement is 'before' — today's UI always renders the 'Rs ' prefix, so
+-- 'none' would visibly change every amount (US-1 zero-change guarantee).
+-- 'none' remains the COLUMN default because the New Plan modal defaults to
+-- "Don't show", matching YNAB.
 --
 -- APPLY (production): 1) take a DB backup; 2) run the pre-apply snapshot
 -- block of scripts/plans-migration-verify.sql and keep the output; 3) apply
@@ -67,7 +71,7 @@ create policy "own delete" on public.plans for delete to authenticated using ((s
 
 -- 2. Backfill: one 'default' plan per user that owns any ledger data.
 insert into public.plans (user_id, id, name, currency, currency_placement, number_format, date_format)
-select distinct user_id, 'default', 'My Plan', 'PKR', 'none', 'comma-dot', 'DD/MM/YYYY'
+select distinct user_id, 'default', 'My Plan', 'PKR', 'before', 'comma-dot', 'DD/MM/YYYY'
 from (
   select user_id from public.category_groups
   union select user_id from public.categories
