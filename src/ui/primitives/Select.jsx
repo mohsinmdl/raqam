@@ -27,11 +27,14 @@ const popupStyle = {
 const scrollBoxStyle = { maxHeight: POPUP_MAX_HEIGHT - 2 };
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
 
-export const Select = forwardRef(function Select({ value, onValueChange, ariaLabel, renderValue, disabled, children, triggerStyle, autoFocus, invalid, describedBy, open, onOpenChange, finalFocus }, ref) {
+// popupZIndex: the register's inline editor sits under the overlay bands, so
+// 45 is the default — but a Select hosted INSIDE a modal (zIndex 60) must
+// float its popup above the dialog, same 65 the Combobox panel uses.
+export const Select = forwardRef(function Select({ value, onValueChange, ariaLabel, renderValue, disabled, children, triggerStyle, autoFocus, invalid, describedBy, open, onOpenChange, finalFocus, popupZIndex = 45, testId }, ref) {
   return (
     <BaseSelect.Root value={value} onValueChange={onValueChange} disabled={disabled}
       open={open} onOpenChange={onOpenChange}>
-      <BaseSelect.Trigger ref={ref} autoFocus={autoFocus} aria-label={ariaLabel}
+      <BaseSelect.Trigger ref={ref} autoFocus={autoFocus} aria-label={ariaLabel} data-testid={testId}
         aria-invalid={invalid || undefined} aria-describedby={invalid ? describedBy : undefined} className="field" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
         width: '100%', height: 28, padding: '0 8px', fontSize: 13, cursor: 'pointer',
@@ -54,7 +57,7 @@ export const Select = forwardRef(function Select({ value, onValueChange, ariaLab
             different place on every row, and on a row near the top it was
             pushed back down and clipped. A plain anchored dropdown below the
             field is what every other picker in this app does. */}
-        <BaseSelect.Positioner sideOffset={4} alignItemWithTrigger={false} style={{ zIndex: 45 }}>
+        <BaseSelect.Positioner sideOffset={4} alignItemWithTrigger={false} style={{ zIndex: popupZIndex }}>
           {/* Base UI still closes the popup on Escape; stopping propagation
               here just keeps it from also reaching DrawerProvider's session
               listener, same contract as every sibling overlay (Popover). */}

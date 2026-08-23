@@ -18,7 +18,8 @@
 import { forwardRef, useRef, useState } from 'react';
 import { Popover, PopoverTrigger, PopoverPanel } from '../../primitives/Popover.jsx';
 import { calendarCells, shiftMonth, yearGridFor } from '../../../lib/calendar.js';
-import { todayStr, addDays, parseTypedDate, filterDateChars } from '../../../lib/dates.js';
+import { todayStr, addDays, parseTypedDate, filterDateChars, datePlaceholder } from '../../../lib/dates.js';
+import { fmtDate } from '../../../lib/calc.js';
 import { PRESETS } from '../../../lib/schedule.js';
 import { Chevron } from '../../icons.jsx';
 
@@ -28,7 +29,9 @@ const MFULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', '
 // A day button's visible label is a bare number; a screen reader needs the
 // whole date ("21 August 2026") or the grid reads as arbitrary integers.
 const dayName = iso => `${+iso.slice(8)} ${MFULL[+iso.slice(5, 7) - 1]} ${iso.slice(0, 4)}`;
-const dmy = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? ymd.slice(8) + '/' + ymd.slice(5, 7) + '/' + ymd.slice(0, 4) : '');
+// Committed values render in the plan's own date format — the same order the
+// placeholder shows and parseTypedDate reads (U3).
+const dmy = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? fmtDate(ymd) : '');
 const chip = on => ({ height: 24, padding: '0 8px', borderRadius: 6, cursor: 'pointer', fontSize: 11.5, fontWeight: 600, border: '1px solid ' + (on ? 'var(--accent)' : 'var(--border)'), background: on ? 'var(--soft)' : 'var(--surface)', color: on ? 'var(--accent)' : 'var(--text)' });
 const navBtn = { ...chip(false), width: 24, padding: 0 };
 const headLabel = { flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600, border: 'none', background: 'none', color: 'var(--text)', cursor: 'pointer', padding: '2px 4px', borderRadius: 6 };
@@ -112,7 +115,7 @@ const DateCell = forwardRef(function DateCell({ value, onChange, repeat, onRepea
       <span ref={fieldRef} style={{ position: 'relative', display: 'block', width: '100%' }}>
         <input
           ref={ref} className="field tnum" inputMode="numeric" disabled={disabled}
-          aria-label="Date" placeholder="dd/mm/yyyy" readOnly={!editable} aria-readonly={!editable}
+          aria-label="Date" placeholder={datePlaceholder()} readOnly={!editable} aria-readonly={!editable}
           // The calendar is this field's popup, so the field must SAY so:
           // haspopup/expanded/controls make the relationship (and its state)
           // audible, and aria-keyshortcuts names the chord that enters it.

@@ -4,6 +4,7 @@
 // evaluation is applyCalcExpr's (same left-to-right semantics as the desktop
 // ASSIGNED cell).
 import { applyCalcExpr } from './calcExpr.js';
+import { activeFormat } from './planFormat.js';
 
 const OPS = ['−', '+', '×', '÷'];
 const lastSegment = draft => draft.split(/[−+×÷]/).pop();
@@ -30,5 +31,8 @@ export function evaluate(current, draft) {
   return applyCalcExpr(current, draft);
 }
 export function displayOf(draft) {
-  return draft.replace(/\d+/g, run => run.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+  // Grouping char and rhythm (3 vs lakh 3-then-2) come from the open plan's
+  // format; the raw draft itself stays plain digits and operators.
+  const f = activeFormat();
+  return draft.replace(/\d+/g, run => f.groupDigits(run));
 }

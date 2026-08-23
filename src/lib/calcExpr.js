@@ -10,14 +10,22 @@
 // chain — so the editor can stay open. Rounds only the final result; every
 // intermediate fold uses the raw float. Pure.
 
+import { activeFormat } from './planFormat.js';
+
 const OPS = { '+': (a, b) => a + b, '-': (a, b) => a - b, '−': (a, b) => a - b, '×': (a, b) => a * b, '*': (a, b) => a * b, '÷': (a, b) => a / b, '/': (a, b) => a / b };
 
-// Tokenizer: alternates single-char operators with runs of digits/dot/comma/
-// space (operands are never signed — a '-' is always an operator token, not
-// part of a number). If any character in the trimmed input matches neither
-// alternative (e.g. a letter), the joined tokens won't reconstruct the
-// original string and the whole expression is rejected below.
-const TOKEN_RE = /[+\-−×*÷/]|[\d.,\s]+/g;
+// Tokenizer: alternates single-char operators with runs of digits/separator
+// chars (operands are never signed — a '-' is always an operator token, not
+// part of a number). The operand class carries every group/decimal char any
+// plan format uses that isn't an operator; whether a given char is legal for
+// the ACTIVE plan is parseAmount's call at the boundary below. Operator
+// chars keep their arithmetic meaning in every plan — under comma-slash or
+// space-dash the '/' and '-' marks still divide and subtract here, and a
+// fraction is typed with '.' (parseAmount accepts it universally). If any
+// character in the trimmed input matches neither alternative (e.g. a letter),
+// the joined tokens won't reconstruct the original string and the whole
+// expression is rejected below.
+const TOKEN_RE = /[+\-−×*÷/]|[\d.,'\s]+/g; // \s covers the NBSP the space formats render
 
 export function applyCalcExpr(current, input) {
   const s = String(input || '').trim();
@@ -37,10 +45,13 @@ export function applyCalcExpr(current, input) {
     const t = tokens[i];
     if (expectNumber) {
       if (OPS[t]) return null; // two consecutive operators
-      const numText = t.replace(/,/g, '').trim();
-      if (!numText) return null;
-      const raw = parseFloat(numText);
-      if (!Number.isFinite(raw)) return null;
+      // Plan separators are normalized HERE, at the tokenizer boundary, and
+      // nowhere else (BR-U3-6): parseAmount strips the active plan's group
+      // chars and reads its decimal (or '.'); the arithmetic below never sees
+      // a separator. A char the active plan doesn't use rejects the operand,
+      // and with it the whole expression — same null the old join-check gave.
+      const raw = activeFormat().parseAmount(t.trim());
+      if (raw == null) return null;
       nums.push(raw);
       expectNumber = false;
     } else {

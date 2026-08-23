@@ -1,41 +1,34 @@
 // Raqam shared calculation + formatting utilities. All money in integer PKR.
-// Ported verbatim from the Hisaab design prototype's calc.js — the financial correctness core.
-const nf = new Intl.NumberFormat('en-PK', { maximumFractionDigits: 0 });
-// Money is stored as integer PKR, so decimals are cosmetic (.00) today, but we
-// format the raw magnitude without rounding so any fractional value renders true.
-const nf2 = new Intl.NumberFormat('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-export function fmtNum(n, decimals) {
-  const a = Math.abs(n);
-  return decimals ? nf2.format(a) : nf.format(Math.round(a));
-}
-// Digit-preserving mask: every digit becomes '•', everything else (the 'Rs '
-// prefix, grouping commas, decimal point, +/− sign) survives untouched — so a
-// masked Rs 425,000 reads as 'Rs •••,•••' and a masked Rs 450 reads as
-// 'Rs •••'. Bullet COUNT differentiates magnitude at a glance without
-// revealing the actual figure. Exported standalone (pure, formatted string in
-// → masked string out) so it's directly testable and reusable by any
-// formatter that grows a masked branch.
-export function maskDigits(formatted) {
-  return String(formatted).replace(/[0-9]/g, '•');
-}
-export function fmtPKR(n, masked, decimals) {
-  const s = (n < 0 ? '−' : '') + 'Rs ' + fmtNum(n, decimals);
-  return masked ? maskDigits(s) : s;
-}
-export function fmtSigned(n, masked, decimals) {
-  const s = (n > 0 ? '+' : n < 0 ? '−' : '') + 'Rs ' + fmtNum(n, decimals);
-  return masked ? maskDigits(s) : s;
-}
-// Compact PKR for the large tail: Rs 1M, Rs 1.25M, Rs 1.2B. Intl compact notation
-// trims trailing zeros (1_000_000 → "1M", not "1.00M") and, on en-PK, uses the
-// western M/B/K scale (not lakh/crore). Callers apply this only above a magnitude
-// threshold; below it, full grouped formatting (fmtPKR) reads fine and stays exact.
-// Sign is the U+2212 minus to match fmtPKR/fmtSigned. Masking is left to callers,
-// which fall back to fmtPKR (→ digit-preserving 'Rs •••,•••') before reaching this.
-const nfCompact = new Intl.NumberFormat('en-PK', { notation: 'compact', maximumFractionDigits: 2 });
-export function fmtPKRCompact(n) {
-  return (n < 0 ? '−' : '') + 'Rs ' + nfCompact.format(Math.abs(n));
-}
+// Ported from the Hisaab design prototype's calc.js — the financial correctness core.
+//
+// The fmt* names below are the app-wide formatting API; since multi-Plan
+// (U3) their bodies delegate to the open plan's formatter (planFormat.js
+// singleton — bound by PlanProvider at boot). Signatures unchanged, and the
+// pre-bind default reproduces the historical hardcoded rendering byte-for-
+// byte ('Rs ' prefix with its trailing space, U+2212 minus, en-PK compact
+// M/B tail, Math.round for 0-dp / two fixed fraction digits otherwise) — so
+// every call site, and every test written against the old output, is
+// untouched. No component imports planFormat directly; these wrappers are
+// the only doorway (BR-U3-2).
+import { activeFormat } from './planFormat.js';
+
+// Digit-preserving mask (digits → '•', symbol/separators/sign survive);
+// canonical definition moved to planFormat.js so money() can mask without an
+// import cycle — the historical export name stays here.
+export { maskDigits } from './planFormat.js';
+
+export function fmtNum(n, decimals) { return activeFormat().num(n, decimals); }
+export function fmtPKR(n, masked, decimals) { return activeFormat().money(n, masked, decimals); }
+export function fmtSigned(n, masked, decimals) { return activeFormat().moneySigned(n, masked, decimals); }
+// Compact for the large tail (Rs 1M, Rs 1.25M): callers apply this only above
+// a magnitude threshold; below it, full grouped formatting reads fine and
+// stays exact. Masking is left to callers, which fall back to fmtPKR first.
+export function fmtPKRCompact(n) { return activeFormat().moneyCompact(n); }
+// NUMERIC date rendering (dd/mm/yyyy-shaped surfaces: register date cell,
+// Moves history, CSV export) per the plan's date format. Friendly labels
+// (monthLabel/shortDate/dayLabel/timeLabel/relTime below) deliberately stay
+// format-independent (BR-U3-5).
+export function fmtDate(iso) { return activeFormat().date(iso); }
 export function fmtPct(x) { return x == null ? '—' : Math.round(x * 100) + '%'; }
 export const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export function monthLabel(ym) { const [y, m] = ym.split('-'); return MN[+m - 1] + ' ' + y; }

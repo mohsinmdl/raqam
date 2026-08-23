@@ -18,7 +18,7 @@ vi.mock('../src/lib/supabase.js', () => {
     }
     const builder = {
       data: [], error,
-      select: () => builder, order: () => builder, limit: () => builder,
+      select: () => builder, eq: () => builder, order: () => builder, limit: () => builder,
     };
     return builder;
   };

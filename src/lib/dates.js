@@ -1,6 +1,7 @@
 // Real-date layer — replaces the prototype's frozen DEMO_NOW / TODAY / MONTHS.
 // All strings are local-time: 'YYYY-MM-DDTHH:mm', 'YYYY-MM-DD', 'YYYY-MM'.
 import { daysInMonth } from './calc.js';
+import { activeFormat } from './planFormat.js';
 
 const p2 = n => String(n).padStart(2, '0');
 
@@ -44,7 +45,7 @@ export function addDays(ymd, k) {
 // could drift apart.
 const DATE_CHAR = /[0-9/.\- ]/;
 
-export function parseTypedDate(text, today) {
+export function parseTypedDate(text, today, order) {
   const s = String(text == null ? '' : text).trim();
   if (!s || [...s].some(ch => !DATE_CHAR.test(ch))) return null;
   const parts = s.split(/[^0-9]+/).filter(Boolean);
@@ -53,8 +54,13 @@ export function parseTypedDate(text, today) {
   if (parts.length === 3 && parts[0].length === 4) {
     [y, m, d] = parts.map(Number);
   } else {
-    d = Number(parts[0]);
-    m = parts.length >= 2 ? Number(parts[1]) : Number(today.slice(5, 7));
+    // Short forms follow the plan's date order (BR-U3-5): an 'MDY' plan reads
+    // '3/4' as March 4. A bare part is a day-of-this-month in every order, and
+    // 'YMD' plans type ISO-style — that's the 4-digit-first branch above — so
+    // their short forms keep the historical day-first reading.
+    const mdy = (order || activeFormat().typedDateOrder) === 'MDY' && parts.length >= 2;
+    d = Number(parts[mdy ? 1 : 0]);
+    m = parts.length >= 2 ? Number(parts[mdy ? 0 : 1]) : Number(today.slice(5, 7));
     if (parts.length === 3) y = parts[2].length <= 2 ? 2000 + Number(parts[2]) : Number(parts[2]);
     else y = Number(today.slice(0, 4));
   }
@@ -70,6 +76,13 @@ export function monthsBetween(fromYm, toYm) {
   return (ty * 12 + tm) - (fy * 12 + fm);
 }
 export function clampDay(ym, day) { return Math.min(day, daysInMonth(ym)); }
+
+// The typed date field's hint text — the plan's own pattern, lowercased
+// ('dd/mm/yyyy' under the legacy default), so the placeholder never promises
+// an order parseTypedDate would then read differently.
+export function datePlaceholder() {
+  return activeFormat().datePattern.toLowerCase();
+}
 
 // Strips anything parseTypedDate would reject BEFORE it ever reaches the
 // field — so typing "17aug" leaves "17" on screen instead of a rejected

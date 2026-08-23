@@ -10,10 +10,17 @@ import { parseAmt } from '../lib/format.js';
 import { YNAB_TREE, OTHER_GROUP, ALIASES, normName } from '../lib/ynabTree.js';
 import { payeeKey, matchesPayeeTx, payeeRecordFor } from '../lib/payees.js';
 import { makeAudit, diffFields, stampUpdate } from './audit.js';
-import { freshStore } from './seed.js';
+import { CATEGORIES, freshStore, PLAN_DATE_FORMATS, PLAN_DEFAULTS, PLAN_NUMBER_FORMATS, PLAN_PLACEMENTS } from './seed.js';
 import { TARGET_MODES } from '../lib/targets.js';
 
-export const resetAll = () => freshStore();
+// Reset re-seeds the default categories with FRESH ids (mirroring
+// seedPlanCategories): the fixed catalogue ids belong to the migrated default
+// plan, and re-inserting them from any OTHER open plan would upsert onto
+// (user_id, id) and re-stamp the default plan's rows into this one.
+export const resetAll = () => {
+  const s = freshStore();
+  return { ...s, categories: s.categories.map(c => ({ ...c, id: uid() })) };
+};
 
 // The category chosen alongside a brand-new custom bank's name. Unknown values
 // fall back to 'Other' rather than writing a kind the schema would reject.
@@ -1642,4 +1649,55 @@ export function setPayeesHidden(data, { names = [], transferRefs = [], hidden })
     ...data, payees,
     audit: [payeeAudit((hidden ? 'Hid ' : 'Unhid ') + changed + ' payee' + (changed === 1 ? '' : 's')), ...(data.audit || [])],
   };
+}
+
+// ---- plans (U2) ------------------------------------------------------------
+// No audit rows for plan lifecycle (Q2=A): audit_log is plan-scoped, so a row
+// about another plan's creation/deletion would misfile into whichever plan
+// happens to be open. Callers dispatch createPlan/deletePlan with system:true
+// (never undoable — the switch/delete flows reload anyway).
+
+const MAX_PLAN_NAME = 80;
+
+// Clamp settings to the 0017 catalogues rather than queueing a push the
+// server's CHECK constraints would reject (a dead-end 'rejected:plans').
+const planSettings = f => ({
+  currency: /^[A-Z]{3}$/.test(f.currency || '') ? f.currency : PLAN_DEFAULTS.currency,
+  currencyPlacement: PLAN_PLACEMENTS.includes(f.currencyPlacement) ? f.currencyPlacement : PLAN_DEFAULTS.currencyPlacement,
+  numberFormat: PLAN_NUMBER_FORMATS.includes(f.numberFormat) ? f.numberFormat : PLAN_DEFAULTS.numberFormat,
+  dateFormat: PLAN_DATE_FORMATS.includes(f.dateFormat) ? f.dateFormat : PLAN_DEFAULTS.dateFormat,
+});
+
+export function createPlan(data, f) {
+  const name = String(f.name || '').trim();
+  if (!name || name.length > MAX_PLAN_NAME) return data;
+  const plans = data.plans || [];
+  if (f.id && plans.some(p => p.id === f.id)) return data;
+  const plan = { id: f.id || uid(), name, ...planSettings(f) };
+  return { ...data, plans: [...plans, plan] };
+}
+
+export function renamePlan(data, { id, name }) {
+  const p = (data.plans || []).find(x => x.id === id);
+  const trimmed = String(name || '').trim();
+  if (!p || !trimmed || trimmed.length > MAX_PLAN_NAME || p.name === trimmed) return data;
+  return { ...data, plans: data.plans.map(x => (x.id === id ? { ...x, name: trimmed } : x)) };
+}
+
+// Removes only the plans row: children of a non-open plan are not in memory,
+// and the server cascade owns them either way (U1 BR-2). The last plan can
+// never be deleted (BR-U2-9) — guarded here as well as in the UI.
+export function deletePlan(data, { id }) {
+  const plans = data.plans || [];
+  if (plans.length <= 1 || !plans.some(p => p.id === id)) return data;
+  return { ...data, plans: plans.filter(p => p.id !== id) };
+}
+
+// One-shot seeding for a new plan (BR-U2-5): always mints fresh ids — the
+// fixed catalogue ids exist only in the migrated default plan, and reusing
+// them across plans would collide in exports and cross-plan tooling.
+// isSystem stays true: it means "came from the default set", not "fixed id".
+export function seedPlanCategories(data) {
+  if ((data.categories || []).length > 0) return data;
+  return { ...data, categories: CATEGORIES.map(c => ({ ...c, id: uid() })) };
 }

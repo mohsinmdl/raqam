@@ -2,13 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import { useDevicePrefs } from './PrefsProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { fetchAll, createSyncQueue } from './sync.js';
-import { rolloverMonth } from './actions.js';
-import { CATEGORIES } from './seed.js';
+import { rolloverMonth, seedPlanCategories } from './actions.js';
+import { usePlan } from './PlanProvider.jsx';
 import { currentMonth } from '../lib/dates.js';
 import LoadingScreen from '../components/LoadingScreen.jsx';
 import { makeAudit } from './audit.js';
 import { applyRedo, applyUndo, emptyStacks, labelFor, recordChange, redoLabel, topSeq, undoLabel } from '../lib/undo.js';
-import { loadUserPrefs, writeUserPrefs } from '../lib/prefsStore.js';
+import { loadUserPrefs, planPrefs, writeUserPrefs } from '../lib/prefsStore.js';
 
 // Server-backed store. The in-memory store + pure actions are unchanged from the
 // localStorage era; persistence is now: hydrate from Supabase once per login, then
@@ -61,10 +61,11 @@ export function reducer(state, act) {
   }
 }
 
-export function StoreProvider({ userId, children }) {
+export function StoreProvider({ userId, planId, children }) {
   const [state, dispatch] = useReducer(reducer, { status: 'loading', data: null, error: null, ...emptyStacks() });
   const { devicePrefs, setDevicePrefs, deviceSaved } = useDevicePrefs();
   const { registerBeforeSignOut } = useAuth();
+  const { registerDrain, publishPlans } = usePlan();
   const [userPrefs, setUserPrefs] = useState(() => loadUserPrefs(userId));
   // Mirror of userPrefs so setPrefs can build `next` and persist OUTSIDE the
   // setState updater — a nested setState (to flip prefsSaved) inside the updater
@@ -84,11 +85,24 @@ export function StoreProvider({ userId, children }) {
     let cancelled = false;
     (async () => {
       try {
-        const server = await fetchAll();
+        const server = await fetchAll(planId);
         if (cancelled) return;
-        // First login: server has no categories yet — start from the defaults.
-        // The differ (baseline = server state) pushes them as ordinary inserts.
-        const base = server.categories.length ? server : { ...server, categories: CATEGORIES.map(c => ({ ...c })) };
+        // Seeding is now an explicit one-shot (BR-U2-5): pendingSeed names the
+        // plan whose defaults were requested at creation. Cleared on ANY
+        // consumption attempt — even for a plan that no longer exists, and
+        // even though a later sync failure would lose the rows (they are
+        // already optimistic store rows in the queue by then). A plan without
+        // the flag stays exactly as the server has it: deliberately empty
+        // plans remain empty forever (the old categories.length heuristic
+        // would have re-seeded them on every login).
+        let base = server;
+        if (userPrefsRef.current.pendingSeed !== undefined) {
+          if (userPrefsRef.current.pendingSeed === planId) base = seedPlanCategories(server);
+          const nextPrefs = { ...userPrefsRef.current, pendingSeed: undefined };
+          userPrefsRef.current = nextPrefs;
+          setUserPrefsSaved(writeUserPrefs(userId, nextPrefs));
+          setUserPrefs(nextPrefs);
+        }
         queueRef.current?.stop();
         // NOTE: onStatus must NOT be gated on `cancelled` — this effect re-runs
         // (and flips cancelled) the moment hydration lands, but the queue lives on.
@@ -107,7 +121,7 @@ export function StoreProvider({ userId, children }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [state.status]);
+  }, [state.status, planId, userId]);
 
   // Symmetric lifecycle: HMR runs this cleanup without a real remount, so the
   // (re-)run must undo the stop or the queue stays silenced and writes never push.
@@ -146,6 +160,28 @@ export function StoreProvider({ userId, children }) {
     return () => registerBeforeSignOut(null);
   }, [registerBeforeSignOut, state.data, state.status]);
 
+  // Plan switching flushes through the same drain discipline as sign-out
+  // (BR-U2-2): PlanProvider calls this before persisting or reloading, and the
+  // boolean tells it whether the server actually caught up.
+  useEffect(() => {
+    registerDrain(async () => {
+      clearTimeout(pushTimer.current);
+      if (queueRef.current && state.status === 'ready') {
+        queueRef.current.update(state.data);
+        return queueRef.current.drain();
+      }
+      return true;
+    });
+    return () => registerDrain(null);
+  }, [registerDrain, state.data, state.status]);
+
+  // Post-hydrate, the store's plans collection is the switcher's source of
+  // truth (BR-U2-8): createPlan/renamePlan/deletePlan reach the PlanProvider
+  // list through this bridge, no refetch needed.
+  useEffect(() => {
+    if (state.status === 'ready') publishPlans(state.data.plans || []);
+  }, [publishPlans, state.data, state.status]);
+
   // If the app stays open across a month boundary, roll the new month over.
   useEffect(() => {
     if (state.status !== 'ready') return;
@@ -162,20 +198,30 @@ export function StoreProvider({ userId, children }) {
   }, [state.status]);
 
   const setPrefs = useCallback(patch => {
-    const device = {}, user = {};
+    const device = {}, user = {}, plan = {};
     Object.entries(patch).forEach(([k, v]) => {
-      (k === 'theme' || k === 'masked' || k === 'maskedPosition' || k === 'decimals' || k === 'appLock' ? device : user)[k] = v;
+      if (k === 'theme' || k === 'masked' || k === 'maskedPosition' || k === 'decimals' || k === 'appLock') device[k] = v;
+      // Plan-screen views are per-plan (BR-U2-7). The screen-facing key
+      // `planViews` predates plans; the persisted namespace uses the design
+      // name `customViews` — the facade below maps it back.
+      else if (k === 'planViews') plan.customViews = v;
+      else if (k === 'builtinViews') plan.builtinViews = v;
+      else user[k] = v;
     });
     if (Object.keys(device).length) setDevicePrefs(device);
-    if (Object.keys(user).length) {
-      const next = { ...userPrefsRef.current, ...user };
+    if (Object.keys(user).length || Object.keys(plan).length) {
+      const cur = userPrefsRef.current;
+      const next = { ...cur, ...user };
+      if (Object.keys(plan).length) {
+        next.plans = { ...(cur.plans || {}), [planId]: { ...planPrefs(cur, planId), ...plan } };
+      }
       userPrefsRef.current = next;
       // A failed write leaves the in-memory prefs updated (the UI stays
       // responsive) but flips prefsSaved so the Header can say it didn't stick.
       setUserPrefsSaved(writeUserPrefs(userId, next));
       setUserPrefs(next);
     }
-  }, [setDevicePrefs, userId]);
+  }, [setDevicePrefs, userId, planId]);
 
   const value = useMemo(() => ({
     data: state.data,
@@ -185,12 +231,28 @@ export function StoreProvider({ userId, children }) {
     // private mode/storage disabled). Settings, not financial data — those go
     // through sync.
     prefsSaved: userPrefsSaved && deviceSaved,
-    // Facade: consumers (Header, format.js, Dashboard) see one flat prefs object.
-    prefs: { ...userPrefs, theme: devicePrefs.theme, masked: devicePrefs.masked, maskedPosition: devicePrefs.maskedPosition, decimals: devicePrefs.decimals, appLock: devicePrefs.appLock },
+    // Facade: consumers (Header, format.js, Dashboard) see one flat prefs
+    // object. Plan-screen view keys surface from the OPEN plan's namespace
+    // under the flat names the screen has always read (prefs.plans itself is
+    // withheld — no consumer should address another plan's prefs).
+    prefs: {
+      ...userPrefs, plans: undefined,
+      planViews: planPrefs(userPrefs, planId).customViews,
+      builtinViews: planPrefs(userPrefs, planId).builtinViews,
+      theme: devicePrefs.theme, masked: devicePrefs.masked, maskedPosition: devicePrefs.maskedPosition, decimals: devicePrefs.decimals, appLock: devicePrefs.appLock,
+    },
     setPrefs,
-    // apply a pure action: applyData(store => newStore)
-    applyData: fn => dispatch({ type: 'data', fn }),
-    replaceData: data => dispatch({ type: 'replaceData', data }),
+    // apply a pure action: applyData(store => newStore). opts.system marks a
+    // machine/lifecycle change (plan create/delete, rollover) — dispatched
+    // through the same reducer branch rolloverMonth uses: applied, never
+    // undoable, and the undo stacks reset at the boundary (BR-U2-4).
+    applyData: (fn, opts) => dispatch({ type: 'data', fn, system: opts ? opts.system : undefined }),
+    // Wholesale replacement (legacy import, reset-all) predates plans and its
+    // callers build plan-free stores. The live plans list is carried across —
+    // otherwise the differ would read its absence as "delete every plan" and
+    // the server cascade would erase all of them. Plan lifecycle only ever
+    // goes through the create/rename/delete actions.
+    replaceData: data => dispatch({ type: 'replaceData', data: { plans: state.data?.plans || [], ...data } }),
     // Await everything reaching the server (used by the legacy import flow).
     drainSync: () => (queueRef.current ? queueRef.current.drain() : Promise.resolve(true)),
     undo: () => dispatch({ type: 'undo', auditRow: makeAudit({
@@ -209,7 +271,7 @@ export function StoreProvider({ userId, children }) {
     // Identity of the newest undoable change — the scoped-undo boundary is
     // marked against this, not against depth (src/lib/scopedUndo.js).
     undoSeq: topSeq(state),
-  }), [state.data, state.past, state.future, syncStatus, userPrefsSaved, deviceSaved, userPrefs, devicePrefs, setPrefs]);
+  }), [state.data, state.past, state.future, syncStatus, userPrefsSaved, deviceSaved, userPrefs, devicePrefs, setPrefs, planId]);
 
   if (state.status === 'loading') return <LoadingScreen message="Loading your data…" />;
   if (state.status === 'error') {

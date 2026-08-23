@@ -13,7 +13,7 @@ import { envelopeFor } from '../lib/envelope.js';
 import { currentMonth, nowIso } from '../lib/dates.js';
 import { sortGroups, byOrderThenName } from '../lib/categoryOrder.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
-import { prevMonth, catRefs } from '../lib/calc.js';
+import { prevMonth, catRefs, fmtDate } from '../lib/calc.js';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
@@ -28,6 +28,7 @@ import PlanPhone, { phoneGroupKeysFor } from '../ui/plan/phone/PlanPhone.jsx';
 import KeypadSheet from '../ui/plan/phone/KeypadSheet.jsx';
 import MoneySheets from '../ui/plan/phone/MoneySheets.jsx';
 import PlanOverflowMenu from '../ui/plan/phone/PlanOverflowMenu.jsx';
+import PlanSwitcherPhone from '../ui/plans/PlanSwitcherPhone.jsx';
 import * as KP from '../lib/keypadState.js';
 import Inspector from '../ui/plan/Inspector.jsx';
 import FilterPills from '../ui/plan/FilterPills.jsx';
@@ -680,14 +681,9 @@ function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, befor
   );
 }
 
-// DD/MM/YYYY for MovesPopover's DATE column — no other screen needed a
-// human date format in this shape yet, so it lives here rather than dates.js.
-function fmtDMY(iso) {
-  const d = new Date(iso);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return dd + '/' + mm + '/' + d.getFullYear();
-}
+// MovesPopover's DATE column renders in the plan's numeric date format;
+// fmtDate reads the naive-local timestamp's date half directly.
+const fmtDMY = iso => fmtDate(iso);
 
 const OP_GLYPHS = ['+', '−', '×', '÷'];
 
@@ -1458,7 +1454,10 @@ export default function Plan() {
     const suggested = underNeed > 0 ? kpRow.assigned + underNeed : null;
     return (
       <>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px 0' }}>
+        {/* Phone Budget shell header: the plan title doubles as the switcher
+            entry (US-10), with the overflow menu keeping the right edge. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 12px 0' }}>
+          <PlanSwitcherPhone />
           <PlanOverflowMenu
             undo={undo} canUndo={canUndo}
             allCollapsed={phoneAllCollapsed} onToggleAll={togglePhoneAllGroups}

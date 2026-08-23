@@ -4,6 +4,7 @@ import { useUI } from '../ui/UIProvider.jsx';
 import { loadLegacy, markLegacyMigrated } from '../store/persistence.js';
 import { rolloverMonth } from '../store/actions.js';
 import { freshStore } from '../store/seed.js';
+import { uid } from '../lib/util.js';
 
 // One-shot migration offer: if this device holds pre-Supabase data (raqam.v1)
 // and the signed-in account is empty, offer to import. The local key is renamed
@@ -41,8 +42,14 @@ export default function ImportLegacy() {
       // whatever collections have been added since (payees, assignments,
       // categoryGroups…), and every reader downstream — actions, sync's differ,
       // the pure lib helpers — assumes each collection is an array.
+      const base = freshStore();
+      // Same fresh-id rule as resetAll/seedPlanCategories: when the blob has no
+      // categories of its own, this seed fallback must not re-introduce the
+      // fixed catalogue ids into whichever plan is open — upserting them from a
+      // non-default plan would re-stamp the default plan's rows (U2 handoff).
+      base.categories = base.categories.map(c => ({ ...c, id: uid() }));
       const merged = {
-        ...freshStore(),
+        ...base,
         ...d,
         institutions: [
           ...data.institutions,

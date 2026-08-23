@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { StoreProvider, useStore } from './store/StoreProvider.jsx';
+import { PlanProvider, usePlan } from './store/PlanProvider.jsx';
 import LockScreen from './components/LockScreen.jsx';
 import { AppLockContext } from './ui/AppLockContext.jsx';
 import { shouldLock } from './lib/appLock.js';
@@ -215,14 +216,22 @@ function AppLockGate({ children }) {
   return <AppLockContext.Provider value={lockCtx}>{children}</AppLockContext.Provider>;
 }
 
+// Bridges the resolved open plan into the store. PlanProvider only renders
+// children once a plan is open, so openPlanId is always set here.
+function PlannedStore({ userId, children }) {
+  const { openPlanId } = usePlan();
+  return <StoreProvider userId={userId} planId={openPlanId}>{children}</StoreProvider>;
+}
+
 // Auth gate — not a route: the requested #/route survives login untouched.
 function Gate() {
   const { session, user, authLoading } = useAuth();
   if (authLoading) return <LoadingScreen message="Checking your session…" />;
   if (!session) return <AuthScreen />;
   return (
-    // Keyed by user so switching accounts remounts the store with no stale state.
-    <StoreProvider key={user.id} userId={user.id}>
+    // Keyed by user so switching accounts remounts plans + store with no stale state.
+    <PlanProvider key={user.id} userId={user.id}>
+      <PlannedStore userId={user.id}>
       <MonthProvider>
         <TxViewProvider>
           <UIProvider>
@@ -235,7 +244,8 @@ function Gate() {
           </UIProvider>
         </TxViewProvider>
       </MonthProvider>
-    </StoreProvider>
+      </PlannedStore>
+    </PlanProvider>
   );
 }
 
