@@ -231,9 +231,9 @@ export function duplicateCat(store, { name, type, groupId, excludeId }) {
     && groupKey(c.groupId) === g && normalizeName(c.name) === n) || null;
 }
 // Would moving `ids` into `groupId` break per-group name uniqueness (0018)?
-// Returns { mover, hit } for the first offender — a mover colliding with an
-// existing member of the target group, or with another mover landing there —
-// else null. Shared by the moveCategories reducer (refuse) and the Plan
+// Returns the first offending category — a mover colliding with an existing
+// member of the target group, or with another mover landing there — else null.
+// Shared by the moveCategories reducer (refuse) and the Plan
 // drag-drop (toast) so the two never disagree on what counts as a collision.
 export function moveCollision(store, { ids, groupId }) {
   const moving = new Set(ids);
@@ -249,7 +249,7 @@ export function moveCollision(store, { ids, groupId }) {
     const c = store.categories.find(x => x.id === id);
     if (!c) continue;
     const k = keyOf(c);
-    if (taken.has(k) || landing.has(k)) return { mover: c, hit: c };
+    if (taken.has(k) || landing.has(k)) return c;
     landing.add(k);
   }
   return null;

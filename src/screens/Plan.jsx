@@ -1069,7 +1069,13 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
           name={cat.name} title={'Edit ' + cat.name} align="left"
           triggerClassName="hv-text"
           triggerStyle={{ display: 'block', maxWidth: '100%', border: 'none', background: 'transparent', padding: 0, font: 'inherit', fontSize: 16, fontWeight: 500, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}
-          onRename={nm => { applyData(d => renameCategory(d, { id: cat.id, name: nm })); notify('Renamed to “' + nm + '”.'); }}
+          onRename={nm => {
+            // renameCategory refuses a colliding rename as a no-op (0018); guard
+            // here too or the success toast would fire on a rename that didn't happen.
+            const dup = duplicateCat(S, { name: nm, type: cat.type, groupId: cat.groupId, excludeId: cat.id });
+            if (dup) { notify('A category called “' + dup.name + '” already exists in this group.'); return; }
+            applyData(d => renameCategory(d, { id: cat.id, name: nm })); notify('Renamed to “' + nm + '”.');
+          }}
           onHide={() => { const back = (month === currentMonth() && r.available > 0) ? r.available : 0; applyData(d => archiveCategory(d, { id: cat.id })); notify('“' + cat.name + '” hidden.' + (back ? ' ' + money(back) + ' returned to Ready to Assign.' : '')); }}
           onDelete={() => askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer })}
         >{cat.name}</EditNamePopover>

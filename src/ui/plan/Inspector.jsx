@@ -2,7 +2,7 @@
 // Structure live-captured from YNAB 2026-08-09 (see the phase-3 spec);
 // chrome follows Raqam tokens, not YNAB's.
 import { useMemo, useState, useRef } from 'react';
-import { monthLabel } from '../../lib/calc.js';
+import { monthLabel, duplicateCat } from '../../lib/calc.js';
 import { currentMonth } from '../../lib/dates.js';
 import {
   selectionSummary, autoAssignPlan, autoAssignAmount, AUTO_ASSIGN_KINDS,
@@ -219,7 +219,13 @@ function CategoryHeader({ cat, S, applyData, row, money, month }) {
         name={cat.name} title={'Edit ' + cat.name} align="right"
         triggerClassName="hv-soft"
         triggerStyle={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer' }}
-        onRename={nm => { applyData(d => renameCategory(d, { id: cat.id, name: nm })); notify('Renamed to “' + nm + '”.'); }}
+        onRename={nm => {
+          // Pre-check per-group name uniqueness (0018): renameCategory refuses a
+          // colliding rename as a no-op, so guard here or the toast below lies.
+          const dup = duplicateCat(S, { name: nm, type: cat.type, groupId: cat.groupId, excludeId: cat.id });
+          if (dup) { notify('A category called “' + dup.name + '” already exists in this group.'); return; }
+          applyData(d => renameCategory(d, { id: cat.id, name: nm })); notify('Renamed to “' + nm + '”.');
+        }}
         onHide={() => { const back = (month === currentMonth() && row && row.available > 0) ? row.available : 0; applyData(d => archiveCategory(d, { id: cat.id })); notify('“' + cat.name + '” hidden.' + (back ? ' ' + money(back) + ' returned to Ready to Assign.' : '')); }}
         onDelete={() => askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer })}
       >
