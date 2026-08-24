@@ -18,6 +18,8 @@ export const PlusCircle = () => (
 );
 // Speech-bubble glyph for the "Paste bank SMS" action (U2 sms-parse).
 export const SmsIcon = () => strokeIcon(<><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" /></>);
+// Camera glyph for the "Scan receipt" action (U3 receipt-scan).
+export const CameraIcon = () => strokeIcon(<><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></>);
 export const UndoIcon = () => strokeIcon(<><path d="M9 14 4 9l5-5" /><path d="M4 9h9a6 6 0 0 1 0 12H7" /></>);
 export const RedoIcon = () => strokeIcon(<><path d="m15 14 5-5-5-5" /><path d="M20 9h-9a6 6 0 0 0 0 12h6" /></>);
 

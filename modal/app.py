@@ -38,6 +38,8 @@ api_image = (
         "pydantic==2.13.4",
         "pyjwt[crypto]==2.13.0",
         "httpx==0.28.1",
+        # Multipart form parsing for the /parse-receipt image upload (U3).
+        "python-multipart==0.0.20",
         # e5-small embedder for /categorize (CPU). Pinned = lockfile.
         "torch==2.5.1",
         "transformers==4.46.3",
@@ -47,7 +49,12 @@ api_image = (
     # Ship the pure-Python service modules into the container. ``models_llm`` is
     # included for U2: the /parse-sms route runs its pure ``parse_sms`` on the api
     # container (its vllm import is lazy, so the api image needs NO vllm/torch).
-    .add_local_python_source("api", "auth", "embed", "models_llm", "schemas")
+    # ``models_vlm`` is included for U3 the same way: the /parse-receipt route runs
+    # its pure ``parse_receipt`` on the api container; its vllm/vision imports are
+    # lazy so the api image needs NO vllm/torch/vision deps.
+    .add_local_python_source(
+        "api", "auth", "embed", "models_llm", "models_vlm", "schemas"
+    )
 )
 
 # --------------------------------------------------------------------------- #
@@ -123,7 +130,47 @@ def llm_generate(prompt: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Remaining GPU function is intentionally NOT defined yet:
-#   * vlm  — vLLM Qwen2.5-VL-7B-Instruct (L4, own image) → /parse-receipt (U3).
-# It mounts `models_volume` and is called via `.remote()` from the api route.
+# GPU vlm function (U3) — the ISOLATED VLM GPU function. Serves
+# Qwen/Qwen2.5-VL-7B-Instruct via vLLM (multimodal) with GUIDED (structured) JSON
+# decoding, on its OWN image (vllm + torch + vision deps pinned) so its 7B VL
+# weights NEVER load on /categorize, /parse-sms, or /digest — those routes never
+# touch this function (NFR cost isolation). SEPARATE from `llm_generate`: its own
+# image, its own container. Weights are cached on the shared `raqam-ai-models`
+# volume (HF cache env via _MODEL_ENV, same as `api`/`llm`). max_containers=1 caps
+# GPU cost; L4 fits the 7B VL model.
+#
+# `vlm_generate(image_bytes) -> str` runs the guided-JSON generation on the
+# in-memory image bytes and is called via `.remote()` from the /parse-receipt
+# route (api.py → models_vlm.parse_receipt). The image bytes are held in memory
+# only — never written to disk, the volume, or any storage (US-15 privacy).
 # --------------------------------------------------------------------------- #
+vlm_image = (
+    modal.Image.debian_slim(python_version="3.12")
+    .pip_install(
+        # vLLM pulls its own matching CUDA torch build; torch pinned alongside so
+        # the pair is an explicit, reproducible lockfile diff. The Qwen2.5-VL
+        # processor needs qwen-vl-utils + Pillow for image handling. GPU-only deps.
+        "vllm==0.11.0",
+        "torch==2.8.0",
+        "qwen-vl-utils==0.0.11",
+        "Pillow==11.0.0",
+    )
+    .env(_MODEL_ENV)
+    # Only the pure VL model module is needed in the GPU container (it holds the
+    # prompt, the guided-JSON schema, and the lazy multimodal vLLM generator).
+    .add_local_python_source("models_vlm")
+)
+
+
+@app.function(
+    image=vlm_image,
+    gpu="L4",
+    volumes={MODELS_DIR: models_volume},
+    max_containers=1,
+    timeout=600,
+)
+def vlm_generate(image_bytes: bytes) -> str:
+    # Imported inside the container (where the image provides vllm + vision + source).
+    from models_vlm import generate
+
+    return generate(image_bytes)

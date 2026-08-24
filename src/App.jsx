@@ -39,6 +39,7 @@ import MobileTabBar from './components/MobileTabBar.jsx';
 import AddTxPill from './components/AddTxPill.jsx';
 import ManagePayees from './ui/payees/ManagePayees.jsx';
 import PasteSmsEntry from './ui/ai/PasteSmsEntry.jsx';
+import ReceiptScanEntry from './ui/ai/ReceiptScanEntry.jsx';
 import { useDrawer } from './ui/DrawerProvider.jsx';
 
 // Sidebar width is user-draggable and remembered on the device (like theme).
@@ -89,6 +90,7 @@ function Shell() {
       <GlobalShortcuts />
       <ManagePayees />
       <PasteSmsEntry open={drawer?.name === 'pasteSms'} onClose={closeDrawer} />
+      <ReceiptScanEntry open={drawer?.name === 'scanReceipt'} onClose={closeDrawer} />
       {!phone && <Sidebar />}
       {/* Drag handle sitting on the sidebar's right seam. A hairline stays
           invisible until hover/drag, then lights up in the accent colour. */}
