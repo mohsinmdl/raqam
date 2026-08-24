@@ -1,29 +1,39 @@
-# Integration Test Instructions — Multi-Plan
+# Integration & Contract Test Instructions — AI Features (Cycle 2)
 
-Two integration layers: (A) live browser flows across all four units (runnable now, stubbed data boundary), (B) database proofs (runnable only at 0017 apply time).
+The client↔service boundary is a JSON contract. The integration strategy is
+**contract lockstep via shared fixtures** (no live services needed) plus the
+in-app mock-tagged flow tests, and a live smoke pass at deploy (separate file).
 
-## A. Live browser verification (Playwright, stubbed sync boundary)
-The repo has no jsdom; UI integration is verified by mounting the real app in a throwaway Vite harness that stubs the supabase/sync boundary via a plugin `resolveId` hook (never `alias`), then driving it with Playwright. The stub serves two seeded plans, honors `plan_id` filters, captures pushes, and survives `location.reload()` via localStorage — so switch/create/delete flows run end-to-end minus the real DB.
+## Contract lockstep (already automated)
+`modal/fixtures/*.json` is the single contract source, imported by BOTH:
+- Python: `modal/tests/test_contract.py` + each route test validates the fixture
+  against the Pydantic model.
+- Client: each `*.test.js` imports the same fixture and asserts its
+  builders/parsers produce/consume that exact shape.
 
-**Scenarios = the 17 stories' Given/When/Then ACs** (`aidlc-docs/inception/user-stories/stories.md`), desktop + phone viewports. Executed by the verification subagent during this stage; its per-story PASS/FAIL table is recorded in `build-and-test-summary.md`.
+**Run**: `pnpm test` + `modal/.venv/bin/python -m pytest modal/tests` — if a
+route's request/response shape drifts on one side, its fixture assertion fails on
+that side. Change a contract only by editing the fixture; both suites move
+together.
 
-**What the stub CANNOT prove** (deferred to B): RLS enforcement, composite-FK rejection, ON DELETE CASCADE, migration idempotency/equivalence, PostgREST filter behavior.
+## Cross-unit interaction scenarios (mock-tagged, automated)
+| Scenario | Where verified |
+|---|---|
+| U1 suggestion → apply → **existing** `setTransactionsCategory` (row leaves needs-category) | `suggestions.wiring.test.jsx` |
+| U1 3rd accept → **existing** `upsertPayee` rule → payee excluded from targets | `suggestions.wiring.test.jsx` |
+| U2 tier-1 → `openers.addTx` seed; miss → `ai.parseSms` → seed; fail → `{notes}` | `pasteSms.wiring.test.js` |
+| U3 VLM → seed → **U1 categorize** category fold (inline-validated) | `receiptScan.wiring.test.js` |
+| U4 selectors → `buildDigestPayload` (aggregates only) → `ai.digest` render | `insights.wiring.test.jsx` |
+| U0 gate: every AI surface hidden when `useAI().enabled` false | each wiring test |
 
-## B. Database proofs (at 0017 apply time)
-1. **Backup** the Supabase project.
-2. Run `scripts/plans-migration-verify-preapply.sql`; keep output. (Separate file on purpose — the SQL editor runs a file as one batch, and post-apply queries reference `public.plans`, which doesn't exist yet.)
-3. Apply `supabase/migrations/0017_plans.sql` (SQL editor or `supabase db push`).
-4. Run `scripts/plans-migration-verify-postapply.sql` (default-plan count, zero unstamped rows, count equivalence, ownership joins, constraint shape).
-5. **Idempotency**: re-apply 0017; repeat checks — identical output required.
-6. **Constraint probes** (SQL editor, as an authenticated test where relevant):
-   - insert a row with a `plan_id` not owned by that user → composite FK violation
-   - insert a scoped row with NULL `plan_id` → NOT NULL violation
-   - same category name in two plans → OK; duplicate within one plan → unique violation
-   - two overall budgets in one plan → violation; one per plan → OK
-   - delete a test plan row → children vanish (cascade)
-7. Smoke the deployed app: sign in → "My Plan" renders identically to pre-migration (balances, Rs formatting, dates), switcher visible.
+## Manual integration (local, endpoint mocked or live)
+1. `pnpm dev`; sign in. 2. With `VITE_AI_ENDPOINT` unset → confirm NO AI UI
+   anywhere (US-1). 3. Set it to a deployed/`modal serve` URL, enable the toggle
+   → chips, Paste SMS, Scan receipt, Generate insights appear. 4. Kill the
+   endpoint → confirm every surface degrades silently to the pre-AI behavior
+   (US-3): chips vanish, paste/scan fall back to an editor with the raw input,
+   digest shows a retry, core flows untouched.
 
-## Cross-unit contracts re-checked here
-- Format keys: 0017 CHECK lists ≡ seed.js `PLAN_*` ≡ `planFormatOptions` (pinned by `tests/plan-format.test.js` catalogue-consistency)
-- Migrated defaults ≡ legacy rendering (equivalence oracle files)
-- Seeded plans mint fresh category ids (US-6/AC + `tests/plan-shell.test.js`)
+## Cleanup
+None — the service is stateless; no test data is written anywhere (no ledger
+writes, no Supabase rows, no Modal storage).
