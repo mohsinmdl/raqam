@@ -11,7 +11,8 @@ Prints a PASS/FAIL matrix over the live envelope:
     /health              → 200
     anon feature route   → 401
     garbage token        → 401
-    authed feature route → 501   (until U1-U4 implement the routes)
+    authed feature route → 422   (auth passes; empty body fails validation —
+                                  all routes U1-U4 are implemented, never 501)
     rate-limit probe     → 429   (fires >30 authed calls in a burst)
 
 Authed checks are SKIPPED (not failed) when ``RAQAM_AI_TEST_TOKEN`` is unset.
@@ -74,20 +75,22 @@ def _run_matrix(endpoint: str, token: str | None) -> bool:
             _print_row("garbage token 401", False, f"error={exc}")
             all_ok = False
 
-        # 4) authed feature route → 501 (until U1-U4 land)
+        # 4) authed feature route → 422 (auth passes; the empty body fails the
+        #    route's request-model validation — all routes are implemented now,
+        #    so a valid token never yields 401 and never yields the old 501 stub).
         if not token:
-            _print_row("authed route 501", None, "RAQAM_AI_TEST_TOKEN unset")
+            _print_row("authed route 422", None, "RAQAM_AI_TEST_TOKEN unset")
             _print_row("rate-limit 429", None, "RAQAM_AI_TEST_TOKEN unset")
             return all_ok
 
         auth_headers = {"Authorization": f"Bearer {token}"}
         try:
             r = client.post(f"{endpoint}{FEATURE_ROUTE}", json={}, headers=auth_headers)
-            ok = r.status_code == 501
-            _print_row("authed route 501", ok, f"status={r.status_code} body={r.text[:80]}")
+            ok = r.status_code == 422
+            _print_row("authed route 422", ok, f"status={r.status_code} body={r.text[:80]}")
             all_ok &= ok
         except Exception as exc:  # noqa: BLE001
-            _print_row("authed route 501", False, f"error={exc}")
+            _print_row("authed route 422", False, f"error={exc}")
             all_ok = False
 
         # 5) rate-limit probe → 429 somewhere in the burst

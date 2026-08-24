@@ -123,21 +123,24 @@ def test_route_expired_token_401(client, hs256_env):
     assert r.status_code == 401
 
 
-def test_route_valid_hs256_passes_auth_reaches_501(client, hs256_env):
+def test_route_valid_hs256_passes_auth_reaches_handler(client, hs256_env):
     token = make_hs256_token()
     r = client.post(FEATURE_ROUTE, json={}, headers={"Authorization": f"Bearer {token}"})
-    # Auth succeeded → handler reached → 501 stub (not 401).
-    assert r.status_code == 501
+    # Auth succeeded → handler reached → body validation runs (422 on the empty
+    # body), NOT a 401. /digest is implemented now, so getting past auth to a
+    # 422 (never 401) is the proof that authentication succeeded.
+    assert r.status_code == 422
 
 
 # --------------------------------------------------------------------------- #
 # End-to-end through the FastAPI dependency (JWKS/RS256)
 # --------------------------------------------------------------------------- #
-def test_route_valid_rs256_via_jwks_reaches_501(client, jwks_env):
+def test_route_valid_rs256_via_jwks_reaches_handler(client, jwks_env):
     private_key, _ = jwks_env
     token = make_rs256_token(private_key)
     r = client.post(FEATURE_ROUTE, json={}, headers={"Authorization": f"Bearer {token}"})
-    assert r.status_code == 501
+    # Auth succeeded → handler reached → body validation (422), never 401.
+    assert r.status_code == 422
 
 
 def test_route_rs256_expired_via_jwks_401(client, jwks_env):

@@ -184,7 +184,7 @@ def test_handler_source_touches_no_storage_apis():
     src = inspect.getsource(api.create_app)
     # Isolate the /parse-receipt handler body.
     start = src.index("async def parse_receipt(")
-    end = src.index("async def digest(", start)
+    end = src.index("async def digest_route(", start)
     handler = src[start:end]
     for forbidden in ("open(", "write", "aiofiles", ".save(", "shutil", "Path("):
         assert forbidden not in handler, f"handler must not reference {forbidden!r}"

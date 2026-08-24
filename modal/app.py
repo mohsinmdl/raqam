@@ -52,8 +52,11 @@ api_image = (
     # ``models_vlm`` is included for U3 the same way: the /parse-receipt route runs
     # its pure ``parse_receipt`` on the api container; its vllm/vision imports are
     # lazy so the api image needs NO vllm/torch/vision deps.
+    # ``digest`` is included for U4: the /digest route runs its pure ``narrate`` on
+    # the api container and REUSES U2's ``llm_generate`` GPU function (no new GPU
+    # function); its vllm import is lazy so the api image still needs NO vllm/torch.
     .add_local_python_source(
-        "api", "auth", "embed", "models_llm", "models_vlm", "schemas"
+        "api", "auth", "digest", "embed", "models_llm", "models_vlm", "schemas"
     )
 )
 
@@ -109,9 +112,9 @@ llm_image = (
         "torch==2.8.0",
     )
     .env(_MODEL_ENV)
-    # Only the pure model module is needed in the GPU container (it holds the
-    # prompt, the guided-JSON schema, and the lazy vLLM generator).
-    .add_local_python_source("models_llm")
+    # The pure model module (prompt + SMS schema + lazy vLLM generator) plus
+    # `digest` so /digest can guide to its own schema on this same function.
+    .add_local_python_source("models_llm", "digest")
 )
 
 
@@ -122,11 +125,14 @@ llm_image = (
     max_containers=1,
     timeout=600,
 )
-def llm_generate(prompt: str) -> str:
+def llm_generate(prompt: str, schema: dict | None = None, max_tokens: int = 256) -> str:
     # Imported inside the container (where the image provides vllm + source).
+    # `schema` guides decoding per route: default (None) = SMS shape for
+    # /parse-sms; /digest passes the DigestResponse schema. One model, one
+    # container, correct guidance per caller — no second GPU function.
     from models_llm import generate
 
-    return generate(prompt)
+    return generate(prompt, schema, max_tokens)
 
 
 # --------------------------------------------------------------------------- #

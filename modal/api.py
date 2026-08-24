@@ -17,9 +17,11 @@ What it wires (U0):
   status, duration_ms and a short sha256 of the user id. Request/response
   **bodies are never logged** (NFR no-retention).
 * ``GET /health`` (no auth) → ``{ok, version}``.
-* The four feature routes (``/categorize``, ``/parse-sms``, ``/parse-receipt``,
-  ``/digest``) require auth and return ``501 {"error": "not implemented"}``.
-  U1–U4 replace those bodies; the auth/rate-limit/CORS envelope stays.
+* The four feature routes (``/categorize`` U1, ``/parse-sms`` U2,
+  ``/parse-receipt`` U3, ``/digest`` U4) — all implemented — require auth and
+  share the same auth/rate-limit/CORS envelope. ``/parse-sms`` and ``/digest``
+  reuse the single GPU ``llm_generate`` function; ``/parse-receipt`` uses the
+  isolated ``vlm_generate``; ``/categorize`` runs embeddings-only on the CPU.
 """
 
 from __future__ import annotations
@@ -38,10 +40,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # Dual-context imports: as a package (``modal.api``) under pytest, or as
 # top-level modules when Modal runs a script from inside the ``modal/`` dir.
 try:
-    from . import auth, embed, models_llm, models_vlm
+    from . import auth, digest, embed, models_llm, models_vlm
     from .schemas import (
         CategorizeRequest,
         CategorizeResponse,
+        DigestRequest,
+        DigestResponse,
         HealthResponse,
         ParsedReceipt,
         ParsedSms,
@@ -51,12 +55,15 @@ try:
     )
 except ImportError:  # pragma: no cover - exercised only in the Modal script context
     import auth  # type: ignore
+    import digest  # type: ignore
     import embed  # type: ignore
     import models_llm  # type: ignore
     import models_vlm  # type: ignore
     from schemas import (  # type: ignore
         CategorizeRequest,
         CategorizeResponse,
+        DigestRequest,
+        DigestResponse,
         HealthResponse,
         ParsedReceipt,
         ParsedSms,
@@ -158,6 +165,17 @@ def llm_generate(prompt: str) -> str:
     return fn.remote(prompt)
 
 
+# /digest reuses the SAME GPU function, but guides decoding to the digest schema
+# (not the SMS one) and allows a longer completion for the narrative. Separate
+# shim so its fake stays a plain 1-arg generator in tests, exactly like the SMS
+# one — the schema is bound here, not threaded through the pure narrate().
+def llm_generate_digest(prompt: str) -> str:
+    import modal  # lazy — deployed container only
+
+    fn = modal.Function.from_name("raqam-ai", "llm_generate")
+    return fn.remote(prompt, digest.DIGEST_JSON_SCHEMA, 512)
+
+
 # --------------------------------------------------------------------------- #
 # VLM tier backend (U3) — the /parse-receipt handler runs the pure
 # ``models_vlm.parse_receipt`` with this as the injected ``generate_fn``. It
@@ -230,11 +248,9 @@ def create_app() -> FastAPI:
     async def health() -> HealthResponse:
         return HealthResponse(ok=True, version=VERSION)
 
-    # Feature routes — auth-gated, rate-limited, stubbed 501 until U1–U4 land.
-    # NOTE: request bodies are intentionally NOT parsed here. Later units add the
-    # typed request models from ``schemas.py`` (and, for /parse-receipt, the
-    # multipart ``image`` field) when they implement the handler.
-    _NOT_IMPLEMENTED = 501
+    # Feature routes — auth-gated, rate-limited. All four (U1–U4) are now
+    # implemented; each parses its typed request model from ``schemas.py`` (and,
+    # for /parse-receipt, the multipart ``image`` field).
 
     @app.post("/categorize", response_model=CategorizeResponse)
     async def categorize(
@@ -285,9 +301,19 @@ def create_app() -> FastAPI:
         parsed = models_vlm.parse_receipt(image_bytes, vlm_generate)
         return ParseReceiptResponse(parsed=ParsedReceipt(**parsed))
 
-    @app.post("/digest")
-    async def digest(user_id: str = Depends(authed_user)):
-        raise HTTPException(status_code=_NOT_IMPLEMENTED, detail="not implemented")
+    @app.post("/digest", response_model=DigestResponse)
+    async def digest_route(
+        payload: DigestRequest,
+        user_id: str = Depends(authed_user),
+    ) -> DigestResponse:
+        # U4: LLM narration. narrate() is pure; it REUSES U2's ``llm_generate``
+        # shim (monkeypatched in tests) which calls the shared GPU llm function
+        # remotely — NO new GPU function. The client computed every figure and
+        # sends only aggregates; the model narrates using those numbers only
+        # (FR-4.3) and narrate() always returns a contract-valid response
+        # (safe/empty on malformed output).
+        result = digest.narrate(payload.model_dump(), llm_generate_digest)
+        return DigestResponse(**result)
 
     return app
 

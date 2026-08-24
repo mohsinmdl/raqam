@@ -20,6 +20,7 @@ import CategoryPickerPopover from '../components/CategoryPickerPopover.jsx';
 import { setTransactionsCategory } from '../store/actions.js';
 import { useSuggestions } from '../ui/ai/useSuggestions.js';
 import GraduationOffer from '../ui/ai/GraduationOffer.jsx';
+import InsightsCard from '../ui/ai/InsightsCard.jsx';
 import { effectiveNextDate, overdueRules, upcomingRules } from '../lib/schedule.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { leftToSpend } from '../lib/leftToSpend.js';
@@ -235,6 +236,11 @@ export default function Dashboard() {
             </div>
           ))}
         </section>
+
+        {/* U4: AI insights — a client-computed monthly narrative. Self-gates on
+            useAI().enabled (renders nothing when AI is off) and degrades quietly
+            on failure, so Overview is unchanged whenever it isn't active. */}
+        <InsightsCard />
 
         <div className="dash-cols">
           <div className="dash-col-main" style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>

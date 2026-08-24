@@ -255,18 +255,21 @@ def _load_llm():
     return _llm
 
 
-def generate(prompt: str) -> str:
+def generate(prompt: str, schema: dict | None = None, max_tokens: int = 256) -> str:
     """Production ``generate_fn``: guided-JSON decode ``prompt`` with vLLM.
 
-    GUIDED decoding constrains the output to ``PARSED_SMS_JSON_SCHEMA``, so the
-    returned string is always syntactically valid JSON matching the contract.
+    GUIDED decoding constrains the output to ``schema`` (defaulting to
+    ``PARSED_SMS_JSON_SCHEMA``), so the returned string is always syntactically
+    valid JSON matching the caller's contract. The shared ``llm_generate`` GPU
+    function passes the digest schema here for /digest — same weights, same
+    container, per-route guidance — so no separate GPU function is needed.
     """
     from vllm import SamplingParams  # heavy — lazy, GPU only
     from vllm.sampling_params import GuidedDecodingParams
 
     llm = _load_llm()
-    guided = GuidedDecodingParams(json=PARSED_SMS_JSON_SCHEMA)
-    params = SamplingParams(temperature=0.0, max_tokens=256, guided_decoding=guided)
+    guided = GuidedDecodingParams(json=schema or PARSED_SMS_JSON_SCHEMA)
+    params = SamplingParams(temperature=0.0, max_tokens=max_tokens, guided_decoding=guided)
     conversation = [
         {"role": "system", "content": _SYSTEM_PROMPT},
         {"role": "user", "content": prompt},

@@ -936,3 +936,35 @@ however i can see in the raw md file." (with 2 screenshots: rendered preview hid
 **Context**: CONSTRUCTION — U3 Code Generation Part 2, approval gate
 
 ---
+
+## U3 receipt-scan — Code Generation APPROVED
+**Timestamp**: 2026-08-25T02:40:00Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: U3 approved (committed eaa2c85, pushed to PR #210). Proceeding to U4 insights-digest (final unit) — Code Generation Part 1 (no FD per execution plan).
+**Context**: CONSTRUCTION — U3 approved → U4 Code Generation
+
+---
+
+## U4 insights-digest — Code Generation Plan Issued
+**Timestamp**: 2026-08-25T02:44:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created construction/plans/insights-digest-code-generation-plan.md (final unit; no FD per execution plan). 9 steps: service (narrate() pure + guided-JSON reusing llm_generate GPU function — no new GPU, /digest handler, pytest), client (digestData.js buildDigestPayload from existing selectors — aggregates only no raw txs, InsightsCard on Reflect Overview with idle/loading/done/error+retry ephemeral states, additive mount, wiring test, verify+summary). Figures always client-computed (FR-4.3). Story rollup US-16..18. SDD noted. Gate: awaiting plan approval.
+**Context**: CONSTRUCTION — U4 Code Generation Part 1, approval gate
+
+---
+
+## U4 insights-digest — Code Generation Plan APPROVED
+**Timestamp**: 2026-08-25T02:50:00Z
+**User Input**: "go ahead;"
+**AI Response**: U4 codegen plan approved. Executing Part 2 via SDD — parallel service (narrate() + /digest reusing llm_generate + pytest) and client (digestData.js + InsightsCard on Reflect Overview + tests), then consolidated verification. Final unit.
+**Context**: CONSTRUCTION — U4 Code Generation Part 2, generation
+
+---
+
+## U4 insights-digest — Code Generation Complete (verified), Approval Prompt Presented
+**Timestamp**: 2026-08-25T03:00:00Z
+**User Input**: (none — automated generation via SDD + orchestrator fix)
+**AI Response**: Generated U4 via two parallel subagents. Service: digest.py (pure narrate + DIGEST_JSON_SCHEMA, prompt forbids invented figures), /digest handler reusing llm_generate (no new GPU function), test_digest.py (19). Client: digestData.js (buildDigestPayload from existing selectors, aggregates-only, hasEnoughData), insightsFlow.js, InsightsCard.jsx (Reflect Overview, ephemeral, figures from client payload FR-4.3), mounted in Dashboard.jsx; digestData.test.js (7) + insights.wiring.test.jsx (8). ORCHESTRATOR FIX: the service agent flagged that the shared llm_generate was hard-guided to the SMS schema, so a reused-as-is /digest would emit SMS-shaped JSON (empty digest at deploy). Parameterized models_llm.generate + GPU llm_generate with (schema, max_tokens); added api.llm_generate_digest shim binding DIGEST_JSON_SCHEMA (512 tok); added digest to the llm image source; retargeted digest-path test fakes. Re-verified pytest 101 passed. Consolidated full suite 105 files / 1520 tests PASS; build green. code-summary written; checkboxes + US-16..18 ticked. PER-UNIT LOOP COMPLETE. Presenting approval gate; next: Build and Test.
+**Context**: CONSTRUCTION — U4 Code Generation Part 2, approval gate; per-unit loop complete
+
+---
