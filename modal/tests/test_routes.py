@@ -6,10 +6,11 @@ from .conftest import make_hs256_token
 
 # Every auth-gated feature route.
 FEATURE_ROUTES = ["/categorize", "/parse-sms", "/parse-receipt", "/digest"]
-# Routes still returning the 501 stub. /categorize (U1) and /parse-sms (U2) are
-# implemented, so they are no longer here (covered by tests/test_categorize.py
-# and tests/test_parse_sms.py respectively).
-STUBBED_ROUTES = ["/parse-receipt", "/digest"]
+# Routes still returning the 501 stub. /categorize (U1), /parse-sms (U2) and
+# /parse-receipt (U3) are implemented, so they are no longer here (covered by
+# tests/test_categorize.py, tests/test_parse_sms.py and
+# tests/test_parse_receipt.py respectively).
+STUBBED_ROUTES = ["/digest"]
 
 
 def _auth_header():

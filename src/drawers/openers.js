@@ -56,6 +56,12 @@ export const openers = {
   // on useAI().enabled — it's an AI-only affordance (US-1).
   pasteSms: openDrawer => openDrawer('pasteSms', {}),
 
+  // U3 receipt-scan: open the "Scan receipt" sheet/dialog. Rendered by the
+  // standalone ReceiptScanEntry (mounted in the Shell), which reads this drawer
+  // slot; picking an image then opens 'addTx', replacing this slot. Gated at the
+  // trigger on useAI().enabled — an AI-only affordance (US-1).
+  scanReceipt: openDrawer => openDrawer('scanReceipt', {}),
+
   editTx: (S, txId, openDrawer) => {
     const t = S.transactions.find(x => x.id === txId);
     if (!t || t.type === 'cardAdjustment') return; // card corrections are re-issued, not edited

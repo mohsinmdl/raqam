@@ -30,7 +30,7 @@ import os
 import time
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -38,12 +38,14 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # Dual-context imports: as a package (``modal.api``) under pytest, or as
 # top-level modules when Modal runs a script from inside the ``modal/`` dir.
 try:
-    from . import auth, embed, models_llm
+    from . import auth, embed, models_llm, models_vlm
     from .schemas import (
         CategorizeRequest,
         CategorizeResponse,
         HealthResponse,
+        ParsedReceipt,
         ParsedSms,
+        ParseReceiptResponse,
         ParseSmsRequest,
         ParseSmsResponse,
     )
@@ -51,11 +53,14 @@ except ImportError:  # pragma: no cover - exercised only in the Modal script con
     import auth  # type: ignore
     import embed  # type: ignore
     import models_llm  # type: ignore
+    import models_vlm  # type: ignore
     from schemas import (  # type: ignore
         CategorizeRequest,
         CategorizeResponse,
         HealthResponse,
+        ParsedReceipt,
         ParsedSms,
+        ParseReceiptResponse,
         ParseSmsRequest,
         ParseSmsResponse,
     )
@@ -154,6 +159,29 @@ def llm_generate(prompt: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# VLM tier backend (U3) — the /parse-receipt handler runs the pure
+# ``models_vlm.parse_receipt`` with this as the injected ``generate_fn``. It
+# invokes the ISOLATED GPU ``vlm_generate`` Modal function (app.py) via
+# ``.remote()`` — a SEPARATE image/container from ``llm_generate`` so the 7B VL
+# weights never load on /categorize, /parse-sms, or /digest. The ``modal`` import
+# is LAZY (call-time only), so ``modal.api`` still imports with the Modal SDK
+# absent — pytest monkeypatches this function to a fake generator. The image
+# bytes travel in memory only; nothing is written to disk or storage.
+# --------------------------------------------------------------------------- #
+def vlm_generate(image_bytes: bytes) -> str:
+    import modal  # lazy — only needed in the deployed container, never in tests
+
+    fn = modal.Function.from_name("raqam-ai", "vlm_generate")
+    return fn.remote(image_bytes)
+
+
+# Max receipt upload size — 8 MB. Larger uploads are rejected with 413 before any
+# model call. Enforced on the bytes actually read into memory (never streamed to
+# disk), so a spoofed Content-Length cannot slip a huge payload through.
+MAX_RECEIPT_BYTES = 8 * 1024 * 1024
+
+
+# --------------------------------------------------------------------------- #
 # App factory
 # --------------------------------------------------------------------------- #
 def create_app() -> FastAPI:
@@ -235,9 +263,27 @@ def create_app() -> FastAPI:
         parsed = models_llm.parse_sms(payload.text, llm_generate)
         return ParseSmsResponse(parsed=ParsedSms(**parsed))
 
-    @app.post("/parse-receipt")
-    async def parse_receipt(user_id: str = Depends(authed_user)):
-        raise HTTPException(status_code=_NOT_IMPLEMENTED, detail="not implemented")
+    @app.post(
+        "/parse-receipt",
+        response_model=ParseReceiptResponse,
+        response_model_exclude_none=True,
+    )
+    async def parse_receipt(
+        image: UploadFile = File(...),
+        user_id: str = Depends(authed_user),
+    ) -> ParseReceiptResponse:
+        # U3: VLM tier. The uploaded image is read fully INTO MEMORY (never
+        # written to disk, the volume, or any storage — US-15 privacy) and the
+        # 8 MB cap is enforced on the bytes actually read, so a huge upload is
+        # rejected with 413 before any GPU call. parse_receipt() is pure; the
+        # module-level ``vlm_generate`` (monkeypatched in tests) calls the
+        # ISOLATED GPU vlm function remotely. Unread fields are omitted and a
+        # non-receipt image yields ``{}`` — exclude_none keeps those off the wire.
+        image_bytes = await image.read()
+        if len(image_bytes) > MAX_RECEIPT_BYTES:
+            raise HTTPException(status_code=413, detail="image too large")
+        parsed = models_vlm.parse_receipt(image_bytes, vlm_generate)
+        return ParseReceiptResponse(parsed=ParsedReceipt(**parsed))
 
     @app.post("/digest")
     async def digest(user_id: str = Depends(authed_user)):

@@ -28,7 +28,7 @@ import { dayGroups } from '../lib/dayGroups.js';
 import PositionStrip from '../components/PositionStrip.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
 import SearchField from '../ui/SearchField.jsx';
-import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon, SmsIcon } from '../ui/ToolbarAction.jsx';
+import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon, SmsIcon, CameraIcon } from '../ui/ToolbarAction.jsx';
 import { useAI } from '../ui/ai/useAI.js';
 import { matchesQuery } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
@@ -1234,6 +1234,15 @@ export default function Transactions() {
               icon={<SmsIcon />} label="Paste bank SMS" disabled={addDisabled}
               title={addDisabled ? 'Add a bank account first' : 'Pre-fill a transaction from a bank debit/credit SMS'}
               onClick={() => openers.pasteSms(openDrawer)}
+            />
+          )}
+          {/* U3 receipt-scan: "Scan receipt" — AI-only affordance (US-1). */}
+          {aiEnabled && (
+            <ToolbarAction
+              data-testid="scan-receipt-trigger"
+              icon={<CameraIcon />} label="Scan receipt" disabled={addDisabled}
+              title={addDisabled ? 'Add a bank account first' : 'Pre-fill a transaction from a receipt photo'}
+              onClick={() => openers.scanReceipt(openDrawer)}
             />
           )}
           <span aria-hidden="true" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 4px' }} />

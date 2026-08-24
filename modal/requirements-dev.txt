@@ -6,4 +6,6 @@ fastapi
 pydantic>=2
 pyjwt[crypto]
 httpx
+# Multipart parsing for the /parse-receipt image upload (FastAPI UploadFile).
+python-multipart
 pytest

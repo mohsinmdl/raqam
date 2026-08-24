@@ -904,3 +904,35 @@ however i can see in the raw md file." (with 2 screenshots: rendered preview hid
 **Context**: CONSTRUCTION — U2 Code Generation Part 2, approval gate
 
 ---
+
+## U2 sms-parse — Code Generation APPROVED
+**Timestamp**: 2026-08-25T02:22:00Z
+**User Input**: "go ahead;"
+**AI Response**: U2 approved (committed 1e46c2b, pushed to PR #210). Proceeding to U3 receipt-scan — Code Generation Part 1 (no Functional Design per execution plan; U3 composes U1 suggestion contract + U2 seed path).
+**Context**: CONSTRUCTION — U2 approved → U3 Code Generation
+
+---
+
+## U3 receipt-scan — Code Generation Plan Issued
+**Timestamp**: 2026-08-25T02:26:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created construction/plans/receipt-scan-code-generation-plan.md (no FD per execution plan — design-in-brief inline: VLM → {merchant,date,total} → prefill editor, optional category via U1 contract, failure→empty+notice, image in-memory only). 9 steps: service (models_vlm.py Qwen2.5-VL-7B guided-JSON + injectable fake, isolated GPU vlm function, /parse-receipt handler w/ 8MB cap, pytest), client (receiptSeed.js + tests, ReceiptScanEntry + receiptScanFlow node-testable, additive scanReceipt entry next to Paste SMS, wiring test, verify+summary). Story rollup US-13..15. SDD noted. Gate: awaiting plan approval.
+**Context**: CONSTRUCTION — U3 Code Generation Part 1, approval gate
+
+---
+
+## U3 receipt-scan — Code Generation Plan APPROVED
+**Timestamp**: 2026-08-25T02:32:00Z
+**User Input**: "go ahead;"
+**AI Response**: U3 codegen plan approved. Executing Part 2 via SDD — parallel service (models_vlm.py + isolated vlm GPU function + /parse-receipt + pytest) and client (receiptSeed.js + ReceiptScanEntry + scanReceipt entry + tests), then consolidated verification.
+**Context**: CONSTRUCTION — U3 Code Generation Part 2, generation
+
+---
+
+## U3 receipt-scan — Code Generation Complete (verified), Approval Prompt Presented
+**Timestamp**: 2026-08-25T02:26:00Z
+**User Input**: (none — automated generation via SDD)
+**AI Response**: Generated U3 via two parallel subagents. Service: models_vlm.py (pure parse_receipt + guided-JSON + lazy vLLM Qwen2.5-VL-7B), isolated vlm GPU function (own image, never loads on other routes), /parse-receipt multipart handler (in-memory, 8MB→413) via modal.Function.from_name, test_parse_receipt.py (18 incl no-persistence proofs) → pytest 83 passed. Client: receiptSeed.js (toReceiptSeed/isUsableReceipt), receiptScanFlow.js (node-testable; VLM→seed→optional inline-validated category folded before open→openers.addTx; failure→empty+notice), ReceiptScanEntry.jsx (Base UI sheet/dialog, file input capture=environment on phone); additive openers.scanReceipt + App held-mount + AddTxPill/Transactions "Scan receipt" (AI-gated) + ToolbarAction CameraIcon; receiptSeed.test.js (5) + receiptScan.wiring.test.js (8) → 13 passed, build green. Nuance: validateSuggestions keys off stored txs so a synthetic receipt tx would drop — flow uses buildContext(S) guard + inline top-suggestion validation, seed-before-open. Consolidated: full suite 105 files / 1505 tests PASS. code-summary.md written; checkboxes + US-13..15 ticked. Presenting approval gate; next: U4 insights-digest (final unit).
+**Context**: CONSTRUCTION — U3 Code Generation Part 2, approval gate
+
+---

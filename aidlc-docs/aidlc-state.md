@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-08-24T16:50:04Z (cycle 2)
-- **Current Stage**: CONSTRUCTION — U2 sms-parse COMPLETE (awaiting approval → U3)
+- **Current Stage**: CONSTRUCTION — U3 receipt-scan COMPLETE (awaiting approval → U4)
 - **Feature**: AI features via Modal.com — auto-categorization, bank SMS → transaction, receipt photo → transaction, insights digest (shared Modal backend, the app's first custom service)
 - **Previous Cycle**: Multi-Plan system — COMPLETE 2026-08-23 (PR #208 merged & live; see Stage Progress history below)
 
@@ -42,8 +42,8 @@
 - [x] Infrastructure Design (consolidated) — APPROVED by user 2026-08-24T19:16:00Z
 - [x] U0 ai-foundation — Code Generation APPROVED 2026-08-24T23:10:00Z (41 pytest + 17 client tests; full suite 1415 green)
 - [x] U1 auto-categorize — Functional Design + Code Generation APPROVED 2026-08-25T00:12:00Z (committed ae6d2bc → PR #210)
-- [x] U2 sms-parse — Functional Design + Code Generation complete + verified 2026-08-25T02:15:00Z (66 pytest + 43 client tests; full suite 1492 green; awaiting approval)
-- [ ] U3 receipt-scan — Code Generation
+- [x] U2 sms-parse — Functional Design + Code Generation APPROVED 2026-08-25T02:22:00Z (committed 1e46c2b → PR #210)
+- [x] U3 receipt-scan — Code Generation complete + verified 2026-08-25T02:26:00Z (83 pytest + 13 client tests; full suite 1505 green; awaiting approval)
 - [ ] U4 insights-digest — Code Generation
 - [ ] Build and Test
 

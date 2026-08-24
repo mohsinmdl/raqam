@@ -31,6 +31,20 @@ export default function AddTxPill() {
           Paste SMS
         </button>
       )}
+      {/* U3: "Scan receipt" companion action — AI-only (US-1). */}
+      {aiEnabled && (
+        <button onClick={() => openers.scanReceipt(openDrawer)} className="hv-elev rq-btn-outline"
+          aria-label="Scan receipt" data-testid="scan-receipt-trigger"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, minHeight: 42,
+            padding: '0 16px', border: '1px solid var(--border)', borderRadius: 999,
+            background: 'var(--surface)', color: 'var(--text)',
+            fontSize: 13.5, fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--shadow)',
+          }}>
+          <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>📷</span>
+          Scan receipt
+        </button>
+      )}
       <button onClick={() => openers.addTx(openDrawer)} className="hv-accent rq-btn-solid"
         aria-label="Add transaction"
         style={{
