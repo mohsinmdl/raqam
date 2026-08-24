@@ -5,6 +5,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { useAppLockToggle } from '../lib/useAppLockToggle.js';
+import { aiConfigured } from '../lib/ai.js';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { resetAll } from '../store/actions.js';
@@ -62,6 +63,29 @@ export default function UserMenu({ name, email, onClose }) {
             Face ID / device biometrics to open. Privacy lock, not full security.
           </span>
         </button>
+      )}
+      {/* AI features toggle — same shape as the App-lock row above. Default OFF
+          (undefined pref reads as off). When no endpoint is configured the
+          feature can't work, so the row is inert with an "Unavailable" note
+          rather than a switch that would toggle a dead pref. prefs.aiEnabled is
+          the single source of truth (US-1). */}
+      {aiConfigured() ? (
+        <button role="menuitem" className="hv-elev" data-testid="ai-features-toggle"
+          style={{ ...row, flexWrap: 'wrap' }} aria-pressed={String(!!prefs.aiEnabled)}
+          onClick={() => setPrefs({ aiEnabled: !prefs.aiEnabled })}>
+          <span aria-hidden="true">✦</span> AI features <span style={rightNote}>{prefs.aiEnabled ? 'On' : 'Off'}</span>
+          <span style={{ flexBasis: '100%', paddingLeft: 26, marginTop: 2, fontSize: 11, color: 'var(--muted)' }}>
+            Category suggestions, SMS &amp; receipt parsing, monthly insights. Off by default.
+          </span>
+        </button>
+      ) : (
+        <div role="menuitem" data-testid="ai-features-toggle" aria-disabled="true"
+          style={{ ...row, flexWrap: 'wrap', color: 'var(--muted)', cursor: 'default' }}>
+          <span aria-hidden="true">✦</span> AI features <span style={{ ...rightNote, color: 'var(--muted)' }}>Unavailable</span>
+          <span style={{ flexBasis: '100%', paddingLeft: 26, marginTop: 2, fontSize: 11, color: 'var(--muted)' }}>
+            Not configured for this deployment.
+          </span>
+        </div>
       )}
       <button role="menuitem" className="hv-elev" style={row} onClick={() => { onClose(); navigate('/budget/recurring'); }}>
         <span aria-hidden="true">⟳</span> Recurring

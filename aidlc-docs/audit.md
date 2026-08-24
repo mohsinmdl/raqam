@@ -496,3 +496,275 @@ however i can see in the raw md file." (with 2 screenshots: rendered preview hid
 **Context**: OPERATIONS — migration applied
 
 ---
+
+## NEW CYCLE — AI Features (Modal.com) — Initial Request
+**Timestamp**: 2026-08-24T16:50:04Z
+**User Input**: "I do have subscription of the modal.com where i can deploy model there. with 30$ credit in it. Suggest where i could add AI in this project, think harder to suggest ideas"
+**AI Response**: Brainstormed AI feature candidates grounded in the codebase (client + Supabase, no custom backend; Modal = first backend service; privacy-favorable self-hosted open models; scale-to-zero fits personal traffic). Presented ranked menu: (1) auto-categorization, (2) bank SMS → transaction, (3) receipt photo → transaction, (4) insights digest; tier-2 (semantic search, ask-your-ledger) and YAGNI items noted.
+**Context**: Pre-inception ideation (chat), feeds Requirements Analysis intent
+
+---
+
+## NEW CYCLE — AI Features — Feature Selection + Process Directive
+**Timestamp**: 2026-08-24T16:50:04Z
+**User Input**: (selection) "Auto-categorization (recommended), Bank SMS → transaction, Receipt photo → transaction, Insights digest" — all four selected. Then to the rollout-structure question: "use AIDLC start fresh from main, for this feature"
+**AI Response**: Reframed the work as a new AI-DLC cycle starting from origin/main. Created worktree .claude/worktrees/ai-features (branch worktree-ai-features, base origin/main @ 3eb865b, which already includes the merged category-group-uniqueness fix). Loaded AI-DLC common rules (process-overview, session-continuity, content-validation, question-format-guide) and inception rules (workspace-detection, requirements-analysis). An Explore subagent surveyed integration points (needs-category flow, payee auto-categorize machinery, tx prefill/openers seed, Reflect selectors, supabase env/JWT, PWA manifest state, prefs storage) — findings feed Requirements Analysis.
+**Context**: INCEPTION — Workspace Detection (new cycle kickoff)
+
+---
+
+## Workspace Detection — New Cycle Findings
+**Timestamp**: 2026-08-24T16:52:00Z
+**User Input**: (none — automated stage)
+**AI Response**: Brownfield confirmed (React JSX + SQL, pnpm@10.33.4 + Vite, monolith SPA + Supabase). aidlc-state.md exists with prior cycle COMPLETE (Multi-Plan, PR #208 merged) → starting new cycle per session-continuity. Reverse-engineering artifacts exist (2026-08-23); assessed as reusable with a delta note (they predate the Multi-Plan merge and 0018 category-group uniqueness) — full RE rerun NOT scheduled; fresh Explore findings supplement the artifacts for the AI-features surface. Extension config carried from prior cycle as defaults, to be confirmed in requirements questions (no extensions/ opt-in files exist in this worktree). Next: Requirements Analysis (comprehensive depth — new external service + four features).
+**Context**: INCEPTION — Workspace Detection complete → Requirements Analysis
+
+---
+
+## Requirements Analysis — Question File Issued
+**Timestamp**: 2026-08-24T16:56:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created aidlc-docs/inception/requirements/requirement-verification-questions-ai-features.md (13 questions, comprehensive depth) with recommended answers PRE-FILLED per the user's established convention (user confirms/edits rather than answering from scratch). Cycle-2 artifacts are namespaced *-ai-features.md to preserve cycle-1 files with the standard names — deliberate deviation from the default filename, logged here. Gate: awaiting user answers before generating requirements-ai-features.md.
+**Context**: INCEPTION — Requirements Analysis, Step 6 gate
+
+---
+
+## Requirements Analysis — Question File Rendering Fix
+**Timestamp**: 2026-08-24T17:02:00Z
+**User Input**: "Can't see the answers in view md mode. '' issue maybe, can you add the fix in memory for next time" (screenshot: rendered markdown of Question 2 shows options but no [Answer]: A line; "Answer" in option C renders as a link)
+**AI Response**: Root cause: a pre-filled `[Answer]: A` at line start is a CommonMark link reference definition, hidden by renderers (empty tags are invalid definitions, so cycle 1's blank tags rendered fine — the pre-fill convention exposed it). Fixed all 13 tags in requirement-verification-questions-ai-features.md to escaped form `\[Answer]: A` (renders literally; extraction unaffected). Noted the fix was already recorded in session memory on 2026-08-23 but was not applied when creating this file; the memory entry has been strengthened to bind the escaping rule to the pre-fill convention itself.
+**Context**: INCEPTION — Requirements Analysis, question-file gate still open
+
+---
+
+## Requirements Analysis — Answers Approved
+**Timestamp**: 2026-08-24T17:10:00Z
+**User Input**: "approved, go ahead"
+**AI Response**: All 13 pre-filled answers confirmed as-is (Q1–Q13 = A). Validation: no contradictions detected — the answer set is internally consistent (suggest-only AI + opt-in toggle + silent degradation align; stateless backend aligns with privacy-first self-hosted models; scale-to-zero aligns with the $30 budget). Proceeding to generate requirements-ai-features.md.
+**Context**: INCEPTION — Requirements Analysis, Step 6 gate passed
+
+---
+
+## Requirements Analysis — Document Generated, Approval Prompt Presented
+**Timestamp**: 2026-08-24T17:14:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Generated aidlc-docs/inception/requirements/requirements-ai-features.md — intent analysis (new feature set, multi-component, complex, comprehensive depth), FR-0 shared foundation (Modal FastAPI app, JWT auth, self-hosted models, stateless, src/lib/ai.js client module, opt-in toggle default OFF, silent degradation, warming UI), FR-1 auto-categorization (suggest-only chips → setTransactionsCategory; ≥3 accepts → offer payee rule), FR-2 SMS paste (regex-first, LLM long tail, last4 account match, prefills addTx editor), FR-3 receipt scan (VLM, single-tx prefill), FR-4 insights digest (client-computed aggregates, LLM narrates), NFR-1..7 (security/privacy/cost/latency/degradation/testing/conventions), extension compliance table. Updated aidlc-state.md (Requirements Analysis checked, extension carry-over recorded). Presenting REVIEW REQUIRED + WHAT'S NEXT approval prompt; next stage on approval: User Stories (executes — user-facing features across multiple touchpoints).
+**Context**: INCEPTION — Requirements Analysis, Step 9 approval gate
+
+---
+
+## Requirements Analysis — APPROVED
+**Timestamp**: 2026-08-24T17:20:00Z
+**User Input**: "Approve & Continue"
+**AI Response**: Requirements approved. Marking Requirements Analysis APPROVED in aidlc-state.md; proceeding to User Stories (assessment: EXECUTES — new user-facing features, multiple touchpoints/personas, acceptance-criteria value).
+**Context**: INCEPTION — Requirements Analysis approved → User Stories
+
+---
+
+## User Stories — Assessment + Story Plan Issued
+**Timestamp**: 2026-08-24T17:24:00Z
+**User Input**: (none — automated stage steps)
+**AI Response**: Assessment (user-stories-assessment-ai-features.md): EXECUTE — all high-priority indicators met (new user-facing features, UX changes to core flows, complex suggest-only/degradation boundaries). Story plan (story-generation-plan-ai-features.md) issued with 5 pre-filled questions (personas reuse, feature-based breakdown by unit, ~15–20 stories, Given/When/Then, verification-mode tagging unit/mock/live). Answer tags escaped per the rendering-fix convention. Gate: awaiting plan approval.
+**Context**: INCEPTION — User Stories Part 1 (Planning), approval gate
+
+---
+
+## User Stories — Story Plan APPROVED
+**Timestamp**: 2026-08-24T17:30:00Z
+**User Input**: "go ahead"
+**AI Response**: Story plan approved with all pre-filled answers (Q1–Q5 = A: reuse personas + AI posture note; feature-based by unit; ~15–20 stories; Given/When/Then; unit/mock/live verification tags). Proceeding to Part 2 — Generation.
+**Context**: INCEPTION — User Stories Part 1 approved → Part 2 Generation
+
+---
+
+## User Stories — Part 2 Generation Complete, Approval Prompt Presented
+**Timestamp**: 2026-08-24T17:36:00Z
+**User Input**: (none — automated stage steps)
+**AI Response**: Generated personas-ai-features.md (cycle-1 personas reused + AI posture notes + persona→story map) and stories-ai-features.md (18 stories in unit groups U0–U4, Given/When/Then criteria, verify tags unit/mock/live, FR traceability, INVEST check; 4 live-verification stories flagged: US-4, US-11, US-13, US-15). All plan checkboxes marked. Presenting completion + approval gate; next stage on approval: Workflow Planning.
+**Context**: INCEPTION — User Stories Part 2, Step 20 approval gate
+
+---
+
+## User Stories — APPROVED
+**Timestamp**: 2026-08-24T17:42:00Z
+**User Input**: "Approve & Continue"
+**AI Response**: 18 stories + personas approved. Marking User Stories APPROVED in aidlc-state.md; proceeding to Workflow Planning.
+**Context**: INCEPTION — User Stories approved → Workflow Planning
+
+---
+
+## Workflow Planning — Execution Plan Generated, Approval Prompt Presented
+**Timestamp**: 2026-08-24T17:48:00Z
+**User Input**: (none — automated stage steps)
+**AI Response**: Generated execution-plan-ai-features.md — risk Medium (new service/runtime, but no schema/data migration, default-OFF toggle, easy rollback); Mermaid workflow visualization (validated syntax); EXECUTE: Application Design, Units Generation, Functional Design (U1+U2 only), NFR Requirements (consolidated), Infrastructure Design (consolidated — new this cycle), Code Generation ×5, Build & Test. SKIP: NFR Design (no novel patterns), Reverse Engineering (already skipped). Unit sequence U0 ai-foundation → U1 auto-categorize → U2 sms-parse → U3 receipt-scan → U4 insights-digest, each mergeable behind the toggle. Presenting approval gate; next stage on approval: Application Design.
+**Context**: INCEPTION — Workflow Planning, Step 9 approval gate
+
+---
+
+## Workflow Planning — APPROVED
+**Timestamp**: 2026-08-24T17:55:00Z
+**User Input**: "Approve & Continue"
+**AI Response**: Execution plan approved as recommended (NFR Design stays skipped). Proceeding to Application Design.
+**Context**: INCEPTION — Workflow Planning approved → Application Design
+
+---
+
+## Application Design — Plan Issued
+**Timestamp**: 2026-08-24T17:58:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created application-design-plan-ai-features.md with 5 pre-filled questions (service in-repo under modal/; client layer = pure src/lib/ai.js + useAI hook; plain JSON contracts; batched suggestion calls; local JWT verification). Gate: awaiting answers/approval before generating design artifacts.
+**Context**: INCEPTION — Application Design, question gate
+
+---
+
+## Application Design — Plan APPROVED
+**Timestamp**: 2026-08-24T18:04:00Z
+**User Input**: "go ahead"
+**AI Response**: Design plan approved with pre-filled answers (Q1–Q5 = A: in-repo modal/ dir; ai.js + useAI hook split; plain JSON contracts; batched suggestions; local JWT verification). Generating design artifacts.
+**Context**: INCEPTION — Application Design, generation
+
+---
+
+## Application Design — Artifacts Generated, Approval Prompt Presented
+**Timestamp**: 2026-08-24T18:10:00Z
+**User Input**: (none — automated stage steps)
+**AI Response**: Generated 5 artifacts under aidlc-docs/inception/application-design/: components-ai-features.md (C1 modal/ service, C2 ai.js, C3 useAI, C4 aiSuggest, C5 smsParse, C6 digestData, C7 UI surfaces), component-methods-ai-features.md (route contracts + module signatures), services-ai-features.md (flows S1–S5), component-dependency-ai-features.md (matrix, hard rules, data-flow diagram — Mermaid validated + text alternative), application-design-ai-features.md (consolidated, invariants, FR/US completeness check). Plan checklist ticked. Presenting approval gate; next: Units Generation.
+**Context**: INCEPTION — Application Design, approval gate
+
+---
+
+## Application Design — APPROVED
+**Timestamp**: 2026-08-24T18:16:00Z
+**User Input**: "Approve & Continue"
+**AI Response**: Application design approved. Proceeding to Units Generation.
+**Context**: INCEPTION — Application Design approved → Units Generation
+
+---
+
+## Units Generation — Plan Issued
+**Timestamp**: 2026-08-24T18:20:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created unit-of-work-plan-ai-features.md. Decomposition inputs already approved in prior gates are documented and not re-asked (feature-based U0–U4, sequence, in-repo layout, N/A team/domain categories). Two open questions pre-filled: Q1 merge strategy = one PR per unit; Q2 U1 categorizer = embeddings-only kNN, LLM fallback deferred. Gate: awaiting approval.
+**Context**: INCEPTION — Units Generation Part 1, approval gate
+
+---
+
+## Units Generation — Plan APPROVED
+**Timestamp**: 2026-08-24T18:26:00Z
+**User Input**: "go ahead"
+**AI Response**: Unit plan approved (Q1=A one PR per unit; Q2=A embeddings-only U1). Generating unit artifacts.
+**Context**: INCEPTION — Units Generation Part 1 approved → Part 2 Generation
+
+---
+
+## Units Generation — Artifacts Generated, Approval Prompt Presented
+**Timestamp**: 2026-08-24T18:30:00Z
+**User Input**: (none — automated stage steps)
+**AI Response**: Generated unit-of-work-ai-features.md (5 units w/ ownership, code locations, done-criteria), unit-of-work-dependency-ai-features.md (matrix, merge order U0→U1→U2→U3→U4 one-PR-per-unit, coordination points, rollback), unit-of-work-story-map-ai-features.md (18/18 stories mapped, no orphans, acceptance rollup). Validations: C1–C7 each owned by exactly one unit ✓; every story exactly one unit ✓. Plan checkboxes ticked. Presenting approval gate; on approval INCEPTION COMPLETE → CONSTRUCTION (NFR Requirements consolidated first, per execution plan).
+**Context**: INCEPTION — Units Generation Part 2, approval gate
+
+---
+
+## Units Generation — APPROVED / INCEPTION COMPLETE
+**Timestamp**: 2026-08-24T18:36:00Z
+**User Input**: "CONSTRUCTION"
+**AI Response**: Units approved — INCEPTION COMPLETE. Entering CONSTRUCTION with the consolidated NFR Requirements stage (per approved execution plan), then Infrastructure Design, then the per-unit loop starting at U0 ai-foundation.
+**Context**: INCEPTION complete → CONSTRUCTION, NFR Requirements
+
+---
+
+## NFR Requirements (consolidated) — Plan Issued
+**Timestamp**: 2026-08-24T18:40:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created construction/plans/ai-shared-nfr-requirements-plan.md. Fixed-at-Requirements decisions documented and not re-asked. 4 pre-filled tech-stack questions: multilingual-e5-small embeddings; Qwen3-4B-Instruct via vLLM + guided JSON on L4; Qwen2.5-VL-7B-Instruct isolated L4 function; FastAPI/Pydantic v2/PyJWT/pytest with versions pinned in the Modal image. Gate: awaiting approval.
+**Context**: CONSTRUCTION — NFR Requirements, question gate
+
+---
+
+## NFR Requirements — Plan APPROVED
+**Timestamp**: 2026-08-24T18:46:00Z
+**User Input**: "Approve as-is"
+**AI Response**: NFR plan approved (Q1–Q4 = A). Generating consolidated NFR artifacts.
+**Context**: CONSTRUCTION — NFR Requirements, generation
+
+---
+
+## NFR Requirements — Artifacts Generated, Approval Prompt Presented
+**Timestamp**: 2026-08-24T18:50:00Z
+**User Input**: (none — automated stage steps)
+**AI Response**: Generated aidlc-docs/construction/ai-shared/nfr-requirements/nfr-requirements.md (per-route latency budgets, max_containers=1 cost caps, rate limiting, security baseline items, reliability/testability, extension compliance) and tech-stack-decisions.md (multilingual-e5-small / Qwen3-4B vLLM guided-JSON / Qwen2.5-VL-7B isolated; FastAPI+Pydantic v2+PyJWT pinned in image; function topology api/llm/vlm; rejected alternatives). Plan checklist ticked. Next on approval: Infrastructure Design (consolidated).
+**Context**: CONSTRUCTION — NFR Requirements, approval gate
+
+---
+
+## NFR Requirements — APPROVED
+**Timestamp**: 2026-08-24T18:56:00Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: NFR requirements approved. Proceeding to Infrastructure Design (consolidated).
+**Context**: CONSTRUCTION — NFR Requirements approved → Infrastructure Design
+
+---
+
+## Infrastructure Design — Plan Issued
+**Timestamp**: 2026-08-24T19:00:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created construction/plans/ai-shared-infrastructure-design-plan.md. Settled/N-A categories documented with justification (provider, compute topology, no storage of user data, no messaging, networking = Modal HTTPS + CORS, one shared app). 4 pre-filled questions: manual modal deploy by user; single environment; Modal Volume for weights; Modal-dashboard-only observability with content-free structured logs. Gate: awaiting approval.
+**Context**: CONSTRUCTION — Infrastructure Design, question gate
+
+---
+
+## Infrastructure Design — Plan APPROVED
+**Timestamp**: 2026-08-24T19:06:00Z
+**User Input**: "Approve as-is"
+**AI Response**: Infra plan approved (Q1–Q4 = A). Generating consolidated infrastructure artifacts.
+**Context**: CONSTRUCTION — Infrastructure Design, generation
+
+---
+
+## Infrastructure Design — Artifacts Generated, Approval Prompt Presented
+**Timestamp**: 2026-08-24T19:10:00Z
+**User Input**: (none — automated stage steps)
+**AI Response**: Generated aidlc-docs/construction/ai-shared/infrastructure-design/infrastructure-design.md (app raqam-ai; functions api/llm/vlm with max_containers=1; volume raqam-ai-models; secret raqam-supabase-jwt; request path with CORS/JWT/rate-limit placement; cost controls; dev story) and deployment-architecture.md (operator runsheet: modal setup/secret create/deploy/smoke; client env wiring; three-layer rollback; per-deploy verification; zero coupling to Pages deploys). Plan checklist ticked. Next on approval: per-unit loop → U0 ai-foundation Code Generation Part 1 (planning). U0 has no Functional Design per execution plan.
+**Context**: CONSTRUCTION — Infrastructure Design, approval gate
+
+---
+
+## Infrastructure Design — APPROVED
+**Timestamp**: 2026-08-24T19:16:00Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: Infrastructure design approved. Entering per-unit loop: U0 ai-foundation, Code Generation Part 1 (Planning).
+**Context**: CONSTRUCTION — Infrastructure Design approved → U0 Code Generation
+
+---
+
+## U0 ai-foundation — Code Generation Plan Issued
+**Timestamp**: 2026-08-24T19:22:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created construction/plans/ai-foundation-code-generation-plan.md — 12 numbered steps: service (schemas.py contract truth, auth.py JWKS/HS256, app.py with CORS/rate-limit/health/501-stubs, smoke.py, fixtures, pytest suite, README runsheet) + client (ai.js, ai.test.js, useAI + pure aiWarming with tests, UserMenu toggle row in-place edit, env/docs/verification). Story rollup US-1..4 mapped to steps; pytest runnable without Modal credentials; SDD execution noted. Approval prompt: awaiting explicit approval of the plan before generation.
+**Context**: CONSTRUCTION — U0 Code Generation Part 1, approval gate
+
+---
+
+## U0 ai-foundation — Code Generation Plan APPROVED
+**Timestamp**: 2026-08-24T19:30:00Z
+**User Input**: "Approve"
+**AI Response**: U0 code-generation plan approved. Executing Part 2 via subagent-driven development. Establishing shared contract fixtures first (modal/fixtures/*.json), then dispatching parallel service-side (modal/) and client-side (src/) build streams, then running full verification.
+**Context**: CONSTRUCTION — U0 Code Generation Part 2, generation
+
+---
+
+## U0 ai-foundation — Code Generation Complete (verified), Approval Prompt Presented
+**Timestamp**: 2026-08-24T23:00:00Z
+**User Input**: (none — automated generation via SDD)
+**AI Response**: Generated U0 via two parallel subagents (service modal/, client src/) sharing modal/fixtures/*.json as the contract. Service: schemas.py, auth.py (JWKS+HS256), api.py (CORS, rate-limit, /health, 501 stubs, content-free logging), app.py (Modal wiring, pinned image, volume+secret), smoke.py, pytest (41 passed, no Modal creds), README runsheet. Client: ai.js (sole fetch path, AiError kinds, 401-retry), aiWarming.js (pure), useAI.js, UserMenu toggle row (in-place), .env.example; ai.test.js + aiWarming.test.js (17 passed), pnpm build green. Consolidated verification: full worktree suite 99 files / 1415 tests PASS (investigated + explained the earlier 10k figure = main checkout globbing 6 nested sibling worktrees; this leaf worktree's 1415 is the true count — no regression). Spot-checked UserMenu edit (reuses row styles, degrades to Unavailable, single-source prefs) and ai.js (no forbidden store/actions/sync imports). code-summary.md written; plan checkboxes + US-1..4 rollup ticked. Nothing committed yet (per one-PR-per-unit, commit/PR on approval). Presenting approval gate; next: U1 auto-categorize (Functional Design → Code Generation).
+**Context**: CONSTRUCTION — U0 Code Generation Part 2, approval gate
+
+---
+
+## U0 ai-foundation — Code Generation APPROVED
+**Timestamp**: 2026-08-24T23:10:00Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: U0 approved. Committing U0 (service + client + aidlc docs) and opening the U0 PR per the one-PR-per-unit plan; then proceeding to U1 auto-categorize (Functional Design first).
+**Context**: CONSTRUCTION — U0 approved → commit/PR → U1
+
+---
