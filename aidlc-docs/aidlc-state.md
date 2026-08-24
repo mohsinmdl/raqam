@@ -3,7 +3,7 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-08-24T16:50:04Z (cycle 2)
-- **Current Stage**: CONSTRUCTION — Build and Test complete (awaiting approval → Operations)
+- **Current Stage**: COMPLETE — Operations hand-off done (PR #210; modal deploy + merge = human runsheet)
 - **Feature**: AI features via Modal.com — auto-categorization, bank SMS → transaction, receipt photo → transaction, insights digest (shared Modal backend, the app's first custom service)
 - **Previous Cycle**: Multi-Plan system — COMPLETE 2026-08-23 (PR #208 merged & live; see Stage Progress history below)
 
@@ -46,6 +46,9 @@
 - [x] U3 receipt-scan — Code Generation APPROVED 2026-08-25T02:40:00Z (committed eaa2c85 → PR #210)
 - [x] U4 insights-digest — Code Generation APPROVED 2026-08-25T03:08:00Z (committed 2132370 → PR #210) — **PER-UNIT LOOP COMPLETE**
 - [x] Build and Test — complete 2026-08-25T03:15:00Z (client 1520 tests + build green; service 101 pytest; instruction docs + live smoke runsheet written; live US-4/11/13/15 pending deploy)
+
+### 🟡 OPERATIONS PHASE
+- [x] Operations — delivery hand-off 2026-08-25T03:22:00Z: PR #210 open; modal deploy + secret + smoke + set VITE_AI_ENDPOINT + merge + live smoke = human runsheet. **AI-DLC CYCLE 2 COMPLETE.**
 
 ---
 
