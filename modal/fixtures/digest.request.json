@@ -1,0 +1,18 @@
+{
+  "month": "2026-08",
+  "stats": {
+    "total": 245000,
+    "avgDaily": 8166,
+    "mostFrequent": { "name": "Groceries", "count": 14 },
+    "largestOutflow": { "merchant": "Alfatah", "amt": 42000 }
+  },
+  "byCategory": [
+    { "name": "Groceries", "amt": 88000, "pct": 36, "prevAmt": 61000 },
+    { "name": "Fuel", "amt": 30000, "pct": 12, "prevAmt": 28000 }
+  ],
+  "incomeExpense": [
+    { "month": "2026-06", "income": 400000, "expense": 210000 },
+    { "month": "2026-07", "income": 400000, "expense": 205000 },
+    { "month": "2026-08", "income": 400000, "expense": 245000 }
+  ]
+}

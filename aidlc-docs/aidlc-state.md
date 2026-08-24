@@ -2,17 +2,18 @@
 
 ## Project Information
 - **Project Type**: Brownfield
-- **Start Date**: 2026-08-23T03:23:45Z
-- **Current Stage**: COMPLETE — Operations hand-off done (PR #208 open; 0017 apply + merge = human runsheet)
-- **Feature**: YNAB-style multi-Plan system (plan switcher, New Plan modal, Open Plan, per-plan data scoping)
+- **Start Date**: 2026-08-24T16:50:04Z (cycle 2)
+- **Current Stage**: CONSTRUCTION — U0 approved; U1 auto-categorize (Functional Design)
+- **Feature**: AI features via Modal.com — auto-categorization, bank SMS → transaction, receipt photo → transaction, insights digest (shared Modal backend, the app's first custom service)
+- **Previous Cycle**: Multi-Plan system — COMPLETE 2026-08-23 (PR #208 merged & live; see Stage Progress history below)
 
 ## Workspace State
 - **Existing Code**: Yes
-- **Programming Languages**: JavaScript (React JSX), SQL (Postgres/Supabase migrations)
+- **Programming Languages**: JavaScript (React JSX), SQL (Postgres/Supabase migrations); Python planned (Modal service)
 - **Build System**: pnpm@10.33.4 + Vite
-- **Project Structure**: Monolith SPA (React + Vite frontend, Supabase backend: Postgres + RLS + Auth)
-- **Reverse Engineering Needed**: Yes (no prior artifacts in aidlc-docs/inception/reverse-engineering/)
-- **Workspace Root**: /Users/dev/projects/raqam/.claude/worktrees/multi-plan (worktree of /Users/dev/projects/raqam, branch worktree-multi-plan, base da3261d)
+- **Project Structure**: Monolith SPA (React + Vite frontend, Supabase backend: Postgres + RLS + Auth); adding a Modal.com service (FastAPI + self-hosted models)
+- **Reverse Engineering Needed**: No — artifacts of 2026-08-23 reused with delta note (they predate the Multi-Plan merge and 0018 per-group category uniqueness; supplemented by a fresh integration-point survey for the AI-features surface, logged in audit 2026-08-24)
+- **Workspace Root**: /Users/dev/projects/raqam/.claude/worktrees/ai-features (worktree of /Users/dev/projects/raqam, branch worktree-ai-features, base origin/main @ 3eb865b)
 
 ## Code Location Rules
 - **Application Code**: Workspace root (NEVER in aidlc-docs/)
@@ -22,11 +23,33 @@
 ## Extension Configuration
 | Extension | Enabled | Decided At |
 | --- | --- | --- |
-| Security Baseline | Yes | Requirements Analysis (2026-08-23, Q11=A) |
-| Resiliency Baseline | No | Requirements Analysis (2026-08-23, Q12=B) |
-| Property-Based Testing | Partial — only PBT-02, PBT-03, PBT-07, PBT-08, PBT-09 enforced (pure functions + round-trips); others advisory | Requirements Analysis (2026-08-23, Q13=B) |
+| Security Baseline | Yes | Cycle 1 (2026-08-23, Q11=A); carried into Cycle 2 (2026-08-24, Q13=A) |
+| Resiliency Baseline | No | Cycle 1 (2026-08-23, Q12=B); carried into Cycle 2 (2026-08-24, Q13=A) |
+| Property-Based Testing | Partial — only PBT-02, PBT-03, PBT-07, PBT-08, PBT-09 enforced (pure functions + round-trips); others advisory | Cycle 1 (2026-08-23, Q13=B); carried into Cycle 2 (2026-08-24, Q13=A) |
 
-## Stage Progress
+## Stage Progress — Cycle 2: AI Features (Modal.com)
+### 🔵 INCEPTION PHASE
+- [x] Workspace Detection — 2026-08-24T16:52:00Z (brownfield; RE artifacts reused with delta note)
+- [ ] Reverse Engineering — SKIP (artifacts of 2026-08-23 reused + fresh integration-point survey)
+- [x] Requirements Analysis — APPROVED by user 2026-08-24T17:20:00Z (Q1–Q13 all = A; requirements-ai-features.md)
+- [x] User Stories — APPROVED by user 2026-08-24T17:42:00Z (18 stories, 2 personas reused w/ AI posture)
+- [x] Workflow Planning — APPROVED by user 2026-08-24T17:55:00Z (execution-plan-ai-features.md)
+- [x] Application Design — APPROVED by user 2026-08-24T18:16:00Z
+- [x] Units Generation — APPROVED by user 2026-08-24T18:36:00Z — **INCEPTION COMPLETE**
+
+### 🟢 CONSTRUCTION PHASE
+- [x] NFR Requirements (consolidated) — APPROVED by user 2026-08-24T18:56:00Z
+- [x] Infrastructure Design (consolidated) — APPROVED by user 2026-08-24T19:16:00Z
+- [x] U0 ai-foundation — Code Generation APPROVED 2026-08-24T23:10:00Z (41 pytest + 17 client tests; full suite 1415 green)
+- [ ] U1 auto-categorize — Functional Design, Code Generation
+- [ ] U2 sms-parse — Functional Design, Code Generation
+- [ ] U3 receipt-scan — Code Generation
+- [ ] U4 insights-digest — Code Generation
+- [ ] Build and Test
+
+---
+
+## Stage Progress — Cycle 1: Multi-Plan (COMPLETE 2026-08-23)
 ### 🔵 INCEPTION PHASE
 - [x] Workspace Detection
 - [x] Reverse Engineering - Completed 2026-08-23T03:35:00Z, APPROVED by user 2026-08-23T03:40:00Z

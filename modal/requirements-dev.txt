@@ -1,0 +1,9 @@
+# Dev/test dependencies for the raqam-ai service.
+# These let pytest run the FastAPI app via TestClient WITHOUT a Modal account
+# and WITHOUT downloading any model weights. The DEPLOYED image pins its own
+# exact versions in modal/app.py (that image definition is the lockfile).
+fastapi
+pydantic>=2
+pyjwt[crypto]
+httpx
+pytest

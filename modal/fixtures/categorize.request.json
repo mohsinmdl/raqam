@@ -1,0 +1,15 @@
+{
+  "transactions": [
+    { "id": "t1", "merchant": "IMTIAZ", "amount": 5420, "type": "expense", "date": "2026-08-24" }
+  ],
+  "context": {
+    "examples": [
+      { "merchant": "IMTIAZ SUPER MARKET", "amount": 3200, "type": "expense", "categoryId": "groceries" },
+      { "merchant": "SHELL", "amount": 6000, "type": "expense", "categoryId": "fuel" }
+    ],
+    "categories": [
+      { "id": "groceries", "name": "Groceries", "group": "Needs", "type": "expense" },
+      { "id": "fuel", "name": "Fuel", "group": "Needs", "type": "expense" }
+    ]
+  }
+}
