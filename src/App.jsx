@@ -38,6 +38,8 @@ import { useIsPhone } from './lib/useIsPhone.js';
 import MobileTabBar from './components/MobileTabBar.jsx';
 import AddTxPill from './components/AddTxPill.jsx';
 import ManagePayees from './ui/payees/ManagePayees.jsx';
+import PasteSmsEntry from './ui/ai/PasteSmsEntry.jsx';
+import { useDrawer } from './ui/DrawerProvider.jsx';
 
 // Sidebar width is user-draggable and remembered on the device (like theme).
 const SB_MIN = 208, SB_MAX = 460, SB_DEFAULT = 236, SB_KEY = 'raqam.sidebarW';
@@ -70,6 +72,9 @@ function Shell() {
   };
   const resetWidth = () => { setSbW(SB_DEFAULT); try { localStorage.setItem(SB_KEY, String(SB_DEFAULT)); } catch {} };
   const phone = useIsPhone();
+  // U2 sms-parse: the paste sheet reads the 'pasteSms' drawer slot (opened by
+  // openers.pasteSms). Held-mounted here like ManagePayees.
+  const { drawer, closeDrawer } = useDrawer();
 
   return (
     <div
@@ -83,6 +88,7 @@ function Shell() {
     >
       <GlobalShortcuts />
       <ManagePayees />
+      <PasteSmsEntry open={drawer?.name === 'pasteSms'} onClose={closeDrawer} />
       {!phone && <Sidebar />}
       {/* Drag handle sitting on the sidebar's right seam. A hairline stays
           invisible until hover/drag, then lights up in the accent colour. */}

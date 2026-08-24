@@ -16,6 +16,8 @@ export const PlusCircle = () => (
     <path d="M12 7.5v9M7.5 12h9" stroke="var(--on-accent)" strokeWidth="2" strokeLinecap="round" />
   </svg>
 );
+// Speech-bubble glyph for the "Paste bank SMS" action (U2 sms-parse).
+export const SmsIcon = () => strokeIcon(<><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" /></>);
 export const UndoIcon = () => strokeIcon(<><path d="M9 14 4 9l5-5" /><path d="M4 9h9a6 6 0 0 1 0 12H7" /></>);
 export const RedoIcon = () => strokeIcon(<><path d="m15 14 5-5-5-5" /><path d="M20 9h-9a6 6 0 0 0 0 12h6" /></>);
 

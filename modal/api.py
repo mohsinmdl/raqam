@@ -38,12 +38,27 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # Dual-context imports: as a package (``modal.api``) under pytest, or as
 # top-level modules when Modal runs a script from inside the ``modal/`` dir.
 try:
-    from . import auth, embed
-    from .schemas import CategorizeRequest, CategorizeResponse, HealthResponse
+    from . import auth, embed, models_llm
+    from .schemas import (
+        CategorizeRequest,
+        CategorizeResponse,
+        HealthResponse,
+        ParsedSms,
+        ParseSmsRequest,
+        ParseSmsResponse,
+    )
 except ImportError:  # pragma: no cover - exercised only in the Modal script context
     import auth  # type: ignore
     import embed  # type: ignore
-    from schemas import CategorizeRequest, CategorizeResponse, HealthResponse  # type: ignore
+    import models_llm  # type: ignore
+    from schemas import (  # type: ignore
+        CategorizeRequest,
+        CategorizeResponse,
+        HealthResponse,
+        ParsedSms,
+        ParseSmsRequest,
+        ParseSmsResponse,
+    )
 
 # Version reported by /health — kept in step with fixtures/health.response.json.
 VERSION = "0.1.0"
@@ -125,6 +140,20 @@ def authed_user(
 
 
 # --------------------------------------------------------------------------- #
+# LLM tier backend (U2) — the /parse-sms handler runs the pure
+# ``models_llm.parse_sms`` with this as the injected ``generate_fn``. It invokes
+# the GPU ``llm_generate`` Modal function (app.py) via ``.remote()``. The
+# ``modal`` import is LAZY (call-time only), so ``modal.api`` still imports with
+# the Modal SDK absent — pytest monkeypatches this function to a fake generator.
+# --------------------------------------------------------------------------- #
+def llm_generate(prompt: str) -> str:
+    import modal  # lazy — only needed in the deployed container, never in tests
+
+    fn = modal.Function.from_name("raqam-ai", "llm_generate")
+    return fn.remote(prompt)
+
+
+# --------------------------------------------------------------------------- #
 # App factory
 # --------------------------------------------------------------------------- #
 def create_app() -> FastAPI:
@@ -190,9 +219,21 @@ def create_app() -> FastAPI:
         suggestions = embed.rank(payload.model_dump(), embed.embed_texts)
         return CategorizeResponse(suggestions=suggestions)
 
-    @app.post("/parse-sms")
-    async def parse_sms(user_id: str = Depends(authed_user)):
-        raise HTTPException(status_code=_NOT_IMPLEMENTED, detail="not implemented")
+    @app.post(
+        "/parse-sms",
+        response_model=ParseSmsResponse,
+        response_model_exclude_none=True,
+    )
+    async def parse_sms(
+        payload: ParseSmsRequest,
+        user_id: str = Depends(authed_user),
+    ) -> ParseSmsResponse:
+        # U2: LLM tier. parse_sms() is pure; the module-level ``llm_generate``
+        # (monkeypatched in tests) calls the GPU llm function remotely. Unread
+        # fields are omitted and a junk SMS yields ``{}`` — exclude_none keeps
+        # those off the wire (schemas.py contract).
+        parsed = models_llm.parse_sms(payload.text, llm_generate)
+        return ParseSmsResponse(parsed=ParsedSms(**parsed))
 
     @app.post("/parse-receipt")
     async def parse_receipt(user_id: str = Depends(authed_user)):

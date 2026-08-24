@@ -28,7 +28,8 @@ import { dayGroups } from '../lib/dayGroups.js';
 import PositionStrip from '../components/PositionStrip.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
 import SearchField from '../ui/SearchField.jsx';
-import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarAction.jsx';
+import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon, SmsIcon } from '../ui/ToolbarAction.jsx';
+import { useAI } from '../ui/ai/useAI.js';
 import { matchesQuery } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { useContainerWidth } from '../lib/useContainerWidth.js';
@@ -471,6 +472,7 @@ export default function Transactions() {
   // balance column seeds off the same month's snapshot, so the two agree.
   const { balanceMonth } = useMonth();
   const fmt = useMoney();
+  const { enabled: aiEnabled } = useAI();
   const { openDrawer, drawer } = useDrawer();
   // The inline editor session (desktop only — phone renders TxSheet instead).
   const inlineTx = !phone && drawer?.name === 'addTx' ? drawer : null;
@@ -1225,6 +1227,15 @@ export default function Transactions() {
             shortcut={addDisabled ? undefined : SHORTCUT_BY_ID.addTx}
             onClick={() => openers.addTx(openDrawer, 'expense', accountId ? { payWith: 'acc:' + accountId } : {})}
           />
+          {/* U2 sms-parse: "Paste bank SMS" — AI-only affordance (US-1). */}
+          {aiEnabled && (
+            <ToolbarAction
+              data-testid="paste-sms-trigger"
+              icon={<SmsIcon />} label="Paste bank SMS" disabled={addDisabled}
+              title={addDisabled ? 'Add a bank account first' : 'Pre-fill a transaction from a bank debit/credit SMS'}
+              onClick={() => openers.pasteSms(openDrawer)}
+            />
+          )}
           <span aria-hidden="true" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 4px' }} />
           <ToolbarAction icon={<UndoIcon />} label="Undo" disabled={!canUndo} shortcut={SHORTCUT_BY_ID.undo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} onClick={undo} />
           <ToolbarAction icon={<RedoIcon />} label="Redo" disabled={!canRedo} shortcut={SHORTCUT_BY_ID.redo} title={redoLabel ? 'Redo: ' + redoLabel : 'Redo'} onClick={redo} />

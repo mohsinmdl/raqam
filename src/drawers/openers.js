@@ -50,6 +50,12 @@ export function formFromTx(t) {
 export const openers = {
   addTx: (openDrawer, type = 'expense', seed = {}) => openDrawer('addTx', { ...txDefaults(type), ...seed }),
 
+  // U2 sms-parse: open the "Paste bank SMS" sheet/dialog. Rendered by the
+  // standalone PasteSmsEntry (mounted in the Shell), which reads this drawer
+  // slot; Parse then opens 'addTx', replacing this slot. Gated at the trigger
+  // on useAI().enabled — it's an AI-only affordance (US-1).
+  pasteSms: openDrawer => openDrawer('pasteSms', {}),
+
   editTx: (S, txId, openDrawer) => {
     const t = S.transactions.find(x => x.id === txId);
     if (!t || t.type === 'cardAdjustment') return; // card corrections are re-issued, not edited
