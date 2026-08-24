@@ -768,3 +768,11 @@ however i can see in the raw md file." (with 2 screenshots: rendered preview hid
 **Context**: CONSTRUCTION — U0 approved → commit/PR → U1
 
 ---
+
+## U0 — Committed + PR Opened
+**Timestamp**: 2026-08-24T23:16:00Z
+**User Input**: (none — automated)
+**AI Response**: Committed U0 (45d81c1), pushed worktree-ai-features, opened PR #210 (https://github.com/mohsinmdl/raqam/pull/210) via GitKraken MCP. Proceeding to U1 auto-categorize — Functional Design.
+**Context**: CONSTRUCTION — U0 delivered → U1 Functional Design
+
+---
