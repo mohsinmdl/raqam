@@ -776,3 +776,67 @@ however i can see in the raw md file." (with 2 screenshots: rendered preview hid
 **Context**: CONSTRUCTION — U0 delivered → U1 Functional Design
 
 ---
+
+## U1 auto-categorize — Functional Design Plan Issued
+**Timestamp**: 2026-08-24T23:22:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created construction/plans/auto-categorize-functional-design-plan.md with 5 pre-filled business-logic questions: (1) cosine-kNN k=10, similarity≥0.80 + vote-share≥0.60 floors, 2nd chip share≥0.25; (2) embed normalized merchant only, type as hard filter; (3) graduation counter in per-user prefs keyed payeeKey|categoryId, offer at 3rd accept then upsertPayee, dismiss flag; (4) up to 2 inline chips, tap=apply via setTransactionsCategory, pill still opens picker; (5) one debounced 800ms batch keyed by visible needs-category set, silent on failure. Gate: awaiting answers/approval.
+**Context**: CONSTRUCTION — U1 Functional Design, question gate
+
+---
+
+## U1 auto-categorize — Functional Design Plan APPROVED
+**Timestamp**: 2026-08-24T23:30:00Z
+**User Input**: "go ahaed"
+**AI Response**: FD plan approved (Q1–Q5 = A). Generating U1 functional-design artifacts.
+**Context**: CONSTRUCTION — U1 Functional Design, generation
+
+---
+
+## U1 auto-categorize — Functional Design Generated, Approval Prompt Presented
+**Timestamp**: 2026-08-24T23:36:00Z
+**User Input**: (none — automated stage steps)
+**AI Response**: Generated 4 FD artifacts under construction/auto-categorize/functional-design/: business-logic-model.md (L1 context assembly w/ 30-history guard + 200-example window, L2 targets, L3 debounced batch, L4 embeddings-only kNN k=10 with 0.80/0.60/0.25 floors + hard type filter, L5 client id validation, L6 apply via setTransactionsCategory, L7 graduation), business-rules.md (BR-U1-1..19 table + edge scenarios), domain-entities.md (request/response shapes == fixtures; transient cache; per-user prefs aiAcceptCounts/aiRuleDismissed — no synced entities), frontend-components.md (SuggestionChips + GraduationOffer props/states/testids + additive wiring into TxChips/TxPhoneList/Transactions/Dashboard). Plan checklist ticked. Presenting approval gate; next: U1 Code Generation.
+**Context**: CONSTRUCTION — U1 Functional Design, approval gate
+
+---
+
+## U1 auto-categorize — Functional Design APPROVED
+**Timestamp**: 2026-08-24T23:42:00Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: U1 FD approved. Proceeding to U1 Code Generation Part 1 (planning).
+**Context**: CONSTRUCTION — U1 FD approved → U1 Code Generation
+
+---
+
+## U1 auto-categorize — Code Generation Plan Issued
+**Timestamp**: 2026-08-24T23:46:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created construction/plans/auto-categorize-code-generation-plan.md — 9 steps: service (embed.py rank() with injectable fake embedder for tests, /categorize handler replacing 501, pytest), client (aiSuggest.js pure engine + tests incl fast-check, SuggestionChips + GraduationOffer, additive wiring into TxChips/TxPhoneList/Transactions/Dashboard, wiring tests, consolidated verify + code-summary). e5-small kept in api CPU container (no GPU) per NFR. Story rollup US-5..8. SDD execution noted. Gate: awaiting plan approval before generation.
+**Context**: CONSTRUCTION — U1 Code Generation Part 1, approval gate
+
+---
+
+## U1 auto-categorize — Code Generation Plan APPROVED
+**Timestamp**: 2026-08-24T23:52:00Z
+**User Input**: "Approve"
+**AI Response**: U1 codegen plan approved. Executing Part 2 via SDD — parallel service delta (modal/embed.py + /categorize handler + pytest) and client (aiSuggest.js + chips/graduation + additive wiring + tests), then consolidated verification.
+**Context**: CONSTRUCTION — U1 Code Generation Part 2, generation
+
+---
+
+## U1 auto-categorize — Code Generation Complete (verified), Approval Prompt Presented
+**Timestamp**: 2026-08-24T23:58:00Z
+**User Input**: (none — automated generation via SDD)
+**AI Response**: Generated U1 via two parallel subagents. Service: modal/embed.py (pure rank() with injectable fake embedder + lazy e5-small singleton kept out of api import path), /categorize handler (CPU api function), app.py image adds pinned torch/transformers/sentence-transformers + volume mount + HF cache env, test_categorize.py (12) + test_routes.py edit → pytest 52 passed. Client: aiSuggest.js (pure engine, tunable consts, buildContext/collectTargets/validateSuggestions/recordAccept/dismissRule), SuggestionChips + GraduationOffer + useSuggestions (debounced 800ms batch, cache keyed by visible needs-cat set, failure-silence), additive edits to TxChips (NeedsCategoryPill byte-identical when no suggestions)/TxPhoneList/Transactions/Dashboard; aiSuggest.test.js (23 incl fast-check) + suggestions.wiring.test.jsx (11) → 34 passed, build green. prefs aiAcceptCounts/aiRuleDismissed ride existing setPrefs fall-through (no store/sync changes). Consolidated: full suite 101 files / 1449 tests PASS. Spot-checked TxChips no-suggestions path returns pre-AI element. code-summary.md written; plan checkboxes + US-5..8 ticked. Not committed yet (pending PR-structure decision + approval). Presenting approval gate.
+**Context**: CONSTRUCTION — U1 Code Generation Part 2, approval gate
+
+---
+
+## Delivery Mechanics — Amended to One Cycle PR
+**Timestamp**: 2026-08-25T00:05:00Z
+**User Input**: (decision) "One cycle PR (simplest)" — PR #210 grows into the whole AI-features cycle (U0..U4), reviewed per-unit via AI-DLC gates, merged once at the end.
+**AI Response**: Supersedes unit-of-work-plan Q1=A (one PR per unit). U1..U4 commit onto worktree-ai-features / PR #210. Recorded the amendment; committing U1.
+**Context**: CONSTRUCTION — delivery mechanics amendment
+
+---

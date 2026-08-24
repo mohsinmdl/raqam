@@ -18,6 +18,8 @@ import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
 import CategoryPickerPopover from '../components/CategoryPickerPopover.jsx';
 import { setTransactionsCategory } from '../store/actions.js';
+import { useSuggestions } from '../ui/ai/useSuggestions.js';
+import GraduationOffer from '../ui/ai/GraduationOffer.jsx';
 import { effectiveNextDate, overdueRules, upcomingRules } from '../lib/schedule.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { leftToSpend } from '../lib/leftToSpend.js';
@@ -136,6 +138,28 @@ export default function Dashboard() {
   // sit below it, so completing/skipping setup changed the hook count and React
   // threw "Rendered more hooks than during the previous render".
   const env = useMemo(() => envelopeFor(S, month, now), [S, month, now]);
+
+  // U1 auto-categorize: the needs-category ids among the SAME top-8 recents the
+  // section renders below (top-8 by date, then needs-category), and the debounced
+  // batch/cache/graduation for them. Must run before the first-use early return
+  // (Rules of Hooks). Empty (no chips, no offer) whenever AI is off/low-history.
+  const recentNeedsCat = useMemo(
+    () => new Set(
+      S.transactions.filter(t => C.inMonth(t, month))
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 8)
+        .filter(t => !t.category && (t.type === 'expense' || t.type === 'income' || t.type === 'refund'))
+        .map(t => t.id),
+    ),
+    [S.transactions, month],
+  );
+  const { suggestions: aiSuggestions, recordAccept: recordAiAccept, offer: gradOffer, acceptOffer: acceptGradOffer, dismissOffer: dismissGradOffer } = useSuggestions(recentNeedsCat);
+  // Chip tap: the SAME single write as categorizeOne, plus the graduation counter.
+  const applySuggestion = (txId, categoryId) => {
+    applyData(data => setTransactionsCategory(data, { ids: [txId], categoryId }));
+    flashRows([txId]);
+    recordAiAccept(txId, categoryId);
+  };
 
   if (showFirstUse) return <FirstUse setup={setup} onSkip={() => setPrefs({ skippedSetup: true })} />;
 
@@ -373,6 +397,14 @@ export default function Dashboard() {
           )}
         </section>
 
+        {/* U1: one-time graduation offer after a 3rd same-payee accept (US-7),
+            above the recents it was triggered from. Non-blocking. */}
+        {gradOffer && (
+          <GraduationOffer
+            payeeName={gradOffer.payeeName} categoryId={gradOffer.categoryId} categoryName={gradOffer.categoryName}
+            onAccept={acceptGradOffer} onDismiss={dismissGradOffer}
+          />
+        )}
         <section aria-label="Recent transactions" className="dash-recent" style={{ ...card, padding: '16px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <h2 style={h2}>Recent transactions</h2><span style={{ flex: 1 }} />
@@ -388,7 +420,8 @@ export default function Dashboard() {
                     <TxChips row={t} />
                   </div>
                   <div className="tx-cell-cat" style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                    {t.needsCategory ? <NeedsCategoryPill fontSize={11} onClick={e => openRowCategorize(t.id, e?.currentTarget)} /> : (
+                    {t.needsCategory ? <NeedsCategoryPill fontSize={11} onClick={e => openRowCategorize(t.id, e?.currentTarget)}
+                      suggestions={aiSuggestions.get(t.id)} onApply={cid => applySuggestion(t.id, cid)} /> : (
                       <span style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
                     )}
                   </div>
