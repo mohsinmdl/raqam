@@ -1,20 +1,34 @@
-# Unit Test Execution — Multi-Plan
+# Unit Test Execution — AI Features (Cycle 2)
 
-## Run
+## Client (vitest)
 ```bash
-pnpm test          # vitest run — whole suite
-pnpm test tests/plan-scoping.test.js tests/plan-provider.test.js tests/plan-format.test.js tests/plan-format.pbt.test.js tests/plan-shell.test.js   # feature-only
+pnpm test
 ```
+- **Expected**: **107 test files, 1520 tests, 0 failures** (whole app; the
+  cycle-2 additions are among them). Duration ~3–5s.
+- Cycle-2 unit/mock test files:
+  - `src/lib/ai.test.js`, `src/lib/aiWarming.test.js` (U0)
+  - `src/lib/aiSuggest.test.js`, `src/ui/ai/suggestions.wiring.test.jsx` (U1)
+  - `src/lib/smsParse.test.js`, `src/ui/ai/pasteSms.wiring.test.js` (U2)
+  - `src/lib/receiptSeed.test.js`, `src/ui/ai/receiptScan.wiring.test.js` (U3)
+  - `src/lib/digestData.test.js`, `src/ui/ai/insights.wiring.test.jsx` (U4)
+- Property-based (fast-check, per the enforced PBT subset): suggestion
+  id-integrity, SMS parser round-trips, receipt seed invariants.
+- Env: node (no jsdom) — UI assertions use `react-dom/server` per repo
+  convention; AI network is mocked via `useAI`/`ai.js` stubs.
 
-## Expected
-- **95 test files / 1363 tests, 0 failures** (as of U4 completion; live-verification fixes may add more)
-- Feature suites: `plan-scoping` (mappers, stamping symmetry, fetch filters, actions, prefs fold), `plan-provider` (resolveOpenPlan), `plan-format` (42 examples incl. catalogue-consistency vs 0017 CHECK lists), `plan-format.pbt` (P1–P9 fast-check properties, 100 runs each), `plan-shell` (16 pure-logic tests)
-- **Equivalence oracle**: `src/lib/calc.decimals.test.js`, `src/lib/calc.mask.test.js`, `tests/amount-input.test.js`, `tests/calc-expr.test.js`, `tests/typed-date.test.js`, `tests/spendingExport.test.js` pass UNMODIFIED — proving migrated rendering is byte-identical
+## Service (pytest)
+```bash
+modal/.venv/bin/python -m pytest modal/tests -q
+```
+- **Expected**: **101 passed** (2 pre-existing benign warnings). No GPU, no model
+  download, no Modal account — every model call is an injected fake.
+- Files: `test_health_cors.py`, `test_auth.py`, `test_routes.py`,
+  `test_contract.py` (U0), `test_categorize.py` (U1), `test_parse_sms.py` (U2),
+  `test_parse_receipt.py` (U3), `test_digest.py` (U4).
 
-## PBT reproducibility (PBT-08)
-On a property failure, fast-check prints the seed and the shrunk counterexample. Re-run deterministically by passing `{ seed }` to the failing `fc.assert` locally. CI (deploy.yml test step) logs the same output. Flaky property failures are investigated, never retried away.
-
-## Fixing failures
-1. Read the failing assertion + (for PBT) the shrunk minimal input
-2. Decide: implementation bug vs stale expectation — the equivalence-oracle files must NEVER be edited to pass
-3. Fix, re-run the single file, then the whole suite
+## On failure
+1. Client: read the vitest file:line; the AI modules are pure/mocked, so a
+   failure is local. 2. Service: the pure `rank`/`parse_*`/`narrate` functions are
+   fully unit-tested with deterministic fakes; fix and rerun. Rerun until green
+   before requesting review.

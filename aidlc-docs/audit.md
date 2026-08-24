@@ -968,3 +968,28 @@ however i can see in the raw md file." (with 2 screenshots: rendered preview hid
 **Context**: CONSTRUCTION — U4 Code Generation Part 2, approval gate; per-unit loop complete
 
 ---
+
+## U4 insights-digest — Code Generation APPROVED / Per-Unit Loop Complete
+**Timestamp**: 2026-08-25T03:08:00Z
+**User Input**: "Continue to Next Stage" / "continue"
+**AI Response**: U4 approved (committed 2132370, pushed to PR #210). Per-unit loop U0..U4 COMPLETE. Proceeding to Build and Test — the final CONSTRUCTION stage (consolidated build/test instruction docs + live-endpoint smoke runsheet for US-4/11/13/15).
+**Context**: CONSTRUCTION — U4 approved → Build and Test
+
+---
+
+## Build and Test Stage
+**Timestamp**: 2026-08-25T03:15:00Z
+**Build Status**: Success (client Vite built; service py_compile clean, api imports light)
+**Test Status**: Pass (client vitest 1520/1520 across 107 files; service pytest 101 passed; contract lockstep + cross-unit mock flows pass; security baseline pass where testable)
+**Files Generated**:
+- build-instructions.md
+- unit-test-instructions.md
+- integration-test-instructions.md
+- performance-test-instructions.md
+- security-test-instructions.md
+- live-smoke-runsheet.md
+- build-and-test-summary.md
+**AI Response**: Generated the Build & Test instruction set + summary. Live-tagged stories US-4/11/13/15 are code-complete with a live smoke runsheet, pending operator deploy (mirrors cycle 1's apply-time proofs). Ready for Operations. Presenting approval gate.
+**Context**: CONSTRUCTION — Build and Test complete → Operations
+
+---
