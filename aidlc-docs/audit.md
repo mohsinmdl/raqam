@@ -993,3 +993,15 @@ however i can see in the raw md file." (with 2 screenshots: rendered preview hid
 **Context**: CONSTRUCTION — Build and Test complete → Operations
 
 ---
+
+## Build and Test — APPROVED
+**Timestamp**: 2026-08-25T03:22:00Z
+**User Input**: "Approve & Continue"
+**AI Response**: Build & Test approved. Entering Operations (placeholder → delivery hand-off, as in cycle 1). Cycle 2 (AI features) INCEPTION + CONSTRUCTION complete; all 5 units + Build&Test on PR #210. Remaining is a human runsheet: modal deploy + secret + smoke + set VITE_AI_ENDPOINT + merge #210 + post-deploy live smoke (US-4/11/13/15).
+**Context**: CONSTRUCTION complete → OPERATIONS (hand-off)
+
+## Operations — Delivery Hand-off (AI features cycle 2)
+**Timestamp**: 2026-08-25T03:22:00Z
+**User Input**: (n/a — hand-off)
+**AI Response**: AI-DLC cycle 2 COMPLETE through Operations hand-off. Deliverable: PR #210 (worktree-ai-features → main) = U0 ai-foundation, U1 auto-categorize, U2 sms-parse, U3 receipt-scan, U4 insights-digest + Build&Test docs + all inception/construction AI-DLC artifacts. Verified: client 1520 vitest + build green; service 101 pytest; contract lockstep; security baseline. Human runsheet (see infrastructure-design/deployment-architecture.md, modal/README.md, build-and-test/live-smoke-runsheet.md): (1) modal setup; (2) modal secret create raqam-supabase-jwt; (3) modal deploy modal/app.py; (4) modal run modal/smoke.py (US-4 live); (5) set VITE_AI_ENDPOINT (Pages env + .env.local); (6) merge #210 (client auto-deploys); (7) enable the per-user AI toggle; (8) run the B–D live smoke (US-11/13/15) and log results here. Rollback: toggle off → unset env → modal app stop raqam-ai. First model cold starts download weights into the raqam-ai-models volume once.
+**Context**: OPERATIONS — hand-off complete; AI-DLC cycle 2 CLOSED
