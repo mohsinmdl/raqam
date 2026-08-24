@@ -44,8 +44,10 @@ api_image = (
         "sentence-transformers==3.3.1",
     )
     .env(_MODEL_ENV)
-    # Ship the pure-Python service modules into the container.
-    .add_local_python_source("api", "auth", "embed", "schemas")
+    # Ship the pure-Python service modules into the container. ``models_llm`` is
+    # included for U2: the /parse-sms route runs its pure ``parse_sms`` on the api
+    # container (its vllm import is lazy, so the api image needs NO vllm/torch).
+    .add_local_python_source("api", "auth", "embed", "models_llm", "schemas")
 )
 
 # --------------------------------------------------------------------------- #
@@ -81,10 +83,47 @@ def api():
 
 
 # --------------------------------------------------------------------------- #
-# GPU functions are intentionally NOT defined in U0:
-#   * llm  — vLLM Qwen3-4B-Instruct (L4, max_containers=1) → /parse-sms, /digest
-#            added by U2.
-#   * vlm  — vLLM Qwen2.5-VL-7B-Instruct (L4, own image)   → /parse-receipt
-#            added by U3.
-# They mount `models_volume` and are called via `.remote()` from the api routes.
+# GPU llm function (U2) — the FIRST real GPU function. Serves
+# Qwen/Qwen3-4B-Instruct via vLLM with GUIDED (structured) JSON decoding, on its
+# OWN image (vllm + torch pinned) so the CPU api image stays lean. Weights are
+# cached on the shared `raqam-ai-models` volume (HF cache env via _MODEL_ENV, the
+# same one U1 set for `api`). max_containers=1 caps GPU cost; L4 fits a 4B model.
+#
+# `llm_generate(prompt) -> str` runs the guided-JSON generation and is called via
+# `.remote()` from the /parse-sms route (api.py → models_llm.parse_sms). U4
+# (/digest) reuses this same function.
+# --------------------------------------------------------------------------- #
+llm_image = (
+    modal.Image.debian_slim(python_version="3.12")
+    .pip_install(
+        # vLLM pulls its own matching CUDA torch build; torch pinned alongside so
+        # the pair is an explicit, reproducible lockfile diff. GPU-only deps.
+        "vllm==0.11.0",
+        "torch==2.8.0",
+    )
+    .env(_MODEL_ENV)
+    # Only the pure model module is needed in the GPU container (it holds the
+    # prompt, the guided-JSON schema, and the lazy vLLM generator).
+    .add_local_python_source("models_llm")
+)
+
+
+@app.function(
+    image=llm_image,
+    gpu="L4",
+    volumes={MODELS_DIR: models_volume},
+    max_containers=1,
+    timeout=600,
+)
+def llm_generate(prompt: str) -> str:
+    # Imported inside the container (where the image provides vllm + source).
+    from models_llm import generate
+
+    return generate(prompt)
+
+
+# --------------------------------------------------------------------------- #
+# Remaining GPU function is intentionally NOT defined yet:
+#   * vlm  — vLLM Qwen2.5-VL-7B-Instruct (L4, own image) → /parse-receipt (U3).
+# It mounts `models_volume` and is called via `.remote()` from the api route.
 # --------------------------------------------------------------------------- #

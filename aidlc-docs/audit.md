@@ -840,3 +840,67 @@ however i can see in the raw md file." (with 2 screenshots: rendered preview hid
 **Context**: CONSTRUCTION — delivery mechanics amendment
 
 ---
+
+## U1 auto-categorize — Code Generation APPROVED
+**Timestamp**: 2026-08-25T00:12:00Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: U1 approved (committed ae6d2bc, pushed to PR #210). Proceeding to U2 sms-parse — Functional Design.
+**Context**: CONSTRUCTION — U1 approved → U2 Functional Design
+
+---
+
+## U2 sms-parse — Functional Design Plan Issued
+**Timestamp**: 2026-08-25T00:16:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created construction/plans/sms-parse-functional-design-plan.md with 7 pre-filled questions: (1) data-driven {bank,test,extract} registry + generic fallback; (2) v1 banks = seeded institutions + JazzCash/easypaisa/Raqami, LLM as net; (3) parse SMS's own digits to integer PKR, ignore plan numberFormat; (4) debit→expense/credit→income + exactly-one last4 match to acc:/card: ref else blank; (5) parse common PK date formats else today; (6) LLM only when tier-1 null AND enabled, same shape, failure→empty editor w/ SMS in notes; (7) paste sheet(phone)/dialog(desktop) → openers.addTx seed. Gate: awaiting answers/approval.
+**Context**: CONSTRUCTION — U2 Functional Design, question gate
+
+---
+
+## U2 sms-parse — Functional Design Plan APPROVED
+**Timestamp**: 2026-08-25T00:22:00Z
+**User Input**: "go ahead"
+**AI Response**: U2 FD plan approved (Q1–Q7 = A). Generating U2 functional-design artifacts.
+**Context**: CONSTRUCTION — U2 Functional Design, generation
+
+---
+
+## U2 sms-parse — Functional Design Generated, Approval Prompt Presented
+**Timestamp**: 2026-08-25T00:28:00Z
+**User Input**: (none — automated stage steps)
+**AI Response**: Generated 4 FD artifacts under construction/sms-parse/functional-design/: business-logic-model.md (L1 tier-1 registry parse, L2 field extraction rules, L3 LLM tier gate, L4 last4 account resolution, L5 seed building debit→expense/credit→income, L6 orchestration with notes-fallback), business-rules.md (BR-U2-1..12 + edge scenarios), domain-entities.md (ParsedSms all-optional, BankPattern registry entry, AddTxSeed subset — no synced entities, no prefs), frontend-components.md (PasteSmsEntry sheet/dialog, states incl warming, testids, additive wiring into add-tx cluster via openers). Plan checklist ticked. Presenting approval gate; next: U2 Code Generation.
+**Context**: CONSTRUCTION — U2 Functional Design, approval gate
+
+---
+
+## U2 sms-parse — Functional Design APPROVED
+**Timestamp**: 2026-08-25T00:34:00Z
+**User Input**: "go ahead;"
+**AI Response**: U2 FD approved. Proceeding to U2 Code Generation Part 1 (planning).
+**Context**: CONSTRUCTION — U2 FD approved → U2 Code Generation
+
+---
+
+## U2 sms-parse — Code Generation Plan Issued
+**Timestamp**: 2026-08-25T00:38:00Z
+**User Input**: (none — automated stage step)
+**AI Response**: Created construction/plans/sms-parse-code-generation-plan.md — 9 steps: service (models_llm.py Qwen3-4B vLLM guided-JSON with injectable fake generator, /parse-sms handler = first GPU function, pytest), client (smsParse.js registry+parseSmsLocal+resolveAccount+toTxSeed, tests incl fast-check, PasteSmsEntry sheet/dialog, additive openers.pasteSms entry point, wiring test, verify+summary). Story rollup US-9..12. SDD noted. Gate: awaiting plan approval.
+**Context**: CONSTRUCTION — U2 Code Generation Part 1, approval gate
+
+---
+
+## U2 sms-parse — Code Generation Plan APPROVED
+**Timestamp**: 2026-08-25T00:44:00Z
+**User Input**: "go ahead;"
+**AI Response**: U2 codegen plan approved. Executing Part 2 via SDD — parallel service (models_llm.py + /parse-sms + first GPU function + pytest) and client (smsParse.js registry + PasteSmsEntry + openers entry + tests), then consolidated verification.
+**Context**: CONSTRUCTION — U2 Code Generation Part 2, generation
+
+---
+
+## U2 sms-parse — Code Generation Complete (verified), Approval Prompt Presented
+**Timestamp**: 2026-08-25T02:15:00Z
+**User Input**: (none — automated generation via SDD)
+**AI Response**: Generated U2 via two parallel subagents. Service: models_llm.py (pure parse_sms + guided-JSON schema + lazy vLLM Qwen3-4B), /parse-sms handler via modal.Function.from_name (api stays SDK-free), first GPU function llm_generate (L4, own vllm image), test_parse_sms.py (14) + test_routes.py edit → pytest 66 passed. Client: smsParse.js (11-bank registry + generic fallback + parseSmsLocal/resolveAccount/toTxSeed), pasteSmsFlow.js (node-testable L6), PasteSmsEntry.jsx (Base UI sheet/dialog); additive edits openers.pasteSms + App.jsx held-mount + AddTxPill (phone, AI-gated) + Transactions toolbar (desktop, AI-gated) + ToolbarAction SmsIcon; smsParse.test.js (38 incl fast-check) + pasteSms.wiring.test.js (5) → 43 passed, build green. Consolidated: full suite 103 files / 1492 tests PASS. Spot-checked AddTxPill/App mount (gated, additive). code-summary.md written; checkboxes + US-9..12 ticked. Presenting approval gate; next: U3 receipt-scan.
+**Context**: CONSTRUCTION — U2 Code Generation Part 2, approval gate
+
+---
