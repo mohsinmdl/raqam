@@ -2,6 +2,7 @@
 // Extracted because this markup was duplicated verbatim across Transactions,
 // AccountDetail and Dashboard, and every tweak had to be made three times.
 import { RepeatIcon, TransferIcon } from './icons.jsx';
+import SuggestionChips from './ai/SuggestionChips.jsx';
 
 const chip = (bg, fg) => ({
   fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999,
@@ -26,23 +27,24 @@ const chip = (bg, fg) => ({
 // needs a category" states a problem, "Categorize?" offers an action). Once
 // the saved-state ends the caller switches tone back to 'warn' — same id,
 // same click handler, no flash.
-export function NeedsCategoryPill({ fontSize = 12, onClick, tone = 'warn' }) {
+// U1: `suggestions` (validated 0–2 array) + `onApply` render AI SuggestionChips
+// alongside the pill; `compact` renders the phone (span, pointer-only) chip
+// variant. With no suggestions the output is the exact pre-AI pill — byte for
+// byte — so the AI feature stays invisible when off/low-history/failed.
+export function NeedsCategoryPill({ fontSize = 12, onClick, tone = 'warn', suggestions, onApply, compact }) {
   const accent = tone === 'accent';
   const label = accent ? 'Categorize?' : 'This needs a category';
   const title = accent ? 'Add a category to this transaction.' : "Assign a category to this transaction so you'll know what you spent your money on.";
   const look = { ...chip(accent ? 'var(--soft)' : 'var(--warn-soft)', accent ? 'var(--accent)' : 'var(--text)'), fontSize, fontWeight: 500 };
-  if (!onClick) {
-    return (
-      <span
-        title={title}
-        aria-label={accent ? title : 'This needs a category. ' + title}
-        style={look}
-      >
-        {label}
-      </span>
-    );
-  }
-  return (
+  const pill = !onClick ? (
+    <span
+      title={title}
+      aria-label={accent ? title : 'This needs a category. ' + title}
+      style={look}
+    >
+      {label}
+    </span>
+  ) : (
     <button
       type="button"
       onClick={e => { e.stopPropagation(); onClick(e); }}
@@ -53,6 +55,13 @@ export function NeedsCategoryPill({ fontSize = 12, onClick, tone = 'warn' }) {
     >
       {label}
     </button>
+  );
+  if (!suggestions || !suggestions.length) return pill;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
+      <SuggestionChips suggestions={suggestions} onApply={onApply} compact={compact} />
+      {pill}
+    </span>
   );
 }
 

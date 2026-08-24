@@ -4,14 +4,18 @@ import pytest
 
 from .conftest import make_hs256_token
 
+# Every auth-gated feature route.
 FEATURE_ROUTES = ["/categorize", "/parse-sms", "/parse-receipt", "/digest"]
+# Routes still returning the 501 stub. /categorize is implemented in U1, so it is
+# no longer here (its behavior is covered by tests/test_categorize.py).
+STUBBED_ROUTES = ["/parse-sms", "/parse-receipt", "/digest"]
 
 
 def _auth_header():
     return {"Authorization": f"Bearer {make_hs256_token()}"}
 
 
-@pytest.mark.parametrize("route", FEATURE_ROUTES)
+@pytest.mark.parametrize("route", STUBBED_ROUTES)
 def test_feature_route_501_when_authed(client, hs256_env, route):
     r = client.post(route, json={}, headers=_auth_header())
     assert r.status_code == 501

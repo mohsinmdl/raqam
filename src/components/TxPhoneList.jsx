@@ -6,6 +6,7 @@
 // toggles membership; circles render on the left. Amounts arrive
 // pre-formatted (amtLabel/amtColor).
 import TxChips from '../ui/TxChips.jsx';
+import SuggestionChips from '../ui/ai/SuggestionChips.jsx';
 import { schedNote } from '../lib/txRow.js';
 
 const chipStyle = (bg, fg) => ({
@@ -28,7 +29,7 @@ function Circle({ on }) {
   );
 }
 
-function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, hideAccount, last, needsCat, onCategorize, flash }) {
+function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, hideAccount, last, needsCat, onCategorize, flash, suggestions, onApplySuggestion }) {
   const payee = t.merchant || 'No Payee Set';
   // Pointer-only shortcut on the chip (a nested <button> inside the row button
   // would be invalid): tap opens the category picker directly. Keyboard users
@@ -78,6 +79,12 @@ function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, h
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, minWidth: 0 }}>
           <span style={{ flex: 1, minWidth: 0, display: 'flex', gap: 6, alignItems: 'center', overflow: 'hidden' }}>
+            {/* U1: AI chips sit beside the needs-category chip under the same
+                pointer rule — the row is a <button>, so SuggestionChips renders
+                pointer-only spans in compact mode. Off in select mode. */}
+            {needsCat && !selectMode && suggestions && suggestions.length > 0 && (
+              <SuggestionChips suggestions={suggestions} onApply={cid => onApplySuggestion(t.id, cid)} compact />
+            )}
             {catChip}
             <TxChips row={t} />
           </span>
@@ -107,7 +114,7 @@ export default function TxPhoneList({
   groups, postedRows, scheduled, schedKey, schedOpen, onToggleSchedOpen,
   overdueCount, hiddenRuleCount, hideAccount, needsCat,
   selectMode, selected, schedSel, onToggleRow, onToggleSched, onRowTap, onSchedTap,
-  onCategorize, flashIds,
+  onCategorize, flashIds, suggestions, onApplySuggestion,
 }) {
   const note = schedNote(overdueCount, hiddenRuleCount);
   const rowProps = t => ({
@@ -117,6 +124,9 @@ export default function TxPhoneList({
     onTap: () => onRowTap(t),
     onCategorize,
     flash: !!flashIds && flashIds.has(t.id),
+    // U1: per-row AI suggestions (undefined when AI is off — no chips render).
+    suggestions: suggestions && suggestions.get(t.id),
+    onApplySuggestion,
   });
   return (
     <div>

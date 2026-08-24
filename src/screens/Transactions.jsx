@@ -39,6 +39,8 @@ import TxPhoneList from '../components/TxPhoneList.jsx';
 import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
 import CategoryPickerPopover from '../components/CategoryPickerPopover.jsx';
 import TxEditorRow from '../ui/tx/inline/TxEditorRow.jsx';
+import { useSuggestions } from '../ui/ai/useSuggestions.js';
+import GraduationOffer from '../ui/ai/GraduationOffer.jsx';
 
 // Sticky against <main>'s scroll. No overflow is introduced here — the section
 // deliberately has none, because it would clip the per-row ⋯ menu. z-index sits
@@ -211,7 +213,7 @@ function AccountLabel({ t, fontSize, color }) {
   return <span style={{ display: 'block', maxWidth: '100%', fontSize, color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span>;
 }
 
-function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo, showBalance, foldAccount, focused, onCategorize, flash, saved }) {
+function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo, showBalance, foldAccount, focused, onCategorize, flash, saved, suggestions, onApplySuggestion }) {
   // Fixed 2.25rem (36px) row height, YNAB-style — so the vertical padding is
   // zero and content is centred by the cells' middle alignment; horizontal
   // padding is all that remains.
@@ -317,7 +319,8 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
           // just finished being saved, and calling that a mistake mid-moment
           // reads as a scold. The instant the saved-state ends the amber pill
           // takes back over (same t.needsCategory, saved just goes false).
-          ? <NeedsCategoryPill tone={saved ? 'accent' : 'warn'} onClick={onCategorize ? e => onCategorize(t.id, e?.currentTarget) : undefined} />
+          ? <NeedsCategoryPill tone={saved ? 'accent' : 'warn'} onClick={onCategorize ? e => onCategorize(t.id, e?.currentTarget) : undefined}
+              suggestions={suggestions} onApply={onApplySuggestion ? cid => onApplySuggestion(t.id, cid) : undefined} />
           : <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>}
       </td>
       {/* Memo: adjustment reason and/or free-text note, truncated with an ellipsis and the full value on hover. Dropped under ~1000px container width. */}
@@ -862,6 +865,18 @@ export default function Transactions() {
     flashRows([id]);
   };
 
+  // U1 auto-categorize: the debounced batch + cache + graduation for the visible
+  // needs-category rows. Empty (no chips, no offer) whenever AI is off / history
+  // is low / the batch fails, so the register reads exactly as pre-AI.
+  const { suggestions: aiSuggestions, recordAccept: recordAiAccept, offer: gradOffer, acceptOffer: acceptGradOffer, dismissOffer: dismissGradOffer } = useSuggestions(needsCat);
+  // Chip tap: the SAME write as categorizeOne (the only category write path),
+  // plus the graduation counter. Applied directly since we already hold the id.
+  const applySuggestion = (txId, categoryId) => {
+    applyData(data => setTransactionsCategory(data, { ids: [txId], categoryId }));
+    flashRows([txId]);
+    recordAiAccept(txId, categoryId);
+  };
+
   const bulkCategorize = categoryId => {
     const canTakeExpenseCat = t => t.type === 'expense' || t.type === 'refund';
     const ids = sel.filter(id => { const t = S.transactions.find(x => x.id === id); return t && canTakeExpenseCat(t); });
@@ -1293,6 +1308,15 @@ export default function Transactions() {
             overflowY is explicitly hidden on the Viewport: this wrapper's
             height is never capped, so vertical scrolling belongs solely to
             <main>, never to this local wrapper. */}
+        {/* U1: the one-time graduation offer after a 3rd same-payee accept
+            (US-7). Non-blocking; sits above the list and auto-dismisses when the
+            screen unmounts (offer state is local to this screen). */}
+        {gradOffer && (
+          <GraduationOffer
+            payeeName={gradOffer.payeeName} categoryId={gradOffer.categoryId} categoryName={gradOffer.categoryName}
+            onAccept={acceptGradOffer} onDismiss={dismissGradOffer}
+          />
+        )}
         <section ref={tableWrapRef} aria-label="Transaction list" className="tx-table-wrap" style={{ background: 'var(--surface)', border: flush ? 'none' : '1px solid var(--border)', borderRadius: flush ? 0 : 12 }}>
         <ScrollArea style={{ width: '100%' }}>
         <ScrollAreaViewport style={{ width: '100%', overflowY: 'hidden' }}>
@@ -1385,6 +1409,7 @@ export default function Transactions() {
                       key={t.id} t={t} selId={t.id} hideAccount={hideAccountCol} hideMemo={hideMemoCol} showBalance={showBalanceCol} foldAccount={foldAccount}
                       checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
                       onCategorize={openRowCategorize} flash={flashIds.has(t.id)} saved={lastSaved.has(t.id)}
+                      suggestions={aiSuggestions.get(t.id)} onApplySuggestion={applySuggestion}
                     />))}
               </tbody>
             </table>
@@ -1401,6 +1426,7 @@ export default function Transactions() {
               onToggleSched={toggleSched}
               onRowTap={t => openers.editTx(S, t.id, openDrawer)}
               onCategorize={setCatTarget}
+              suggestions={aiSuggestions} onApplySuggestion={applySuggestion}
               onSchedTap={x => (x.row.isRule ? navigate('/recurring/' + x.row.ruleId) : openers.editTx(S, x.selId, openDrawer))}
             />
           )}

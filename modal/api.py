@@ -38,11 +38,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # Dual-context imports: as a package (``modal.api``) under pytest, or as
 # top-level modules when Modal runs a script from inside the ``modal/`` dir.
 try:
-    from . import auth
-    from .schemas import HealthResponse
+    from . import auth, embed
+    from .schemas import CategorizeRequest, CategorizeResponse, HealthResponse
 except ImportError:  # pragma: no cover - exercised only in the Modal script context
     import auth  # type: ignore
-    from schemas import HealthResponse  # type: ignore
+    import embed  # type: ignore
+    from schemas import CategorizeRequest, CategorizeResponse, HealthResponse  # type: ignore
 
 # Version reported by /health — kept in step with fixtures/health.response.json.
 VERSION = "0.1.0"
@@ -178,9 +179,16 @@ def create_app() -> FastAPI:
     # multipart ``image`` field) when they implement the handler.
     _NOT_IMPLEMENTED = 501
 
-    @app.post("/categorize")
-    async def categorize(user_id: str = Depends(authed_user)):
-        raise HTTPException(status_code=_NOT_IMPLEMENTED, detail="not implemented")
+    @app.post("/categorize", response_model=CategorizeResponse)
+    async def categorize(
+        payload: CategorizeRequest,
+        user_id: str = Depends(authed_user),
+    ) -> CategorizeResponse:
+        # U1: embeddings-only kNN, no LLM. rank() is pure; the production
+        # embedder (embed.embed_texts) is a lazy singleton that loads the model
+        # on first real call — tests monkeypatch it so no weights download.
+        suggestions = embed.rank(payload.model_dump(), embed.embed_texts)
+        return CategorizeResponse(suggestions=suggestions)
 
     @app.post("/parse-sms")
     async def parse_sms(user_id: str = Depends(authed_user)):
