@@ -9,6 +9,11 @@
 #   CLOUDFLARE_API_TOKEN     token with "Cloudflare Pages: Edit" permission
 #   VITE_SUPABASE_URL        baked into the bundle at build time
 #   VITE_SUPABASE_ANON_KEY   publishable anon key (safe in the bundle; RLS guards data)
+# Variables (optional; Settings -> Secrets and variables -> Actions -> Variables):
+#   VITE_AI_ENDPOINT         Modal AI service URL (public-class, like the anon key).
+#                            When unset the AI features simply stay hidden (the
+#                            in-app toggle reads "Unavailable"); set it to light
+#                            them up, then they remain default-OFF per user.
 name: Deploy
 
 on:
@@ -43,6 +48,9 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Public-class Modal AI endpoint; empty when the Actions variable is
+          # unset -> AI features stay hidden (aiConfigured() is false).
+          VITE_AI_ENDPOINT: ${{ vars.VITE_AI_ENDPOINT }}
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
