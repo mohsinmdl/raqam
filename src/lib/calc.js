@@ -91,6 +91,21 @@ export function openingOf(acc, snapshots, month) {
   const s = snapshots.find(x => x.accountId === acc.id && x.month === month);
   return s ? s.amount : 0;
 }
+// Opening snapshots still awaiting confirmation for `month`. A freshly added
+// account writes its opening balance as `status:'pending'` (actions.js
+// addAccount): Working Balance counts it immediately (openingOf ignores
+// status), but Ready to Assign gates on `status:'confirmed'` (envelope.js
+// earliestOpeningSnapshots), so the two silently disagree until confirmed.
+// The Plan tab's RTA nudge reads this to name the gap and offer a one-click
+// confirmSnapshots. Pure — total, the raw snaps, and account nicknames.
+export function pendingOpening(store, month) {
+  const snaps = (store.snapshots || []).filter(s => s.month === month && s.status === 'pending');
+  const accounts = snaps.map(s => {
+    const a = (store.accounts || []).find(x => x.id === s.accountId);
+    return { id: s.accountId, nick: a ? a.nickname : s.accountId, amount: s.amount };
+  });
+  return { total: snaps.reduce((t, s) => t + s.amount, 0), snaps, accounts };
+}
 export function accountBalance(acc, store, month, now) {
   const open = openingOf(acc, store.snapshots, month);
   return open + store.transactions.filter(t => inMonth(t, month)).reduce((s, t) => s + accountDelta(t, acc.id, now), 0);
