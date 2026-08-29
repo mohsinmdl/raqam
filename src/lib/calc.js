@@ -91,20 +91,43 @@ export function openingOf(acc, snapshots, month) {
   const s = snapshots.find(x => x.accountId === acc.id && x.month === month);
   return s ? s.amount : 0;
 }
-// Opening snapshots still awaiting confirmation for `month`. A freshly added
-// account writes its opening balance as `status:'pending'` (actions.js
-// addAccount): Working Balance counts it immediately (openingOf ignores
-// status), but Ready to Assign gates on `status:'confirmed'` (envelope.js
-// earliestOpeningSnapshots), so the two silently disagree until confirmed.
-// The Plan tab's RTA nudge reads this to name the gap and offer a one-click
-// confirmSnapshots. Pure — total, the raw snaps, and account nicknames.
+// Opening snapshots whose confirmation would actually move money into Ready to
+// Assign for `month`. Openings are seeded `status:'pending'` two ways — by the
+// monthly rollover for every active account (actions.js rolloverMonth, the
+// common case) and by addAccount for a brand-new account. Working Balance
+// counts a pending opening immediately (openingOf ignores status), but RTA
+// seeds from each account's EARLIEST CONFIRMED snapshot (envelope.js
+// earliestOpeningSnapshots), so the two disagree only until that earliest one
+// is confirmed. A later pending opening (e.g. this month's rollover for an
+// account already confirmed in an earlier month) restates money RTA already
+// holds — confirming it moves RTA by zero. So we surface a pending snapshot
+// ONLY when the account has no confirmed snapshot in this month or earlier;
+// otherwise the nudge would claim (and toast) money that is already counted.
+// The Plan tab's RTA nudge reads this to name the real gap and offer a
+// one-click confirmSnapshots. Pure — total, the raw snaps, and account nicks.
 export function pendingOpening(store, month) {
-  const snaps = (store.snapshots || []).filter(s => s.month === month && s.status === 'pending');
+  const all = store.snapshots || [];
+  const seededEarlier = accountId =>
+    all.some(s => s.accountId === accountId && s.status === 'confirmed' && s.month <= month);
+  const snaps = all.filter(s => s.month === month && s.status === 'pending' && !seededEarlier(s.accountId));
   const accounts = snaps.map(s => {
     const a = (store.accounts || []).find(x => x.id === s.accountId);
     return { id: s.accountId, nick: a ? a.nickname : s.accountId, amount: s.amount };
   });
   return { total: snaps.reduce((t, s) => t + s.amount, 0), snaps, accounts };
+}
+// Subtitle copy for the pending-opening nudge, kept pure (and out of the
+// component) so its grammar branches are unit-testable. Possessive and number
+// agree with the subject: "A’s opening balance is pending.", "A and B’s opening
+// balances are pending.", "A and N others’ opening balances are pending." — no
+// apostrophe-s on "others", which is already plural.
+export function openingPendingSubtitle(names) {
+  const who = names.length === 1 ? names[0]
+    : names.length === 2 ? names[0] + ' and ' + names[1]
+    : names[0] + ' and ' + (names.length - 1) + ' others';
+  const possessive = names.length >= 3 ? '’' : '’s';
+  const phrase = names.length === 1 ? ' opening balance is pending.' : ' opening balances are pending.';
+  return who + possessive + phrase;
 }
 export function accountBalance(acc, store, month, now) {
   const open = openingOf(acc, store.snapshots, month);

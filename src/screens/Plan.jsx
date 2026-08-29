@@ -13,7 +13,7 @@ import { envelopeFor } from '../lib/envelope.js';
 import { currentMonth, nowIso } from '../lib/dates.js';
 import { sortGroups, byOrderThenName } from '../lib/categoryOrder.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
-import { prevMonth, catRefs, fmtDate, duplicateCat, pendingOpening } from '../lib/calc.js';
+import { prevMonth, catRefs, fmtDate, duplicateCat, pendingOpening, openingPendingSubtitle } from '../lib/calc.js';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
@@ -418,22 +418,22 @@ function FixThisPopover({ rta, env, S, month, money, applyData }) {
   );
 }
 
-// A newly added account books its opening balance as a `pending` snapshot,
-// which Working Balance counts immediately but Ready to Assign withholds until
-// it is confirmed (calc.js pendingOpening / envelope.js earliestOpeningSnapshots).
-// Rather than let the two headline totals silently disagree, name the withheld
-// amount right under the RTA figure and offer a one-click confirm — the same
-// confirmSnapshots the Overview "Review now" drawer runs, scoped to just the
-// pending accounts at their entered amount. Rendered only for the current
-// month, because confirmSnapshots targets currentMonth().
+// An opening balance is booked as a `pending` snapshot — by the monthly
+// rollover for every account (actions.js rolloverMonth) and by addAccount for a
+// new one. Working Balance counts it immediately (openingOf ignores status) but
+// Ready to Assign withholds it until it becomes the account's earliest confirmed
+// snapshot (envelope.js earliestOpeningSnapshots). pendingOpening surfaces only
+// the pending openings whose confirmation would actually move RTA (not a
+// rollover restating money already counted), so we can name that withheld amount
+// right under the RTA figure and offer a one-click confirm — the same
+// confirmSnapshots the Overview "Review now" drawer runs, scoped to just those
+// accounts at their entered amount. Current month only: confirmSnapshots targets
+// currentMonth().
 function PendingOpeningNudge({ S, month, money, applyData }) {
   const { notify } = useUI();
   const pend = pendingOpening(S, month);
   if (!pend.snaps.length) return null;
-  const names = pend.accounts.map(a => a.nick);
-  const who = names.length === 1 ? names[0]
-    : names.length === 2 ? names[0] + ' and ' + names[1]
-    : names[0] + ' and ' + (names.length - 1) + ' others';
+  const subtitle = openingPendingSubtitle(pend.accounts.map(a => a.nick));
   const confirm = () => {
     applyData(d => confirmSnapshots(d, { values: Object.fromEntries(pend.snaps.map(s => [s.accountId, s.amount])) }));
     notify(money(pend.total) + ' added to Ready to Assign.');
@@ -443,7 +443,7 @@ function PendingOpeningNudge({ S, month, money, applyData }) {
       style={{ display: 'flex', alignItems: 'center', gap: 10, alignSelf: 'stretch', marginTop: 4, padding: '8px 10px', borderRadius: 8, background: 'var(--soft)', border: '1px solid var(--border)' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 600 }}>{money(pend.total)} not counted yet</div>
-        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{who}’s opening balance is pending.</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>
       </div>
       <button onClick={confirm} className="hv-accent rq-btn-solid"
         style={{ flex: 'none', height: 28, padding: '0 12px', border: 'none', borderRadius: 7, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Confirm</button>
@@ -482,9 +482,8 @@ function RtaBanner({ env, prevRta, month, money, moneyS, moneyPos, moneySPos, S,
       {over
         ? <FixThisPopover rta={rta} env={env} S={S} month={month} money={money} applyData={applyData} />
         : rta > 0 && <AssignPopover rta={rta} env={env} S={S} month={month} money={money} applyData={applyData} />}
-      {/* Opening balance still awaiting confirmation this month — named here so
-          RTA never silently trails Working Balance (confirmSnapshots is
-          current-month-scoped, so only surface it for the current month). */}
+      {/* Withheld opening balance, so RTA never silently trails Working Balance
+          (see PendingOpeningNudge; current-month-only per confirmSnapshots). */}
       {month === currentMonth() && <PendingOpeningNudge S={S} month={month} money={money} applyData={applyData} />}
     </div>
   );
