@@ -1103,7 +1103,12 @@ export default function Transactions() {
   }, [navEnabled]);
 
   return (
-    <div style={{ maxWidth: flush ? 'none' : 1180, margin: '0 auto', padding: flush ? '0 0 56px' : '24px 28px 56px' }}>
+    <div style={{ maxWidth: flush ? 'none' : 1180, margin: '0 auto', padding: flush ? '0 0 56px' : '24px 28px 56px',
+      // Flush mode's sections are all --surface (white); <main> is --bg (cream).
+      // Painting the full-height container white keeps the empty area below the
+      // last row from ceding to cream and drawing a split at the table's foot.
+      // Boxed mode keeps the cream so its rounded cards read as separate cards.
+      ...(flush ? { background: 'var(--surface)', minHeight: '100%' } : null) }}>
       {/* Wide mode is flush and seamless: no column gap, so the sections meet at
           a single divider line rather than sitting apart as separate cards. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: flush ? 0 : 14, animation: 'hsFade .25s ease' }}>
