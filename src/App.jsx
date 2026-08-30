@@ -104,7 +104,10 @@ function Shell() {
           onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
           style={{ position: 'absolute', top: 0, bottom: 0, left: sbW, width: 10, transform: 'translateX(-5px)', cursor: 'col-resize', zIndex: 50, display: 'flex', justifyContent: 'center' }}
         >
-          <span aria-hidden="true" style={{ width: (dragging || hover) ? 3 : 2, height: '100%', background: (dragging || hover) ? 'var(--accent)' : 'transparent', transition: 'background .15s ease, width .15s ease' }} />
+          {/* Fixed 3px width; the hover/drag "thicken" is a composited scaleX
+              (transformOrigin centre keeps it on the seam) rather than an
+              animated width, so the transition never triggers layout. */}
+          <span aria-hidden="true" style={{ width: 3, height: '100%', background: (dragging || hover) ? 'var(--accent)' : 'transparent', transform: (dragging || hover) ? 'scaleX(1)' : 'scaleX(0.667)', transformOrigin: 'center', transition: 'background .15s ease, transform .15s ease' }} />
         </div>
       )}
       <HeaderSlotProvider>
