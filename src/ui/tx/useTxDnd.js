@@ -44,9 +44,12 @@ function edgeAutoScroll(e) {
 // rows     — the recorded rows AS RENDERED (presenter rows; `.id` and `.sortAt`).
 // enabled  — reorder only makes sense in the natural date-desc order.
 // applyData/now — dispatch + injected clock for the pure reducer.
+// nowInView — is `now` inside the register's current date/month filter? Governs
+//            whether a top drop stamps the clock or the viewed date's latest
+//            moment (forwarded to resolveDrop → planDrop).
 // openPicker({ id, seed, x, y }) — called when the drop needs an explicit
 //            date/time instead of an interpolated one.
-export default function useTxDnd({ rows, enabled, applyData, now, openPicker }) {
+export default function useTxDnd({ rows, enabled, applyData, now, nowInView = true, openPicker }) {
   const [dragId, setDragId] = useState(null);
   const [target, setTarget] = useState(null); // { beforeId } — row the line sits above; null = end
 
@@ -80,13 +83,13 @@ export default function useTxDnd({ rows, enabled, applyData, now, openPicker }) 
     e.preventDefault();
     if (dragId == null || !target) { end(); return; }
     const rowDate = id => rows.find(r => r.id === id)?.sortAt;
-    const plan = resolveDrop({ ids, rowDate, dragId, beforeId: target.beforeId, now });
+    const plan = resolveDrop({ ids, rowDate, dragId, beforeId: target.beforeId, now, nowInView });
     if (plan) {
       if (plan.mode === 'auto') applyData(d => reorderTransaction(d, { id: plan.id, date: plan.date, now }));
       else openPicker({ id: plan.id, seed: plan.seed, x: e.clientX, y: e.clientY });
     }
     end();
-  }, [dragId, target, ids, rows, now, applyData, openPicker, end]);
+  }, [dragId, target, ids, rows, now, nowInView, applyData, openPicker, end]);
 
   // Handlers to spread onto a row's <tr>. null when reorder is off, so the row
   // stays a plain click/selection target.
