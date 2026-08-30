@@ -18,7 +18,12 @@ import { DEFAULT_SORT } from '../lib/sortRows.js';
 // state nothing could set — each is returning on the screen that owns the
 // question (sidebar, Categories, Budgets, reporting). Reinstating one means
 // adding its key back here and a branch to the Transactions predicate.
-export const DEFAULT_FILTERS = { q: '' };
+// `q` is the free-text query (drives the search box and its suggestions);
+// `term` is the structured facet a picked suggestion applies (an account, a
+// category, a status, a date or amount comparison, a field-scoped match). One
+// or the other is active — typing clears `term`, picking a suggestion clears
+// `q` and sets `term`. The predicate is matchesSearch (lib/txSearch.js).
+export const DEFAULT_FILTERS = { q: '', term: null };
 
 const Ctx = createContext(null);
 
