@@ -6,7 +6,21 @@ import { daysInMonth, hasOccurred } from './calc.js';
 import { inRange } from './dateRange.js';
 import { addMonths, currentMonth, monthsBetween, nowIso } from './dates.js';
 
-export const PALETTE = ['#0F766E', '#B7791F', '#2563EB', '#C2413B', '#8B5CF6', '#0891B2', '#DB2777', '#65A30D'];
+// Categorical chart palette, in a fixed slot order chosen for colorblind
+// separation (validated with the data-viz validator against this app's light
+// #FFFFFF and dark #161D1A surfaces: worst adjacent CVD ΔE 10.3, normal-vision
+// 19.6, contrast ≥3:1 in both modes). Slot 1 is a punchier brand teal than the
+// UI accent #0F766E, which sits just under the chroma floor and reads gray as a
+// fill. Colors are assigned by size RANK, not per-category — see the .map()s
+// below. Category-owned colors are deliberately ignored: many categories were
+// saved with the accent teal, which collapsed the donut to one green.
+export const PALETTE = ['#0A8C7E', '#B7791F', '#2563EB', '#C2413B', '#8B5CF6', '#0891B2', '#DB2777', '#65A30D'];
+
+// Distinct-hue budget for the donut. The top MAX_SLICES categories get their own
+// palette hue; the rest fold into one neutral-gray "Other" slice (see
+// foldForDonut). Beyond PALETTE.length a row has no hue of its own (color: null)
+// and renders in the theme's muted gray, same as Other.
+export const MAX_SLICES = 7;
 
 // The bucket a transaction belongs to, which is NOT always its raw category
 // id. Two reserved keys stand in for the cases with no category record behind
@@ -90,9 +104,12 @@ export function breakdownByCategory(store, opts = {}) {
     });
   }
   const total = rows.reduce((s, r) => s + r.amt, 0);
+  // Color strictly by size rank from the fixed palette; a category's own saved
+  // color is intentionally dropped (see PALETTE note). Rows past the palette get
+  // no hue (null) and read as gray downstream, matching the donut's "Other".
   return rows
     .sort((a, b) => b.amt - a.amt || a.name.localeCompare(b.name))
-    .map((r, i) => ({ ...r, pct: total ? r.amt / total : 0, color: r.color || PALETTE[i % PALETTE.length] }));
+    .map((r, i) => ({ ...r, pct: total ? r.amt / total : 0, color: i < PALETTE.length ? PALETTE[i] : null }));
 }
 
 export function breakdownByGroup(store, opts = {}) {
@@ -114,7 +131,22 @@ export function breakdownByGroup(store, opts = {}) {
   }
   return Object.values(groups)
     .sort((a, b) => b.amt - a.amt || a.name.localeCompare(b.name))
-    .map((g, i) => ({ ...g, pct: total ? g.amt / total : 0, color: PALETTE[i % PALETTE.length] }));
+    .map((g, i) => ({ ...g, pct: total ? g.amt / total : 0, color: i < PALETTE.length ? PALETTE[i] : null }));
+}
+
+// Collapse a sorted (desc) row set into a donut-ready slice list: the top `max`
+// rows as-is, everything beyond folded into one neutral "Other" slice whose
+// amt/pct are the summed tail (color: null → the donut paints it muted gray).
+// Only folds when it collapses at least TWO rows, so "Other" is never just one
+// category wearing a generic name — a set of `max + 1` is shown in full instead.
+// Pure and list-agnostic: the page's category list still renders every row.
+export function foldForDonut(rows, { max = MAX_SLICES } = {}) {
+  if (rows.length <= max + 1) return rows;
+  const head = rows.slice(0, max);
+  const tail = rows.slice(max);
+  const amt = tail.reduce((s, r) => s + r.amt, 0);
+  const pct = tail.reduce((s, r) => s + (r.pct || 0), 0);
+  return [...head, { id: '__other__', name: 'Other', icon: null, amt, pct, color: null, other: true }];
 }
 
 export function rangeMonths(store, from, to, now) {
