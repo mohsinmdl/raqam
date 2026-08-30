@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import AccountList from './AccountList.jsx';
 import SidebarUser from './SidebarUser.jsx';
 import PlanSwitcher from '../ui/plans/PlanSwitcher.jsx';
+import SidebarSearch from '../ui/command/SidebarSearch.jsx';
 
 // Nav glyphs from the design: budget = ledger lines, reflect = bar chart,
 // all accounts = a bank. Stroke icons take currentColor, so they follow the
@@ -49,7 +50,8 @@ export default function Sidebar() {
       {/* YNAB-style plan block sits above the nav: which ledger you are in is
           the context everything below it inherits. */}
       <PlanSwitcher />
-      <nav aria-label="Main" style={{ padding: '12px 12px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <SidebarSearch />
+      <nav aria-label="Main" style={{ padding: '8px 12px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {NAV.map(n => <NavButton key={n.to} {...n} active={isActive(n.to)} />)}
       </nav>
       <AccountList />

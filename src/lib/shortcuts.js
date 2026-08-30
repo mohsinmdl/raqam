@@ -2,6 +2,7 @@
 // modal renders AND the matchers the handlers use, so the two never drift.
 export const SHORTCUT_GROUPS = [
   { title: 'Universal', items: [
+    { id: 'commandPalette', keys: ['⌘', 'K'],       label: 'Open the command palette',     spec: { key: 'k', meta: true } },
     { id: 'help',        keys: ['?'],               label: 'Open Keyboard Shortcuts Help', spec: { key: '?' } },
     { id: 'undo',        keys: ['⌘', 'Z'],          label: 'Undo',                         spec: { key: 'z', meta: true } },
     { id: 'redo',        keys: ['⌘', 'shift', 'Z'], label: 'Redo',                         spec: { key: 'z', meta: true, shift: true } },

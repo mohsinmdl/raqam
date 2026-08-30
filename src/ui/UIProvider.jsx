@@ -12,6 +12,11 @@ export function UIProvider({ children }) {
   const [confirm, setConfirm] = useState(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [payeesOpen, setPayeesOpen] = useState(false);
+  // Command palette (⌘K). The overlay itself is rendered in the Shell (it needs
+  // DrawerProvider, a descendant of this provider); only its open flag lives here
+  // so the keyboard listener, the sidebar field, and the phone header icon can
+  // all reach it.
+  const [paletteOpen, setPaletteOpen] = useState(false);
   // True while a bottom-pinned bar (the bulk-actions bar) is showing. The toast
   // lifts above it rather than landing on top of it — see useBottomBar / Toast.
   const [bottomBar, setBottomBar] = useState(false);
@@ -73,12 +78,16 @@ export function UIProvider({ children }) {
   const openPayees = useCallback(() => setPayeesOpen(true), []);
   const closePayees = useCallback(() => setPayeesOpen(false), []);
 
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  const closePalette = useCallback(() => setPaletteOpen(false), []);
+
   const value = useMemo(() => ({
     notify, ask, closeTopOverlay, confirmOpen: !!confirm, setBottomBar,
     shortcutsOpen, openShortcuts, closeShortcuts,
     payeesOpen, openPayees, closePayees,
+    paletteOpen, openPalette, closePalette,
     flashRows, flashIds, lastSaved, clearLastSaved,
-  }), [notify, ask, closeTopOverlay, confirm, shortcutsOpen, openShortcuts, closeShortcuts, payeesOpen, openPayees, closePayees, flashRows, flashIds, lastSaved, clearLastSaved]);
+  }), [notify, ask, closeTopOverlay, confirm, shortcutsOpen, openShortcuts, closeShortcuts, payeesOpen, openPayees, closePayees, paletteOpen, openPalette, closePalette, flashRows, flashIds, lastSaved, clearLastSaved]);
 
   return (
     <Ctx.Provider value={value}>
