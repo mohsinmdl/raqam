@@ -2,7 +2,7 @@
 // and returns a NEW store. The reducer in StoreProvider applies them immutably.
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
 import { accountBalance, accountDeletePolicy, cardOutstanding, duplicateCat, moveCollision, normalizeName, INST_KINDS } from '../lib/calc.js';
-import { addMonths, currentMonth, nowIso, todayStr } from '../lib/dates.js';
+import { addMonths, currentMonth, nowIso, nowIsoSec, todayStr } from '../lib/dates.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
 import { uid } from '../lib/util.js';
@@ -43,10 +43,29 @@ export function stampFor(date, now) {
   return d === today ? now : d + 'T12:00';
 }
 
+// The timestamp a built transaction carries. Ordering on the register IS this
+// value (date-desc), so a new entry made today must land on top with the real
+// clock — to the SECOND, so rapid entries stay strictly ordered and drag can
+// interpolate between them (0019 relaxes the DB CHECK to allow the ':ss').
+//
+//   - explicit time picked (WhenField sets timeTouched) → honor it, to the minute
+//   - editing, day AND time untouched → keep the record's exact original stamp
+//     (seconds included), so an unrelated edit never nudges the order
+//   - brand-new, dated today, time untouched → nowIsoSec() → strictly on top
+//   - anything else → the historical 'day T HH:mm' (a back-dated add keeps the
+//     seeded clock it always used; no new precision is invented here)
+function txDate(f) {
+  const day = f.date || todayStr();
+  if (f.timeTouched && f.time) return day + 'T' + f.time;
+  if (f.editId && f.origDate && f.origDate.slice(0, 10) === day) return f.origDate;
+  if (!f.editId && day === todayStr()) return nowIsoSec();
+  return day + 'T' + (f.time || '12:00');
+}
+
 // Build a transaction record from scratch from the form — used by add AND edit,
 // so a type change can never leave stale cross-type fields behind (design buildTx).
 export function buildTx(f, type, amt, fee, catId, id) {
-  const date = (f.date || todayStr()) + 'T' + (f.time || '12:00');
+  const date = txDate(f);
   const status = f.pending ? 'pending' : 'cleared';
   const t = { id: id || uid(), date, status, notes: f.notes || '', merchant: f.merchant || '' };
   // Category is optional: '' must become undefined, not persist — sync's toRow
@@ -261,6 +280,33 @@ export function postTransactionNow(data, { id, now }) {
     audit: [makeAudit({
       entityType: 'transaction', entityId: before.id, action: 'update',
       summary: 'Posted now — moved from ' + before.date.slice(0, 10) + ' to today',
+      before: { date: before.date }, after: { date: after.date },
+    }), ...(data.audit || [])],
+  };
+}
+
+// Drag-to-reorder result: set one row's timestamp to `date` (a moment the drop
+// policy interpolated between its new neighbors, or one the user picked). Same
+// one-field shape as postTransactionNow — the register re-derives order, day
+// group, running balance and budget month from the date alone.
+//
+// A row can't sit in the future, so `date` is clamped to `now`. An unchanged
+// date returns the same reference (no re-stamp, no spurious audit/sync write).
+export function reorderTransaction(data, { id, date, now }) {
+  const i = data.transactions.findIndex(x => x.id === id);
+  if (i < 0 || !date) return data;
+  const before = data.transactions[i];
+  const clamped = now && date > now ? now : date;
+  if (clamped === before.date) return data;
+  const after = stampUpdate({ ...before, date: clamped });
+  const transactions = [...data.transactions];
+  transactions[i] = after;
+  return {
+    ...data,
+    transactions,
+    audit: [makeAudit({
+      entityType: 'transaction', entityId: before.id, action: 'update',
+      summary: 'Reordered — moved to ' + clamped.slice(0, 16).replace('T', ' '),
       before: { date: before.date }, after: { date: after.date },
     }), ...(data.audit || [])],
   };

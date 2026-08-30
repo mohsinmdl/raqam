@@ -209,6 +209,17 @@ button.field:focus {
    their own pointer. */
 .plan-row[draggable="true"]:active { cursor: grabbing; }
 
+/* Transactions register drag-to-reorder. Same restraint as the Plan rows: no
+   persistent hand cursor, only grabbing while a row is actually pressed. */
+.tx-row[draggable="true"]:active { cursor: grabbing; }
+/* The insertion line is an inset accent edge on the target row's cells — drawn
+   this way (rather than an extra <tr>) so the drop point never shifts under the
+   pointer mid-drag. The row's FIRST cell carries its own inline box-shadow
+   (the keyboard-cursor accent), so Row.jsx folds the same edge into that inline
+   value; this covers every other cell. */
+.tx-row.tx-drop-above > td { box-shadow: inset 0 2px 0 var(--accent); }
+.tx-row.tx-drop-below > td { box-shadow: inset 0 -2px 0 var(--accent); }
+
 /* Shared bits used dozens of times in the prototype's inline styles. */
 .tnum { font-variant-numeric: tabular-nums; }
 .field {

@@ -147,7 +147,10 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
   // It only marks the nearest option; the stored time stays 5:19 until you
   // actually pick one, because opening a picker must not edit the record.
   const mmSlot = Math.floor(mm / 5) * 5;
-  const setTime = (h, m) => setForm({ time: p2(h) + ':' + p2(m) });
+  // timeTouched flags that the user CHOSE a time — buildTx then honors f.time to
+  // the minute instead of stamping the real clock. Set by every time control
+  // (the quick chips and the three columns), never by picking a date.
+  const setTime = (h, m) => setForm({ time: p2(h) + ':' + p2(m), timeTouched: true });
 
   return (
     <>
@@ -217,7 +220,7 @@ export default function WhenField({ showRepeat, repeatLabel = 'Repeat' }) {
             <div ref={panelRef} role="dialog" aria-label="Choose a time" style={{ ...panel, top: pos.top, left: pos.left, width: TIME_W, maxHeight: pos.maxHeight }}>
               <div style={{ display: 'flex', gap: 6, padding: '10px 10px 8px', flexWrap: 'wrap', flex: 'none' }}>
                 {QUICK.map(q => (
-                  <button key={q.v} type="button" onClick={() => setForm({ time: q.v })} className="hv-soft rq-btn-outline" style={chip(f.time === q.v)}>{q.l}</button>
+                  <button key={q.v} type="button" onClick={() => setForm({ time: q.v, timeTouched: true })} className="hv-soft rq-btn-outline" style={chip(f.time === q.v)}>{q.l}</button>
                 ))}
               </div>
               <div ref={colsRef} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 58px', gap: 6, padding: '0 10px 8px', minHeight: 0, flex: 1 }}>
