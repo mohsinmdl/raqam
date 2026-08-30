@@ -22,6 +22,10 @@ export function formFromTx(t) {
   f.editId = t.id;
   f.originalType = t.type;
   f.originalCategory = t.category || null;
+  // Keep the record's EXACT stored stamp (seconds and all): buildTx returns it
+  // verbatim when an edit leaves day and time untouched, so editing an amount
+  // never drops precision or nudges the row's order.
+  f.origDate = t.date;
   f.date = t.date.slice(0, 10);
   f.time = t.date.slice(11, 16) || '12:00';
   f.amount = String(Math.abs(t.amount));

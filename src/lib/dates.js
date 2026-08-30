@@ -9,7 +9,47 @@ export function nowIso() {
   const d = new Date();
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
 }
+// Seconds-precision sibling of nowIso(), used only on the transaction
+// create/reorder path (0019 relaxes the DB CHECK to allow the optional :SS).
+// nowIso() stays minute-precision because schedule math, due_date comparisons
+// and stampFor all expect exactly 'YYYY-MM-DDTHH:mm'.
+export function nowIsoSec() {
+  const d = new Date();
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+}
 export function todayStr() { return nowIso().slice(0, 10); }
+
+// Local-time ISO ('YYYY-MM-DD', '...THH:mm', '...THH:mm:ss') to epoch ms via a
+// local Date, so a value written by nowIso/nowIsoSec round-trips to the same
+// wall clock. A missing time reads as local midnight; missing seconds as :00.
+export function toEpochMs(iso) {
+  const s = String(iso || '');
+  const [datePart, timePart = ''] = s.split('T');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [hh = 0, mm = 0, ss = 0] = timePart.split(':').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, hh, mm, ss).getTime();
+}
+// Epoch ms back to a seconds-precision local ISO string — the write format for
+// every reordered/interpolated timestamp.
+export function fmtIsoSec(ms) {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+}
+// The moment exactly between two timestamps, floored to the whole second (the
+// finest granularity the stored string carries). Order-agnostic.
+export function midpointIso(aIso, bIso) {
+  const mid = Math.floor((toEpochMs(aIso) + toEpochMs(bIso)) / 2 / 1000) * 1000;
+  return fmtIsoSec(mid);
+}
+// Absolute difference in CALENDAR days between two timestamps — the "3-day
+// window" that decides auto-interpolate vs. picker reads this, not elapsed
+// hours, so two rows a minute apart across midnight count as 1 day. Rounded to
+// absorb DST-shortened days.
+export function dayGapAbs(aIso, bIso) {
+  const a = toEpochMs(String(aIso).slice(0, 10));
+  const b = toEpochMs(String(bIso).slice(0, 10));
+  return Math.abs(Math.round((a - b) / 86400000));
+}
 export function currentMonth() { return nowIso().slice(0, 7); }
 
 export function addMonths(ym, k) {

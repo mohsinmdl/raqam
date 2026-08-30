@@ -11,7 +11,7 @@ import { useShortcuts, useSequence } from '../ui/useShortcuts.js';
 import { SPEC, SHORTCUT_BY_ID, isTypingTarget } from '../lib/shortcuts.js';
 import { stepCursor, rangeBetween, cursorStatusLabel } from '../lib/rowCursor.js';
 import { useMoney } from '../lib/format.js';
-import { nowIso } from '../lib/dates.js';
+import { nowIso, nowIsoSec } from '../lib/dates.js';
 import { openingOf } from '../lib/calc.js';
 import { useMonth } from '../store/MonthContext.jsx';
 import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
@@ -21,7 +21,7 @@ import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import { Chevron } from '../ui/icons.jsx';
 import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
-import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
+import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, reorderTransaction, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
 import { dayGroups } from '../lib/dayGroups.js';
@@ -40,6 +40,8 @@ import TxPhoneList from '../components/TxPhoneList.jsx';
 import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
 import CategoryPickerPopover from '../components/CategoryPickerPopover.jsx';
 import TxEditorRow from '../ui/tx/inline/TxEditorRow.jsx';
+import useTxDnd from '../ui/tx/useTxDnd.js';
+import TxWhenPicker from '../ui/tx/TxWhenPicker.jsx';
 import { useSuggestions } from '../ui/ai/useSuggestions.js';
 import GraduationOffer from '../ui/ai/GraduationOffer.jsx';
 
@@ -214,7 +216,7 @@ function AccountLabel({ t, fontSize, color }) {
   return <span style={{ display: 'block', maxWidth: '100%', fontSize, color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.acctLabel}</span>;
 }
 
-function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo, showBalance, foldAccount, focused, onCategorize, flash, saved, suggestions, onApplySuggestion }) {
+function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo, showBalance, foldAccount, focused, onCategorize, flash, saved, suggestions, onApplySuggestion, dragProps, dropLine }) {
   // Fixed 2.25rem (36px) row height, YNAB-style — so the vertical padding is
   // zero and content is centred by the cells' middle alignment; horizontal
   // padding is all that remains.
@@ -232,6 +234,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
   return (
     <tr
       ref={rowRef}
+      {...dragProps}
       // The whole row (except the ⋯ menu and the checkbox, which both
       // stopPropagation) is a click target that toggles selection — hence the
       // pointer cursor on any selectable row. The event flows through so a
@@ -244,7 +247,8 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
       // row-saved-wash (Wave D) holds a fainter version of that same wash after
       // the flash fades — see theme.css; harmless alongside row-flash (the
       // animation's !important background wins first, then hands off to this).
-      className={['tx-row', checked ? null : 'hv-elev', flash ? 'row-flash' : null, saved ? 'row-saved-wash' : null].filter(Boolean).join(' ')}
+      className={['tx-row', checked ? null : 'hv-elev', flash ? 'row-flash' : null, saved ? 'row-saved-wash' : null,
+        dropLine === 'above' ? 'tx-drop-above' : dropLine === 'below' ? 'tx-drop-below' : null].filter(Boolean).join(' ')}
       // Scheduled rows sit on a SUBTLE warm wash — the full --warn-soft (used on
       // the group heading) is too heavy per row, so blend it down into the
       // surface. Theme-adaptive, and a checked row's --soft still wins.
@@ -274,7 +278,7 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
           and reads on top of any row background, distinct from the checked fill.
           Wave D's saved-state rule is 1px narrower (2px vs 3px) so the two read
           as distinct on the rare row that is both the cursor and just-saved. */}
-      <td style={{ ...td, ...dim, padding: 0, position: 'relative', verticalAlign: 'middle', minWidth: 34, boxShadow: [focused ? 'inset 3px 0 0 var(--accent)' : null, saved ? 'inset 2px 0 0 var(--accent)' : null].filter(Boolean).join(', ') || undefined }}>
+      <td style={{ ...td, ...dim, padding: 0, position: 'relative', verticalAlign: 'middle', minWidth: 34, boxShadow: [focused ? 'inset 3px 0 0 var(--accent)' : null, saved ? 'inset 2px 0 0 var(--accent)' : null, dropLine === 'above' ? 'inset 0 2px 0 var(--accent)' : dropLine === 'below' ? 'inset 0 -2px 0 var(--accent)' : null].filter(Boolean).join(', ') || undefined }}>
         {selId && (
           <Checkbox
             fill
@@ -653,6 +657,20 @@ export default function Transactions() {
   // omits it deliberately (every row is that one account already) and a
   // repeated sub-label there would be pure noise.
   const foldAccount = hideAccountCol && !accountId;
+
+  // Drag-to-reorder (desktop register). Reorder writes the dropped row's
+  // timestamp — order IS the date — so it only makes sense in the natural
+  // date-descending order; any other sort or the phone list opts out. The
+  // picker opens when a moment can't be honestly interpolated (see planDrop).
+  const [reorderPicker, setReorderPicker] = useState(null);
+  const reorderable = !phone && sort.key === 'date' && sort.dir === 'desc';
+  const dnd = useTxDnd({
+    rows: tableRows,
+    enabled: reorderable,
+    applyData,
+    now: nowIsoSec(),
+    openPicker: setReorderPicker,
+  });
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter
   // has hidden would let the toolbar claim "12 selected" while showing three,
@@ -1423,13 +1441,15 @@ export default function Transactions() {
                   </tr>
                 )}
                 {/* Recorded rows act through the bulk bar once selected — no ⋯. */}
-                {tableRows.map(t => (t.id === editingId
+                {tableRows.map((t, i) => (t.id === editingId
                   ? <TxEditorRow key={t.id} hideAccount={hideAccountCol} hideMemo={hideMemoCol} showBalance={showBalanceCol} colSpan={gridColSpan} scopeRef={accountId ? 'acc:' + accountId : null} />
                   : <Row
                       key={t.id} t={t} selId={t.id} hideAccount={hideAccountCol} hideMemo={hideMemoCol} showBalance={showBalanceCol} foldAccount={foldAccount}
                       checked={selected.has(t.id)} onToggleRow={toggleRow} focused={t.id === cursorId}
                       onCategorize={openRowCategorize} flash={flashIds.has(t.id)} saved={lastSaved.has(t.id)}
                       suggestions={aiSuggestions.get(t.id)} onApplySuggestion={applySuggestion}
+                      dragProps={reorderable ? dnd.rowProps(t.id, t.merchant) : null}
+                      dropLine={reorderable ? dnd.dropLineFor(t.id, i === tableRows.length - 1) : null}
                     />))}
               </tbody>
             </table>
@@ -1567,6 +1587,18 @@ export default function Transactions() {
           catType={catTarget && S.transactions.find(x => x.id === catTarget)?.type === 'income' ? 'income' : 'expense'}
           onPick={categorizeOne}
         />
+        {/* Drag-to-reorder fallback: a moment the drop couldn't honestly
+            interpolate is chosen here, then written like any other reorder. */}
+        {reorderPicker && (
+          <TxWhenPicker
+            seed={reorderPicker.seed} x={reorderPicker.x} y={reorderPicker.y}
+            onCancel={() => setReorderPicker(null)}
+            onConfirm={iso => {
+              applyData(data => reorderTransaction(data, { id: reorderPicker.id, date: iso, now: nowIsoSec() }));
+              setReorderPicker(null);
+            }}
+          />
+        )}
       </div>
     </div>
   );
