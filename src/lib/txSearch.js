@@ -178,25 +178,34 @@ export function searchSuggestions(q, S, anchorIso, limit = 5) {
   const cards = S.cards || [];
   const categories = S.categories || [];
 
-  // 1. Accounts and cards whose name contains the query.
+  // Typing the facet keyword itself lists the WHOLE group to browse: "acc" →
+  // every account, "cat" → every category. A keyword is the query (≥2 chars) as
+  // a prefix of the word (singular or plural), so "acc"/"account"/"accounts" and
+  // "cat"/"category"/"categories" all trigger it — while a real name like "Cash"
+  // or "Cafe" (not a prefix of either word) still matches by substring only.
+  const isKw = (raw, ...words) => raw.length >= 2 && words.some(w => w.startsWith(low));
+  const acctKeyword = isKw(raw, 'account', 'accounts');
+  const catKeyword = isKw(raw, 'category', 'categories');
+
+  // 1. Accounts and cards — by name, or ALL of them under the account keyword.
   for (const a of accounts) {
     if (a.status === 'closed') continue;
-    if (lower(a.nickname).includes(low)) {
+    if (acctKeyword || lower(a.nickname).includes(low)) {
       out.push({ key: 'acct:' + a.id, prefix: 'Account:', main: a.nickname,
         term: { kind: 'account', id: a.id, label: 'Account: ' + a.nickname, text: a.nickname } });
     }
   }
   for (const c of cards) {
     const name = c.nickname + (c.last4 ? ' ••' + c.last4 : '');
-    if (lower(c.nickname + ' ' + (c.last4 || '')).includes(low)) {
+    if (acctKeyword || lower(c.nickname + ' ' + (c.last4 || '')).includes(low)) {
       out.push({ key: 'card:' + c.id, prefix: 'Account:', main: name,
         term: { kind: 'account', id: c.id, label: 'Account: ' + name, text: name } });
     }
   }
 
-  // 2. Categories whose name contains the query (emoji lives in the name).
+  // 2. Categories — by name (emoji lives in the name), or ALL under the keyword.
   for (const cat of categories) {
-    if (lower(cat.name).includes(low)) {
+    if (catKeyword || lower(cat.name).includes(low)) {
       out.push({ key: 'cat:' + cat.id, prefix: 'Category:', main: cat.name,
         term: { kind: 'category', id: cat.id, label: 'Category: ' + cat.name, text: cat.name } });
     }
@@ -256,9 +265,11 @@ export function searchSuggestions(q, S, anchorIso, limit = 5) {
       term: { kind: 'field', field, q: raw, label: `${label}: ${raw}`, text: raw } });
   }
 
-  // Cap only the open-ended entity groups (accounts/cards/categories) so a
-  // ledger with dozens of matches does not bury the fixed facets below.
-  return capEntities(out, limit);
+  // Cap the open-ended entity groups (accounts/cards/categories) so a stray
+  // substring doesn't bury the fixed facets below — but when the query IS a
+  // facet keyword the whole point is to browse them all, so lift the cap and
+  // let the dropdown scroll.
+  return capEntities(out, acctKeyword || catKeyword ? Infinity : limit);
 }
 
 // Keep at most `limit` of the entity suggestions (account/category kinds),

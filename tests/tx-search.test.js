@@ -275,6 +275,42 @@ describe('searchSuggestions — the interpretations offered', () => {
     expect(s.filter(x => x.term.kind === 'amount').length).toBe(6);
   });
 
+  it('the "account" keyword lists ALL (non-closed) accounts + cards, not just name matches', () => {
+    // "acc" matches none of these names by substring, but is the account keyword.
+    const accts = searchSuggestions('acc', SS, ANCHOR).filter(x => x.term.kind === 'account');
+    expect(accts.map(x => x.main)).toEqual(['BankIslami', 'Allied Bank', 'Faysal Visa ••4021']);
+    // closed account stays out; the full word and plural trigger it too.
+    expect(searchSuggestions('acc', SS, ANCHOR).some(x => x.term.id === 'a3')).toBe(false);
+    expect(searchSuggestions('account', SS, ANCHOR).filter(x => x.term.kind === 'account').length).toBe(3);
+    expect(searchSuggestions('accounts', SS, ANCHOR).filter(x => x.term.kind === 'account').length).toBe(3);
+  });
+
+  it('the "category" keyword lists ALL categories, uncapped, without burying fixed facets', () => {
+    const many = {
+      accounts: [], cards: [],
+      categories: Array.from({ length: 12 }, (_, i) => ({ id: 'k' + i, name: 'Cat ' + i })),
+    };
+    const cats = searchSuggestions('cat', many, ANCHOR, 5).filter(x => x.term.kind === 'category');
+    expect(cats.length).toBe(12); // uncapped under the keyword, though limit is 5
+    // the fixed field facets still come through
+    expect(searchSuggestions('cat', many, ANCHOR, 5).filter(x => x.term.kind === 'field').length).toBe(4);
+    // "categories" (plural) triggers it too
+    expect(searchSuggestions('categories', many, ANCHOR).filter(x => x.term.kind === 'category').length).toBe(12);
+  });
+
+  it('a real name that is not a facet-word prefix still matches by substring only', () => {
+    // "Cash"/"Cafe" are not prefixes of account/category, so they do NOT flood.
+    const s = searchSuggestions('cash', { accounts: [{ id: 'x', nickname: 'Cash' }, { id: 'y', nickname: 'Meezan' }], cards: [], categories: [] }, ANCHOR);
+    expect(s.filter(x => x.term.kind === 'account').map(x => x.main)).toEqual(['Cash']);
+  });
+
+  it('a single character does not trigger the keyword flood', () => {
+    // "a" is a prefix of "account" but too short (≥2 required) — substring only.
+    const store = { accounts: [{ id: '1', nickname: 'Xbc' }, { id: '2', nickname: 'Abc' }, { id: '3', nickname: 'Ydz' }], cards: [], categories: [] };
+    const accts = searchSuggestions('a', store, ANCHOR).filter(x => x.term.kind === 'account');
+    expect(accts.map(x => x.main)).toEqual(['Abc']); // only the substring match, not all three
+  });
+
   it('caps the entity groups (accounts + categories share one budget) without burying fixed facets', () => {
     const many = {
       accounts: Array.from({ length: 6 }, (_, i) => ({ id: 'a' + i, nickname: 'Xbank ' + i })),
