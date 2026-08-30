@@ -1,6 +1,6 @@
 // Split feature contracts: store action, sync round-trip, row flag, validator bypass
 import { describe, it, expect } from 'vitest';
-import { addSplitTransaction, updateTransaction } from '../src/store/actions.js';
+import { addSplitTransaction, updateTransaction, replaceWithSplitTransaction } from '../src/store/actions.js';
 
 const store = over => ({
   categoryGroups: [{ id: 'g1', name: 'Needs', sortOrder: 1 }],
@@ -152,6 +152,90 @@ describe('updateTransaction preserves splitId on a leg edit', () => {
     const updated = s2.transactions.find(t => t.id === leg.id);
     expect(updated.type).toBe('transfer');
     expect(updated.splitId).toBeUndefined();
+  });
+});
+
+describe('replaceWithSplitTransaction (split an existing expense)', () => {
+  // A store that already holds the expense we are about to split.
+  const withOriginal = over => store({
+    transactions: [{
+      id: 'orig', date: '2026-08-11T12:00', type: 'expense', amount: 5000,
+      accountId: 'a1', category: 'groc', merchant: 'Imtiaz', notes: '', status: 'cleared',
+    }],
+    ...(over || {}),
+  });
+  const editForm = form({ editId: 'orig' });
+
+  it('retires the original row and records N legs under one fresh splitId', () => {
+    const s = replaceWithSplitTransaction(withOriginal(), { editId: 'orig', form: editForm, legs, amt: 5000 });
+    expect(s.transactions.find(t => t.id === 'orig')).toBeUndefined();
+    expect(s.transactions).toHaveLength(2);
+    const [t1, t2] = s.transactions;
+    expect(t1.splitId).toBeTruthy();
+    expect(t1.splitId).toBe(t2.splitId);
+    expect(t1.id).not.toBe(t2.id);
+    expect(t1.amount + t2.amount).toBe(5000);
+  });
+
+  it('legs inherit account, merchant and date from the form', () => {
+    const s = replaceWithSplitTransaction(withOriginal(), { editId: 'orig', form: editForm, legs, amt: 5000 });
+    for (const t of s.transactions) {
+      expect(t).toMatchObject({ type: 'expense', accountId: 'a1', merchant: 'Imtiaz', date: '2026-08-11T12:00' });
+    }
+  });
+
+  it('reverts a rule occurrence that pointed at the original row', () => {
+    const base = withOriginal({
+      recurring: [{
+        id: 'r1', name: 'Groceries', type: 'expense', amount: 5000, schedule: { every: 'month' },
+        nextDate: '2026-09-11', status: 'active',
+        occurrences: [{ due: '2026-08-11', outcome: 'recorded', amount: 5000, txId: 'orig' }],
+      }],
+    });
+    const s = replaceWithSplitTransaction(base, { editId: 'orig', form: editForm, legs, amt: 5000 });
+    const rule = s.recurring.find(r => r.id === 'r1');
+    expect(rule.occurrences).toHaveLength(0);
+    expect(rule.nextDate).toBe('2026-08-11'); // reminder pulled back to the freed due date
+  });
+
+  it('splitting a tx that is already a split leg regroups it under a new splitId, leaving siblings untouched', () => {
+    const base = withOriginal({
+      transactions: [
+        { id: 'orig', date: '2026-08-11T12:00', type: 'expense', amount: 3000, accountId: 'a1', category: 'groc', merchant: 'Imtiaz', notes: '', status: 'cleared', splitId: 'old' },
+        { id: 'sib', date: '2026-08-11T12:00', type: 'expense', amount: 2000, accountId: 'a1', category: 'adv', merchant: 'Imtiaz', notes: '', status: 'cleared', splitId: 'old' },
+      ],
+    });
+    const s = replaceWithSplitTransaction(base, { editId: 'orig', form: form({ editId: 'orig', amount: '3000' }), legs: [
+      { category: 'groc', amount: '1500', newCat: '', newCatGroup: '' },
+      { category: 'adv', amount: '1500', newCat: '', newCatGroup: '' },
+    ], amt: 3000 });
+    const sib = s.transactions.find(t => t.id === 'sib');
+    expect(sib.splitId).toBe('old'); // untouched sibling keeps the old group
+    const newLegs = s.transactions.filter(t => t.id !== 'sib');
+    expect(newLegs).toHaveLength(2);
+    expect(newLegs[0].splitId).toBe(newLegs[1].splitId);
+    expect(newLegs[0].splitId).not.toBe('old');
+  });
+
+  it('records the event in the audit log with a split summary', () => {
+    const base = withOriginal();
+    const s = replaceWithSplitTransaction(base, { editId: 'orig', form: editForm, legs, amt: 5000 });
+    expect(s.audit.length).toBeGreaterThan(base.audit.length);
+    expect(s.audit.some(a => /split/i.test(a.summary))).toBe(true);
+  });
+
+  it('does not mutate the input store', () => {
+    const s0 = withOriginal();
+    replaceWithSplitTransaction(s0, { editId: 'orig', form: editForm, legs, amt: 5000 });
+    expect(s0.transactions).toHaveLength(1);
+    expect(s0.transactions[0].id).toBe('orig');
+    expect(s0.audit).toHaveLength(0);
+  });
+
+  it('returns the store unchanged when the editId no longer exists', () => {
+    const s0 = store();
+    const s = replaceWithSplitTransaction(s0, { editId: 'gone', form: editForm, legs, amt: 5000 });
+    expect(s).toBe(s0);
   });
 });
 

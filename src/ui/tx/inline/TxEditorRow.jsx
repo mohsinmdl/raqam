@@ -36,7 +36,7 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
   const type = f.type || 'expense';
   const isTransfer = type === 'transfer';
   // Same visibility rules the drawer used (TxForm.jsx fx* truth table).
-  const canSplit = type === 'expense' && !f.editId && !f.fromRecurring;
+  const canSplit = type === 'expense' && !f.fromRecurring;
   const splitOn = canSplit && !!f.splitOn;
   const showRepeat = (type === 'expense' || type === 'income') && !f.fromRecurring && !ruleFromTx(S, f.editId) && !splitOn;
   const catType = type === 'income' ? 'income' : 'expense';

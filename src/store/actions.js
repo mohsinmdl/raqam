@@ -152,6 +152,54 @@ export function addSplitTransaction(data, { form: f, legs, amt, ids }) {
   return next;
 }
 
+// Splitting an EXISTING expense: retire the original row (id `editId`) and
+// record N legs in its place, all under one fresh splitId — the leg-replace
+// path. One store call = one undo step. The legs are built exactly as
+// addSplitTransaction builds them (same buildTx rules, same splitId link);
+// what differs is that a row is removed first, and its rule occurrences are
+// reverted the way deleteTransaction does (a split leg carries no schedule, so
+// the replacement legs never re-log the occurrence).
+export function replaceWithSplitTransaction(data, { editId, form: f, legs, amt, ids }) {
+  const original = data.transactions.find(t => t.id === editId);
+  if (!original) return data;
+  const next = {
+    ...data,
+    transactions: data.transactions.filter(t => t.id !== editId),
+    recurring: revertRuleOccurrences(data.recurring, new Set([editId])),
+  };
+  const splitId = uid();
+  const made = legs.map((leg, i) => {
+    const catId = resolveCategory(next, { category: leg.category, newCat: leg.newCat, newCatGroup: leg.newCatGroup }, 'expense');
+    const t = buildTx(f, 'expense', parseAmt(leg.amount), 0, catId, ids && ids[i]);
+    t.splitId = splitId;
+    return t;
+  });
+  next.transactions = [...made, ...next.transactions];
+  // History records this as TWO honest events, not one: the original row is
+  // genuinely retired (its id is gone) and a fresh split is genuinely created.
+  // Faking a single in-place 'update' keyed on `original.id` would claim a row
+  // still exists that no longer does — so instead we reuse the two audit shapes
+  // the codebase already trusts: deleteTransaction's 'delete' (before-state of
+  // the retired row, so "where did that expense go?" stays answerable) and
+  // addSplitTransaction's split 'create'. The delete summary names the split so
+  // a reader sees the pair as one story. Newest-first: the resulting split on
+  // top, the cause beneath.
+  next.audit = [
+    makeAudit({
+      entityType: 'transaction', entityId: splitId, action: 'create',
+      summary: 'Split an existing expense (' + legs.length + ' ways)',
+      after: { type: 'expense', amount: amt, legs: legs.length, date: made[0].date },
+    }),
+    makeAudit({
+      entityType: 'transaction', entityId: original.id, action: 'delete',
+      summary: 'Retired expense of ' + original.amount + ' to record it as a split',
+      before: { type: original.type, amount: original.amount, date: original.date, merchant: original.merchant },
+    }),
+    ...(next.audit || []),
+  ];
+  return next;
+}
+
 // Recording an occurrence: log it against the due date it settles and advance
 // the rule. Idempotent per due date — reopening the drawer for the same
 // occurrence must not log it twice — and it only advances when the recorded
