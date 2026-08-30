@@ -17,7 +17,8 @@ const panel = { position: 'fixed', zIndex: 61, width: W, background: 'var(--surf
 const chip = on => ({ height: 28, padding: '0 10px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: '1px solid ' + (on ? 'var(--accent)' : 'var(--border)'), background: on ? 'var(--soft)' : 'var(--surface)', color: on ? 'var(--accent)' : 'var(--text)' });
 
 // seed — an ISO string ('YYYY-MM-DDTHH:mm[:ss]') to pre-fill from.
-// onConfirm(iso) receives a seconds-precision 'YYYY-MM-DDTHH:mm:ss'.
+// onConfirm(iso) receives a 'YYYY-MM-DDTHH:mm:ss' string whose seconds are
+// always ':00' — the <input type="time"> is minute-granular.
 export default function TxWhenPicker({ seed, x, y, onCancel, onConfirm }) {
   const today = todayStr();
   const [date, setDate] = useState(() => (seed || today).slice(0, 10));
@@ -41,7 +42,10 @@ export default function TxWhenPicker({ seed, x, y, onCancel, onConfirm }) {
   }, [onCancel]);
 
   const cells = calendarCells(month, date, today);
-  const confirm = () => onConfirm(date + 'T' + (time || '12:00') + ':00');
+  // Normalize to HH:mm before appending ':00' — a seconds-capable time input can
+  // hand back 'HH:mm:ss', which would otherwise assemble an invalid '…:ss:00'
+  // that fails the DB CHECK.
+  const confirm = () => onConfirm(date + 'T' + (time || '12:00').slice(0, 5) + ':00');
 
   return (
     <>

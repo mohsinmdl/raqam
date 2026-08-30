@@ -54,6 +54,11 @@ export function stampFor(date, now) {
 //   - brand-new, dated today, time untouched → nowIsoSec() → strictly on top
 //   - anything else → the historical 'day T HH:mm' (a back-dated add keeps the
 //     seeded clock it always used; no new precision is invented here)
+// The stored-timestamp shape the DB CHECK enforces (0001, relaxed by 0019):
+// 'YYYY-MM-DDTHH:mm' with optional ':ss'. Used to refuse a malformed reorder
+// date before it can reach the store or the sync push.
+const TX_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
+
 function txDate(f) {
   const day = f.date || todayStr();
   if (f.timeTouched && f.time) return day + 'T' + f.time;
@@ -294,7 +299,12 @@ export function postTransactionNow(data, { id, now }) {
 // date returns the same reference (no re-stamp, no spurious audit/sync write).
 export function reorderTransaction(data, { id, date, now }) {
   const i = data.transactions.findIndex(x => x.id === id);
-  if (i < 0 || !date) return data;
+  // This is the one boundary every reorder path (interpolated auto-move AND the
+  // picker) funnels through before the date reaches the store and the sync
+  // queue, so it validates the SHAPE the DB CHECK (0019) enforces — not just a
+  // falsy guard. A malformed 'NaN-…' or otherwise off-format string is refused
+  // as a no-op rather than laundered into permanent state + the audit trail.
+  if (i < 0 || !date || !TX_DATE_RE.test(date)) return data;
   const before = data.transactions[i];
   const clamped = now && date > now ? now : date;
   if (clamped === before.date) return data;
