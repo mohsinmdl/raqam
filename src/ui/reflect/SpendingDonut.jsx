@@ -23,6 +23,12 @@ const readTheme = () => ({ surface: cssVar('--surface'), text: cssVar('--text'),
 // the same way — one rule, one place.
 export const pctLabel = p => (p > 0 && p < 0.005 ? '<1%' : Math.round(p * 100) + '%');
 
+// Only slices at least this big get an outside leader label; smaller ones would
+// crowd the ring and are read from the category list instead. The fold in
+// spendingReport already caps the slice count, so this only trims the last one
+// or two thin arcs.
+const LABEL_MIN_PCT = 0.05;
+
 // `labels` off drops the external leader labels (and their lines): on a phone
 // there is no room beside the ring for them, and ECharts silently truncates
 // them to unreadable stubs ("Enter…", "Rs 7,…", "…"). The category list below
@@ -81,19 +87,32 @@ export default function SpendingDonut({ slices = [], total = 0, money, size = 38
           rich: {},
         },
         labelLine: { show: labels, length: 14, length2: 10, lineStyle: { color: muted } },
+        // Drop any label that would still overlap after per-slice thresholding —
+        // a safety net so the ring never shows two callouts on top of each other.
+        labelLayout: { hideOverlap: true },
         emphasis: { scale: true, scaleSize: 4, focus: 'self' },
         blur: { itemStyle: { opacity: 0.25 }, label: { opacity: 0.3 } },
-        data: slices.map(s => ({
-          value: s.amt, name: s.name, slice: s,
-          sub: money(s.amt) + ' (' + pctLabel(s.pct) + ')',
-          itemStyle: { color: s.color },
-        })),
+        data: slices.map(s => {
+          // Small slices (and the folded "Other") skip the outside label + its
+          // leader line; the category list carries their name/amount/percent.
+          const showLabel = labels && s.pct >= LABEL_MIN_PCT;
+          return {
+            value: s.amt, name: s.name, slice: s,
+            sub: money(s.amt) + ' (' + pctLabel(s.pct) + ')',
+            // Tail/"Other" slices have no palette hue → the theme's muted gray,
+            // resolved here because the canvas can't read the CSS variable.
+            itemStyle: { color: s.color || muted },
+            label: { show: showLabel },
+            labelLine: { show: showLabel },
+          };
+        }),
       }],
     }, { notMerge: true });
     const over = e => { if (e.seriesIndex === 0) setHover(e.data.slice); };
     const out = () => setHover(null);
     const click = e => {
       if (e.seriesIndex !== 0 || !onSliceClick) return;
+      if (e.data.slice.other) return; // the folded aggregate has no single tx list
       const me = e.event && e.event.event; // the raw browser MouseEvent
       const x = me ? me.clientX : 0, y = me ? me.clientY : 0;
       onSliceClick(e.data.slice.id, {

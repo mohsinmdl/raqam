@@ -14,7 +14,7 @@ import { useStore } from '../../store/StoreProvider.jsx';
 import { useMoney } from '../../lib/format.js';
 import { useIsPhone } from '../../lib/useIsPhone.js';
 import { clampRange } from '../../lib/dateRange.js';
-import { breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows } from '../../lib/spendingReport.js';
+import { breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows, foldForDonut } from '../../lib/spendingReport.js';
 import { exportSpendingReport } from '../../lib/spendingExport.js';
 import { useUI } from '../../ui/UIProvider.jsx';
 import ReportFilterBar from '../../ui/reflect/ReportFilterBar.jsx';
@@ -85,7 +85,9 @@ export default function SpendingBreakdown() {
   // Memoized: SpendingDonut's option-building effect depends on `slices` by
   // identity, so a fresh array every render would rebuild the chart and
   // replay its entry animation on every unrelated parent re-render.
-  const slices = useMemo(() => rows.filter(r => r.amt > 0), [rows]);
+  // foldForDonut caps the ring at the top few categories + one gray "Other";
+  // the category list (visibleRows) is untouched and still shows every row.
+  const slices = useMemo(() => foldForDonut(rows.filter(r => r.amt > 0)), [rows]);
   const stats = useMemo(() => breakdownStats(S, drill
     ? { ...opts, catIds: new Set(drill.catIds.filter(id => !catSel || catSel.has(id))) }
     : opts), [S, range, catSel, acctSel, drill]);
@@ -104,6 +106,7 @@ export default function SpendingBreakdown() {
   }, [drillGroupId, groupRows]);
 
   const openFocus = useCallback((id, anchor) => {
+    if (id === '__other__') return; // the folded donut aggregate isn't one drillable category
     const g = lens === 'groups' && !drill ? groupRows.find(x => x.id === id) : null;
     if (g) { setDrillGroupId(id); return; } // donut slice click in groups lens drills too
     setFocus({ id, anchor });
@@ -243,7 +246,7 @@ export default function SpendingBreakdown() {
                 {r.amt > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ flex: 1, height: 6, background: 'var(--track)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ width: `${r.pct * 100}%`, height: '100%', background: r.color, borderRadius: 3 }} />
+                      <div style={{ width: `${r.pct * 100}%`, height: '100%', background: r.color || 'var(--muted)', borderRadius: 3 }} />
                     </div>
                     <span className="tnum" style={{ fontSize: 11.5, color: 'var(--muted)', flex: 'none', width: 30, textAlign: 'right' }}>{pctLabel(r.pct)}</span>
                   </div>

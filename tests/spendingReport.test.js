@@ -3,8 +3,8 @@
 // in tests/reports.test.js.
 import { describe, it, expect } from 'vitest';
 import {
-  PALETTE, reportTxns, breakdownByCategory, breakdownByGroup,
-  rangeMonths, breakdownStats, categoryTxRows,
+  PALETTE, MAX_SLICES, reportTxns, breakdownByCategory, breakdownByGroup,
+  rangeMonths, breakdownStats, categoryTxRows, foldForDonut,
 } from '../src/lib/spendingReport.js';
 import { daysInMonth } from '../src/lib/calc.js';
 import { addMonths, currentMonth } from '../src/lib/dates.js';
@@ -135,12 +135,12 @@ describe('breakdownByCategory', () => {
     expect(total).toBe(13000 + 15000);
     rows.forEach(r => expect(r.pct).toBeCloseTo(r.amt / total, 10));
 
-    // colors: category color kept
-    expect(byId.rent.color).toBe('#64748B');
-    expect(byId.groc.color).toBe('#0F766E');
-    // Uncategorized has no category color -> falls back to a PALETTE entry
-    expect(byId.uncategorized.color).not.toBeNull();
-    expect(PALETTE).toContain(byId.uncategorized.color);
+    // colors: assigned by size RANK from PALETTE — a category's own saved color
+    // is deliberately ignored (rent/groc carry custom hex in the fixture; the
+    // report does not use them). Order is rent, groc, adv, legacy, uncategorized.
+    expect(byId.rent.color).toBe(PALETTE[0]);
+    expect(byId.groc.color).toBe(PALETTE[1]);
+    expect(byId.uncategorized.color).toBe(PALETTE[4]);
 
     // groupId passthrough
     expect(byId.rent.groupId).toBe('housing');
@@ -265,9 +265,9 @@ describe('breakdownByGroup', () => {
     const total = rows.reduce((s, r) => s + r.amt, 0);
     expect(total).toBe(8000 + 35000 + 700 + 5000);
 
-    // colors assigned PALETTE[index] after sorting desc by amt
-    const sorted = [...rows].sort((a, b) => b.amt - a.amt);
-    sorted.forEach((r, i) => expect(r.color).toBe(PALETTE[i % PALETTE.length]));
+    // colors assigned by rank from PALETTE (no wrap); a row past the palette
+    // gets no hue (null) and renders gray, like the donut's folded "Other".
+    rows.forEach((r, i) => expect(r.color).toBe(i < PALETTE.length ? PALETTE[i] : null));
   });
 
   it('the Deleted category row gets its own bucket, like Uncategorized', () => {
@@ -278,6 +278,41 @@ describe('breakdownByGroup', () => {
     const byId = Object.fromEntries(breakdownByGroup(S, {}).map(r => [r.id, r]));
     expect(byId.deleted).toMatchObject({ name: 'Deleted category', amt: 2000, catIds: ['deleted'] });
     expect(byId.other.catIds).not.toContain('deleted'); // NOT folded in with the ungrouped categories
+  });
+});
+
+describe('foldForDonut', () => {
+  // Rows as the report returns them: sorted desc, colored by rank (null past
+  // the palette). n rows of decreasing amount.
+  const mkRows = n => Array.from({ length: n }, (_, i) => ({
+    id: 'c' + i, name: 'Cat ' + i, amt: (n - i) * 1000, pct: (n - i) / (n * (n + 1) / 2),
+    color: i < PALETTE.length ? PALETTE[i] : null,
+  }));
+
+  it('passes rows through unchanged when there are max + 1 or fewer', () => {
+    const rows = mkRows(MAX_SLICES + 1); // exactly max + 1: shown in full, no 1-item "Other"
+    expect(foldForDonut(rows)).toBe(rows); // same reference — untouched
+  });
+
+  it('folds the tail into one "Other" slice when there are more than max + 1', () => {
+    const rows = mkRows(MAX_SLICES + 3);
+    const out = foldForDonut(rows);
+    expect(out).toHaveLength(MAX_SLICES + 1);
+    expect(out.slice(0, MAX_SLICES)).toEqual(rows.slice(0, MAX_SLICES)); // head untouched
+
+    const other = out[out.length - 1];
+    const tail = rows.slice(MAX_SLICES);
+    expect(other).toMatchObject({ id: '__other__', name: 'Other', color: null, other: true });
+    expect(other.amt).toBe(tail.reduce((s, r) => s + r.amt, 0));
+    expect(other.pct).toBeCloseTo(tail.reduce((s, r) => s + r.pct, 0), 10);
+  });
+
+  it('honors a custom max', () => {
+    const rows = mkRows(6);
+    const out = foldForDonut(rows, { max: 3 });
+    expect(out).toHaveLength(4);
+    expect(out[3]).toMatchObject({ id: '__other__', other: true });
+    expect(out[3].amt).toBe(rows.slice(3).reduce((s, r) => s + r.amt, 0));
   });
 });
 
