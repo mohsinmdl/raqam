@@ -48,6 +48,31 @@ describe('planDrop — top edge (no neighbor above)', () => {
   });
 });
 
+describe('planDrop — top edge in a SCOPED view (nowInView=false)', () => {
+  // Viewing a PAST date/month: `now` (today) is outside the view, so a top drop
+  // must land on the viewed date's latest moment, not the real clock, or the row
+  // would jump to today and disappear from the filtered list.
+  it('anchors to just after the top visible row on ITS day, not now', () => {
+    const p = planDrop({ above: null, below: r('b', '2026-07-15T14:00:00'), now: NOW, nowInView: false });
+    expect(p).toEqual({ mode: 'auto', date: '2026-07-15T14:00:01' });
+  });
+
+  it('stays on the viewed date even for a minute-precision top row', () => {
+    const p = planDrop({ above: null, below: r('b', '2026-07-15T14:00'), now: NOW, nowInView: false });
+    expect(p).toEqual({ mode: 'auto', date: '2026-07-15T14:00:01' });
+  });
+
+  it('caps at end-of-day and opens the picker when the top row is the last second of its day', () => {
+    const p = planDrop({ above: null, below: r('b', '2026-07-15T23:59:59'), now: NOW, nowInView: false });
+    expect(p.mode).toBe('picker'); // no room left on that date
+  });
+
+  it('still uses now when the view DOES contain now (default nowInView)', () => {
+    const p = planDrop({ above: null, below: r('b', '2026-08-30T09:00:00'), now: NOW });
+    expect(p).toEqual({ mode: 'auto', date: NOW });
+  });
+});
+
 describe('planDrop — bottom edge (no neighbor below)', () => {
   it('always opens the picker (an older date must be chosen, not invented)', () => {
     const p = planDrop({ above: r('a', '2026-08-30T09:00:00'), below: null, now: NOW });

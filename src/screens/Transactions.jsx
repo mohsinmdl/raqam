@@ -664,11 +664,16 @@ export default function Transactions() {
   // picker opens when a moment can't be honestly interpolated (see planDrop).
   const [reorderPicker, setReorderPicker] = useState(null);
   const reorderable = !phone && sort.key === 'date' && sort.dir === 'desc';
+  // When the register is scoped to a past date/month, `now` is outside the view,
+  // so a top-of-list drop must anchor to that date's latest moment instead of
+  // the real clock — otherwise the row would jump to today and vanish from view.
+  const nowInView = inRange({ date: now }, range.from, range.to);
   const dnd = useTxDnd({
     rows: tableRows,
     enabled: reorderable,
     applyData,
     now: nowIsoSec(),
+    nowInView,
     openPicker: setReorderPicker,
   });
 

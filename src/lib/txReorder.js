@@ -10,26 +10,44 @@
 // precision (see actions.stampFor): a midpoint inside a tight window is a fair
 // guess; a midpoint dropped into a multi-day empty stretch is a fabrication, so
 // we ask instead.
-import { dayGapAbs, midpointIso, toEpochMs } from './dates.js';
+import { dayGapAbs, fmtIsoSec, midpointIso, toEpochMs } from './dates.js';
 
 // Two whole seconds is the minimum room for a floored-second midpoint to differ
 // from both neighbors; any tighter and there is no distinct moment to assign.
 const MIN_ROOM_MS = 2000;
+
+// The moment a TOP-of-list drop should take. When the view still contains now
+// (the current month, All dates, Today) the top means the real clock. But when
+// the register is scoped to a PAST date or month, `now` lies outside the view —
+// stamping it would yank the row out of sight and into today. There the top
+// means "the latest txn ON the date you're looking at": just after the newest
+// visible row (`below`), capped to the end of its day.
+function topAnchor(below, now, nowInView) {
+  if (nowInView) return now;
+  const endOfDay = below.date.slice(0, 10) + 'T23:59:59';
+  const plus1 = fmtIsoSec(toEpochMs(below.date) + 1000);
+  return plus1 <= endOfDay ? plus1 : endOfDay;
+}
 
 // above  — the more-recent neighbor (row displayed above the drop gap), or null
 //          when dropping at the very top.
 // below  — the older neighbor (row displayed below the gap), or null at the
 //          very bottom.
 // now    — current wall clock, seconds ISO (injected; nothing here reads it).
+// nowInView — is `now` inside the register's current date/month filter? When
+//          false (viewing a past date or month), a top drop anchors to that
+//          date's latest moment instead of the real clock (see topAnchor).
 // Returns { mode:'auto', date } to assign `date`, or { mode:'picker', seed } to
 // open the picker pre-filled from `seed`.
-export function planDrop({ above, below, now, windowDays = 3 }) {
-  // Top of the list: the row becomes the most recent. It can't sit in the
-  // future, so `now` is the answer only when there's room below it.
+export function planDrop({ above, below, now, windowDays = 3, nowInView = true }) {
+  // Top of the list: the row becomes the most recent in view. The anchor is the
+  // real clock in a live view, or the viewed date's latest moment in a scoped
+  // one — and either way only holds when there's room below it.
   if (!above) {
     if (!below) return { mode: 'auto', date: now };          // empty list
-    return now > below.date
-      ? { mode: 'auto', date: now }
+    const anchor = topAnchor(below, now, nowInView);
+    return anchor > below.date
+      ? { mode: 'auto', date: anchor }
       : { mode: 'picker', seed: below.date };
   }
 
@@ -57,10 +75,11 @@ export function planDrop({ above, below, now, windowDays = 3 }) {
 //   rowDate   — id -> that row's timestamp string.
 //   dragId    — the row being moved.
 //   beforeId  — the row the insertion line sits ABOVE, or null for the very end.
+//   nowInView — forwarded to planDrop; governs a top drop's anchor (see above).
 //
 // Returns null when the row was dropped back into its own gap (a no-op), else
 // the planDrop result tagged with the dragged row's id.
-export function resolveDrop({ ids, rowDate, dragId, beforeId, now, windowDays }) {
+export function resolveDrop({ ids, rowDate, dragId, beforeId, now, windowDays, nowInView }) {
   const dragIdx = ids.indexOf(dragId);
   const currentBeforeId = dragIdx >= 0 ? (ids[dragIdx + 1] ?? null) : null;
   if (beforeId === dragId || beforeId === currentBeforeId) return null;
@@ -70,5 +89,5 @@ export function resolveDrop({ ids, rowDate, dragId, beforeId, now, windowDays })
   const aboveId = insertIdx > 0 ? order[insertIdx - 1] : null;
   const above = aboveId ? { id: aboveId, date: rowDate(aboveId) } : null;
   const below = beforeId != null ? { id: beforeId, date: rowDate(beforeId) } : null;
-  return { id: dragId, ...planDrop({ above, below, now, windowDays }) };
+  return { id: dragId, ...planDrop({ above, below, now, windowDays, nowInView }) };
 }
