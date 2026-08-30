@@ -571,6 +571,15 @@ export default function Transactions() {
   // each moving to the screen that owns the question.
   const list = monthTx.filter(t => matchesSearch(t, { q: F.q, term: F.term }, S, accountId));
 
+  // A search is active, and it is hiding some rows the month otherwise holds.
+  // Drives the "Some transactions are hidden … View All" footer — the reassuring
+  // cue (YNAB has it) that the register is scoped, not empty, when a search
+  // still leaves rows on screen. The all-hidden case (list empty) is the "No
+  // matches" state below instead; a facet shows its label, free text its words.
+  const searchActive = !!F.q || !!F.term;
+  const hiddenBySearch = searchActive ? monthTx.length - list.length : 0;
+  const searchLabel = F.term ? F.term.label : F.q;
+
   // Scheduled and recorded are two populations, not one list — txGroups holds
   // the rules for which row lands where, and is tested there.
   const now = nowIso();
@@ -1496,6 +1505,23 @@ export default function Transactions() {
               suggestions={aiSuggestions} onApplySuggestion={applySuggestion}
               onSchedTap={x => (x.row.isRule ? navigate('/recurring/' + x.row.ruleId) : openers.editTx(S, x.selId, openDrawer))}
             />
+          )}
+          {/* Some rows still show, but the search is hiding others — reassure
+              that the register is scoped, not thinned out, and offer the one-tap
+              way back. Only when some rows remain (list > 0); the all-hidden
+              case is the "No matches" state below. A facet reads by its label
+              ("Account: BankIslami"), free text by the quoted words. */}
+          {searchActive && hiddenBySearch > 0 && list.length > 0 && !inlineTx && (
+            <div style={{ padding: '16px 20px 24px', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 13.5, color: 'var(--muted)' }}>
+                {F.term
+                  ? <>Some transactions are hidden by the <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{searchLabel}</strong> filter.</>
+                  : <>Some transactions are hidden by your search for <strong style={{ color: 'var(--text)', fontWeight: 600 }}>“{searchLabel}”</strong>.</>}
+              </div>
+              <button onClick={clearSearch} className="hv-soft" style={{ marginTop: 12, height: 34, padding: '0 18px', border: 'none', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
+                View All
+              </button>
+            </div>
           )}
           {/* Suppressed while an inline editor session is open: the row being
               typed IS the subject of the screen, and "No matches for your
