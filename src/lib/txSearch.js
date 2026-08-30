@@ -39,27 +39,46 @@ export function matchesQuery(t, q, S) {
   return txHaystack(t, S).includes(needle);
 }
 
-// ---- Field getters, one per scoped-text facet -----------------------------
+// ---- Field helpers for the scoped-text facets -----------------------------
+// (payee reads t.merchant directly; the "any" facet defers to matchesQuery —
+// only category and memo need a getter.)
 
 const lower = s => (s || '').toLowerCase();
-const catName = (t, S) => (S.categories.find(c => c.id === t.category) || {}).name || '';
+const catName = (t, S) => ((S.categories || []).find(c => c.id === t.category) || {}).name || '';
 const memoText = t => [t.adjustmentReason, t.notes].filter(Boolean).join(' ');
 
+const CATEGORIZABLE = t => t.type === 'expense' || t.type === 'income' || t.type === 'refund';
+
 // Outflow / Inflow magnitudes, derived exactly as the register's two columns
-// are (txRowOf, all-accounts perspective): money leaving is outflow, money
-// arriving is inflow, a transfer sits on the outflow side, and a signed
+// are (txRowOf): money leaving is outflow, money arriving is inflow, a signed
 // adjustment picks its side by sign. The unpopulated side is null, so an
 // "Outflow ≥ 2" filter never matches a pure inflow row.
-export function txFlows(t) {
-  if (t.type === 'expense' || t.type === 'transfer') return { outflow: t.amount, inflow: null };
+//
+// `accountId` mirrors txRowOf's forAccountId perspective for the one type whose
+// side is perspective-dependent — a transfer. All-accounts (no accountId) puts
+// it on the outflow side (it left the source); scoped to the DESTINATION
+// account it is that account's inflow, matching the column the register shows.
+// An unknown type is excluded from both sides rather than guessed onto one.
+export function txFlows(t, accountId) {
+  if (t.type === 'expense') return { outflow: t.amount, inflow: null };
   if (t.type === 'income' || t.type === 'refund') return { outflow: null, inflow: t.amount };
-  // adjustment / cardAdjustment store a signed magnitude.
-  return t.amount < 0 ? { outflow: -t.amount, inflow: null } : { outflow: null, inflow: t.amount };
+  if (t.type === 'transfer') {
+    if (accountId && (t.toAccountId === accountId || t.toCardId === accountId)) return { outflow: null, inflow: t.amount };
+    return { outflow: t.amount, inflow: null };
+  }
+  if (t.type === 'adjustment' || t.type === 'cardAdjustment') {
+    return t.amount < 0 ? { outflow: -t.amount, inflow: null } : { outflow: null, inflow: t.amount };
+  }
+  return { outflow: null, inflow: null };
 }
 
-// The register's "This needs a category" rule, shared with txRowOf.
-export function txNeedsCategory(t) {
-  return !t.category && (t.type === 'expense' || t.type === 'income' || t.type === 'refund');
+// The register's "This needs a category" rule. Mirrors txRowOf (kept in sync by
+// hand): it tests the RESOLVED category, so a transaction pointing at a deleted
+// category id reads as needing one — the same row the register flags with the
+// pill — which `!t.category` alone would miss. Needs the store to resolve.
+export function txNeedsCategory(t, S) {
+  const cat = t.category ? (S.categories || []).find(c => c.id === t.category) : null;
+  return !cat && CATEGORIZABLE(t);
 }
 
 // Whether a row belongs to an account/card (either side of a transfer).
@@ -72,7 +91,7 @@ function touchesAccount(t, id) {
 // Does a transaction satisfy one structured term? Terms are the objects
 // searchSuggestions() attaches to each suggestion, so a picked suggestion and
 // the filter it applies can never drift apart.
-export function matchesTerm(t, term, S) {
+export function matchesTerm(t, term, S, accountId) {
   if (!term) return true;
   switch (term.kind) {
     case 'field': {
@@ -87,7 +106,7 @@ export function matchesTerm(t, term, S) {
     case 'category': return t.category === term.id;
     case 'status':
       return term.value === 'uncleared' ? t.status === 'pending' : t.status !== 'pending';
-    case 'needsCategory': return txNeedsCategory(t);
+    case 'needsCategory': return txNeedsCategory(t, S);
     case 'date': {
       const d = (t.date || '').slice(0, 10);
       if (!d) return false;
@@ -96,21 +115,25 @@ export function matchesTerm(t, term, S) {
       return d >= term.iso; // onAfter
     }
     case 'amount': {
-      const flow = txFlows(t)[term.side];
+      const flow = txFlows(t, accountId)[term.side];
       if (flow == null) return false;
       if (term.op === 'gte') return flow >= term.value;
       if (term.op === 'lte') return flow <= term.value;
       return flow === term.value; // eq
     }
-    default: return true;
+    // Fail CLOSED. A term whose kind no producer emits is a bug (a renamed or
+    // half-added facet); matching every row would show an active filter chip
+    // over an unfiltered list — the silent failure hardest to notice. An empty
+    // result at least reads as "this filtered something out".
+    default: return false;
   }
 }
 
 // The single entry point the screen filters on: a structured term wins when
 // present, otherwise fall back to free text. So typing-and-Enter keeps the
 // original behaviour and picking a suggestion narrows to that facet.
-export function matchesSearch(t, { q, term } = {}, S) {
-  return term ? matchesTerm(t, term, S) : matchesQuery(t, q, S);
+export function matchesSearch(t, { q, term } = {}, S, accountId) {
+  return term ? matchesTerm(t, term, S, accountId) : matchesQuery(t, q, S);
 }
 
 // ---- Suggestions -----------------------------------------------------------

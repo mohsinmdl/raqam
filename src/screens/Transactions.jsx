@@ -515,9 +515,10 @@ export default function Transactions() {
 
   // Phone chrome state. phoneSelect lives in TxViewContext (AddTxPill hides on
   // it); everything else is per-visit.
-  // Search row shown? F.q lives in TxViewContext and survives navigation, so a
-  // query left active must arrive with its row VISIBLE — a collapsed row over a
-  // persisting filter would silently narrow the list with no cue on screen.
+  // Search row shown? F.q and F.term both live in TxViewContext and survive
+  // navigation, so a query OR an applied facet left active must arrive with its
+  // row VISIBLE — a collapsed row over a persisting filter would silently
+  // narrow the list with no cue on screen.
   const [phoneQOpen, setPhoneQOpen] = useState(() => F.q !== '' || !!F.term);
   const [phoneMoreOpen, setPhoneMoreOpen] = useState(false); // select-mode ⋯ sheet
   const [pickerOpen, setPickerOpen] = useState(false);   // category picker sheet (phone bulk Categorize…)
@@ -552,8 +553,10 @@ export default function Transactions() {
   const clearSearch = () => setFilters(f => ({ ...f, q: '', term: null }));
   // Suggestions are computed only in free-text mode (no active term). A bare
   // day resolves within the viewed month, so date facets land where the
-  // register is looking (range.from is 'YYYY-MM').
-  const searchAnchor = range.from + '-15';
+  // register is looking. `range.from` is NOT always 'YYYY-MM' — it is a full
+  // day for Today/Yesterday and null for All Dates — so take its month, falling
+  // back to the balance month (the strip's month) when the range is unbounded.
+  const searchAnchor = (range.from || balanceMonth).slice(0, 7) + '-15';
   const suggestions = useMemo(
     () => (F.term ? [] : searchSuggestions(F.q, S, searchAnchor)),
     [F.term, F.q, S, searchAnchor],
@@ -566,7 +569,7 @@ export default function Transactions() {
   // category and every account/card the row touches, or the one structured
   // facet a picked suggestion applied (matchesSearch). The other filters are
   // each moving to the screen that owns the question.
-  const list = monthTx.filter(t => matchesSearch(t, { q: F.q, term: F.term }, S));
+  const list = monthTx.filter(t => matchesSearch(t, { q: F.q, term: F.term }, S, accountId));
 
   // Scheduled and recorded are two populations, not one list — txGroups holds
   // the rules for which row lands where, and is tested there.

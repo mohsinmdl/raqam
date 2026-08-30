@@ -104,7 +104,12 @@ const TxSearchField = forwardRef(function TxSearchField({
   return (
     <Combobox.Root
       items={suggestions} value={null} filter={null}
-      open={open} onOpenChange={() => { /* open is derived from focus + suggestions */ }}
+      open={open}
+      // `open` is derived from focus + suggestion count; we don't let Base UI
+      // drive it. We DO use the close signal to drop the highlight mirror, so a
+      // stale highlight can't linger past a close and defeat the Enter-to-close
+      // fallback below (same guard PayeeCell keeps).
+      onOpenChange={o => { if (!o) hl.current = undefined; }}
       onValueChange={pick}
       onItemHighlighted={v => { hl.current = v; }}
       itemToStringLabel={s => (s && s.term && s.term.text) || ''}
@@ -123,7 +128,7 @@ const TxSearchField = forwardRef(function TxSearchField({
           aria-label={label || placeholder}
           placeholder={term ? '' : placeholder}
           value={value}
-          onChange={e => { setFocused(true); onQueryChange(e.target.value); }}
+          onChange={e => { setFocused(true); hl.current = undefined; onQueryChange(e.target.value); }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           onKeyDown={e => {
