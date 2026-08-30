@@ -9,17 +9,19 @@ import { addMonths, currentMonth, monthsBetween, nowIso } from './dates.js';
 // Categorical chart palette, in a fixed slot order chosen for colorblind
 // separation (validated with the data-viz validator against this app's light
 // #FFFFFF and dark #161D1A surfaces: worst adjacent CVD ΔE 10.3, normal-vision
-// 19.6, contrast ≥3:1 in both modes). Slot 1 is a punchier brand teal than the
+// 19.5, contrast ≥3:1 in both modes — re-run that validator if you change any
+// hex here or either --surface token). Slot 1 is a punchier brand teal than the
 // UI accent #0F766E, which sits just under the chroma floor and reads gray as a
 // fill. Colors are assigned by size RANK, not per-category — see the .map()s
 // below. Category-owned colors are deliberately ignored: many categories were
 // saved with the accent teal, which collapsed the donut to one green.
 export const PALETTE = ['#0A8C7E', '#B7791F', '#2563EB', '#C2413B', '#8B5CF6', '#0891B2', '#DB2777', '#65A30D'];
 
-// Distinct-hue budget for the donut. The top MAX_SLICES categories get their own
-// palette hue; the rest fold into one neutral-gray "Other" slice (see
-// foldForDonut). Beyond PALETTE.length a row has no hue of its own (color: null)
-// and renders in the theme's muted gray, same as Other.
+// Distinct-hue budget for the donut. The top slices get their own palette hue —
+// up to MAX_SLICES, or MAX_SLICES + 1 when showing that one extra row avoids a
+// one-item "Other" (see foldForDonut); everything past that folds into a single
+// neutral-gray "Other" slice. Beyond PALETTE.length a row has no hue of its own
+// (color: null) and renders in the theme's muted gray, same as Other.
 export const MAX_SLICES = 7;
 
 // The bucket a transaction belongs to, which is NOT always its raw category

@@ -194,6 +194,26 @@ describe('breakdownByCategory', () => {
     expect(breakdownByCategory(S, { catIds: new Set() })).toEqual([]);
   });
 
+  // Guards the exact change this PR made: no `% PALETTE.length` wrap, so ranks
+  // past the palette get color null (rendered gray), NOT a recycled hue. The
+  // other color tests use <8 rows, where the null branch is never taken.
+  it('colors by rank with no wrap: rows past PALETTE.length get color null', () => {
+    const cats = Array.from({ length: 10 }, (_, i) => ({
+      id: 'k' + i, name: 'K' + i, icon: null, type: 'expense', status: 'active', color: '#0F766E',
+    }));
+    const S = makeStore(
+      cats.map((c, i) => tx({ id: 't' + i, type: 'expense', amount: (10 - i) * 1000, category: c.id })),
+      { categories: cats },
+    );
+    const rows = breakdownByCategory(S, {});
+    // Descending amounts → k0..k9 then the zero-amt Uncategorized row; all carry
+    // a saved '#0F766E' that is deliberately ignored in favor of rank.
+    rows.forEach((r, i) => expect(r.color).toBe(i < PALETTE.length ? PALETTE[i] : null));
+    expect(rows[PALETTE.length - 1].color).toBe(PALETTE[PALETTE.length - 1]); // last hued
+    expect(rows[PALETTE.length].color).toBeNull();                            // first tail → gray
+    expect(rows.length).toBeGreaterThan(PALETTE.length);                      // null branch actually exercised
+  });
+
   // A transaction can outlive the category record it points at. Without the
   // synthetic row its spend vanishes from the page and the summary CSV while
   // still appearing in the transactions CSV — the two files stop reconciling.
@@ -305,6 +325,16 @@ describe('foldForDonut', () => {
     expect(other).toMatchObject({ id: '__other__', name: 'Other', color: null, other: true });
     expect(other.amt).toBe(tail.reduce((s, r) => s + r.amt, 0));
     expect(other.pct).toBeCloseTo(tail.reduce((s, r) => s + r.pct, 0), 10);
+  });
+
+  it('folds a tail of exactly two — the minimal fold, at max + 2 rows', () => {
+    // The first length that actually folds; guards the `<= max + 1` off-by-one.
+    const rows = mkRows(MAX_SLICES + 2);
+    const out = foldForDonut(rows);
+    expect(out).toHaveLength(MAX_SLICES + 1);
+    const other = out[out.length - 1];
+    expect(other).toMatchObject({ id: '__other__', other: true });
+    expect(other.amt).toBe(rows.slice(MAX_SLICES).reduce((s, r) => s + r.amt, 0));
   });
 
   it('honors a custom max', () => {

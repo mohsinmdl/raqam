@@ -14,7 +14,7 @@ import { useStore } from '../../store/StoreProvider.jsx';
 import { useMoney } from '../../lib/format.js';
 import { useIsPhone } from '../../lib/useIsPhone.js';
 import { clampRange } from '../../lib/dateRange.js';
-import { breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows, foldForDonut } from '../../lib/spendingReport.js';
+import { PALETTE, breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows, foldForDonut } from '../../lib/spendingReport.js';
 import { exportSpendingReport } from '../../lib/spendingExport.js';
 import { useUI } from '../../ui/UIProvider.jsx';
 import ReportFilterBar from '../../ui/reflect/ReportFilterBar.jsx';
@@ -77,9 +77,14 @@ export default function SpendingBreakdown() {
   const rows = useMemo(() => {
     if (lens === 'categories') return catRows;
     if (!drill) return groupRows;
+    // Re-base pct within the group AND re-color by group-local rank. Members
+    // otherwise keep the color they got from their GLOBAL rank in
+    // breakdownByCategory, so a group made up of globally low-ranked categories
+    // (all color: null) would draw as several identical muted-gray arcs. Local
+    // ranking gives each member a distinct hue inside the drill — donut and list.
     const member = catRows.filter(r => drill.catIds.includes(r.id));
     const t = member.reduce((s, r) => s + r.amt, 0);
-    return member.map(r => ({ ...r, pct: t ? r.amt / t : 0 }));
+    return member.map((r, i) => ({ ...r, pct: t ? r.amt / t : 0, color: i < PALETTE.length ? PALETTE[i] : null }));
   }, [lens, drill, catRows, groupRows]);
   const total = rows.reduce((s, r) => s + r.amt, 0);
   // Memoized: SpendingDonut's option-building effect depends on `slices` by
