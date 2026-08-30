@@ -30,7 +30,7 @@ export default function Header() {
   const { drawer, openDrawer } = useDrawer();
   const { enabled: lockEnabled, lockNow } = useAppLock();
   const phoneHdr = useIsPhone();
-  const { payeesOpen } = useUI();
+  const { payeesOpen, openPalette } = useUI();
 
   useEffect(() => {
     const onKey = e => {
@@ -131,6 +131,12 @@ export default function Header() {
       )}
       {showTxNav && <TxMonthNav />}
       <div style={{ flex: 1 }} />
+      {phoneHdr && (
+        <button onClick={openPalette} aria-label="Search" title="Search" aria-keyshortcuts="Meta+K Control+K" className="hv-soft rq-btn-outline"
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.2-3.2" /></svg>
+        </button>
+      )}
       {lockEnabled && (
         <button onClick={lockNow} aria-label="Lock now" title="Lock now" className="hv-soft rq-btn-outline"
           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}>

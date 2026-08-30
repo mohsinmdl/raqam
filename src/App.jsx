@@ -40,6 +40,7 @@ import AddTxPill from './components/AddTxPill.jsx';
 import ManagePayees from './ui/payees/ManagePayees.jsx';
 import PasteSmsEntry from './ui/ai/PasteSmsEntry.jsx';
 import ReceiptScanEntry from './ui/ai/ReceiptScanEntry.jsx';
+import CommandPalette from './ui/command/CommandPalette.jsx';
 import { useDrawer } from './ui/DrawerProvider.jsx';
 
 // Sidebar width is user-draggable and remembered on the device (like theme).
@@ -88,6 +89,7 @@ function Shell() {
       }}
     >
       <GlobalShortcuts />
+      <CommandPalette />
       <ManagePayees />
       <PasteSmsEntry open={drawer?.name === 'pasteSms'} onClose={closeDrawer} />
       <ReceiptScanEntry open={drawer?.name === 'scanReceipt'} onClose={closeDrawer} />
