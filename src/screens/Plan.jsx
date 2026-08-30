@@ -1552,8 +1552,12 @@ export default function Plan() {
   // and the panel need the same breathing room the rest of the app has). Only
   // the right side gets it — the left stays flush.
   return (
-    <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '16px 28px 56px 0' : '24px 28px 56px' }}>
-      <div className="plan-root" style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
+    <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '16px 28px 56px 0' : '24px 28px 56px',
+      // Fill the page's full height so the white table card below can grow to the
+      // viewport bottom when the plan is empty/short — otherwise cream (--bg) fills
+      // the area under a stub-height card. Flex column lets .plan-root take the slack.
+      minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div className="plan-root" style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease', flex: 1, minHeight: 0 }}>
         {showBanner && (
           <AdoptionBanner
             noGroups={noGroups}
@@ -1587,7 +1591,7 @@ export default function Plan() {
             right-aligned width/row-view toggles sit above the table's right
             edge, and the inspector's top aligns with the toolbar row. */}
         <div className="plan-grid">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, alignSelf: 'stretch' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', ...rowInset }}>
               <AddGroupButton onAdd={name => applyData(data => addCategoryGroup(data, { name }))} />
               <ToolbarAction icon={<UndoIcon />} label="Undo" disabled={!canUndo} shortcut={SHORTCUT_BY_ID.undo} title={undoLabel ? 'Undo: ' + undoLabel : 'Undo'} onClick={undo} />
@@ -1598,7 +1602,12 @@ export default function Plan() {
               <ViewToggle view={prefs.planView} onChange={v => setPrefs({ planView: v })} />
             </div>
 
-            <div style={{ background: 'var(--surface)', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ background: 'var(--surface)', borderRadius: 12, overflow: 'hidden',
+              // Grow to fill the left column (which stretches to the grid's full
+              // height) so the white covers the whole area — no cream showing below
+              // a short/empty list. min-height:0 keeps a full plan able to overflow
+              // into the page scroll instead of being clipped by overflow:hidden.
+              flex: 1, minHeight: 0 }}>
             <div style={{ ...ROW_COLS, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
               <button
                 onClick={toggleAllGroups}

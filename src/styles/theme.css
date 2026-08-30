@@ -319,10 +319,18 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
    amount columns start wrapping), so the inspector drops below and the table
    takes the full width. */
 .plan-root { container-type: inline-size; }
-.plan-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+/* flex:1/min-height:0 let the grid absorb the plan-root's leftover height; the
+   single content row then stretches (grid-template-rows: 1fr) so the left column
+   — and the white table card inside it — fill down to the viewport bottom on a
+   short/empty plan. align-items:start keeps the sticky inspector at content
+   height (only the table column opts into the stretch via align-self). */
+.plan-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; flex: 1; min-height: 0; grid-template-rows: 1fr; }
 .plan-inspector { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 12px; }
 @container (max-width: 1100px) {
-  .plan-grid { grid-template-columns: 1fr; }
+  /* Stacked: the inspector drops below the table as its own auto row, so the
+     row-stretch must go away — otherwise the table would eat the whole viewport
+     and shove the inspector off-screen. (Reset here, not inline, so this wins.) */
+  .plan-grid { grid-template-columns: 1fr; grid-template-rows: none; }
   .plan-inspector { position: static; }
 }
 
