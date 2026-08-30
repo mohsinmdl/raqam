@@ -62,10 +62,15 @@ echo "Dumping auth schema data (user accounts) ..."
 "$PG_BIN/pg_dump" "$DB_URL" -n auth --data-only -f "$AUTH_SQL"
 
 echo "Verifying ..."
-# Live row counts, as "table: n" lines. n_live_tup is an estimate but exact
-# enough here: autovacuum keeps it current at this database's write volume.
+# Live row counts, as "table: n" lines. Use exact count(*) per table, NOT
+# n_live_tup: that column is a planner estimate refreshed by autovacuum, and on
+# a low-write database it drifts badly stale (reports 0/1 for full tables),
+# which made this check fail on good backups. We build one UNION ALL of
+# count(*) over every public table, then run it.
+COUNT_SQL="$("$PG_BIN/psql" "$DB_URL" -tAc \
+  "select string_agg(format('select %L as t, count(*) c from public.%I', relname, relname), ' union all ') from pg_stat_user_tables where schemaname='public';")"
 LIVE_COUNTS="$("$PG_BIN/psql" "$DB_URL" -tAc \
-  "select relname || ': ' || n_live_tup from pg_stat_user_tables where schemaname='public' order by relname;")"
+  "select t || ': ' || c from ($COUNT_SQL) x order by t;")"
 
 # Rows actually present in the SQL dump: count lines inside each COPY block.
 DUMP_COUNTS="$(awk '
