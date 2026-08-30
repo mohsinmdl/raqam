@@ -10,7 +10,7 @@ import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { accountBalance, cardOutstanding, dayLabel, findDuplicate, monthLabel, relTime } from '../lib/calc.js';
 import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
-import { addTransaction, updateTransaction, deleteTransaction, addSplitTransaction } from '../store/actions.js';
+import { addTransaction, updateTransaction, deleteTransaction, addSplitTransaction, replaceWithSplitTransaction } from '../store/actions.js';
 import { uid } from '../lib/util.js';
 import { validate } from '../lib/validate.js';
 import { PRESETS, ruleFromTx } from '../lib/schedule.js';
@@ -67,8 +67,10 @@ function Body() {
   const fxCategory = type === 'expense' || type === 'income' || type === 'refund';
   // Not while recording an occurrence — a split save bypasses the recurring
   // bookkeeping (markOccurrenceRecorded), which would leave the rule stuck due.
+  // Editing an existing expense IS allowed (the leg-replace path): Save deletes
+  // the original row and records N legs in its place.
   // Mirrored by `splitting` in useSubmit — keep the two conditions in sync.
-  const canSplit = type === 'expense' && !f.editId && !f.fromRecurring;
+  const canSplit = type === 'expense' && !f.fromRecurring;
   const splitOn = canSplit && !!f.splitOn;
   // An adjustment is not paid to anyone — it reconciles the record to reality,
   // and buildTx labels every one of them 'Balance adjustment' regardless of what
@@ -405,7 +407,7 @@ function useSubmit() {
   return async () => {
     const f = drawer.form, type = f.type || 'expense';
     const amt = parseAmt(f.amount);
-    const splitting = type === 'expense' && !f.editId && !f.fromRecurring && f.splitOn && (f.splits || []).length >= 2;
+    const splitting = type === 'expense' && !f.fromRecurring && f.splitOn && (f.splits || []).length >= 2;
     const errs = validate.transaction(S, f, {
       allowArchivedCategory: !!f.editId && f.originalCategory === f.category,
       skipCategory: splitting,
@@ -445,7 +447,11 @@ function useSubmit() {
     // so that still gets a toast (a "rule action", which the user asked to keep).
     if (splitting) {
       const ids = f.splits.map(() => uid());
-      applyData(data => addSplitTransaction(data, { form: f, legs: f.splits, amt, ids }));
+      // Editing an existing expense into a split retires the original row and
+      // records the legs in its place (one undo step); a fresh entry just adds.
+      applyData(data => (f.editId
+        ? replaceWithSplitTransaction(data, { editId: f.editId, form: f, legs: f.splits, amt, ids })
+        : addSplitTransaction(data, { form: f, legs: f.splits, amt, ids })));
       closeDrawer();
       flashRows(ids);
       return true;
