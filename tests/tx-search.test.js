@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   matchesQuery, txHaystack, matchesTerm, matchesSearch,
-  searchSuggestions, parseSearchAmount, txFlows,
+  searchSuggestions, parseSearchAmount, txFlows, txNeedsCategory,
 } from '../src/lib/txSearch.js';
 
 const S = {
@@ -255,5 +255,97 @@ describe('searchSuggestions — the interpretations offered', () => {
   it('always ends with the four field facets, any-field first', () => {
     const fields = searchSuggestions('xyz', SS, ANCHOR).filter(x => x.term.kind === 'field');
     expect(fields.map(x => x.term.field)).toEqual(['any', 'payee', 'category', 'memo']);
+  });
+
+  it('offers a card by nickname and by last4, as an account-kind term', () => {
+    const byName = searchSuggestions('faysal', SS, ANCHOR).find(x => x.term.id === 'c1');
+    expect(byName.term.kind).toBe('account');
+    expect(byName.main).toBe('Faysal Visa ••4021');
+    expect(searchSuggestions('4021', SS, ANCHOR).some(x => x.term.id === 'c1')).toBe(true);
+  });
+
+  it('is case- and whitespace-insensitive', () => {
+    expect(searchSuggestions('  BANK  ', SS, ANCHOR).filter(x => x.term.kind === 'account').map(x => x.main))
+      .toEqual(['BankIslami', 'Allied Bank']);
+  });
+
+  it('offers NO date facets when no anchor is given (but still amount facets)', () => {
+    const s = searchSuggestions('11', SS);
+    expect(s.some(x => x.term.kind === 'date')).toBe(false);
+    expect(s.filter(x => x.term.kind === 'amount').length).toBe(6);
+  });
+
+  it('caps the entity groups (accounts + categories share one budget) without burying fixed facets', () => {
+    const many = {
+      accounts: Array.from({ length: 6 }, (_, i) => ({ id: 'a' + i, nickname: 'Xbank ' + i })),
+      cards: [],
+      categories: Array.from({ length: 6 }, (_, i) => ({ id: 'c' + i, name: 'Xbank cat ' + i })),
+    };
+    const s = searchSuggestions('xbank', many, ANCHOR, 4);
+    const entities = s.filter(x => x.term.kind === 'account' || x.term.kind === 'category');
+    expect(entities.length).toBe(4); // shared cap across both kinds, not 4 each
+    // the always-present field facets survive the cap
+    expect(s.filter(x => x.term.kind === 'field').length).toBe(4);
+  });
+});
+
+// --- Review hardening: the fixes from PR #218 code review --------------------
+
+describe('txNeedsCategory — mirrors txRowOf (resolves the category)', () => {
+  it('is true for an uncategorised categorizable row', () => {
+    expect(txNeedsCategory(T({ category: null, type: 'expense' }), SS)).toBe(true);
+    expect(txNeedsCategory(T({ category: null, type: 'income' }), SS)).toBe(true);
+    expect(txNeedsCategory(T({ category: null, type: 'refund' }), SS)).toBe(true);
+  });
+  it('is true for a row pointing at a DELETED category id (the divergence bug)', () => {
+    // txRowOf shows the "needs category" pill here (!resolvedCat); the facet
+    // must agree, which !t.category alone would not.
+    expect(txNeedsCategory(T({ category: 'ghost-deleted', type: 'expense' }), SS)).toBe(true);
+    expect(matchesTerm(T({ category: 'ghost-deleted', type: 'expense' }), { kind: 'needsCategory' }, SS)).toBe(true);
+  });
+  it('is false for a categorised row and for non-categorizable types', () => {
+    expect(txNeedsCategory(T({ category: 'dine' }), SS)).toBe(false);
+    expect(txNeedsCategory(T({ category: null, type: 'transfer' }), SS)).toBe(false);
+  });
+});
+
+describe('txFlows — account-scoped transfer perspective and unknown types', () => {
+  it('all-accounts view puts a transfer on the outflow side', () => {
+    expect(txFlows(T({ type: 'transfer', amount: 200, accountId: 'a1', toAccountId: 'a2' })))
+      .toEqual({ outflow: 200, inflow: null });
+  });
+  it('scoped to the DESTINATION account, the transfer is that account inflow', () => {
+    const tr = T({ type: 'transfer', amount: 200, accountId: 'a1', toAccountId: 'a2' });
+    expect(txFlows(tr, 'a2')).toEqual({ outflow: null, inflow: 200 }); // money arrived at a2
+    expect(txFlows(tr, 'a1')).toEqual({ outflow: 200, inflow: null }); // money left a1
+  });
+  it('handles cardAdjustment like adjustment, and excludes an unknown type', () => {
+    expect(txFlows(T({ type: 'cardAdjustment', amount: -12 }))).toEqual({ outflow: 12, inflow: null });
+    expect(txFlows(T({ type: 'mystery', amount: 5 }))).toEqual({ outflow: null, inflow: null });
+  });
+  it('an incoming-transfer amount filter matches in the destination register', () => {
+    const tr = T({ type: 'transfer', amount: 200, accountId: 'a1', toAccountId: 'a2' });
+    expect(matchesTerm(tr, { kind: 'amount', side: 'inflow', op: 'eq', value: 200 }, SS, 'a2')).toBe(true);
+    expect(matchesTerm(tr, { kind: 'amount', side: 'inflow', op: 'eq', value: 200 }, SS)).toBe(false); // all-accounts
+  });
+});
+
+describe('matchesTerm — fails closed and guards malformed terms', () => {
+  it('an unknown term kind matches NOTHING (never everything)', () => {
+    expect(matchesTerm(T(), { kind: 'bogus-facet' }, SS)).toBe(false);
+  });
+  it('every kind searchSuggestions can emit is a handled (non-default) kind', () => {
+    // Exhaustiveness guard: a query touching every family, plus cards/status.
+    const handled = new Set(['field', 'account', 'category', 'status', 'needsCategory', 'date', 'amount']);
+    const kinds = new Set();
+    for (const q of ['bank', 'rent', 'faysal', 'cleared', 'unc', 'need', '11', 'inflo']) {
+      for (const s of searchSuggestions(q, SS, ANCHOR)) kinds.add(s.term.kind);
+    }
+    for (const k of kinds) expect(handled.has(k)).toBe(true);
+    // and every handled kind actually appeared (so the guard isn't vacuous)
+    expect(kinds.size).toBe(handled.size);
+  });
+  it('a date term against a dateless row matches nothing', () => {
+    expect(matchesTerm(T({ date: '' }), { kind: 'date', op: 'on', iso: '2026-08-11' }, SS)).toBe(false);
   });
 });
