@@ -76,7 +76,7 @@ function FacetChip({ term, onClear }) {
       <button
         type="button" aria-label="Clear filter"
         onMouseDown={e => e.preventDefault()} onClick={onClear} className="hv-soft"
-        style={{ flex: 'none', display: 'inline-flex', width: 16, height: 16, padding: 0, border: 'none', borderRadius: 999, background: 'transparent', color: 'inherit', cursor: 'pointer' }}
+        style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, padding: 0, border: 'none', borderRadius: 999, background: 'transparent', color: 'inherit', cursor: 'pointer' }}
       >
         <svg aria-hidden="true" width="9" height="9" viewBox="0 0 10 10"><line x1="1.5" y1="1.5" x2="8.5" y2="8.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /><line x1="8.5" y1="1.5" x2="1.5" y2="8.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
       </button>
