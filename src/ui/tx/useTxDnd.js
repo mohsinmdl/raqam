@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { resolveDrop } from '../../lib/txReorder.js';
 import { reorderTransaction } from '../../store/actions.js';
+import { nowIsoSec } from '../../lib/dates.js';
 
 // Drag-to-reorder for the transactions register. Rows are date-DESC and a
 // transaction's order IS its timestamp, so a drop rewrites the dropped row's
@@ -28,7 +29,9 @@ function setGhost(e, label) {
 // a long register stays reorderable without releasing the drag.
 function edgeAutoScroll(e) {
   const EDGE = 48, STEP = 12;
-  let el = e.target;
+  // getComputedStyle throws on a non-Element; a fast drag teardown can leave
+  // e.target a detached/non-element node, so start from a guaranteed Element.
+  let el = e.target instanceof Element ? e.target : e.currentTarget;
   while (el && el !== document.body) {
     const canScroll = el.scrollHeight > el.clientHeight && /(auto|scroll)/.test(getComputedStyle(el).overflowY);
     if (canScroll) {
@@ -43,13 +46,17 @@ function edgeAutoScroll(e) {
 
 // rows     — the recorded rows AS RENDERED (presenter rows; `.id` and `.sortAt`).
 // enabled  — reorder only makes sense in the natural date-desc order.
-// applyData/now — dispatch + injected clock for the pure reducer.
-// nowInView — is `now` inside the register's current date/month filter? Governs
+// applyData — dispatch for the pure reducer. `now` is read fresh at drop time
+//            (nowIsoSec) rather than per-render, so it's exact at the moment of
+//            the drop and doesn't churn the row handlers every second.
+// nowInView — is today inside the register's current date/month filter? Governs
 //            whether a top drop stamps the clock or the viewed date's latest
 //            moment (forwarded to resolveDrop → planDrop).
 // openPicker({ id, seed, x, y }) — called when the drop needs an explicit
 //            date/time instead of an interpolated one.
-export default function useTxDnd({ rows, enabled, applyData, now, nowInView = true, openPicker }) {
+// notify    — surfaces a drop that couldn't happen (the row vanished under a
+//            background sync), so a failed reorder is never silent.
+export default function useTxDnd({ rows, enabled, applyData, nowInView = true, openPicker, notify }) {
   const [dragId, setDragId] = useState(null);
   const [target, setTarget] = useState(null); // { beforeId } — row the line sits above; null = end
 
@@ -82,6 +89,15 @@ export default function useTxDnd({ rows, enabled, applyData, now, nowInView = tr
   const drop = useCallback(e => {
     e.preventDefault();
     if (dragId == null || !target) { end(); return; }
+    // A background sync between grab and drop can remove the row; reorder would
+    // then no-op silently (findIndex → -1). Say so rather than leave the user
+    // wondering why the drag did nothing.
+    if (!rows.some(r => r.id === dragId)) {
+      notify?.('That transaction is no longer here — reload to try again.');
+      end();
+      return;
+    }
+    const now = nowIsoSec();
     const rowDate = id => rows.find(r => r.id === id)?.sortAt;
     const plan = resolveDrop({ ids, rowDate, dragId, beforeId: target.beforeId, now, nowInView });
     if (plan) {
@@ -89,7 +105,7 @@ export default function useTxDnd({ rows, enabled, applyData, now, nowInView = tr
       else openPicker({ id: plan.id, seed: plan.seed, x: e.clientX, y: e.clientY });
     }
     end();
-  }, [dragId, target, ids, rows, now, nowInView, applyData, openPicker, end]);
+  }, [dragId, target, ids, rows, nowInView, applyData, openPicker, end, notify]);
 
   // Handlers to spread onto a row's <tr>. null when reorder is off, so the row
   // stays a plain click/selection target.

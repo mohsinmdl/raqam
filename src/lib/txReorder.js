@@ -62,8 +62,13 @@ export function planDrop({ above, below, now, windowDays = 3, nowInView = true }
   if (withinWindow && room >= MIN_ROOM_MS) {
     return { mode: 'auto', date: midpointIso(above.date, below.date) };
   }
-  // Too far apart, or too tight to split: seed the picker with a moment that
-  // still sorts between the neighbors so a blind confirm keeps the order.
+  // Open the picker. When there IS room (neighbours just span more than the
+  // window), seed the midpoint — it sorts strictly between them, so a blind
+  // confirm keeps the order. When they're under two seconds apart there is no
+  // such moment: seed the upper neighbour as a starting point and rely on the
+  // user to choose (the picker is minute-granular, so a blind confirm here can
+  // tie a neighbour — acceptable for a sub-2-second gap that never arises from
+  // hand-entered data).
   const seed = room >= MIN_ROOM_MS ? midpointIso(above.date, below.date) : above.date;
   return { mode: 'picker', seed };
 }

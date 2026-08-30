@@ -672,9 +672,9 @@ export default function Transactions() {
     rows: tableRows,
     enabled: reorderable,
     applyData,
-    now: nowIsoSec(),
     nowInView,
     openPicker: setReorderPicker,
+    notify,
   });
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter

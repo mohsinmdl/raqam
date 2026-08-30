@@ -22,16 +22,24 @@ export function todayStr() { return nowIso().slice(0, 10); }
 // Local-time ISO ('YYYY-MM-DD', '...THH:mm', '...THH:mm:ss') to epoch ms via a
 // local Date, so a value written by nowIso/nowIsoSec round-trips to the same
 // wall clock. A missing time reads as local midnight; missing seconds as :00.
+// Anything that doesn't START with a YYYY-MM-DD date returns NaN rather than
+// coercing to a bogus 1900 — an undefined/empty/garbage neighbour date must
+// propagate as NaN so callers (dayGapAbs, planDrop) route it to the picker
+// instead of silently interpolating a decades-off timestamp.
 export function toEpochMs(iso) {
   const s = String(iso || '');
+  if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return NaN;
   const [datePart, timePart = ''] = s.split('T');
   const [y, m, d] = datePart.split('-').map(Number);
   const [hh = 0, mm = 0, ss = 0] = timePart.split(':').map(Number);
   return new Date(y, (m || 1) - 1, d || 1, hh, mm, ss).getTime();
 }
-// Epoch ms back to a seconds-precision local ISO string — the write format for
-// every reordered/interpolated timestamp.
+// Epoch ms back to a seconds-precision local ISO string — the formatter behind
+// midpointIso, and the shared shape of every reordered timestamp. Returns ''
+// for a non-finite ms so a NaN never becomes a truthy 'NaN-…' string that would
+// slip past a falsy guard and reach the store.
 export function fmtIsoSec(ms) {
+  if (!Number.isFinite(ms)) return '';
   const d = new Date(ms);
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
 }

@@ -29,6 +29,27 @@ describe('planDrop — between two neighbors', () => {
     expect(p.mode).toBe('picker');
   });
 
+  it('auto at EXACTLY the 2-second minimum room, with a midpoint distinct from both', () => {
+    const above = '2026-08-30T12:00:02', below = '2026-08-30T12:00:00';
+    const p = planDrop({ above: r('a', above), below: r('b', below), now: NOW });
+    expect(p).toEqual({ mode: 'auto', date: '2026-08-30T12:00:01' });
+    expect(p.date).not.toBe(above);
+    expect(p.date).not.toBe(below); // the property the whole auto/picker split protects
+  });
+
+  it('seeds the picker strictly BETWEEN the neighbors when they are far apart', () => {
+    const above = '2026-08-30T00:00:00', below = '2026-08-26T00:00:00'; // >3 days
+    const p = planDrop({ above: r('a', above), below: r('b', below), now: NOW });
+    expect(p.mode).toBe('picker');
+    expect(p.seed > below && p.seed < above).toBe(true); // blind confirm keeps order
+  });
+
+  it('seeds the picker with the upper neighbor when the gap is too tight to split', () => {
+    const above = '2026-08-30T12:00:01';
+    const p = planDrop({ above: r('a', above), below: r('b', '2026-08-30T12:00:00'), now: NOW });
+    expect(p).toEqual({ mode: 'picker', seed: above });
+  });
+
   it('a custom windowDays widens/narrows the auto range', () => {
     const far = { above: r('a', '2026-08-30T00:00:00'), below: r('b', '2026-08-25T00:00:00'), now: NOW };
     expect(planDrop({ ...far, windowDays: 3 }).mode).toBe('picker');

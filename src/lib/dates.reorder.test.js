@@ -53,3 +53,25 @@ describe('nowIsoSec', () => {
     expect(nowIsoSec()).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
   });
 });
+
+// Malformed input must surface as NaN/'' — never a bogus 1900 date or a truthy
+// 'NaN-…' string — so a bad neighbour date routes a drop to the picker and can
+// never be laundered into the store.
+describe('date helpers reject malformed input honestly', () => {
+  it('toEpochMs returns NaN for missing/empty/garbage input', () => {
+    expect(toEpochMs(undefined)).toBeNaN();
+    expect(toEpochMs(null)).toBeNaN();
+    expect(toEpochMs('')).toBeNaN();
+    expect(toEpochMs('garbage')).toBeNaN();
+  });
+  it('fmtIsoSec returns empty string for a non-finite ms', () => {
+    expect(fmtIsoSec(NaN)).toBe('');
+    expect(fmtIsoSec(toEpochMs('nope'))).toBe('');
+  });
+  it('midpointIso returns empty string when a side is unparseable', () => {
+    expect(midpointIso('garbage', '2026-08-30T10:00:00')).toBe('');
+  });
+  it('dayGapAbs returns NaN when a side is unparseable', () => {
+    expect(dayGapAbs('garbage', '2026-08-30')).toBeNaN();
+  });
+});
