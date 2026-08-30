@@ -1547,8 +1547,12 @@ export default function Plan() {
     );
   }
 
+  // Fit-width (wide) mode runs full-bleed on the LEFT but keeps a right gutter,
+  // so the sticky Inspector isn't glued to the window edge (the AVAILABLE column
+  // and the panel need the same breathing room the rest of the app has). Only
+  // the right side gets it — the left stays flush.
   return (
-    <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '16px 0 56px' : '24px 28px 56px' }}>
+    <div style={{ maxWidth: wide ? 'none' : 1280, margin: wide ? 0 : '0 auto', padding: wide ? '16px 28px 56px 0' : '24px 28px 56px' }}>
       <div className="plan-root" style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'hsFade .25s ease' }}>
         {showBanner && (
           <AdoptionBanner
