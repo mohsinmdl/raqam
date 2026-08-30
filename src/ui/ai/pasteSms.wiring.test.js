@@ -34,6 +34,24 @@ describe('runPasteSms — tier-1 hit', () => {
   });
 });
 
+describe('runPasteSms — bank named, no last4 (the reported regression)', () => {
+  it('seeds the editor with BOTH the parsed date and the bank-resolved account', async () => {
+    const openDrawer = vi.fn();
+    const parseSms = vi.fn();
+    // The user owns an HBL card but the SMS has no card number — resolution has
+    // to come from the bank name "HBL" (instId 'hbl'), not last4.
+    const hbl = { accounts: [], cards: [{ id: 'c1', instId: 'hbl' }] };
+    const text = 'Your HBL Debit Card has been charged for a Transaction of PKR 2532.99 on 29/08/2026 23:31:13.';
+    const res = await runPasteSms({ text, enabled: true, parseSms, S: hbl, openDrawer });
+
+    expect(parseSms).not.toHaveBeenCalled(); // local tier answers
+    expect(res.tier).toBe('local');
+    expect(addTxForm(openDrawer)).toMatchObject({
+      type: 'expense', amount: '2533', date: '2026-08-29', payWith: 'card:c1',
+    });
+  });
+});
+
 describe('runPasteSms — tier-1 miss, AI on', () => {
   it('calls the LLM then seeds the editor from its ParsedSms', async () => {
     const openDrawer = vi.fn();

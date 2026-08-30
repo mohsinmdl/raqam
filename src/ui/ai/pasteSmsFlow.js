@@ -27,7 +27,9 @@ export async function runPasteSms({ text, enabled, parseSms, S, openDrawer }) {
   }
 
   if (parsed && isUsable(parsed)) {
-    openers.addTx(openDrawer, seedType(parsed), toTxSeed(parsed, S)); // L5 prefill
+    // Pass `raw` so L4 can resolve the account by the bank NAMED in the SMS when
+    // there's no last4 to key on — works for both the local and LLM tiers.
+    openers.addTx(openDrawer, seedType(parsed), toTxSeed(parsed, S, raw)); // L5 prefill
     return { tier, parsed };
   }
 

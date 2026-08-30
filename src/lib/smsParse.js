@@ -116,27 +116,45 @@ export function isUsable(parsed) {
 // Ordered bank entries (cheap identifier `test`, shared `extract`) ending in a
 // generic fallback whose test is simply "has an amount and a direction"
 // (BR-U2-2). Best-effort over common Pakistani debit/credit SMS shapes.
-const bankEntry = (bank, test) => ({ bank, test: t => test.test(t), extract: buildParsed });
+// `instId` ties an identified bank to the store's institution catalogue
+// (store/seed.js INSTITUTIONS — mirrored server-side in migration 0002), which
+// is how L4 resolves an account when the SMS names a bank but carries no last4.
+const bankEntry = (bank, instId, test) => ({ bank, instId, test: t => test.test(t), extract: buildParsed });
 
 export const BANK_PATTERNS = [
-  bankEntry('HBL', /\bHBL\b|habib\s*bank/i),
-  bankEntry('UBL', /\bUBL\b|united\s*bank/i),
-  bankEntry('MCB', /\bMCB\b|muslim\s*commercial/i),
-  bankEntry('Bank Alfalah', /alfalah/i),
-  bankEntry('Meezan', /meezan/i),
-  bankEntry('Faysal', /faysal/i),
-  bankEntry('BankIslami', /bank\s*islami/i),
-  bankEntry('Standard Chartered', /standard\s*chartered|\bSCB\b/i),
-  bankEntry('JazzCash', /jazz\s*cash/i),
-  bankEntry('easypaisa', /easy\s*paisa/i),
-  bankEntry('Raqami', /raqami/i),
-  // Generic fallback: any SMS that yields an amount + a direction keyword.
+  bankEntry('HBL', 'hbl', /\bHBL\b|habib\s*bank/i),
+  bankEntry('UBL', 'ubl', /\bUBL\b|united\s*bank/i),
+  bankEntry('MCB', 'mcb', /\bMCB\b|muslim\s*commercial/i),
+  bankEntry('Bank Alfalah', 'alfalah', /alfalah/i),
+  bankEntry('Meezan', 'meezan', /meezan/i),
+  bankEntry('Faysal', 'faysal', /faysal/i),
+  bankEntry('BankIslami', 'bankislami', /bank\s*islami/i),
+  bankEntry('Standard Chartered', 'scb', /standard\s*chartered|\bSCB\b/i),
+  bankEntry('JazzCash', 'mmbl', /jazz\s*cash/i),
+  bankEntry('easypaisa', 'tmb', /easy\s*paisa/i),
+  bankEntry('Raqami', 'raqami', /raqami/i),
+  // Generic fallback: any SMS that yields an amount + a direction keyword. It
+  // has no instId — an unidentified bank can never resolve an account by name.
   {
     bank: 'generic',
+    instId: undefined,
     test: t => parseAmount(t) !== undefined && parseDirection(t) !== undefined,
     extract: buildParsed,
   },
 ];
+
+// The identified bank's institution id (INSTITUTIONS[].id), or undefined when no
+// named bank matches. Kept OUT of ParsedSms deliberately: the wire contract
+// (modal/fixtures/parse-sms.*, and Modal's Pydantic ParsedSms) stays frozen, so
+// this re-reads the raw text at resolution time instead of widening the schema.
+export function parseBank(text) {
+  if (!text) return undefined;
+  const norm = String(text).replace(/\s+/g, ' ').trim();
+  for (const entry of BANK_PATTERNS) {
+    if (entry.instId && entry.test(norm)) return entry.instId;
+  }
+  return undefined;
+}
 
 // L1/L2 — first registry entry whose test matches AND whose extract is usable.
 // A partial (non-usable) hit falls through to the generic entry, then to null.
@@ -152,15 +170,32 @@ export function parseSmsLocal(text) {
 }
 
 // ---- L4 account resolution -------------------------------------------------
-// last4 fills a ref only on EXACTLY ONE match across accounts+cards (BR-U2-4);
-// 0 or >1 (including an account AND a card sharing the digits) → blank {}.
-export function resolveAccount(parsed, S) {
+// last4 is the specific key: it fills a ref only on EXACTLY ONE match across
+// accounts+cards (BR-U2-4); 0 or >1 (an account AND a card sharing the digits)
+// → blank {}, and we do NOT widen to a coarser bank guess in that case.
+//
+// When the SMS carries no last4 at all, fall back to the NAMED BANK (parseBank
+// off the raw `text`). Product decision (user-chosen): fill from the bank even
+// when several instruments share it — "first match", with accounts considered
+// before cards — since the editor is always the review gate. Pass no `text`
+// and this degrades to the pure last4 behaviour.
+export function resolveAccount(parsed, S, text) {
+  if (!S) return {};
   const last4 = parsed && parsed.last4;
-  if (!last4 || !S) return {};
-  const accs = (S.accounts || []).filter(a => a.last4 === last4);
-  const cards = (S.cards || []).filter(c => c.last4 === last4);
-  if (accs.length + cards.length !== 1) return {};
-  return accs.length === 1 ? { ref: 'acc:' + accs[0].id } : { ref: 'card:' + cards[0].id };
+  if (last4) {
+    const accs = (S.accounts || []).filter(a => a.last4 === last4);
+    const cards = (S.cards || []).filter(c => c.last4 === last4);
+    if (accs.length + cards.length !== 1) return {};
+    return accs.length === 1 ? { ref: 'acc:' + accs[0].id } : { ref: 'card:' + cards[0].id };
+  }
+  const instId = parseBank(text);
+  if (instId) {
+    const acc = (S.accounts || []).find(a => a.instId === instId);
+    if (acc) return { ref: 'acc:' + acc.id };
+    const card = (S.cards || []).find(c => c.instId === instId);
+    if (card) return { ref: 'card:' + card.id };
+  }
+  return {};
 }
 
 // ---- L5 seed building ------------------------------------------------------
@@ -170,7 +205,7 @@ export function seedType(parsed) {
   return parsed && parsed.direction === 'credit' ? 'income' : 'expense';
 }
 
-export function toTxSeed(parsed, S) {
+export function toTxSeed(parsed, S, text) {
   const p = parsed || {};
   const type = seedType(p);
   const seed = {
@@ -179,7 +214,7 @@ export function toTxSeed(parsed, S) {
     date: p.date || todayStr(),
     merchant: p.merchant || '',
   };
-  const { ref } = resolveAccount(p, S);
+  const { ref } = resolveAccount(p, S, text);
   if (ref) {
     if (type === 'expense') seed.payWith = ref;
     else seed.account = ref;

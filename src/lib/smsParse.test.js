@@ -8,9 +8,13 @@ import parseReq from '../../modal/fixtures/parse-sms.request.json';
 import parseResp from '../../modal/fixtures/parse-sms.response.json';
 import { todayStr } from './dates.js';
 import {
-  isUsable, parseAmount, parseDate, parseDirection, parseLast4,
+  isUsable, parseAmount, parseBank, parseDate, parseDirection, parseLast4,
   parseSmsLocal, resolveAccount, seedType, toTxSeed,
 } from './smsParse.js';
+
+// The real-world regression this feature fixes: a bank is named ("HBL") but the
+// SMS carries no card/account number, so last4 resolution has nothing to bite on.
+const HBL_NO_LAST4 = 'Your HBL Debit Card has been charged for a Transaction of PKR 2532.99 on 29/08/2026 23:31:13.';
 
 // ---- fixture lockstep ------------------------------------------------------
 describe('wire contract (fixtures)', () => {
@@ -141,6 +145,54 @@ describe('resolveAccount', () => {
   });
 });
 
+// ---- L1 bank identity (feeds L4 when there is no last4) ---------------------
+describe('parseBank (bank → instId)', () => {
+  it.each([
+    [HBL_NO_LAST4, 'hbl'],
+    ['UBL: PKR 2,300 credited to A/C **5678', 'ubl'],
+    ['Bank Alfalah: Rs. 15,000 withdrawn from ATM', 'alfalah'],
+    ['Standard Chartered: Your card **4444 has been charged', 'scb'],
+    ['Meezan Bank: Rs 3,750 spent at FOODPANDA', 'meezan'],
+  ])('%s → %s', (text, instId) => {
+    expect(parseBank(text)).toBe(instId);
+  });
+  it('a generic SMS with no known bank → undefined', () => {
+    expect(parseBank('Rs 500 debited on 24-08-2026')).toBeUndefined();
+  });
+  it('missing text → undefined (never throws)', () => {
+    expect(parseBank(undefined)).toBeUndefined();
+    expect(parseBank('')).toBeUndefined();
+  });
+});
+
+// ---- L4 account resolution by BANK NAME (no last4) --------------------------
+// Product decision (user-chosen): fill from the named bank even when several of
+// the user's instruments share it — "first match", corrected in the editor.
+const instAcc = (id, instId) => ({ id, instId });
+describe('resolveAccount by bank name (no last4)', () => {
+  it('names a bank, owns exactly one instrument for it → that ref', () => {
+    const S = storeWith([], [instAcc('c1', 'hbl')]);
+    expect(resolveAccount(parseSmsLocal(HBL_NO_LAST4), S, HBL_NO_LAST4)).toEqual({ ref: 'card:c1' });
+  });
+  it('several instruments share the bank → FIRST match (accounts before cards)', () => {
+    const S = storeWith([instAcc('a1', 'hbl')], [instAcc('c1', 'hbl'), instAcc('c2', 'hbl')]);
+    expect(resolveAccount(parseSmsLocal(HBL_NO_LAST4), S, HBL_NO_LAST4)).toEqual({ ref: 'acc:a1' });
+  });
+  it('bank named but no instrument for it → blank', () => {
+    const S = storeWith([instAcc('a1', 'ubl')], [instAcc('c1', 'meezan')]);
+    expect(resolveAccount(parseSmsLocal(HBL_NO_LAST4), S, HBL_NO_LAST4)).toEqual({});
+  });
+  it('last4 is more specific: a unique last4 match still wins over the bank', () => {
+    const S = storeWith([instAcc('a1', 'hbl')], [{ id: 'c1', instId: 'hbl', last4: '4444' }]);
+    const parsed = { last4: '4444', bank: 'hbl' };
+    expect(resolveAccount(parsed, S, HBL_NO_LAST4)).toEqual({ ref: 'card:c1' });
+  });
+  it('no text supplied → falls back to the old last4-only behaviour', () => {
+    const S = storeWith([instAcc('a1', 'hbl')]);
+    expect(resolveAccount(parseSmsLocal(HBL_NO_LAST4), S)).toEqual({});
+  });
+});
+
 // ---- L5 seed building ------------------------------------------------------
 describe('toTxSeed (BR-U2-6/12)', () => {
   const empty = storeWith();
@@ -163,6 +215,11 @@ describe('toTxSeed (BR-U2-6/12)', () => {
     expect(seedType({ direction: 'credit' })).toBe('income');
     expect(seedType({ direction: 'debit' })).toBe('expense');
     expect(seedType({})).toBe('expense');
+  });
+  it('resolves the account by bank name when the SMS has no last4 (regression)', () => {
+    const S = storeWith([], [instAcc('c1', 'hbl')]);
+    expect(toTxSeed(parseSmsLocal(HBL_NO_LAST4), S, HBL_NO_LAST4))
+      .toEqual({ type: 'expense', amount: '2533', date: '2026-08-29', merchant: '', payWith: 'card:c1' });
   });
 });
 
