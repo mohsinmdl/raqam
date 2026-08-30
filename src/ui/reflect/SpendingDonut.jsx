@@ -24,9 +24,9 @@ const readTheme = () => ({ surface: cssVar('--surface'), text: cssVar('--text'),
 export const pctLabel = p => (p > 0 && p < 0.005 ? '<1%' : Math.round(p * 100) + '%');
 
 // Only slices at least this big get an outside leader label; smaller ones would
-// crowd the ring and are read from the category list instead. The fold in
-// spendingReport already caps the slice count, so this only trims the last one
-// or two thin arcs.
+// crowd the ring and are read from the category list instead. The fold caps the
+// slice COUNT, not their sizes, so in practice this trims the thin arcs near the
+// tail; labelLayout.hideOverlap below is the backstop for any that still collide.
 const LABEL_MIN_PCT = 0.05;
 
 // `labels` off drops the external leader labels (and their lines): on a phone
@@ -93,8 +93,9 @@ export default function SpendingDonut({ slices = [], total = 0, money, size = 38
         emphasis: { scale: true, scaleSize: 4, focus: 'self' },
         blur: { itemStyle: { opacity: 0.25 }, label: { opacity: 0.3 } },
         data: slices.map(s => {
-          // Small slices (and the folded "Other") skip the outside label + its
-          // leader line; the category list carries their name/amount/percent.
+          // Small slices skip the outside label + leader line; the category list
+          // carries their name/amount/percent. The folded "Other" is labelled
+          // like any slice — its combined share usually clears the threshold.
           const showLabel = labels && s.pct >= LABEL_MIN_PCT;
           return {
             value: s.amt, name: s.name, slice: s,
