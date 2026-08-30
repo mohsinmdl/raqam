@@ -3,7 +3,8 @@
 ## Project Information
 - **Project Type**: Brownfield
 - **Start Date**: 2026-08-24T16:50:04Z (cycle 2)
-- **Current Stage**: CYCLE 3 (Command Palette) — COMPLETE (all stages; PR from worktree-command-palette pending merge)
+- **Current Stage**: CYCLE 4 (Structured Transaction Search) — construction complete, live-verified; PR from worktree-tx-search pending
+- **Feature (Cycle 4)**: Register search becomes structured — a suggestion dropdown offers Account / Category / Is:status / Needs-Category / Date / Amount / field-scoped-text interpretations of the typed query, and picking one filters the rows (YNAB-style, adapted to Raqam's cleared/uncleared model)
 - **Feature (Cycle 3)**: Global command palette (⌘K / Ctrl+K) — fuzzy search over pages, data (accounts/categories/payees), and actions; sidebar quick-search entry + keyboard shortcut; Recents; desktop + mobile
 - **Previous Cycle**: AI features via Modal.com — COMPLETE 2026-08-25 (PR #210; auto-categorize, sms-parse, receipt-scan, insights-digest)
 - **Cycle 1**: Multi-Plan system — COMPLETE 2026-08-23 (PR #208 merged & live)
@@ -55,6 +56,30 @@
 - [x] Build and Test — complete 2026-08-30 (1618 vitest + build green; live browser 8/8 PASS via stubbed harness; command-palette-build-and-test.md)
 ### 🟡 OPERATIONS
 - [x] Operations hand-off — 2026-08-30: PR from worktree-command-palette → main; auto-deploys to raqam.pages.dev on merge (no infra/env/migration needed). **AI-DLC CYCLE 3 COMPLETE.**
+
+## Stage Progress — Cycle 4: Structured Transaction Search
+**Mode**: Autonomous /goal run (user: "consider it as a /goal … get it done end to end"). Recommended answers accepted by that directive; no per-stage approval gates.
+**Workspace**: worktree-tx-search off origin/main.
+
+### 🔵 INCEPTION PHASE
+- [x] Workspace Detection — brownfield resume; search surface read directly
+- [ ] Reverse Engineering — SKIP (artifacts current)
+- [x] Requirements Analysis — requirements-tx-search.md (Standard depth)
+- [x] User Stories — stories-tx-search.md (10 stories, reused persona)
+- [x] Workflow Planning — execution-plan-tx-search.md
+- [ ] Application Design — SKIP (within existing boundaries)
+- [ ] Units Generation — SKIP (single unit)
+
+### 🟢 CONSTRUCTION PHASE
+- [x] Functional Design — construction/tx-search/functional-design/functional-design.md
+- [ ] NFR Requirements / NFR Design / Infra Design — SKIP (no new stack/patterns/infra)
+- [x] Code Generation (unit tx-search) — lib/txSearch.js extended; ui/tx/TxSearchField.jsx new; TxViewContext + Transactions.jsx wired; tests/tx-search.test.js extended (39 search tests)
+- [x] Build and Test — full suite 1643 green, build green; live harness verification (Playwright subagent) across the reference scenarios
+
+### 🟡 OPERATIONS PHASE
+- [ ] Operations — PR hand-off (client-only; auto-deploys on merge; no infra/env/DB)
+
+---
 
 ## Stage Progress — Cycle 2: AI Features (Modal.com)
 ### 🔵 INCEPTION PHASE

@@ -27,10 +27,10 @@ import BulkBar from '../ui/BulkBar.jsx';
 import { dayGroups } from '../lib/dayGroups.js';
 import PositionStrip from '../components/PositionStrip.jsx';
 import RecentMoves from '../components/RecentMoves.jsx';
-import SearchField from '../ui/SearchField.jsx';
+import TxSearchField from '../ui/tx/TxSearchField.jsx';
 import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon, SmsIcon, CameraIcon } from '../ui/ToolbarAction.jsx';
 import { useAI } from '../ui/ai/useAI.js';
-import { matchesQuery } from '../lib/txSearch.js';
+import { matchesSearch, searchSuggestions } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { useContainerWidth } from '../lib/useContainerWidth.js';
 import { visibleColumnKeys } from '../lib/registerColumns.js';
@@ -518,7 +518,7 @@ export default function Transactions() {
   // Search row shown? F.q lives in TxViewContext and survives navigation, so a
   // query left active must arrive with its row VISIBLE — a collapsed row over a
   // persisting filter would silently narrow the list with no cue on screen.
-  const [phoneQOpen, setPhoneQOpen] = useState(() => F.q !== '');
+  const [phoneQOpen, setPhoneQOpen] = useState(() => F.q !== '' || !!F.term);
   const [phoneMoreOpen, setPhoneMoreOpen] = useState(false); // select-mode ⋯ sheet
   const [pickerOpen, setPickerOpen] = useState(false);   // category picker sheet (phone bulk Categorize…)
   // Desktop bulk Categorize opens an anchored popover instead of the sheet; the
@@ -544,14 +544,29 @@ export default function Transactions() {
   const [listFilter, setListFilter] = useState('all'); // 'all' | 'uncleared' | 'needsCat' — phone banners + the desktop needs-category banner share it
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
+  // Search box handlers. Typing always returns to free-text mode (clears any
+  // applied facet); picking a suggestion applies its structured term and blanks
+  // the text; clearing resets both. One structured term is active at a time.
+  const onSearchQuery = v => setFilters(f => ({ ...f, q: v, term: null }));
+  const onSearchPick = term => setFilters(f => ({ ...f, term, q: '' }));
+  const clearSearch = () => setFilters(f => ({ ...f, q: '', term: null }));
+  // Suggestions are computed only in free-text mode (no active term). A bare
+  // day resolves within the viewed month, so date facets land where the
+  // register is looking (range.from is 'YYYY-MM').
+  const searchAnchor = range.from + '-15';
+  const suggestions = useMemo(
+    () => (F.term ? [] : searchSuggestions(F.q, S, searchAnchor)),
+    [F.term, F.q, S, searchAnchor],
+  );
   const reset = () => resetView();
 
   const monthTx = S.transactions.filter(t => inRange(t, range.from, range.to)
     && (!accountId || t.accountId === accountId || t.toAccountId === accountId));
-  // Search is the only filter here now — it matches merchant, notes, category
-  // and every account or card the row touches (matchesQuery). The other filters
-  // are each moving to the screen that owns the question.
-  const list = monthTx.filter(t => matchesQuery(t, F.q, S));
+  // Search is the only filter here now — either free text over merchant, notes,
+  // category and every account/card the row touches, or the one structured
+  // facet a picked suggestion applied (matchesSearch). The other filters are
+  // each moving to the screen that owns the question.
+  const list = monthTx.filter(t => matchesSearch(t, { q: F.q, term: F.term }, S));
 
   // Scheduled and recorded are two populations, not one list — txGroups holds
   // the rules for which row lands where, and is tested there.
@@ -633,7 +648,7 @@ export default function Transactions() {
   // but this render still has to survive it, and there is no opening snapshot
   // to seed from without an account.
   const balanceEligible = !!acct && sort.key === 'date' && rangeIsBalanceMonth
-    && !F.q && listFilter === 'all';
+    && !F.q && !F.term && listFilter === 'all';
   const visibleKeys = useMemo(
     () => visibleColumnKeys(COLUMNS, containerWidth, !!accountId, balanceEligible),
     [containerWidth, accountId, balanceEligible],
@@ -709,7 +724,7 @@ export default function Transactions() {
     setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('sel'); return p; }, { replace: true });
     if (!target.found) return;
     if (target.range) setRange(target.range);  // widen the date window to reveal the row
-    setFilters(f => (f.q ? { ...f, q: '' } : f)); // a stale search would filter the target out
+    setFilters(f => (f.q || f.term ? { ...f, q: '', term: null } : f)); // a stale search would filter the target out
     setListFilter('all');       // clear any banner (uncleared/needsCat) that could hide the target
     setSchedSel(new Set());     // recorded/scheduled selections are mutually exclusive
     setSelected(new Set([target.id]));
@@ -1166,13 +1181,13 @@ export default function Transactions() {
                   {/* Entering Select mode hides the search row, so a live query
                       would keep filtering invisibly — clear it (and collapse
                       the row) so selection always operates on the full list. */}
-                  <button onClick={() => { setF('q', ''); setPhoneQOpen(false); setPhoneSelect(true); }} className="hv-soft rq-btn-outline"
+                  <button onClick={() => { clearSearch(); setPhoneQOpen(false); setPhoneSelect(true); }} className="hv-soft rq-btn-outline"
                     style={{ minHeight: 44, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 999, background: 'var(--elev)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                     Select
                   </button>
                   {/* Collapsing the row also clears the query — the filter must
                       never outlive its only visible control. */}
-                  <button onClick={() => { if (phoneQOpen) setF('q', ''); setPhoneQOpen(!phoneQOpen); }} aria-pressed={phoneQOpen} aria-label="Search" className="hv-soft"
+                  <button onClick={() => { if (phoneQOpen) clearSearch(); setPhoneQOpen(!phoneQOpen); }} aria-pressed={phoneQOpen} aria-label="Search" className="hv-soft"
                     style={{ width: 44, height: 44, border: 'none', borderRadius: 999, background: phoneQOpen ? 'var(--soft)' : 'none', color: 'var(--text)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg aria-hidden="true" width="17" height="17" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.6"/><path d="M10.5 10.5 14 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
                   </button>
@@ -1181,7 +1196,9 @@ export default function Transactions() {
             </div>
             {phoneQOpen && !phoneSelect && (
               <div style={{ padding: '4px 16px 10px', display: 'flex' }}>
-                <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} collapsed="100%" expanded="100%" height={44}
+                <TxSearchField ref={searchRef} value={F.q} term={F.term} suggestions={suggestions}
+                  onQueryChange={onSearchQuery} onPick={onSearchPick} onClear={clearSearch}
+                  collapsed="100%" expanded="100%" height={44}
                   placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
               </div>
             )}
@@ -1307,7 +1324,9 @@ export default function Transactions() {
               that no longer sits beside it. The 13px it gives back is also
               often the whole overflow. */}
           <span aria-hidden="true" className="tx-toolbar-divider" style={{ width: 1, height: 20, background: 'var(--border)', flex: 'none', margin: '0 6px' }} />
-          <SearchField ref={searchRef} value={F.q} onChange={v => setF('q', v)} placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
+          <TxSearchField ref={searchRef} value={F.q} term={F.term} suggestions={suggestions}
+            onQueryChange={onSearchQuery} onPick={onSearchPick} onClear={clearSearch}
+            placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
           {/* The one sort with no header of its own (`signed` — rank by effect
               on the balance), so this button is its only door. The LABEL names
               the state you are in; the TITLE names the door, because a label
