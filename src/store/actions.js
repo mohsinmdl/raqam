@@ -814,9 +814,11 @@ export function setTransactionsAccount(data, { ids, accountId }) {
 // reorderTransaction, which moves ONE row to a precise instant). `date` is a
 // 'YYYY-MM-DD'; it is spliced onto each row's existing 'THH:mm[:ss]' and clamped
 // to `now` — like the single-row path, a bulk move can never push a row into the
-// future (the 0019 DB CHECK). Rows already on that day, and any that clamp back
-// to their current stamp, are no-ops. The assembled stamp is validated against
-// TX_DATE_RE (the shape the CHECK enforces) before it can reach the store.
+// future (an app rule: future-dated rows sit unposted, out of balances — the
+// 0019 CHECK only enforces the stamp's SHAPE, not that it's in the past). Rows
+// already on that day, and any that clamp back to their current stamp, are
+// no-ops. The assembled stamp is validated against TX_DATE_RE (the shape the
+// 0019 CHECK enforces) before it can reach the store.
 export function setTransactionsDate(data, { ids, date, now }) {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return data;
   const set = bulkIds(ids);

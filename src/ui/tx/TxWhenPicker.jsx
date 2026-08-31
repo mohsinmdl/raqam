@@ -63,11 +63,19 @@ export default function TxWhenPicker({ seed, x, y, dateOnly, onCancel, onConfirm
           {WD.map((d, i) => <span key={i} style={{ textAlign: 'center', fontSize: 10.5, color: 'var(--muted)', fontWeight: 600 }}>{d}</span>)}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, padding: '4px 0 8px' }}>
-          {cells.map(c => (
-            <button key={c.iso} type="button" onClick={() => { setDate(c.iso); setMonth(c.iso.slice(0, 7)); }}
-              aria-current={c.sel ? 'date' : undefined}
-              style={{ height: 32, borderRadius: 7, cursor: 'pointer', fontSize: 12.5, border: '1px solid ' + (c.today && !c.sel ? 'var(--accent)' : 'transparent'), background: c.sel ? 'var(--accent)' : 'transparent', color: c.sel ? 'var(--on-accent)' : c.out ? 'var(--border)' : 'var(--text)', fontWeight: c.sel || c.today ? 600 : 400 }}>{c.n}</button>
-          ))}
+          {cells.map(c => {
+            // dateOnly (bulk "Move to Date") disables future days: a future day
+            // would clamp every row back to `now`, so the chosen day would not be
+            // the day rows land on — the toast and audit would then name a day
+            // nothing actually moved to. The single-row time picker still allows
+            // any day (it confirms one exact, clamped instant).
+            const future = dateOnly && c.iso > today;
+            return (
+              <button key={c.iso} type="button" disabled={future} onClick={() => { setDate(c.iso); setMonth(c.iso.slice(0, 7)); }}
+                aria-current={c.sel ? 'date' : undefined}
+                style={{ height: 32, borderRadius: 7, cursor: future ? 'default' : 'pointer', fontSize: 12.5, border: '1px solid ' + (c.today && !c.sel ? 'var(--accent)' : 'transparent'), background: c.sel ? 'var(--accent)' : 'transparent', color: c.sel ? 'var(--on-accent)' : (c.out || future) ? 'var(--border)' : 'var(--text)', fontWeight: c.sel || c.today ? 600 : 400, opacity: future ? 0.4 : 1 }}>{c.n}</button>
+            );
+          })}
         </div>
         {!dateOnly && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
