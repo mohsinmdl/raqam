@@ -217,6 +217,20 @@ describe('setTransactionsAccount', () => {
     expect(setTransactionsAccount(base, { ids: ['x1', 'x2'], accountId: 'a2' })).toBe(base);
   });
 
+  it('leaves a non-transfer row that still carries a transfer leg untouched', () => {
+    // The type isn't 'transfer', but a toAccountId/toCardId leg is present, so
+    // moving the near account leg would still break a pairing. The !toAccountId
+    // and !toCardId guards must exclude these independently of the type check —
+    // if they didn't, these rows would be silently reassigned.
+    const base = store({
+      transactions: [
+        tx({ id: 'g1', type: 'expense', toAccountId: 'a2' }),
+        tx({ id: 'g2', type: 'expense', toCardId: 'card1' }),
+      ],
+    });
+    expect(setTransactionsAccount(base, { ids: ['g1', 'g2'], accountId: 'a2' })).toBe(base);
+  });
+
   it('leaves card-funded rows untouched — they live in a card register, not an account', () => {
     const base = store({ transactions: [tx({ id: 'c1', accountId: undefined, cardId: 'card1' })] });
     expect(setTransactionsAccount(base, { ids: ['c1'], accountId: 'a2' })).toBe(base);

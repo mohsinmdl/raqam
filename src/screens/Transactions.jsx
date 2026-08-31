@@ -963,10 +963,10 @@ export default function Transactions() {
 
   // Bulk "Move to Account" (YNAB). setTransactionsAccount reassigns only the
   // non-transfer, account-funded rows; transfers and card-funded rows are left
-  // alone. Mirror that rule here so the toast reports skips honestly — named by
-  // count, like the categorize skip warning — rather than claiming rows it left
-  // unchanged. A row already on the target ends where the user asked, so it is
-  // neither "moved" nor "skipped".
+  // alone. Mirror that rule here so the toast reports skips honestly — a bare
+  // count (unlike the categorize warning, which names the skipped rows) — rather
+  // than claiming rows it left unchanged. A row already on the target ends where
+  // the user asked, so it is neither "moved" nor "skipped".
   const bulkMoveAccount = accountId => {
     const acct = S.accounts.find(a => a.id === accountId);
     if (!acct) return;
@@ -985,13 +985,25 @@ export default function Transactions() {
   };
   // Bulk "Move to Date": one chosen DAY applied to every selected row, each row
   // keeping its own time-of-day so intra-day order is preserved
-  // (setTransactionsDate). Opened from the More menu → the date-only picker.
+  // (setTransactionsDate). Opened from the More menu → the date-only picker,
+  // which disables future days so the chosen day is the day rows land on. Mirror
+  // the store's clamp/no-op rule here so the toast counts only rows that actually
+  // move (like bulkMoveAccount), not the whole selection — a row already sitting
+  // on that day (at that time) is neither moved nor reported as such.
   const bulkMoveDate = day => {
     setBulkDateOpen(false);
     const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const [, m, d] = day.split('-');
-    afterBulk('Moved ' + sel.length + ' to ' + Number(d) + ' ' + MN[Number(m) - 1] + '.',
-      data => setTransactionsDate(data, { ids: sel, date: day, now: nowIsoSec() }));
+    const label = Number(d) + ' ' + MN[Number(m) - 1];
+    const now = nowIsoSec();
+    const landsOn = t => { const s = day + (t.date.slice(10) || 'T12:00'); return now && s > now ? now : s; };
+    const moved = sel.filter(id => { const t = S.transactions.find(x => x.id === id); return t && landsOn(t) !== t.date; });
+    applyData(data => setTransactionsDate(data, { ids: sel, date: day, now }));
+    clearSel();
+    if (moved.length === 0) { notify('Already on ' + label + '.'); return; }
+    flashRows(moved);
+    const rest = sel.length - moved.length;
+    notify('Moved ' + moved.length + ' to ' + label + (rest ? ' — ' + rest + ' already there' : '') + '.');
   };
   // Active accounts as bulk-menu options (nickname, in order). Empty → the
   // BulkBar flyout shows a "No other accounts" hint.
