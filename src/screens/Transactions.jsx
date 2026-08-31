@@ -21,7 +21,7 @@ import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import { Chevron } from '../ui/icons.jsx';
 import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
-import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, reorderTransaction, setTransactionsCategory, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
+import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, reorderTransaction, setTransactionsAccount, setTransactionsCategory, setTransactionsDate, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
 import { dayGroups } from '../lib/dayGroups.js';
@@ -690,6 +690,10 @@ export default function Transactions() {
   // date-descending order; any other sort or the phone list opts out. The
   // picker opens when a moment can't be honestly interpolated (see planDrop).
   const [reorderPicker, setReorderPicker] = useState(null);
+  // Bulk "Move to Date": a lightweight open flag (true → the date-only picker,
+  // applied to the whole selection). Separate from reorderPicker, which carries
+  // a single row's id/seed.
+  const [bulkDateOpen, setBulkDateOpen] = useState(false);
   const reorderable = !phone && sort.key === 'date' && sort.dir === 'desc';
   // When the register is scoped to a past date/month, `now` is outside the view,
   // so a top-of-list drop must anchor to that date's latest moment instead of
@@ -956,6 +960,42 @@ export default function Transactions() {
   // unclears; otherwise it clears.
   const allSelCleared = sel.length > 0 && sel.every(id => S.transactions.find(t => t.id === id)?.status === 'cleared');
   const bulkToggleCleared = () => bulkStatus(allSelCleared ? 'pending' : 'cleared');
+
+  // Bulk "Move to Account" (YNAB). setTransactionsAccount reassigns only the
+  // non-transfer, account-funded rows; transfers and card-funded rows are left
+  // alone. Mirror that rule here so the toast reports skips honestly — named by
+  // count, like the categorize skip warning — rather than claiming rows it left
+  // unchanged. A row already on the target ends where the user asked, so it is
+  // neither "moved" nor "skipped".
+  const bulkMoveAccount = accountId => {
+    const acct = S.accounts.find(a => a.id === accountId);
+    if (!acct) return;
+    const rowOf = id => S.transactions.find(x => x.id === id);
+    const movable = t => t && t.type !== 'transfer' && !t.toAccountId && !t.toCardId && t.accountId;
+    const moved = sel.filter(id => { const t = rowOf(id); return movable(t) && t.accountId !== accountId; });
+    const skipped = sel.filter(id => !movable(rowOf(id)));
+    applyData(data => setTransactionsAccount(data, { ids: sel, accountId }));
+    clearSel();
+    if (moved.length === 0) {
+      notify(skipped.length ? 'Nothing moved — ' + skipped.length + ' can’t move to an account.' : 'Already in ' + acct.nickname + '.');
+      return;
+    }
+    flashRows(moved);
+    notify('Moved ' + moved.length + ' to ' + acct.nickname + (skipped.length ? ' — ' + skipped.length + ' skipped' : '') + '.');
+  };
+  // Bulk "Move to Date": one chosen DAY applied to every selected row, each row
+  // keeping its own time-of-day so intra-day order is preserved
+  // (setTransactionsDate). Opened from the More menu → the date-only picker.
+  const bulkMoveDate = day => {
+    setBulkDateOpen(false);
+    const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const [, m, d] = day.split('-');
+    afterBulk('Moved ' + sel.length + ' to ' + Number(d) + ' ' + MN[Number(m) - 1] + '.',
+      data => setTransactionsDate(data, { ids: sel, date: day, now: nowIsoSec() }));
+  };
+  // Active accounts as bulk-menu options (nickname, in order). Empty → the
+  // BulkBar flyout shows a "No other accounts" hint.
+  const accountMoveOptions = S.accounts.filter(a => a.status === 'active').map(a => ({ label: a.nickname, onClick: () => bulkMoveAccount(a.id) }));
   // "Make repeating" only makes sense one row at a time — the drawer configures
   // a single schedule. Shown for a lone selection, and it reuses seriesItem so
   // an already-repeating row offers "View rule" instead. Clearing the selection
@@ -1154,6 +1194,8 @@ export default function Transactions() {
               { label: allSelCleared ? 'Unclear' : 'Clear', icon: allSelCleared ? 'uncleared' : 'cleared', onClick: bulkToggleCleared, keys: SHORTCUT_BY_ID.toggleCleared.keys },
             ]}
             more={[
+              { label: 'Move to Account', icon: 'move', submenu: accountMoveOptions },
+              { label: 'Move to Date', icon: 'calendar', onClick: () => setBulkDateOpen(true) },
               { label: 'Duplicate', icon: 'duplicate', onClick: bulkDuplicate, keys: SHORTCUT_BY_ID.duplicate.keys },
               singleRepeatItem(),
               { divider: true },
@@ -1655,6 +1697,16 @@ export default function Transactions() {
               applyData(data => reorderTransaction(data, { id: reorderPicker.id, date: iso, now: nowIsoSec() }));
               setReorderPicker(null);
             }}
+          />
+        )}
+        {/* Bulk "Move to Date": the same picker in date-only mode (no time — each
+            row keeps its own), centred above the bulk bar. Confirms a 'YYYY-MM-DD'. */}
+        {bulkDateOpen && (
+          <TxWhenPicker
+            dateOnly
+            x={window.innerWidth / 2} y={window.innerHeight - 470}
+            onCancel={() => setBulkDateOpen(false)}
+            onConfirm={bulkMoveDate}
           />
         )}
       </div>

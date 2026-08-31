@@ -35,6 +35,10 @@ const MENU_ICONS = {
   categorize: svg(<><path d="M20.59 13.41 12 22 3 13V4a1 1 0 0 1 1-1h9l7.59 7.59a2 2 0 0 1 0 2.82Z" /><circle cx="7.5" cy="7.5" r="1.3" /></>),
   cleared: svg(<><circle cx="12" cy="12" r="9" /><path d="M14.8 9.3a3.8 3.8 0 1 0 0 5.4" /></>),
   uncleared: svg(<circle cx="12" cy="12" r="9" />),
+  // Move to Account: an arrow entering a tray (matches YNAB's "Move to Account").
+  // Move to Date: a calendar page.
+  move: svg(<><path d="M4 12h11" /><path d="M11 8l4 4-4 4" /><path d="M17 4h1a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-1" /></>),
+  calendar: svg(<><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M3 9h18M8 2v4M16 2v4" /></>),
 };
 
 // The overflow ("More") menu. It opens UPWARD — the bar is pinned to the bottom
@@ -50,8 +54,13 @@ const MENU_ICONS = {
 function MoreMenu({ items }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
+  // An open account flyout: { items, bottom, right } measured off the parent
+  // item and the panel, so it sits to the LEFT of the (right-anchored) menu.
+  const [sub, setSub] = useState(null);
   const wrapRef = useRef(null);
   const btnRef = useRef(null);
+  const menuRef = useRef(null);
+  const closeAll = () => { setOpen(false); setSub(null); };
   const place = () => {
     const r = btnRef.current && btnRef.current.getBoundingClientRect();
     // caret = distance from the menu's right edge (which sits at the button's
@@ -60,11 +69,12 @@ function MoreMenu({ items }) {
   };
   useEffect(() => {
     if (!open) return;
-    const onDown = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    const onDown = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) closeAll(); };
     // Capture phase, so this closes the menu before the screen's Escape clears
-    // the whole selection — same contract as RowMenu.
-    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
-    const onResize = () => setOpen(false); // a resize invalidates the measured spot
+    // the whole selection — same contract as RowMenu. Escape backs out of the
+    // account flyout first, then the menu.
+    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); if (sub) setSub(null); else setOpen(false); } };
+    const onResize = () => closeAll(); // a resize invalidates the measured spot
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', onResize);
@@ -73,7 +83,9 @@ function MoreMenu({ items }) {
       document.removeEventListener('keydown', onKey, true);
       window.removeEventListener('resize', onResize);
     };
-  }, [open]);
+    // `sub` is a dep so Escape sees the current flyout state (back out of the
+    // flyout first, then the menu) without a stale closure.
+  }, [open, sub]);
   return (
     <div ref={wrapRef} style={{ display: 'inline-flex' }}>
       <button
@@ -86,7 +98,7 @@ function MoreMenu({ items }) {
       </button>
       {open && pos && (
         <div
-          role="menu" onClick={e => e.stopPropagation()}
+          ref={menuRef} role="menu" onClick={e => e.stopPropagation()}
           style={{
             position: 'fixed', bottom: pos.bottom, right: pos.right, zIndex: 40,
             minWidth: 184, background: 'var(--surface)', color: 'var(--text)',
@@ -99,11 +111,27 @@ function MoreMenu({ items }) {
           ) : (
             <button
               key={i} role="menuitem" disabled={it.disabled}
-              onClick={() => { setOpen(false); it.onClick(); }}
+              aria-haspopup={it.submenu ? 'menu' : undefined}
+              aria-expanded={it.submenu ? String(sub?.key === i) : undefined}
+              // A submenu parent opens the flyout to the LEFT of this panel
+              // (the menu hugs the viewport's right edge, so the room is there),
+              // vertically anchored to the clicked item. A leaf item runs and
+              // closes everything.
+              onClick={e => {
+                if (it.submenu) {
+                  const m = menuRef.current.getBoundingClientRect();
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setSub({
+                    key: i, items: it.submenu,
+                    bottom: window.innerHeight - r.bottom - 4,
+                    right: window.innerWidth - m.left + 6,
+                  });
+                } else { closeAll(); it.onClick(); }
+              }}
               className={it.tone === 'neg' ? 'hv-neg-soft' : 'hv-elev'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                border: 'none', background: 'none', textAlign: 'left', padding: '8px 12px',
+                border: 'none', background: sub?.key === i ? 'var(--soft)' : 'none', textAlign: 'left', padding: '8px 12px',
                 borderRadius: 7, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap',
                 cursor: it.disabled ? 'default' : 'pointer', opacity: it.disabled ? 0.4 : 1,
                 color: it.tone === 'neg' ? 'var(--neg)' : 'var(--text)',
@@ -111,6 +139,7 @@ function MoreMenu({ items }) {
             >
               {it.icon && (MENU_ICONS[it.icon] || null)}
               <span>{it.label}</span>
+              {it.submenu && <span aria-hidden="true" style={{ marginLeft: 'auto', paddingLeft: 14, opacity: 0.55, fontSize: 14 }}>‹</span>}
               {it.keys && it.keys.length > 0 && (
                 <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 3, paddingLeft: 14 }}>
                   {it.keys.map((k, n) => <Kbd key={n}>{k}</Kbd>)}
@@ -132,6 +161,36 @@ function MoreMenu({ items }) {
             borderLeft: '8px solid transparent', borderRight: '8px solid transparent',
             borderTop: '8px solid var(--surface)',
           }} />
+        </div>
+      )}
+      {/* Account flyout — a normal menu surface pinned to the LEFT of the parent
+          panel. Its own scroll caps the height when there are many accounts.
+          Empty (no active accounts) shows a disabled hint rather than a blank. */}
+      {open && sub && (
+        <div
+          role="menu" aria-label="Move to account" onClick={e => e.stopPropagation()}
+          style={{
+            position: 'fixed', bottom: sub.bottom, right: sub.right, zIndex: 41,
+            minWidth: 168, maxHeight: 320, overflowY: 'auto',
+            background: 'var(--surface)', color: 'var(--text)',
+            border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow)',
+            padding: 4, display: 'flex', flexDirection: 'column',
+          }}
+        >
+          {sub.items.length === 0 ? (
+            <span style={{ padding: '8px 12px', fontSize: 12.5, color: 'var(--muted)' }}>No other accounts</span>
+          ) : sub.items.map((it, i) => (
+            <button
+              key={i} role="menuitem" onClick={() => { closeAll(); it.onClick(); }} className="hv-elev"
+              style={{
+                display: 'flex', alignItems: 'center', border: 'none', background: 'none', textAlign: 'left',
+                padding: '8px 12px', borderRadius: 7, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap',
+                cursor: 'pointer', color: 'var(--text)',
+              }}
+            >
+              <span>{it.label}</span>
+            </button>
+          ))}
         </div>
       )}
     </div>
