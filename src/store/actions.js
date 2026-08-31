@@ -780,6 +780,71 @@ export function setTransactionsStatus(data, { ids, status }) {
   };
 }
 
+// Reassign the funding account of every selected non-transfer row (YNAB's bulk
+// "Move to Account"). A transfer carries two account legs — accountId AND
+// toAccountId/toCardId — so moving just the near leg would silently break the
+// pairing; transfers are left untouched and the bulk bar reports them as
+// skipped. Card-funded rows (cardId, no accountId) live in a card register, not
+// an account, so they are skipped too. Rows already on the target are no-ops.
+// Same one-field stamp + batched-audit shape as setTransactionsStatus.
+export function setTransactionsAccount(data, { ids, accountId }) {
+  const acct = data.accounts.find(a => a.id === accountId);
+  if (!acct) return data;
+  const set = bulkIds(ids);
+  const movable = t => t.type !== 'transfer' && !t.toAccountId && !t.toCardId && t.accountId;
+  const hit = data.transactions.filter(t => set.has(t.id) && movable(t) && t.accountId !== accountId);
+  if (hit.length === 0) return data;
+  const hitIds = new Set(hit.map(t => t.id));
+  const batchId = uid();
+  return {
+    ...data,
+    transactions: data.transactions.map(t => (hitIds.has(t.id) ? stampUpdate({ ...t, accountId }) : t)),
+    audit: [
+      ...bulkAudit(hit, 'update', 'Moved ' + hit.length + ' to ' + acct.nickname, batchId, {
+        before: t => ({ accountId: t.accountId }),
+        after: () => ({ accountId }),
+      }),
+      ...(data.audit || []),
+    ],
+  };
+}
+
+// Move every selected row to a new DAY, keeping each row's own time-of-day so
+// their order within that day is preserved (the bulk counterpart of
+// reorderTransaction, which moves ONE row to a precise instant). `date` is a
+// 'YYYY-MM-DD'; it is spliced onto each row's existing 'THH:mm[:ss]' and clamped
+// to `now` — like the single-row path, a bulk move can never push a row into the
+// future (the 0019 DB CHECK). Rows already on that day, and any that clamp back
+// to their current stamp, are no-ops. The assembled stamp is validated against
+// TX_DATE_RE (the shape the CHECK enforces) before it can reach the store.
+export function setTransactionsDate(data, { ids, date, now }) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return data;
+  const set = bulkIds(ids);
+  const nextDate = t => {
+    const stamped = date + (t.date.slice(10) || 'T12:00');   // keep the row's own time
+    const clamped = now && stamped > now ? now : stamped;
+    return TX_DATE_RE.test(clamped) ? clamped : null;
+  };
+  const planned = data.transactions
+    .filter(t => set.has(t.id))
+    .map(t => ({ t, to: nextDate(t) }))
+    .filter(p => p.to && p.to !== p.t.date);
+  if (planned.length === 0) return data;
+  const byId = new Map(planned.map(p => [p.t.id, p.to]));
+  const batchId = uid();
+  return {
+    ...data,
+    transactions: data.transactions.map(t => (byId.has(t.id) ? stampUpdate({ ...t, date: byId.get(t.id) }) : t)),
+    audit: [
+      ...bulkAudit(planned.map(p => p.t), 'update', 'Moved ' + planned.length + ' to ' + date, batchId, {
+        before: t => ({ date: t.date }),
+        after: t => ({ date: byId.get(t.id) }),
+      }),
+      ...(data.audit || []),
+    ],
+  };
+}
+
 // Exact copies of the selected rows with fresh ids — every other field is kept,
 // so a duplicated cleared expense counts in balances immediately, exactly like
 // its original. Edit history is dropped: a copy is a new row, not an edited one.

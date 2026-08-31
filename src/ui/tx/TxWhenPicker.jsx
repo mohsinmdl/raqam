@@ -19,7 +19,10 @@ const chip = on => ({ height: 28, padding: '0 10px', borderRadius: 7, cursor: 'p
 // seed — an ISO string ('YYYY-MM-DDTHH:mm[:ss]') to pre-fill from.
 // onConfirm(iso) receives a 'YYYY-MM-DDTHH:mm:ss' string whose seconds are
 // always ':00' — the <input type="time"> is minute-granular.
-export default function TxWhenPicker({ seed, x, y, onCancel, onConfirm }) {
+// dateOnly — hide the time field and confirm a bare 'YYYY-MM-DD' day. Used by
+// the bulk "Move to Date" flow, where every selected row keeps its own time and
+// only the day is set, so asking for one time would be misleading.
+export default function TxWhenPicker({ seed, x, y, dateOnly, onCancel, onConfirm }) {
   const today = todayStr();
   const [date, setDate] = useState(() => (seed || today).slice(0, 10));
   const [time, setTime] = useState(() => (seed || '').slice(11, 16) || '12:00');
@@ -45,12 +48,12 @@ export default function TxWhenPicker({ seed, x, y, onCancel, onConfirm }) {
   // Normalize to HH:mm before appending ':00' — a seconds-capable time input can
   // hand back 'HH:mm:ss', which would otherwise assemble an invalid '…:ss:00'
   // that fails the DB CHECK.
-  const confirm = () => onConfirm(date + 'T' + (time || '12:00').slice(0, 5) + ':00');
+  const confirm = () => onConfirm(dateOnly ? date : date + 'T' + (time || '12:00').slice(0, 5) + ':00');
 
   return (
     <>
       <div onClick={onCancel} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
-      <div ref={ref} role="dialog" aria-label="Choose date and time" style={{ ...panel, top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}>
+      <div ref={ref} role="dialog" aria-label={dateOnly ? 'Choose date' : 'Choose date and time'} style={{ ...panel, top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}>
         <div style={{ display: 'flex', alignItems: 'center', paddingBottom: 6 }}>
           <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="hv-soft rq-btn-outline" style={{ ...chip(false), width: 28, padding: 0 }}>‹</button>
           <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 600 }}>{MN[+month.slice(5) - 1] + ' ' + month.slice(0, 4)}</span>
@@ -66,14 +69,16 @@ export default function TxWhenPicker({ seed, x, y, onCancel, onConfirm }) {
               style={{ height: 32, borderRadius: 7, cursor: 'pointer', fontSize: 12.5, border: '1px solid ' + (c.today && !c.sel ? 'var(--accent)' : 'transparent'), background: c.sel ? 'var(--accent)' : 'transparent', color: c.sel ? 'var(--on-accent)' : c.out ? 'var(--border)' : 'var(--text)', fontWeight: c.sel || c.today ? 600 : 400 }}>{c.n}</button>
           ))}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-          <label style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Time</label>
-          <input type="time" value={time} onChange={e => setTime(e.target.value)} aria-label="Time"
-            style={{ flex: 1, height: 32, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, padding: '0 8px' }} />
-        </div>
+        {!dateOnly && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+            <label style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Time</label>
+            <input type="time" value={time} onChange={e => setTime(e.target.value)} aria-label="Time"
+              style={{ flex: 1, height: 32, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, padding: '0 8px' }} />
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 10 }}>
           <button type="button" onClick={onCancel} className="hv-soft rq-btn-outline" style={chip(false)}>Cancel</button>
-          <button type="button" onClick={confirm} className="rq-btn-solid" style={{ ...chip(false), background: 'var(--accent)', color: 'var(--on-accent)', border: '1px solid var(--accent)' }}>Move here</button>
+          <button type="button" onClick={confirm} className="rq-btn-solid" style={{ ...chip(false), background: 'var(--accent)', color: 'var(--on-accent)', border: '1px solid var(--accent)' }}>{dateOnly ? 'Move to date' : 'Move here'}</button>
         </div>
       </div>
     </>
