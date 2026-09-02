@@ -621,17 +621,30 @@ export default function Transactions() {
   // count is threaded through the exclusion.
   const bannerNeedsCatCount = needsCategoryBannerCount(needsCat, lastSaved);
   // Opening drift: this account's stored opening for some month no longer
-  // equals the previous month's computed closing (openingDrift.js). It is the
-  // single most common reason the strip disagrees with the bank — a rollover
-  // that froze while last month was still being entered — and it is invisible
-  // from inside a one-month view, so the register says so and offers the fix.
-  // First entry only (earliest month): correcting it can shift the next
-  // month's closing, so later drifts are re-evaluated after each re-sync.
-  const drift = useMemo(() => (acct ? openingDrift(S, now, { accountId: acct.id }) : []), [S, now, acct]);
+  // equals the previous month's computed closing (openingDrift.js). It is what
+  // put Meezan 98,350 below the bank — a rollover that froze while August was
+  // still being entered — and it is invisible from inside a one-month view,
+  // so the register says so and offers the fix. First entry only (earliest
+  // month): correcting it can shift the next month's closing, so later drifts
+  // are re-evaluated after each re-sync. A confirmed figure CAN disagree on
+  // purpose (the user typed the bank's number and the ledger is what's
+  // short), so "Later" hides that month's notice for this visit rather than
+  // forcing the rewrite; fixing the previous month's entries clears it for good.
+  const [driftHidden, setDriftHidden] = useState(() => new Set());
+  const drift = useMemo(
+    () => (acct ? openingDrift(S, { accountId: acct.id }).filter(e => !driftHidden.has(e.accountId + '|' + e.month)) : []),
+    [S, acct, driftHidden],
+  );
   const driftEntry = drift[0] || null;
+  const hideDrift = () => { if (driftEntry) setDriftHidden(h => new Set(h).add(driftEntry.accountId + '|' + driftEntry.month)); };
+  // Toast off the OUTCOME, not the click: resyncOpening is the same reference
+  // when there is nothing to do (a double-click's second dispatch, a store
+  // that moved under the banner), and that must not announce a re-sync.
   const resyncDrift = () => {
     if (!driftEntry) return;
-    applyData(d => resyncOpening(d, { accountId: driftEntry.accountId, month: driftEntry.month, now: nowIso() }));
+    const next = resyncOpening(S, { accountId: driftEntry.accountId, month: driftEntry.month });
+    if (next === S) return;
+    applyData(() => next);
     notify(acct.nickname + ' opening re-synced to ' + fmt.money(driftEntry.computed) + '.');
   };
 
@@ -679,9 +692,9 @@ export default function Transactions() {
   //     search hid is not a balance, it is a subtotal wearing one's clothes.
   // Fail any of them and the column withdraws rather than print a number the
   // strip would contradict. The compact PositionStrip reads the same `bal`
-  // window (calc.js rangeBalances), so the two agree by construction. (The
-  // arithmetic, and the check against accountBalance() / rangeBalances(),
-  // live in txRow.balance.test.js.)
+  // window, seeded from the same snapshot (calc.js rangeBalances), so the two
+  // agree — verified against each other in txRow.balance.test.js, along with
+  // the arithmetic and the check against accountBalance().
   //
   // `acct`, not `accountId`: a stale/deleted id redirects on the next effect,
   // but this render still has to survive it, and there is no opening snapshot
@@ -1210,9 +1223,10 @@ export default function Transactions() {
             deliberately doesn't follow it, same split the two eyes were
             built to keep (PositionStrip's own comment on the two masks). */}
         {/* `range={bal}`: the strip walks the same whole-month window the
-            BALANCE column does, so its Cleared figure IS the column's last
-            value. Null (day-bounded / All Dates / unseeded first month) drops
-            the strip back to the app-wide balance month. */}
+            BALANCE column does, so its Cleared figure IS the balance after the
+            latest row (top in date-desc, bottom in date-asc). Null (day-bounded
+            / All Dates / unseeded first month) drops the strip back to the
+            app-wide balance month, and the strip's caption says which. */}
         <PositionStrip compact wide={flush} accountId={accountId} range={bal}
           trailing={!phone && (sel.length > 0 || schedSel.size > 0) ? (() => {
             const n = sel.length > 0 ? selectedTotal : schedSelectedTotal;
@@ -1315,6 +1329,10 @@ export default function Transactions() {
               <div role="region" aria-label="Opening balance out of sync" style={{ padding: '6px 16px 4px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--warn-soft)' }}>
                   <span style={{ flex: 1, fontSize: 13, lineHeight: 1.3 }}>{openingDriftLabel(driftEntry, fmt.money, acct.nickname)}</span>
+                  <button onClick={hideDrift} className="hv-soft rq-btn-outline"
+                    style={{ minHeight: 32, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 999, background: 'transparent', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>
+                    Later
+                  </button>
                   <button onClick={resyncDrift} className="hv-accent rq-btn-solid"
                     style={{ minHeight: 32, padding: '0 14px', border: 'none', borderRadius: 999, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>
                     Re-sync
@@ -1346,7 +1364,8 @@ export default function Transactions() {
         {/* Opening-drift banner (desktop; the phone header has its own card).
             Same chrome as the needs-category banner below, on the warn wash:
             Re-sync rewrites the stored opening to last month's computed
-            closing (resyncOpening — undoable, history kept on a confirmed row). */}
+            closing (resyncOpening — undoable, history kept on a confirmed row);
+            Later hides this month's notice for the visit (see hideDrift). */}
         {!phone && driftEntry && (
           <div role="region" aria-label="Opening balance out of sync" style={{
             display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
@@ -1357,6 +1376,10 @@ export default function Transactions() {
               {openingDriftLabel(driftEntry, fmt.money, acct.nickname) + '.'}
               {drift.length > 1 && <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{' ' + (drift.length - 1) + ' more month' + (drift.length > 2 ? 's' : '') + ' to check after this one.'}</span>}
             </span>
+            <button onClick={hideDrift} className="hv-soft rq-btn-outline"
+              style={{ height: 30, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 999,
+                background: 'transparent', color: 'var(--muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}
+            >Later</button>
             <button onClick={resyncDrift} className="hv-accent rq-btn-solid"
               style={{ height: 30, padding: '0 16px', border: 'none', borderRadius: 999,
                 background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}

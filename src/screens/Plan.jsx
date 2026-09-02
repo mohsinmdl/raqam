@@ -14,6 +14,7 @@ import { currentMonth, nowIso } from '../lib/dates.js';
 import { sortGroups, byOrderThenName } from '../lib/categoryOrder.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { prevMonth, catRefs, fmtDate, duplicateCat, pendingOpening, openingPendingSubtitle } from '../lib/calc.js';
+import { liveOpening } from '../lib/openingDrift.js';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { resolveDisplayName } from '../lib/identity.js';
@@ -434,15 +435,25 @@ function PendingOpeningNudge({ S, month, money, applyData }) {
   const pend = pendingOpening(S, month);
   if (!pend.snaps.length) return null;
   const subtitle = openingPendingSubtitle(pend.accounts.map(a => a.nick));
+  // The figure offered is the LIVE one (openingDrift.js liveOpening) for a
+  // carried pending, not the stored amount: the stored row is only re-derived
+  // on rollover passes, and this button confirms — and locks — whatever it
+  // names. A brand-new account's pending (no previous row) stays as typed,
+  // the same rule the Review-now drawer prefill follows (openers.snapshot).
+  const values = Object.fromEntries(pend.snaps.map(s => {
+    const live = liveOpening(S, S.accounts.find(a => a.id === s.accountId), s.month);
+    return [s.accountId, live != null ? live : s.amount];
+  }));
+  const total = Object.values(values).reduce((a, b) => a + b, 0);
   const confirm = () => {
-    applyData(d => confirmSnapshots(d, { values: Object.fromEntries(pend.snaps.map(s => [s.accountId, s.amount])) }));
-    notify(money(pend.total) + ' added to Ready to Assign.');
+    applyData(d => confirmSnapshots(d, { values }));
+    notify(money(total) + ' added to Ready to Assign.');
   };
   return (
     <div role="region" aria-label="Opening balance pending confirmation"
       style={{ display: 'flex', alignItems: 'center', gap: 10, alignSelf: 'stretch', marginTop: 4, padding: '8px 10px', borderRadius: 8, background: 'var(--soft)', border: '1px solid var(--border)' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600 }}>{money(pend.total)} not counted yet</div>
+        <div style={{ fontSize: 12, fontWeight: 600 }}>{money(total)} not counted yet</div>
         <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>
       </div>
       <button onClick={confirm} className="hv-accent rq-btn-solid"

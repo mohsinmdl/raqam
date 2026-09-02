@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { openingDrift, openingDriftLabel } from '../src/lib/openingDrift.js';
+import { hasPreviousOpening, liveOpening, openingDrift, openingDriftLabel } from '../src/lib/openingDrift.js';
 import { resyncOpening } from '../src/store/actions.js';
 import { openingOf } from '../src/lib/calc.js';
 import { envelopeFor } from '../src/lib/envelope.js';
@@ -30,13 +30,13 @@ const consistent = () => store({
 
 describe('openingDrift', () => {
   it('is empty when every carried opening equals the previous month’s closing', () => {
-    expect(openingDrift(consistent(), NOW)).toEqual([]);
+    expect(openingDrift(consistent())).toEqual([]);
   });
 
   it('detects a pending opening that fell behind the previous month', () => {
     const S = consistent();
     S.transactions.push(tx('t3', '2026-08-28T09:00', 'income', 250000));
-    expect(openingDrift(S, NOW)).toEqual([
+    expect(openingDrift(S)).toEqual([
       { accountId: 'a1', month: '2026-09', stored: 94000, computed: 344000, delta: 250000, status: 'pending' },
     ]);
   });
@@ -44,7 +44,7 @@ describe('openingDrift', () => {
   it('detects a confirmed opening too, and reports a negative delta when it is too high', () => {
     const S = consistent();
     S.snapshots[1] = snap('a1', '2026-09', 120000, 'confirmed', { confirmedAt: '2026-09-01T09:00' });
-    expect(openingDrift(S, NOW)).toEqual([
+    expect(openingDrift(S)).toEqual([
       { accountId: 'a1', month: '2026-09', stored: 120000, computed: 94000, delta: -26000, status: 'confirmed' },
     ]);
   });
@@ -54,14 +54,14 @@ describe('openingDrift', () => {
       snapshots: [snap('a2', '2026-09', 5000, 'pending')],
       transactions: [tx('t1', '2026-08-02T09:00', 'expense', 1000, { accountId: 'a2' })],
     });
-    expect(openingDrift(S, NOW)).toEqual([]);
+    expect(openingDrift(S)).toEqual([]);
   });
 
   it('skips snapshots of accounts no longer in the store', () => {
     const S = consistent();
     S.transactions.push(tx('t3', '2026-08-28T09:00', 'income', 250000));
     S.accounts = S.accounts.filter(a => a.id !== 'a1');
-    expect(openingDrift(S, NOW)).toEqual([]);
+    expect(openingDrift(S)).toEqual([]);
   });
 
   it('filters to one account and sorts by month', () => {
@@ -76,23 +76,49 @@ describe('openingDrift', () => {
         tx('t3', '2026-08-05T09:00', 'expense', 50, { accountId: 'a2' }),
       ],
     });
-    const all = openingDrift(S, NOW);
+    const all = openingDrift(S);
     expect(all.map(d => [d.accountId, d.month, d.delta])).toEqual([
       ['a1', '2026-08', -100], ['a1', '2026-09', -200], ['a2', '2026-09', -50],
     ]);
-    expect(openingDrift(S, NOW, { accountId: 'a2' })).toEqual([
+    expect(openingDrift(S, { accountId: 'a2' })).toEqual([
       { accountId: 'a2', month: '2026-09', stored: 500, computed: 450, delta: -50, status: 'pending' },
     ]);
   });
 
-  it('respects the future-date guard through `now`', () => {
+  it('reads the previous month WHOLE, never date-guarded — the same figure the rollover seeds', () => {
+    // A snapshot means the complete previous month. The detector and the
+    // rollover seed must read the same number or the two ping-pong: rollover
+    // writes the whole-month figure, the banner reports drift against a
+    // guarded one, Re-sync writes that, the next rollover rewrites it.
     const S = consistent();
     S.transactions.push(tx('t3', '2026-08-28T09:00', 'income', 250000));
-    // Viewed from inside August, before the salary lands, the Sep opening still
-    // agrees with what has happened so far.
-    expect(openingDrift(S, '2026-08-27T10:00')).toEqual([]);
-    expect(openingDrift(S, NOW)).toHaveLength(1);
-    expect(openingDrift(S)).toHaveLength(1); // unguarded = whole month, as the rollover seeds it
+    expect(openingDrift(S)[0].computed).toBe(liveOpening(S, S.accounts[0], '2026-09'));
+    expect(openingDrift(S)[0].computed).toBe(344000);
+  });
+
+  // A GAP in the chain — the month before has no row at all (the app was not
+  // opened that month; an import; an account archived then restored) — must
+  // never be judged: openingOf() reads the missing month as 0 and the
+  // "closing" would be that month's deltas alone, a number nobody entered.
+  describe('gap in the chain (previous month has no row)', () => {
+    const gap = () => store({
+      snapshots: [
+        snap('a1', '2026-07', 50000, 'confirmed', { confirmedAt: '2026-07-01T09:00' }),
+        // no 2026-08 row
+        snap('a1', '2026-09', 100000, 'confirmed', { confirmedAt: '2026-09-01T09:00' }),
+      ],
+      transactions: [tx('j', '2026-07-05T09:00', 'income', 51000), tx('a', '2026-08-05T09:00', 'expense', 1000)],
+    });
+    it('liveOpening is null and openingDrift stays silent', () => {
+      expect(liveOpening(gap(), gap().accounts[0], '2026-09')).toBeNull();
+      expect(hasPreviousOpening(gap().snapshots, 'a1', '2026-09')).toBe(false);
+      expect(openingDrift(gap())).toEqual([]);
+    });
+    it('resyncOpening is the same reference (never re-derives from a 0 seed)', () => {
+      const S = gap();
+      expect(resyncOpening(S, { accountId: 'a1', month: '2026-09' })).toBe(S);
+      expect(openingOf(S.accounts[0], S.snapshots, '2026-09')).toBe(100000);
+    });
   });
 });
 
@@ -117,20 +143,20 @@ describe('resyncOpening', () => {
 
   it('fixes a pending opening and leaves it pending', () => {
     const S = drifted();
-    const next = resyncOpening(S, { accountId: 'a1', month: '2026-09', now: NOW });
+    const next = resyncOpening(S, { accountId: 'a1', month: '2026-09' });
     expect(next).not.toBe(S);
     const s = next.snapshots.find(x => x.accountId === 'a1' && x.month === '2026-09');
     expect(s).toMatchObject({ amount: 344000, status: 'pending' });
     expect(s.history).toBeUndefined();
     expect(s.corrected).toBeUndefined();
-    expect(openingDrift(next, NOW)).toEqual([]);
+    expect(openingDrift(next)).toEqual([]);
     expect(S.snapshots[1].amount).toBe(94000); // input untouched
   });
 
   it('corrects a confirmed opening: old figure kept in history, corrected, confirmedAt bumped', () => {
     const S = drifted();
     S.snapshots[1] = snap('a1', '2026-09', 94000, 'confirmed', { confirmedAt: '2026-09-01T09:00' });
-    const next = resyncOpening(S, { accountId: 'a1', month: '2026-09', now: NOW });
+    const next = resyncOpening(S, { accountId: 'a1', month: '2026-09' });
     const s = next.snapshots.find(x => x.accountId === 'a1' && x.month === '2026-09');
     expect(s.amount).toBe(344000);
     expect(s.status).toBe('confirmed');
@@ -140,8 +166,20 @@ describe('resyncOpening', () => {
     expect(s.confirmedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
   });
 
+  it('appends to an existing history when a row is corrected twice', () => {
+    const S = drifted();
+    S.snapshots[1] = snap('a1', '2026-09', 94000, 'confirmed', {
+      confirmedAt: '2026-09-02T09:00', corrected: true, history: [{ amount: 90000, confirmedAt: '2026-09-01T09:00' }],
+    });
+    const s = resyncOpening(S, { accountId: 'a1', month: '2026-09' }).snapshots.find(x => x.month === '2026-09');
+    expect(s.history).toEqual([
+      { amount: 90000, confirmedAt: '2026-09-01T09:00' },
+      { amount: 94000, confirmedAt: '2026-09-02T09:00' },
+    ]);
+  });
+
   it('writes an account audit row naming the account, month and new figure', () => {
-    const next = resyncOpening(drifted(), { accountId: 'a1', month: '2026-09', now: NOW });
+    const next = resyncOpening(drifted(), { accountId: 'a1', month: '2026-09' });
     expect(next.audit[0]).toMatchObject({
       entityType: 'account', entityId: 'a1', action: 'update',
       summary: 'Re-synced Meezan opening for September 2026 to 344000',
@@ -152,12 +190,12 @@ describe('resyncOpening', () => {
 
   it('is the same reference when there is nothing to do', () => {
     const S = consistent();
-    expect(resyncOpening(S, { accountId: 'a1', month: '2026-09', now: NOW })).toBe(S); // already in sync
-    expect(resyncOpening(S, { accountId: 'a1', month: '2026-10', now: NOW })).toBe(S); // no such snapshot
-    expect(resyncOpening(S, { accountId: 'zz', month: '2026-09', now: NOW })).toBe(S); // no such account
+    expect(resyncOpening(S, { accountId: 'a1', month: '2026-09' })).toBe(S); // already in sync
+    expect(resyncOpening(S, { accountId: 'a1', month: '2026-10' })).toBe(S); // no such snapshot
+    expect(resyncOpening(S, { accountId: 'zz', month: '2026-09' })).toBe(S); // no such account
     // A brand-new account's typed opening is never re-derived (it would read as 0 + August's rows).
     const fresh = store({ snapshots: [snap('a2', '2026-09', 5000, 'pending')], transactions: [tx('t1', '2026-08-02T09:00', 'expense', 1000, { accountId: 'a2' })] });
-    expect(resyncOpening(fresh, { accountId: 'a2', month: '2026-09', now: NOW })).toBe(fresh);
+    expect(resyncOpening(fresh, { accountId: 'a2', month: '2026-09' })).toBe(fresh);
   });
 
   // RTA seeds from each account's EARLIEST confirmed snapshot
@@ -172,11 +210,30 @@ describe('resyncOpening', () => {
       ],
       transactions: [tx('t1', '2026-07-20T09:00', 'income', 3000)],
     });
-    expect(openingDrift(S, NOW)).toEqual([{ accountId: 'a1', month: '2026-08', stored: 9974, computed: 12974, delta: 3000, status: 'confirmed' }]);
+    expect(openingDrift(S)).toEqual([{ accountId: 'a1', month: '2026-08', stored: 9974, computed: 12974, delta: 3000, status: 'confirmed' }]);
     const before = envelopeFor(S, '2026-08', NOW).rta;
-    const next = resyncOpening(S, { accountId: 'a1', month: '2026-08', now: NOW });
+    const next = resyncOpening(S, { accountId: 'a1', month: '2026-08' });
     expect(openingOf(S.accounts[0], next.snapshots, '2026-08')).toBe(12974);
     expect(envelopeFor(next, '2026-08', NOW).rta).toBe(before);
+  });
+
+  // The other half of that contract: when the re-synced row IS the earliest
+  // confirmed snapshot (the earlier row is still pending, so it does not seed),
+  // it is the RTA seed itself and RTA moves by the delta. That money is real —
+  // the same thing confirmSnapshots does when it corrects a seed — and it must
+  // stay observable rather than be "fixed" into a silent decoupling.
+  it('moves Ready to Assign by the delta when the re-synced row is the earliest CONFIRMED snapshot', () => {
+    const S = store({
+      accounts: [{ id: 'a1', nickname: 'Meezan', type: 'Current', status: 'active' }],
+      snapshots: [
+        snap('a1', '2026-07', 9974, 'pending'),
+        snap('a1', '2026-08', 9974, 'confirmed', { confirmedAt: '2026-08-01T09:00' }),
+      ],
+      transactions: [tx('t1', '2026-07-20T09:00', 'income', 3000)],
+    });
+    const before = envelopeFor(S, '2026-08', NOW).rta;
+    const next = resyncOpening(S, { accountId: 'a1', month: '2026-08' });
+    expect(envelopeFor(next, '2026-08', NOW).rta).toBe(before + 3000);
   });
 
   // The real bug, in the real shape: Meezan's August opening confirmed at
@@ -193,10 +250,10 @@ describe('resyncOpening', () => {
         tx('s2', '2026-08-31T18:00', 'income', 98350), // recorded after September's rollover had already run
       ],
     });
-    const drift = openingDrift(S, NOW);
+    const drift = openingDrift(S);
     expect(drift).toEqual([{ accountId: 'a1', month: '2026-09', stored: 144471, computed: 242821, delta: 98350, status: 'pending' }]);
-    const next = resyncOpening(S, { accountId: 'a1', month: '2026-09', now: NOW });
+    const next = resyncOpening(S, { accountId: 'a1', month: '2026-09' });
     expect(openingOf(S.accounts[0], next.snapshots, '2026-09')).toBe(242821);
-    expect(openingDrift(next, NOW)).toEqual([]);
+    expect(openingDrift(next)).toEqual([]);
   });
 });

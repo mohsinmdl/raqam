@@ -145,9 +145,10 @@ export function lastActivity(acc, store) {
 
 // Income = income tx. Expenses = expense tx (bank + card) + transfer fees − refunds. Transfers & card payments excluded.
 // Portfolio metrics for a month. Pass `accountId` to scope the balance figures
-// (opening / totalBank / uncleared / working) to a single account — used by the
-// per-account ledger's balance strip. Omit it for the whole-portfolio numbers
-// the Dashboard and All-Accounts view use. Flow metrics (income/expenses/net)
+// (opening / totalBank / uncleared / working) to a single account — the
+// per-account register strip's fallback when it has no vetted range (it reads
+// rangeBalances otherwise). Omit it for the whole-portfolio numbers the
+// Dashboard and All-Accounts view use. Flow metrics (income/expenses/net)
 // stay portfolio-wide; the scoped consumer (compact PositionStrip) reads only
 // the balance figures.
 export function monthMetrics(store, month, now, accountId) {
