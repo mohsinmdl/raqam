@@ -1,7 +1,7 @@
 // Pure data-store actions: every function takes the current data store (and a payload)
 // and returns a NEW store. The reducer in StoreProvider applies them immutably.
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
-import { accountBalance, accountDeletePolicy, cardOutstanding, duplicateCat, moveCollision, normalizeName, INST_KINDS } from '../lib/calc.js';
+import { accountBalance, accountDeletePolicy, cardOutstanding, duplicateCat, monthLabel, moveCollision, normalizeName, INST_KINDS } from '../lib/calc.js';
 import { addMonths, currentMonth, nowIso, nowIsoSec, todayStr } from '../lib/dates.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
@@ -484,6 +484,40 @@ export function adjustBalance(data, { accountId, delta, reason, date, currentBal
   };
 }
 
+// Re-derive one opening snapshot from the previous month's closing balance.
+// The drift this repairs is the gap openingDrift (lib/openingDrift.js) reports:
+// a rollover row that froze before the previous month was finished, or a
+// confirmed figure the user typed against a bank balance that later entries
+// changed. Only a carry-forward row (an earlier snapshot exists for the account)
+// can be re-derived — a brand-new account's opening is typed, not computed, and
+// "previous month's closing" would read 0 for it. A pending row stays pending;
+// a confirmed row is corrected the way confirmSnapshots corrects one, keeping
+// the old figure in `history`. Same reference when nothing moves. Audit rides
+// on the account (audit_log's entity_type/action sets are DB-constrained).
+export function resyncOpening(data, { accountId, month, now }) {
+  const acc = data.accounts.find(a => a.id === accountId);
+  const snap = data.snapshots.find(s => s.accountId === accountId && s.month === month);
+  if (!acc || !snap || !data.snapshots.some(s => s.accountId === accountId && s.month < month)) return data;
+  const amount = accountBalance(acc, data, addMonths(month, -1), now);
+  if (amount === snap.amount) return data;
+  const fixed = { ...snap, amount };
+  if (snap.status === 'confirmed') {
+    fixed.history = (snap.history || []).concat([{ amount: snap.amount, confirmedAt: snap.confirmedAt }]);
+    fixed.corrected = true;
+    fixed.confirmedAt = nowIso();
+  }
+  return {
+    ...data,
+    snapshots: data.snapshots.map(s => (s === snap ? fixed : s)),
+    audit: [makeAudit({
+      entityType: 'account', entityId: accountId, action: 'update',
+      summary: 'Re-synced ' + acc.nickname + ' opening for ' + monthLabel(month) + ' to ' + amount,
+      before: { month, opening: snap.amount, status: snap.status },
+      after: { month, opening: amount, status: fixed.status },
+    }), ...(data.audit || [])],
+  };
+}
+
 // Permanent removal of an archived account. Refuses while anything still points
 // at it (accountDeletePolicy) — the same references the database's foreign keys
 // would reject. Its opening snapshots go with it, mirroring the server cascade so
@@ -617,6 +651,33 @@ export function adjustCardOutstanding(data, { cardId, delta, reason, date, curre
   };
 }
 
+// Rollover seeds a month's pending openings once, by presence (see below), but
+// the previous month keeps being edited after the clock turns: a late-August
+// entry recorded on 3 September must move September's still-unconfirmed
+// opening, or the frozen figure quietly drifts from August's real closing
+// (Meezan sat at 144,471 against a true 242,821). So every pending row of the
+// current month is re-derived on each rollover pass until the user confirms it.
+// Confirmed rows are the user's word and stay put; a brand-new account's
+// pending (no earlier snapshot) is a typed opening, not a carry-forward, and is
+// left alone too. Same reference when nothing moves, so rolloverMonth keeps its
+// "identity means nothing happened" contract.
+export function refreshPendingOpenings(data, now) {
+  const month = currentMonth();
+  const prev = addMonths(month, -1);
+  let changed = false;
+  const snapshots = data.snapshots.map(s => {
+    if (s.month !== month || s.status !== 'pending') return s;
+    if (!data.snapshots.some(x => x.accountId === s.accountId && x.month < month)) return s;
+    const acc = data.accounts.find(a => a.id === s.accountId);
+    if (!acc) return s;
+    const amount = accountBalance(acc, data, prev, now);
+    if (amount === s.amount) return s;
+    changed = true;
+    return { ...s, amount };
+  });
+  return changed ? { ...data, snapshots } : data;
+}
+
 /**
  * Month rollover — runs at startup (and when the date changes while the app is open).
  * Ensures the current real month has an opening snapshot row for every active account and
@@ -639,18 +700,22 @@ export function adjustCardOutstanding(data, { cardId, delta, reason, date, curre
 export function rolloverMonth(data) {
   const month = currentMonth();
   const prev = addMonths(month, -1);
+  // Pending openings already seeded are re-derived first (same reference when
+  // none moved), so a pass with nothing new to seed can still return changed
+  // data — and a pass that changed nothing at all still returns `data` itself.
+  const refreshed = refreshPendingOpenings(data);
   const active = data.accounts.filter(a => a.status === 'active');
   // A rule that lost its nextDate has to be re-materialised; a rule whose due
   // date has simply PASSED is deliberately left alone, so it keeps reading as
   // overdue until it is recorded or skipped. Nothing advances on its own.
   // Checked before the no-accounts bail-out — a card-funded rule needs this too.
   const unscheduled = data.recurring.filter(r => r.status === 'active' && !r.nextDate && r.schedule);
-  if (active.length === 0 && unscheduled.length === 0) return data;
+  if (active.length === 0 && unscheduled.length === 0) return refreshed;
   const missing = active.filter(a => !data.snapshots.some(s => s.accountId === a.id && s.month === month));
   const cardsMissing = data.cards.filter(c => c.type === 'credit' && (!c.openingOutstanding || c.openingOutstanding[month] == null));
-  if (missing.length === 0 && cardsMissing.length === 0 && unscheduled.length === 0) return data;
+  if (missing.length === 0 && cardsMissing.length === 0 && unscheduled.length === 0) return refreshed;
 
-  const next = { ...data };
+  const next = { ...refreshed };
 
   // ── contribution block: pending-snapshot carry-forward policy (Option A default) ──
   if (missing.length > 0) {

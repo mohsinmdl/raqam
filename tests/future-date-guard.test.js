@@ -137,4 +137,50 @@ describe('the month rollover keeps the whole month', () => {
     const opening = next.snapshots.find(s => s.month === month && s.accountId === 'a1');
     expect(opening.amount).toBe(accountBalance(S.accounts[0], S, prev));
   });
+
+  // The rollover seeds by presence, but the previous month keeps being edited
+  // after the clock turns. Until the user confirms it, the pending opening must
+  // follow those edits — the alternative is a frozen figure that silently
+  // disagrees with the previous month's real closing (the Meezan drift).
+  const openingOf = (S) => S.snapshots.find(s => s.month === month && s.accountId === 'a1');
+
+  it('recomputes a pending opening when the previous month is edited before confirmation', () => {
+    const rolled = rolloverMonth(prevStore());
+    expect(openingOf(rolled).amount).toBe(94000);
+    const late = { id: 'p3', date: inPrev('28'), type: 'income', amount: 250000, status: 'cleared', accountId: 'a1', category: 'groc', merchant: 'Salary' };
+    const edited = { ...rolled, transactions: [late, ...rolled.transactions] };
+    const again = rolloverMonth(edited);
+    expect(again).not.toBe(edited);
+    expect(openingOf(again).status).toBe('pending');
+    expect(openingOf(again).amount).toBe(accountBalance(edited.accounts[0], edited, prev));
+    expect(openingOf(again).amount).toBe(344000);
+  });
+
+  it('follows a transaction moved out of the previous month too', () => {
+    const rolled = rolloverMonth(prevStore());
+    const moved = { ...rolled, transactions: rolled.transactions.map(t => (t.id === 'p2' ? { ...t, date: month + '-01T09:00' } : t)) };
+    expect(openingOf(rolloverMonth(moved)).amount).toBe(99000);
+  });
+
+  it('leaves a confirmed opening alone', () => {
+    const rolled = rolloverMonth(prevStore());
+    const confirmed = { ...rolled, snapshots: rolled.snapshots.map(s => (s.month === month ? { ...s, status: 'confirmed', confirmedAt: prev + '-31T10:00' } : s)) };
+    const late = { id: 'p3', date: inPrev('28'), type: 'income', amount: 250000, status: 'cleared', accountId: 'a1', category: 'groc', merchant: 'Salary' };
+    const edited = { ...confirmed, transactions: [late, ...confirmed.transactions] };
+    expect(rolloverMonth(edited)).toBe(edited);
+    expect(openingOf(edited).amount).toBe(94000);
+  });
+
+  it('leaves a brand-new account\u2019s pending alone (no earlier snapshot to carry from)', () => {
+    // Typed opening for an account added this month; the previous-month rows
+    // belong to it only by accident of the fixture and must not re-derive it.
+    const S = store({ snapshots: [{ accountId: 'a1', month, amount: 5000, status: 'pending' }], transactions: prevStore().transactions });
+    expect(rolloverMonth(S)).toBe(S);
+    expect(openingOf(S).amount).toBe(5000);
+  });
+
+  it('is an identity no-op once nothing has changed since the last pass', () => {
+    const rolled = rolloverMonth(prevStore());
+    expect(rolloverMonth(rolled)).toBe(rolled);
+  });
 });

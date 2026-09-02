@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   accountBalance, budgetProjection, budgetRollover, budgetSpent, cardOutstanding,
   categorySpending, dailySpending, effectiveBudget, effectsOf, isExcludedCat,
-  monthBudgetSpending, monthMetrics, recoverableSpending, txBudgetImpact, unbudgetedSpend,
+  monthBudgetSpending, monthMetrics, rangeBalances, recoverableSpending, txBudgetImpact, unbudgetedSpend,
 } from '../src/lib/calc.js';
 import { upsertCategory, setTarget } from '../src/store/actions.js';
 
@@ -354,5 +354,79 @@ describe('monthMetrics — cleared / uncleared / working', () => {
     const M1 = monthMetrics(S, AUG, undefined, 'a1');
     expect(M1.totalBank).toBe(95000);
     expect(M1.uncleared).toBe(0);
+  });
+});
+
+describe('rangeBalances — balance figures over a whole-month window', () => {
+  const NOW = SEP + '-15T12:00';
+  // Two accounts, three months of snapshots. August's a1 snapshot is 90000, NOT
+  // the 95000 a July walk would reach — the drift the two-month test relies on.
+  const twoMonth = () => makeStore(
+    [
+      tx({ id: 'j1', type: 'expense', amount: 5000, accountId: 'a1', category: 'rent', date: JUL + '-03T12:00' }),
+      tx({ id: 'j2', type: 'income', amount: 20000, accountId: 'a1', category: 'salary', date: JUL + '-20T12:00' }),
+      tx({ id: 'j3', type: 'expense', amount: 700, accountId: 'a1', category: 'groc', status: 'pending', date: JUL + '-25T12:00' }),
+      tx({ id: 'a1x', type: 'expense', amount: 4000, accountId: 'a1', category: 'rent', date: AUG + '-04T12:00' }),
+      tx({ id: 'a2x', type: 'income', amount: 1000, accountId: 'a2', category: 'salary', date: AUG + '-06T12:00' }),
+      tx({ id: 'a3x', type: 'transfer', amount: 2500, fee: 50, accountId: 'a1', toAccountId: 'a2', status: 'pending', date: AUG + '-08T12:00' }),
+      tx({ id: 'a4x', type: 'adjustment', amount: -150, accountId: 'a1', category: 'rent', status: 'pending', date: AUG + '-09T12:00' }),
+      // September: outside a Jul–Aug window, must not leak in.
+      tx({ id: 's1', type: 'expense', amount: 99999, accountId: 'a1', category: 'rent', date: SEP + '-02T12:00' }),
+    ],
+    {
+      accounts: [
+        { id: 'a1', nickname: 'Main', status: 'active' },
+        { id: 'a2', nickname: 'Side', status: 'active' },
+      ],
+      snapshots: [
+        { accountId: 'a1', month: JUL, amount: 80000, status: 'confirmed' },
+        { accountId: 'a2', month: JUL, amount: 10000, status: 'confirmed' },
+        { accountId: 'a1', month: AUG, amount: 90000, status: 'confirmed' },
+        { accountId: 'a2', month: AUG, amount: 10000, status: 'confirmed' },
+      ],
+    },
+  );
+
+  it('single month equals monthMetrics field-by-field (portfolio and scoped)', () => {
+    const S = twoMonth();
+    for (const acc of [undefined, 'a1', 'a2']) {
+      const M = monthMetrics(S, AUG, NOW, acc);
+      const R = rangeBalances(S, AUG, AUG, NOW, acc);
+      expect(R).toEqual({ opening: M.opening, totalBank: M.totalBank, uncleared: M.uncleared, working: M.working });
+    }
+  });
+
+  it('single month, scoped: cleared / uncleared / working (uncleared mirrors accountDelta rules)', () => {
+    const R = rangeBalances(twoMonth(), AUG, AUG, NOW, 'a1');
+    expect(R.opening).toBe(90000);
+    expect(R.totalBank).toBe(86000);            // 90000 − 4000; pending rows step 0
+    expect(R.uncleared).toBe(-2550 - 150);      // transfer out + fee, signed adjustment
+    expect(R.working).toBe(R.totalBank + R.uncleared);
+  });
+
+  it('two months: opening(first month) + every delta across both; the intermediate snapshot is ignored', () => {
+    const R = rangeBalances(twoMonth(), JUL, AUG, NOW, 'a1');
+    expect(R.opening).toBe(80000);              // July's snapshot, not August's 90000
+    // 80000 − 5000 + 20000 (July; pending steps 0) − 4000 (August) — the Sep row is out.
+    expect(R.totalBank).toBe(91000);
+    // July's pending expense joins August's pending transfer + adjustment.
+    expect(R.uncleared).toBe(-700 - 2550 - 150);
+    expect(R.working).toBe(91000 - 3400);
+    // The seam: the walked July→August figure (91000) is what a continuous
+    // ledger prints, while August's own snapshot restates it as 90000.
+    expect(R.totalBank).not.toBe(rangeBalances(twoMonth(), AUG, AUG, NOW, 'a1').opening + (-4000));
+  });
+
+  it('two months, portfolio-wide: both accounts, pending transfer nets to just the fee', () => {
+    const R = rangeBalances(twoMonth(), JUL, AUG, NOW);
+    expect(R.opening).toBe(90000);              // 80000 + 10000 (July)
+    expect(R.totalBank).toBe(90000 - 5000 + 20000 - 4000 + 1000);
+    expect(R.uncleared).toBe(-700 - 50 - 150);  // internal transfer cancels, fee remains
+  });
+
+  it('a first month with no snapshot seeds from 0 (callers gate on balanceRange)', () => {
+    const R = rangeBalances(twoMonth(), '2026-06', JUL, NOW, 'a1');
+    expect(R.opening).toBe(0);
+    expect(R.totalBank).toBe(-5000 + 20000);
   });
 });

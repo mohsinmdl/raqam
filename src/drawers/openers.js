@@ -1,7 +1,7 @@
 // Drawer-opening prefill helpers, ported from the prototype's open* handlers
 // (script 812-833). Each returns via openDrawer(name, form).
 import { accountBalance, cardOutstanding } from '../lib/calc.js';
-import { currentMonth, nowIso, todayStr } from '../lib/dates.js';
+import { addMonths, currentMonth, nowIso, todayStr } from '../lib/dates.js';
 import { advanceDue, effectiveNextDate, estimatedSuggestion, formFromSchedule, presetSchedule } from '../lib/schedule.js';
 
 export function txDefaults(type) {
@@ -86,7 +86,14 @@ export const openers = {
     const m = currentMonth(), f = {};
     S.accounts.filter(a => a.status === 'active').forEach(a => {
       const snap = S.snapshots.find(x => x.accountId === a.id && x.month === m);
-      f['snap_' + a.id] = String(snap ? snap.amount : accountBalance(a, S, m, nowIso()));
+      // A rollover pending (the account has an earlier snapshot) may have frozen
+      // before the previous month was finished, so the form offers the LIVE
+      // previous-month closing rather than the stored figure — the same
+      // unguarded value rolloverMonth would seed today. A brand-new account's
+      // pending is what the user typed and is offered back as-is.
+      const carried = snap && snap.status === 'pending' && S.snapshots.some(x => x.accountId === a.id && x.month < m);
+      const amount = !snap ? accountBalance(a, S, m, nowIso()) : carried ? accountBalance(a, S, addMonths(m, -1)) : snap.amount;
+      f['snap_' + a.id] = String(amount);
     });
     openDrawer('snapshot', f);
   },
