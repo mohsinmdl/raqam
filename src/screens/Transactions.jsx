@@ -13,6 +13,7 @@ import { stepCursor, rangeBetween, cursorStatusLabel } from '../lib/rowCursor.js
 import { useMoney } from '../lib/format.js';
 import { nowIso, nowIsoSec } from '../lib/dates.js';
 import { openingOf } from '../lib/calc.js';
+import { balanceRange } from '../lib/balanceRange.js';
 import { useMonth } from '../store/MonthContext.jsx';
 import { inRange, rangeFor, rangeLabel } from '../lib/dateRange.js';
 import { selectionForSel } from '../lib/activityDrill.js';
@@ -21,7 +22,7 @@ import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import { Chevron } from '../ui/icons.jsx';
 import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
-import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, reorderTransaction, setTransactionsAccount, setTransactionsCategory, setTransactionsDate, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
+import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, reorderTransaction, resyncOpening, setTransactionsAccount, setTransactionsCategory, setTransactionsDate, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
 import { dayGroups } from '../lib/dayGroups.js';
@@ -36,6 +37,7 @@ import { useContainerWidth } from '../lib/useContainerWidth.js';
 import { visibleColumnKeys } from '../lib/registerColumns.js';
 import { ScrollArea, ScrollAreaViewport, ScrollAreaContent, ScrollAreaScrollbar } from '../ui/primitives/ScrollArea.jsx';
 import { needsCategoryBannerCount } from '../lib/needsCategoryBanner.js';
+import { openingDrift, openingDriftLabel } from '../lib/openingDrift.js';
 import TxPhoneList from '../components/TxPhoneList.jsx';
 import CategoryPickerSheet from '../components/CategoryPickerSheet.jsx';
 import CategoryPickerPopover from '../components/CategoryPickerPopover.jsx';
@@ -471,9 +473,11 @@ export default function Transactions() {
   const tableWrapRef = useRef(null);
   const containerWidth = useContainerWidth(tableWrapRef);
   const { ask, notify, confirmOpen, shortcutsOpen, flashRows, flashIds, lastSaved, clearLastSaved } = useUI();
-  // The month the balance strip reads (PositionStrip is month-scoped, never
-  // range-scoped, because opening snapshots exist per month). The running
-  // balance column seeds off the same month's snapshot, so the two agree.
+  // The app-wide balance month. On this screen it is only a FALLBACK: the
+  // balance strip and the running-balance column follow the viewed range
+  // (balanceRange / `bal` below) whenever that range can seed an honest
+  // opening, and the search anchor falls back to it when the range is
+  // unbounded. The strip itself falls back to it when handed no range.
   const { balanceMonth } = useMonth();
   const fmt = useMoney();
   const { enabled: aiEnabled } = useAI();
@@ -616,6 +620,20 @@ export default function Transactions() {
   // list filter, neither in this wave's scope) — only the desktop banner's
   // count is threaded through the exclusion.
   const bannerNeedsCatCount = needsCategoryBannerCount(needsCat, lastSaved);
+  // Opening drift: this account's stored opening for some month no longer
+  // equals the previous month's computed closing (openingDrift.js). It is the
+  // single most common reason the strip disagrees with the bank — a rollover
+  // that froze while last month was still being entered — and it is invisible
+  // from inside a one-month view, so the register says so and offers the fix.
+  // First entry only (earliest month): correcting it can shift the next
+  // month's closing, so later drifts are re-evaluated after each re-sync.
+  const drift = useMemo(() => (acct ? openingDrift(S, now, { accountId: acct.id }) : []), [S, now, acct]);
+  const driftEntry = drift[0] || null;
+  const resyncDrift = () => {
+    if (!driftEntry) return;
+    applyData(d => resyncOpening(d, { accountId: driftEntry.accountId, month: driftEntry.month, now: nowIso() }));
+    notify(acct.nickname + ' opening re-synced to ' + fmt.money(driftEntry.computed) + '.');
+  };
 
   // Wave D: a saved row holds its completion accent until the NEXT user
   // interaction. Defined as a pointerdown/keydown anywhere on this screen
@@ -649,19 +667,30 @@ export default function Transactions() {
   // that holds under exactly four conditions:
   //   * account-scoped — "the balance" needs an account to be the balance OF;
   //   * sorted by date (either direction) — the column IS the date order;
-  //   * the range is exactly the month the strip reads, because the opening
-  //     snapshot that seeds the walk is a per-month figure. A three-month or
-  //     All-Dates range has no opening balance to start from;
+  //   * the range is whole months and its FIRST month has an opening snapshot
+  //     for this account (balanceRange.js). The snapshot seeds the walk; a
+  //     day-bounded or All-Dates range has no per-month opening to start from,
+  //     and a first month without one would seed from a fabricated 0. A
+  //     multi-month range walks CONTINUOUSLY from the first month's opening —
+  //     intermediate months' snapshots are not re-seeded, so an opening that
+  //     drifted from the walked figure shows up as a visible seam. That is a
+  //     feature: it is the drift made legible, not hidden;
   //   * nothing is filtering rows out — a cumulative that skips the rows a
   //     search hid is not a balance, it is a subtotal wearing one's clothes.
   // Fail any of them and the column withdraws rather than print a number the
-  // strip would contradict. (The arithmetic itself, and the check against
-  // accountBalance(), live in txRow.balance.test.js.)
-  const rangeIsBalanceMonth = range.from === balanceMonth && range.to === balanceMonth;
+  // strip would contradict. The compact PositionStrip reads the same `bal`
+  // window (calc.js rangeBalances), so the two agree by construction. (The
+  // arithmetic, and the check against accountBalance() / rangeBalances(),
+  // live in txRow.balance.test.js.)
+  //
   // `acct`, not `accountId`: a stale/deleted id redirects on the next effect,
   // but this render still has to survive it, and there is no opening snapshot
   // to seed from without an account.
-  const balanceEligible = !!acct && sort.key === 'date' && rangeIsBalanceMonth
+  const bal = useMemo(
+    () => (acct ? balanceRange(range, S.snapshots, acct.id) : null),
+    [acct, range, S.snapshots],
+  );
+  const balanceEligible = !!acct && sort.key === 'date' && !!bal
     && !F.q && !F.term && listFilter === 'all';
   const visibleKeys = useMemo(
     () => visibleColumnKeys(COLUMNS, containerWidth, !!accountId, balanceEligible),
@@ -675,11 +704,14 @@ export default function Transactions() {
   // Rows as RENDERED, with the balance walked over them. `money` (not moneyPos)
   // — this is a row figure like OUTFLOW/INFLOW, so it follows the app-wide
   // "Hide amounts" toggle, which is also what the register's own eye drives.
+  // Seeded from the FIRST month of the walked window (`bal.from`), which
+  // balanceEligible guarantees has a snapshot; `bal` is non-null whenever the
+  // column is visible, the guard is belt-and-braces for the same render.
   const tableRows = useMemo(
-    () => (showBalanceCol
-      ? withRunningBalances(shownRows, openingOf(acct, S.snapshots, balanceMonth), sort.dir, fmt.money)
+    () => (showBalanceCol && bal
+      ? withRunningBalances(shownRows, openingOf(acct, S.snapshots, bal.from), sort.dir, fmt.money)
       : shownRows),
-    [showBalanceCol, shownRows, acct, S.snapshots, balanceMonth, sort.dir, fmt.money],
+    [showBalanceCol, shownRows, acct, S.snapshots, bal, sort.dir, fmt.money],
   );
   // Only fold the account name into the PAYEE sub-label when it's the
   // *width* that dropped the column — an account-scoped register already
@@ -1177,7 +1209,11 @@ export default function Transactions() {
             strip's eye masks the three POSITION figures beside it, and this
             deliberately doesn't follow it, same split the two eyes were
             built to keep (PositionStrip's own comment on the two masks). */}
-        <PositionStrip compact wide={flush} accountId={accountId}
+        {/* `range={bal}`: the strip walks the same whole-month window the
+            BALANCE column does, so its Cleared figure IS the column's last
+            value. Null (day-bounded / All Dates / unseeded first month) drops
+            the strip back to the app-wide balance month. */}
+        <PositionStrip compact wide={flush} accountId={accountId} range={bal}
           trailing={!phone && (sel.length > 0 || schedSel.size > 0) ? (() => {
             const n = sel.length > 0 ? selectedTotal : schedSelectedTotal;
             const count = sel.length > 0 ? sel.length : schedSel.size;
@@ -1275,6 +1311,17 @@ export default function Transactions() {
                   placeholder={acct ? 'Search ' + acct.nickname : 'Search All Accounts'} label="Search transactions" />
               </div>
             )}
+            {!phoneSelect && driftEntry && (
+              <div role="region" aria-label="Opening balance out of sync" style={{ padding: '6px 16px 4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--warn-soft)' }}>
+                  <span style={{ flex: 1, fontSize: 13, lineHeight: 1.3 }}>{openingDriftLabel(driftEntry, fmt.money, acct.nickname)}</span>
+                  <button onClick={resyncDrift} className="hv-accent rq-btn-solid"
+                    style={{ minHeight: 32, padding: '0 14px', border: 'none', borderRadius: 999, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>
+                    Re-sync
+                  </button>
+                </div>
+              </div>
+            )}
             {!phoneSelect && (needsCat.size > 0 || unclearedIds.size > 0) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '6px 16px 12px' }}>
                 {needsCat.size > 0 && (
@@ -1294,6 +1341,26 @@ export default function Transactions() {
                 )}
               </div>
             )}
+          </div>
+        )}
+        {/* Opening-drift banner (desktop; the phone header has its own card).
+            Same chrome as the needs-category banner below, on the warn wash:
+            Re-sync rewrites the stored opening to last month's computed
+            closing (resyncOpening — undoable, history kept on a confirmed row). */}
+        {!phone && driftEntry && (
+          <div role="region" aria-label="Opening balance out of sync" style={{
+            display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
+            background: 'var(--warn-soft)', borderRadius: flush ? 0 : 12,
+            ...(flush ? { borderBottom: '1px solid var(--border)' } : { border: '1px solid var(--border)' }),
+          }}>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>
+              {openingDriftLabel(driftEntry, fmt.money, acct.nickname) + '.'}
+              {drift.length > 1 && <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{' ' + (drift.length - 1) + ' more month' + (drift.length > 2 ? 's' : '') + ' to check after this one.'}</span>}
+            </span>
+            <button onClick={resyncDrift} className="hv-accent rq-btn-solid"
+              style={{ height: 30, padding: '0 16px', border: 'none', borderRadius: 999,
+                background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' }}
+            >{'Re-sync to ' + fmt.money(driftEntry.computed)}</button>
           </div>
         )}
         {/* Needs-a-category banner (desktop; the phone list has its own inline

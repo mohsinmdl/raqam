@@ -167,18 +167,44 @@ export function monthMetrics(store, month, now, accountId) {
   const recRefund = mtx.filter(t => t.type === 'refund' && isExcludedCat(store, t.category)).reduce((s, t) => s + t.amount, 0);
   const recoverable = recExpense - recRefund;
   const spending = expenses - recoverable;
+  // The four balance figures come from rangeBalances over the single month, so
+  // the month strip and the register's range strip can never disagree on how a
+  // balance is walked — there is one implementation, not two.
+  const { opening, totalBank, uncleared, working } = rangeBalances(store, month, month, now, accountId);
+  const cardLiability = store.cards.filter(c => c.type === 'credit' && c.status !== 'closed').reduce((s, c) => s + cardOutstanding(c, store, month, now), 0);
+  const pend = store.transactions.filter(t => inMonth(t, month) && t.status === 'pending' && hasOccurred(t, now));
+  return {
+    income, expenses, net, spending, recoverable, savings: Math.max(net, 0), rate: income > 0 ? net / income : null,
+    opening, totalBank, change: totalBank - opening, cardLiability, netWorth: totalBank - cardLiability,
+    pendingCount: pend.length, pendingTotal: pend.reduce((s, t) => s + t.amount, 0),
+    uncleared, working,
+  };
+}
+// Balance figures over an inclusive date range instead of a single month:
+// { opening, totalBank, uncleared, working }. `from`/`to` are bounds in the
+// dateRange.js sense — a 'YYYY-MM' month or a 'YYYY-MM-DD' day, either null for
+// unbounded — but the OPENING is only meaningful when `from` is a month with a
+// snapshot: it seeds from openingOf(from) and walks every delta from there to
+// `to` as one continuous run. Intermediate months' snapshots are deliberately
+// NOT re-seeded, so a snapshot that drifted from the walked figure shows up as
+// a seam the user can see rather than being silently papered over. Callers
+// that need the seed to be honest gate on balanceRange.js first.
+//
+// Pass `accountId` to scope to one account (the per-account register's strip
+// and BALANCE column); omit it for every active account (monthMetrics).
+export function rangeBalances(store, from, to, now, accountId) {
   const active = accountId
     ? store.accounts.filter(a => a.id === accountId)
     : store.accounts.filter(a => a.status === 'active');
-  const opening = active.reduce((s, a) => s + openingOf(a, store.snapshots, month), 0);
-  const totalBank = active.reduce((s, a) => s + accountBalance(a, store, month, now), 0);
-  const cardLiability = store.cards.filter(c => c.type === 'credit' && c.status !== 'closed').reduce((s, c) => s + cardOutstanding(c, store, month, now), 0);
-  const pend = store.transactions.filter(t => inMonth(t, month) && t.status === 'pending' && hasOccurred(t, now));
+  const activeIds = new Set(active.map(a => a.id));
+  const opening = active.reduce((s, a) => s + openingOf(a, store.snapshots, from), 0);
+  const rtx = store.transactions.filter(t => inBounds(t, from, to));
+  const totalBank = rtx.reduce((s, t) => s + active.reduce((s2, a) => s2 + accountDelta(t, a.id, now), 0), opening);
+  const pend = rtx.filter(t => t.status === 'pending' && hasOccurred(t, now));
   // Signed effect the pending rows would have on the active-account total once
   // cleared — the "uncleared" balance. accountDelta zeroes pending on purpose
   // (they must never touch cleared balances), so this mirrors its money rules
   // for active accounts without that guard. totalBank + uncleared = working.
-  const activeIds = new Set(active.map(a => a.id));
   const uncleared = pend.reduce((s, t) => {
     if (t.type === 'transfer') {
       let d = 0;
@@ -192,12 +218,19 @@ export function monthMetrics(store, month, now, accountId) {
     if (t.type === 'adjustment') return s + t.amount; // already signed
     return s;
   }, 0);
-  return {
-    income, expenses, net, spending, recoverable, savings: Math.max(net, 0), rate: income > 0 ? net / income : null,
-    opening, totalBank, change: totalBank - opening, cardLiability, netWorth: totalBank - cardLiability,
-    pendingCount: pend.length, pendingTotal: pend.reduce((s, t) => s + t.amount, 0),
-    uncleared, working: totalBank + uncleared,
-  };
+  return { opening, totalBank, uncleared, working: totalBank + uncleared };
+}
+// Inclusive bound test, same contract as dateRange.js inRange(): each bound is
+// compared against the same-length prefix of the date, so a month bound filters
+// by month and a day bound by day; null is unbounded. Duplicated locally on
+// purpose — dateRange.js imports MN from this file, so importing it back would
+// be a cycle.
+function inBounds(t, from, to) {
+  const d = String(t.date || '');
+  if (!d) return false;
+  if (from && d.slice(0, from.length) < from) return false;
+  if (to && d.slice(0, to.length) > to) return false;
+  return true;
 }
 // Spending charts hide excluded (recoverable) categories unless the caller
 // opts in — advances are not "spending by category", they are money on loan.

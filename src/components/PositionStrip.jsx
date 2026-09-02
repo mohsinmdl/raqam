@@ -2,16 +2,20 @@
 // so the Transactions screen can show the same section. One source of markup
 // means the two screens can never drift apart.
 //
-// Deliberately MONTH-scoped (the header's global month stepper), not scoped to
-// the Transactions range: opening snapshots exist per month, so "Start of
-// month" and "Change since start" have no meaning for an arbitrary range. The
-// numbers here always match the Dashboard exactly.
+// The full Dashboard card is MONTH-scoped (the app-wide balance month):
+// opening snapshots exist per month, so "Start of month" and "Change since
+// start" have no meaning for an arbitrary range. The compact register strip
+// may instead be handed a whole-month `range` (Transactions gates it through
+// balanceRange.js) and then walks that window continuously from its first
+// month's opening (calc.js rangeBalances) — the same walk the BALANCE column
+// prints — so the strip and the column agree by construction. Without a range
+// the compact strip behaves exactly as the Dashboard card: balance month.
 import { useState } from 'react';
 import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
-import { monthMetrics } from '../lib/calc.js';
+import { monthMetrics, rangeBalances } from '../lib/calc.js';
 import ExplainDialog from '../ui/ExplainDialog.jsx';
 import MaskPositionEye from '../ui/MaskPositionEye.jsx';
 
@@ -31,7 +35,11 @@ const statVal = { fontSize: 15, fontWeight: 600, marginTop: 2 };
 // Working row (Transactions only). It is deliberately much shorter: the month
 // figures (opening, change) live on the Dashboard, and this screen just wants
 // the balances that a ledger cares about.
-export default function PositionStrip({ trailing, compact, wide, accountId }) {
+//
+// `range` (optional, compact + accountId only): a { from, to } pair of
+// 'YYYY-MM' months whose first month has an opening snapshot. When given, the
+// three figures are walked over that window instead of the balance month.
+export default function PositionStrip({ trailing, compact, wide, accountId, range }) {
   const { data: S } = useStore();
   // Every figure this strip shows is a balance (bank total, net worth, card
   // liability, opening, change, cleared/uncleared/working) — none of it is
@@ -55,7 +63,16 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
   const eyeToggle = <MaskPositionEye label="balances" />;
 
   const now = nowIso();
-  const M = monthMetrics(S, balanceMonth, now, accountId);
+  // Range-scoped only for the compact per-account strip that was handed a
+  // vetted window; every other caller (Dashboard, All Accounts, no range)
+  // reads the balance month exactly as before.
+  const ranged = !!(compact && accountId && range);
+  const M = ranged
+    ? rangeBalances(S, range.from, range.to, now, accountId)
+    : monthMetrics(S, balanceMonth, now, accountId);
+  // The month whose snapshot the figures are seeded from — the walked window's
+  // first month when ranged, the balance month otherwise.
+  const seedMonth = ranged ? range.from : balanceMonth;
 
   if (compact) {
     const amtColor = n => (n > 0 ? 'var(--pos)' : n < 0 ? 'var(--neg)' : 'var(--muted)');
@@ -106,7 +123,7 @@ export default function PositionStrip({ trailing, compact, wide, accountId }) {
   }
 
   const activeAccts = S.accounts.filter(a => a.status === 'active');
-  const confirmed = S.snapshots.some(s => s.month === balanceMonth && s.status === 'confirmed');
+  const confirmed = S.snapshots.some(s => s.month === seedMonth && s.status === 'confirmed');
   const snapStatusLabel = activeAccts.length === 0 ? 'no accounts yet' : confirmed ? 'confirmed snapshot' : 'snapshot pending review';
   const posAsOf = 'across ' + activeAccts.length + (activeAccts.length === 1 ? ' account' : ' accounts');
   const changeColor = M.change > 0 ? 'var(--pos)' : M.change < 0 ? 'var(--neg)' : 'var(--muted)';

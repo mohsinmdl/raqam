@@ -4,7 +4,7 @@
 // number copied out of it.
 import { describe, expect, it } from 'vitest';
 import { withRunningBalances, txGroups } from './txRow.js';
-import { accountBalance } from './calc.js';
+import { accountBalance, rangeBalances } from './calc.js';
 import { inRange } from './dateRange.js';
 
 const row = (id, acctDelta) => ({ id, sortId: id, acctDelta });
@@ -121,5 +121,73 @@ describe('running balance vs the header strip', () => {
     // 100000 -2500 +40000 (pending: no move) +700 -300 -9000
     expect(rows.map(r => r.runningBalance))
       .toEqual([97500, 137500, 137500, 138200, 137900, 128900]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Multi-month window: the walk seeds from the FIRST month's snapshot and runs
+// continuously through the next month — its top value is rangeBalances()'s
+// Cleared figure, which is what the compact strip prints for that window.
+// August's snapshot (restating the opening as 110000) is deliberately NOT
+// what a July walk reaches, and must not be re-seeded mid-walk.
+// ---------------------------------------------------------------------------
+const JUL = '2026-07';
+const txm = (id, month, day, type, amount, extra) => ({
+  id, date: month + '-' + day + 'T12:00:00', type, amount, accountId: ACC,
+  status: 'cleared', merchant: id, ...extra,
+});
+const twoMonthStore = {
+  ...store,
+  snapshots: [
+    { accountId: ACC, month: JUL, amount: 100000, status: 'confirmed' },
+    { accountId: ACC, month: MONTH, amount: 110000, status: 'pending' },
+  ],
+  transactions: [
+    txm('j1', JUL, '03', 'expense', 4000),
+    txm('j2', JUL, '10', 'income', 25000),
+    txm('j3', JUL, '15', 'expense', 900, { status: 'pending' }),
+    txm('a1', MONTH, '02', 'expense', 2500),
+    txm('a2', MONTH, '05', 'income', 40000),
+    txm('a3', MONTH, '09', 'expense', 1200, { status: 'pending' }),
+    txm('a4', MONTH, '28', 'expense', 5000), // future-dated: scheduled band
+  ],
+};
+
+const walk = (S, from, to, sort) => {
+  const list = S.transactions.filter(t => inRange(t, from, to)
+    && (t.accountId === ACC || t.toAccountId === ACC));
+  const { postedRows } = txGroups(list, S, fmt, NOW, { from, to }, false, sort, ACC);
+  const seed = S.snapshots.find(s => s.accountId === ACC && s.month === from).amount;
+  return withRunningBalances(postedRows, seed, sort.dir, fmt.money);
+};
+
+describe('running balance over a two-month window vs the range strip', () => {
+  it("date-desc: the TOP row's balance is rangeBalances().totalBank for Jul–Aug", () => {
+    const rows = walk(twoMonthStore, JUL, MONTH, { key: 'date', dir: 'desc' });
+    const strip = rangeBalances(twoMonthStore, JUL, MONTH, NOW, ACC);
+    expect(rows[0].runningBalance).toBe(strip.totalBank);
+    // 100000 −4000 +25000 (Jul) −2500 +40000 (Aug); both pendings step 0.
+    expect(rows[0].runningBalance).toBe(158500);
+  });
+
+  it("date-asc: the BOTTOM row's balance is rangeBalances().totalBank", () => {
+    const rows = walk(twoMonthStore, JUL, MONTH, { key: 'date', dir: 'asc' });
+    const strip = rangeBalances(twoMonthStore, JUL, MONTH, NOW, ACC);
+    expect(rows[rows.length - 1].runningBalance).toBe(strip.totalBank);
+    expect(rows.map(r => r.id)).toEqual(['j1', 'j2', 'j3', 'a1', 'a2', 'a3']);
+  });
+
+  it('does NOT re-seed at the August snapshot — the seam is visible, not papered over', () => {
+    const rows = walk(twoMonthStore, JUL, MONTH, { key: 'date', dir: 'asc' });
+    const firstAug = rows.find(r => r.id === 'a1');
+    // Continuous: 121000 (end of July) − 2500, not 110000 − 2500.
+    expect(firstAug.runningBalance).toBe(118500);
+  });
+
+  it('the single-month window still equals accountBalance() (August seeds from its own snapshot)', () => {
+    const rows = walk(twoMonthStore, MONTH, MONTH, { key: 'date', dir: 'desc' });
+    expect(rows[0].runningBalance).toBe(accountBalance(twoMonthStore.accounts[0], twoMonthStore, MONTH, NOW));
+    expect(rows[0].runningBalance).toBe(rangeBalances(twoMonthStore, MONTH, MONTH, NOW, ACC).totalBank);
+    expect(rows[0].runningBalance).toBe(147500);
   });
 });
