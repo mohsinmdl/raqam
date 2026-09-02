@@ -6,11 +6,21 @@
 // Covers: idle → generate → renders the FIXTURE headline + observations; a
 // rejected digest → the card shows Retry and never throws; regenerate replaces
 // the prior output; and nothing renders when AI is disabled.
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import digestReq from '../../../modal/fixtures/digest.request.json';
 import digestResp from '../../../modal/fixtures/digest.response.json';
 import { runDigest } from './insightsFlow.js';
+
+// Pin the clock. The fixtures below are dated the 10th (and later) of the
+// CURRENT month, and the future-date guard drops anything after "today" —
+// so on the 1st–9th of every real month they all vanished, the suite went
+// red, and with it the deploy it gates. A frozen mid-month instant makes the
+// month-relative fixtures deterministic on any calendar day. Only Date is
+// faked; timers stay real.
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 7, 20, 12, 0, 0));
+afterAll(() => vi.useRealTimers());
 
 // A store whose CUR month has spending, so buildDigestPayload produces a real
 // payload inside runDigest. Anchored to the real current month like reports.test.

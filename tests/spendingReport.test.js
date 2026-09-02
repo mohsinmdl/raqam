@@ -1,13 +1,23 @@
 // Reflect data-layer — tests the pure Spending Breakdown report engine
 // (range-aware sibling of reports.js), mirroring the fixture/testing pattern
 // in tests/reports.test.js.
-import { describe, it, expect } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import {
   PALETTE, MAX_SLICES, reportTxns, breakdownByCategory, breakdownByGroup,
   rangeMonths, breakdownStats, categoryTxRows, foldForDonut,
 } from '../src/lib/spendingReport.js';
 import { daysInMonth } from '../src/lib/calc.js';
 import { addMonths, currentMonth } from '../src/lib/dates.js';
+
+// Pin the clock. The fixtures below are dated the 10th (and later) of the
+// CURRENT month, and the future-date guard drops anything after "today" —
+// so on the 1st–9th of every real month they all vanished, the suite went
+// red, and with it the deploy it gates. A frozen mid-month instant makes the
+// month-relative fixtures deterministic on any calendar day. Only Date is
+// faked; timers stay real.
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 7, 20, 12, 0, 0));
+afterAll(() => vi.useRealTimers());
 
 // Months are anchored to the REAL current month, never hardcoded literals.
 const CUR = currentMonth();
