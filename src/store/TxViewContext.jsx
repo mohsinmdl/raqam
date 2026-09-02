@@ -1,5 +1,5 @@
-// The Transactions screen's view — date range, filters, sort and the two group
-// collapse states — lifted out of the screen so it survives navigation. React
+// The Transactions screen's view — date range, filters, sort and the SCHEDULED
+// band's per-ledger fold — lifted out of the screen so it survives navigation. React
 // Router unmounts a route component when you leave it, which was resetting the
 // whole view every time you glanced at the Dashboard.
 //
@@ -12,7 +12,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useMonth } from './MonthContext.jsx';
 import { DEFAULT_SORT } from '../lib/sortRows.js';
-import { schedOpenFor } from '../lib/txRow.js';
+import { schedOpenFor, toggleSchedOpenBy } from '../lib/txRow.js';
 
 // Search only. The account, category, type, status and budget-impact filters
 // that used to live here were removed with their controls rather than left as
@@ -37,14 +37,11 @@ export function TxViewProvider({ children }) {
   const [range, setRange] = useState(() => ({ from: month, to: month }));
   // SCHEDULED band fold, remembered per ledger (All Accounts vs. each
   // account's register) so that folding it on one does not fold it on the
-  // others. Defaults live in schedOpenFor: closed on All Accounts, open in a
-  // single register.
+  // others. The defaults, and the reasoning behind them, live with
+  // schedOpenFor in lib/txRow.js.
   const [schedOpenBy, setSchedOpenBy] = useState({});
-  const schedOpenFor_ = accountId => schedOpenFor(schedOpenBy, accountId);
-  const toggleSchedOpen = accountId => setSchedOpenBy(m => {
-    const key = accountId || 'all';
-    return { ...m, [key]: !schedOpenFor(m, accountId) };
-  });
+  const isSchedOpen = accountId => schedOpenFor(schedOpenBy, accountId);
+  const toggleSchedOpen = accountId => setSchedOpenBy(m => toggleSchedOpenBy(m, accountId));
   const [postedOpen, setPostedOpen] = useState(true);
   // Spending's phone Select mode, lifted here only so app-level chrome
   // (AddTxPill) can hide while it is on. Transactions owns setting/clearing it.
@@ -63,7 +60,7 @@ export function TxViewProvider({ children }) {
 
   const value = useMemo(() => ({
     filters, setFilters, sort, setSort, range, setRange,
-    schedOpenFor: schedOpenFor_, toggleSchedOpen, postedOpen, setPostedOpen,
+    isSchedOpen, toggleSchedOpen, postedOpen, setPostedOpen,
     phoneSelect, setPhoneSelect,
     resetView: () => { setFilters(DEFAULT_FILTERS); setRange({ from: month, to: month }); setSort(DEFAULT_SORT); },
   }), [filters, sort, range, schedOpenBy, postedOpen, phoneSelect, month]);

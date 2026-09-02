@@ -341,9 +341,20 @@ export function schedNote(overdueCount, hiddenRuleCount) {
 // All Accounts starts folded — every account's reminders pile up there above
 // the ledger you came to read — while a single account's register starts open,
 // where the same rows are the few things actually due against that balance.
+// `accountId` is falsy on All Accounts; 'all' is that ledger's reserved key
+// (ids are UUIDs, so it can never be a real account's).
+const schedKeyFor = accountId => accountId || 'all';
+
 export function schedOpenFor(openBy, accountId) {
-  const key = accountId || 'all';
-  return openBy[key] ?? !!accountId;
+  return openBy[schedKeyFor(accountId)] ?? !!accountId;
+}
+
+// The fold toggle as a pure reducer over the same map. It inverts what the
+// user currently SEES (schedOpenFor), not the raw stored bit — the first click
+// on an untouched ledger must invert its default, and `!undefined` would leave
+// a single register open on that first click.
+export function toggleSchedOpenBy(openBy, accountId) {
+  return { ...openBy, [schedKeyFor(accountId)]: !schedOpenFor(openBy, accountId) };
 }
 
 export function freshInfo(acc, S) {

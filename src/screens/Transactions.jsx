@@ -494,10 +494,10 @@ export default function Transactions() {
   // per-visit: a selection, an open popover, an open row menu.
   const {
     filters: F, setFilters, sort, setSort, range, setRange,
-    schedOpenFor, toggleSchedOpen, resetView,
+    isSchedOpen, toggleSchedOpen, resetView,
     phoneSelect, setPhoneSelect,
   } = useTxView();
-  const schedOpen = schedOpenFor(accountId);
+  const schedOpen = isSchedOpen(accountId);
   const toggleSchedFold = () => toggleSchedOpen(accountId);
   // Focus stays on the header after sorting (React keeps the node, since
   // SortableHeader is a stable module-scope type), so the result is announced

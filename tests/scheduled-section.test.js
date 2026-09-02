@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { scheduledRules, sourceLabel } from '../src/lib/schedule.js';
-import { futureTxRowOf, ruleRowOf, schedOpenFor, txGroups, txRowOf } from '../src/lib/txRow.js';
+import { futureTxRowOf, ruleRowOf, schedOpenFor, toggleSchedOpenBy, txGroups, txRowOf } from '../src/lib/txRow.js';
 
 const NOW = '2026-08-06T10:00';
 
@@ -352,5 +352,35 @@ describe('schedOpenFor', () => {
     expect(schedOpenFor(openBy, null)).toBe(true);
     expect(schedOpenFor(openBy, 'a1')).toBe(false);
     expect(schedOpenFor(openBy, 'a2')).toBe(true);
+  });
+
+  it('honours a stored value equal to the default (an explicit false is not swallowed)', () => {
+    expect(schedOpenFor({ all: false }, null)).toBe(false);
+    expect(schedOpenFor({ a1: true }, 'a1')).toBe(true);
+  });
+
+  it('treats an empty-string accountId as All Accounts', () => {
+    expect(schedOpenFor({}, '')).toBe(false);
+    expect(schedOpenFor({ all: true }, '')).toBe(true);
+  });
+});
+
+describe('toggleSchedOpenBy', () => {
+  it('first click inverts the DEFAULT, not undefined: opens All Accounts, closes a register', () => {
+    expect(toggleSchedOpenBy({}, null)).toEqual({ all: true });
+    expect(toggleSchedOpenBy({}, 'a1')).toEqual({ a1: false });
+  });
+
+  it('leaves the other ledgers untouched and does not mutate the input', () => {
+    const before = { all: true, a1: false };
+    const after = toggleSchedOpenBy(before, 'a1');
+    expect(after).toEqual({ all: true, a1: true });
+    expect(before).toEqual({ all: true, a1: false });
+  });
+
+  it('round-trips: two toggles restore the default', () => {
+    const twice = toggleSchedOpenBy(toggleSchedOpenBy({}, 'a1'), 'a1');
+    expect(schedOpenFor(twice, 'a1')).toBe(true);
+    expect(schedOpenFor(toggleSchedOpenBy(toggleSchedOpenBy({}, null), null), null)).toBe(false);
   });
 });
