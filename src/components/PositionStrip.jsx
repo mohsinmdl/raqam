@@ -16,6 +16,7 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { monthMetrics, rangeBalances } from '../lib/calc.js';
+import { rangeLabel } from '../lib/dateRange.js';
 import ExplainDialog from '../ui/ExplainDialog.jsx';
 import MaskPositionEye from '../ui/MaskPositionEye.jsx';
 
@@ -43,8 +44,9 @@ export default function PositionStrip({ trailing, compact, wide, accountId, rang
   const { data: S } = useStore();
   // Every figure this strip shows is a balance (bank total, net worth, card
   // liability, opening, change, cleared/uncleared/working) — none of it is
-  // month-flow (income/expenses), so the whole metrics read clamps to
-  // balanceMonth rather than the viewed month.
+  // month-flow (income/expenses), so the read clamps to balanceMonth rather
+  // than the viewed month — unless the compact strip was handed a vetted
+  // `range`, in which case it walks that window (see the file header).
   const { balanceMonth } = useMonth();
   // Both the full Dashboard card and the compact Transactions strip use the
   // position-scoped moneyPos/moneySPos — driven by `maskedPosition` (the eye
@@ -70,9 +72,12 @@ export default function PositionStrip({ trailing, compact, wide, accountId, rang
   const M = ranged
     ? rangeBalances(S, range.from, range.to, now, accountId)
     : monthMetrics(S, balanceMonth, now, accountId);
-  // The month whose snapshot the figures are seeded from — the walked window's
-  // first month when ranged, the balance month otherwise.
-  const seedMonth = ranged ? range.from : balanceMonth;
+  // The window the three compact figures cover, named on the strip: a Last-3-
+  // months register walks 'Jul – Sep 2026', but the same register on Today or
+  // All Dates (no honest seed, balanceRange.js) falls back to the balance
+  // month and reads 'Sep 2026'. Without the caption those two states share
+  // identical chrome and the user cannot tell which figure they are looking at.
+  const windowLabel = ranged ? rangeLabel(range.from, range.to) : rangeLabel(balanceMonth, balanceMonth);
 
   if (compact) {
     const amtColor = n => (n > 0 ? 'var(--pos)' : n < 0 ? 'var(--neg)' : 'var(--muted)');
@@ -117,13 +122,16 @@ export default function PositionStrip({ trailing, compact, wide, accountId, rang
         {/* Eye sits just right of the totals it protects; the search slot below
             still pushes to the far right via marginLeft:auto. */}
         <div style={{ marginLeft: 8, display: 'inline-flex', flex: 'none' }}>{eyeToggle}</div>
+        {accountId && (
+          <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', flex: 'none' }}>{windowLabel}</span>
+        )}
         {trailing && <div style={{ marginLeft: 'auto', flex: 'none' }}>{trailing}</div>}
       </section>
     );
   }
 
   const activeAccts = S.accounts.filter(a => a.status === 'active');
-  const confirmed = S.snapshots.some(s => s.month === seedMonth && s.status === 'confirmed');
+  const confirmed = S.snapshots.some(s => s.month === balanceMonth && s.status === 'confirmed');
   const snapStatusLabel = activeAccts.length === 0 ? 'no accounts yet' : confirmed ? 'confirmed snapshot' : 'snapshot pending review';
   const posAsOf = 'across ' + activeAccts.length + (activeAccts.length === 1 ? ' account' : ' accounts');
   const changeColor = M.change > 0 ? 'var(--pos)' : M.change < 0 ? 'var(--neg)' : 'var(--muted)';

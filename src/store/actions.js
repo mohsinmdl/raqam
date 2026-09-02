@@ -3,6 +3,7 @@
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
 import { accountBalance, accountDeletePolicy, cardOutstanding, duplicateCat, monthLabel, moveCollision, normalizeName, INST_KINDS } from '../lib/calc.js';
 import { addMonths, currentMonth, nowIso, nowIsoSec, todayStr } from '../lib/dates.js';
+import { liveOpening } from '../lib/openingDrift.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
 import { uid } from '../lib/util.js';
@@ -488,18 +489,19 @@ export function adjustBalance(data, { accountId, delta, reason, date, currentBal
 // The drift this repairs is the gap openingDrift (lib/openingDrift.js) reports:
 // a rollover row that froze before the previous month was finished, or a
 // confirmed figure the user typed against a bank balance that later entries
-// changed. Only a carry-forward row (an earlier snapshot exists for the account)
-// can be re-derived — a brand-new account's opening is typed, not computed, and
-// "previous month's closing" would read 0 for it. A pending row stays pending;
-// a confirmed row is corrected the way confirmSnapshots corrects one, keeping
-// the old figure in `history`. Same reference when nothing moves. Audit rides
-// on the account (audit_log's entity_type/action sets are DB-constrained).
-export function resyncOpening(data, { accountId, month, now }) {
+// changed. The figure is liveOpening() — unguarded, like the rollover seed,
+// and null unless the PREVIOUS month has a snapshot row: a brand-new
+// account's opening is typed, not computed, and across a gap in the chain the
+// "closing" would be 0-seeded nonsense. Either way this is the same reference
+// back. A pending row stays pending; a confirmed row is corrected the way
+// confirmSnapshots corrects one, keeping the old figure in `history`. Audit
+// rides on the account (audit_log's entity_type/action sets are DB-constrained).
+export function resyncOpening(data, { accountId, month }) {
   const acc = data.accounts.find(a => a.id === accountId);
   const snap = data.snapshots.find(s => s.accountId === accountId && s.month === month);
-  if (!acc || !snap || !data.snapshots.some(s => s.accountId === accountId && s.month < month)) return data;
-  const amount = accountBalance(acc, data, addMonths(month, -1), now);
-  if (amount === snap.amount) return data;
+  if (!acc || !snap) return data;
+  const amount = liveOpening(data, acc, month);
+  if (amount == null || amount === snap.amount) return data;
   const fixed = { ...snap, amount };
   if (snap.status === 'confirmed') {
     fixed.history = (snap.history || []).concat([{ amount: snap.amount, confirmedAt: snap.confirmedAt }]);
@@ -655,32 +657,38 @@ export function adjustCardOutstanding(data, { cardId, delta, reason, date, curre
 // the previous month keeps being edited after the clock turns: a late-August
 // entry recorded on 3 September must move September's still-unconfirmed
 // opening, or the frozen figure quietly drifts from August's real closing
-// (Meezan sat at 144,471 against a true 242,821). So every pending row of the
-// current month is re-derived on each rollover pass until the user confirms it.
-// Confirmed rows are the user's word and stay put; a brand-new account's
-// pending (no earlier snapshot) is a typed opening, not a carry-forward, and is
-// left alone too. Same reference when nothing moves, so rolloverMonth keeps its
-// "identity means nothing happened" contract.
-export function refreshPendingOpenings(data, now) {
-  const month = currentMonth();
-  const prev = addMonths(month, -1);
+// (Meezan sat at 144,471 against a true 242,821). So every still-pending
+// carry-forward row — whatever its month — is re-derived on each rollover
+// pass until the user confirms it. That pass is hydration, the month tick and
+// a legacy import, NOT edit time: between passes the register's drift banner
+// (openingDrift.js) is what makes the gap visible. The figure is liveOpening():
+// unguarded, exactly what the seed below reads, and null across a gap in the
+// chain (no row for the previous month), which is left alone rather than
+// re-derived from a 0 seed. Confirmed rows are the user's word and stay put;
+// a brand-new account's pending (no earlier snapshot) is a typed opening, not
+// a carry-forward, and is left alone too. Rows are walked oldest month first
+// against the snapshots as corrected so far, so a re-derived July feeds the
+// August that sits on it in the same pass. Same reference when nothing moves,
+// so rolloverMonth keeps its "identity means nothing happened" contract.
+export function refreshPendingOpenings(data) {
+  const pending = data.snapshots.filter(s => s.status === 'pending').sort((a, b) => a.month.localeCompare(b.month));
+  let snapshots = data.snapshots;
   let changed = false;
-  const snapshots = data.snapshots.map(s => {
-    if (s.month !== month || s.status !== 'pending') return s;
-    if (!data.snapshots.some(x => x.accountId === s.accountId && x.month < month)) return s;
+  pending.forEach(s => {
     const acc = data.accounts.find(a => a.id === s.accountId);
-    if (!acc) return s;
-    const amount = accountBalance(acc, data, prev, now);
-    if (amount === s.amount) return s;
+    const amount = liveOpening(changed ? { ...data, snapshots } : data, acc, s.month);
+    if (amount == null || amount === s.amount) return;
     changed = true;
-    return { ...s, amount };
+    snapshots = snapshots.map(x => (x === s ? { ...x, amount } : x));
   });
   return changed ? { ...data, snapshots } : data;
 }
 
 /**
- * Month rollover — runs at startup (and when the date changes while the app is open).
- * Ensures the current real month has an opening snapshot row for every active account and
+ * Month rollover — runs at hydration, when the calendar month changes while the app
+ * is open (StoreProvider polls currentMonth every minute and on visibilitychange), and
+ * after a legacy import. Re-derives still-pending openings first (refreshPendingOpenings),
+ * then ensures the current real month has an opening snapshot row for every active account and
  * an opening-outstanding figure for every credit card, carrying forward the previous
  * month's computed closing position. Also rolls recurring reminders into the new month.
  *
@@ -725,8 +733,9 @@ export function rolloverMonth(data) {
         month,
         accountId: a.id,
         // Previous month's computed closing balance. Deliberately NOT date-
-        // guarded: this is frozen into a snapshot and becomes the opening figure
-        // every later month is measured from, so it must mean "the complete
+        // guarded: this becomes the opening figure every later month is
+        // measured from — re-derived by refreshPendingOpenings while it stays
+        // pending, frozen once confirmed — so it must mean "the complete
         // month", never "the month as it looked at the moment of rollover".
         // As written, `prev` is always the month before the current one and so
         // entirely in the past, which means a guard would change nothing today.

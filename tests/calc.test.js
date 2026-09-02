@@ -358,6 +358,31 @@ describe('monthMetrics — cleared / uncleared / working', () => {
 });
 
 describe('rangeBalances — balance figures over a whole-month window', () => {
+  // A card payment is a transfer with toCardId and no toAccountId: it leaves
+  // the account (cleared → totalBank; pending, plus fee → uncleared) and must
+  // never net to zero the way an internal account-to-account transfer does.
+  // The uncleared reducer's transfer branch is the only place that decides
+  // this, and nothing else in the suite exercised it.
+  it('card payments leave the account and never net like an internal transfer', () => {
+    const S = makeStore(
+      [
+        tx({ id: 'cp1', type: 'transfer', amount: 2000, accountId: 'a1', toCardId: 'k1', status: 'cleared', date: AUG + '-05T12:00' }),
+        tx({ id: 'cp2', type: 'transfer', amount: 700, fee: 30, accountId: 'a1', toCardId: 'k1', status: 'pending', date: AUG + '-06T12:00' }),
+      ],
+      {
+        accounts: [{ id: 'a1', nickname: 'Main', status: 'active' }],
+        cards: [{ id: 'k1', type: 'credit', status: 'active', openingOutstanding: { [AUG]: 5000 } }],
+        snapshots: [{ accountId: 'a1', month: AUG, amount: 100000, status: 'confirmed' }],
+      },
+    );
+    const R = rangeBalances(S, AUG, AUG, AUG + '-15T12:00', 'a1');
+    expect(R.totalBank).toBe(98000);
+    expect(R.uncleared).toBe(-730);
+    expect(R.working).toBe(97270);
+    const M = monthMetrics(S, AUG, AUG + '-15T12:00', 'a1');
+    expect([M.totalBank, M.uncleared, M.working]).toEqual([R.totalBank, R.uncleared, R.working]);
+  });
+
   const NOW = SEP + '-15T12:00';
   // Two accounts, three months of snapshots. August's a1 snapshot is 90000, NOT
   // the 95000 a July walk would reach — the drift the two-month test relies on.

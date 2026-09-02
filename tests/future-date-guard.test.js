@@ -109,11 +109,13 @@ describe('the dashboard agrees with the balance', () => {
 });
 
 describe('the month rollover keeps the whole month', () => {
-  // rolloverMonth freezes a month's closing balance as the next month's opening
-  // snapshot, and nothing ever recomputes it — so it is deliberately left
-  // unguarded. It always rolls the month before the current one, which is
-  // entirely in the past, so today the guarded and unguarded figures coincide;
-  // the point of the test is that the snapshot does not depend on that.
+  // rolloverMonth seeds a month's opening from the previous month's closing,
+  // and refreshPendingOpenings re-derives it on later passes while it stays
+  // pending. Both reads are deliberately unguarded: a snapshot must mean the
+  // complete previous month, never the month as it looked at the moment of
+  // the pass. The rolled month is entirely in the past, so today the guarded
+  // and unguarded figures coincide; the point is that the snapshot does not
+  // depend on that.
   const month = currentMonth(), prev = addMonths(month, -1);
   const inPrev = d => prev + '-' + d + 'T09:00';
   const prevStore = () => store({
@@ -169,6 +171,42 @@ describe('the month rollover keeps the whole month', () => {
     const edited = { ...confirmed, transactions: [late, ...confirmed.transactions] };
     expect(rolloverMonth(edited)).toBe(edited);
     expect(openingOf(edited).amount).toBe(94000);
+  });
+
+  it('leaves a pending opening alone across a GAP (the previous month has no row)', () => {
+    // Two months back is confirmed, last month never got a row (app not opened),
+    // this month is pending. Re-deriving would seed last month from 0 and write
+    // its deltas alone as the opening — so the row must be left as it is.
+    const twoBack = addMonths(month, -2);
+    const S = store({
+      snapshots: [
+        { accountId: 'a1', month: twoBack, amount: 50000, status: 'confirmed' },
+        { accountId: 'a1', month, amount: 49000, status: 'pending' },
+      ],
+      transactions: [{ id: 'g1', date: inPrev('05'), type: 'expense', amount: 1000, status: 'cleared', accountId: 'a1', category: 'groc', merchant: 'Shop' }],
+    });
+    expect(rolloverMonth(S)).toBe(S);
+    expect(openingOf(S).amount).toBe(49000);
+  });
+
+  it('re-derives a still-pending opening of an EARLIER month too, not only the current one', () => {
+    // Last month's opening was never confirmed and two-months-back was edited
+    // afterwards. Only resyncOpening could move it before; now every pending
+    // carry-forward row follows its previous month on each pass.
+    const twoBack = addMonths(month, -2);
+    const S = store({
+      snapshots: [
+        { accountId: 'a1', month: twoBack, amount: 50000, status: 'confirmed' },
+        { accountId: 'a1', month: prev, amount: 50000, status: 'pending' },
+        { accountId: 'a1', month, amount: 50000, status: 'pending' },
+      ],
+      transactions: [{ id: 'e1', date: twoBack + '-09T09:00', type: 'expense', amount: 4000, status: 'cleared', accountId: 'a1', category: 'groc', merchant: 'Shop' }],
+    });
+    const next = rolloverMonth(S);
+    expect(next.snapshots.find(s => s.month === prev).amount).toBe(46000);
+    expect(next.snapshots.find(s => s.month === prev).status).toBe('pending');
+    // and the current month follows the corrected previous one in the same pass
+    expect(next.snapshots.find(s => s.month === month).amount).toBe(46000);
   });
 
   it('leaves a brand-new account\u2019s pending alone (no earlier snapshot to carry from)', () => {
