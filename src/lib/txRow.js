@@ -335,6 +335,17 @@ export function schedNote(overdueCount, hiddenRuleCount) {
   ].filter(Boolean).join(' · ');
 }
 
+// Whether the SCHEDULED band is unfolded for a given ledger. `openBy` is the
+// per-ledger memory ({ all: bool, [accountId]: bool }); a ledger the user has
+// never toggled falls back to its default. The defaults differ on purpose:
+// All Accounts starts folded — every account's reminders pile up there above
+// the ledger you came to read — while a single account's register starts open,
+// where the same rows are the few things actually due against that balance.
+export function schedOpenFor(openBy, accountId) {
+  const key = accountId || 'all';
+  return openBy[key] ?? !!accountId;
+}
+
 export function freshInfo(acc, S) {
   const days = daysAgo(lastActivity(acc, S), nowIso());
   if (days <= 3) return { dot: 'var(--pos)', label: 'Up to date', tip: 'Activity recorded in the last 3 days' };

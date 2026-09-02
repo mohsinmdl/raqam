@@ -12,6 +12,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useMonth } from './MonthContext.jsx';
 import { DEFAULT_SORT } from '../lib/sortRows.js';
+import { schedOpenFor } from '../lib/txRow.js';
 
 // Search only. The account, category, type, status and budget-impact filters
 // that used to live here were removed with their controls rather than left as
@@ -34,7 +35,16 @@ export function TxViewProvider({ children }) {
   // old sorts were permanently descending.
   const [sort, setSort] = useState(DEFAULT_SORT);
   const [range, setRange] = useState(() => ({ from: month, to: month }));
-  const [schedOpen, setSchedOpen] = useState(true);
+  // SCHEDULED band fold, remembered per ledger (All Accounts vs. each
+  // account's register) so that folding it on one does not fold it on the
+  // others. Defaults live in schedOpenFor: closed on All Accounts, open in a
+  // single register.
+  const [schedOpenBy, setSchedOpenBy] = useState({});
+  const schedOpenFor_ = accountId => schedOpenFor(schedOpenBy, accountId);
+  const toggleSchedOpen = accountId => setSchedOpenBy(m => {
+    const key = accountId || 'all';
+    return { ...m, [key]: !schedOpenFor(m, accountId) };
+  });
   const [postedOpen, setPostedOpen] = useState(true);
   // Spending's phone Select mode, lifted here only so app-level chrome
   // (AddTxPill) can hide while it is on. Transactions owns setting/clearing it.
@@ -53,10 +63,10 @@ export function TxViewProvider({ children }) {
 
   const value = useMemo(() => ({
     filters, setFilters, sort, setSort, range, setRange,
-    schedOpen, setSchedOpen, postedOpen, setPostedOpen,
+    schedOpenFor: schedOpenFor_, toggleSchedOpen, postedOpen, setPostedOpen,
     phoneSelect, setPhoneSelect,
     resetView: () => { setFilters(DEFAULT_FILTERS); setRange({ from: month, to: month }); setSort(DEFAULT_SORT); },
-  }), [filters, sort, range, schedOpen, postedOpen, phoneSelect, month]);
+  }), [filters, sort, range, schedOpenBy, postedOpen, phoneSelect, month]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
