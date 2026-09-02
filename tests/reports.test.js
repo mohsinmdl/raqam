@@ -1,12 +1,22 @@
 // Reflect data-layer — tests the pure report helpers directly, mirroring the
 // fixture/testing pattern in tests/calc.test.js.
-import { describe, it, expect } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import {
   spendingByCategory, spendingByGroup, spendingStats,
   monthlySeries, netWorthSeries, incomeExpenseSeries, ageOfMoney,
 } from '../src/lib/reports.js';
 import { daysInMonth, monthMetrics } from '../src/lib/calc.js';
 import { addMonths, currentMonth } from '../src/lib/dates.js';
+
+// Pin the clock. The fixtures below are dated the 10th (and later) of the
+// CURRENT month, and the future-date guard drops anything after "today" —
+// so on the 1st–9th of every real month they all vanished, the suite went
+// red, and with it the deploy it gates. A frozen mid-month instant makes the
+// month-relative fixtures deterministic on any calendar day. Only Date is
+// faked; timers stay real.
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 7, 20, 12, 0, 0));
+afterAll(() => vi.useRealTimers());
 
 // monthsFor(store) walks back from the REAL current month, so months are
 // anchored to it rather than a hardcoded literal (unlike calc.test.js, which
