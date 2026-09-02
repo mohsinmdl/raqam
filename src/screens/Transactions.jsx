@@ -494,9 +494,11 @@ export default function Transactions() {
   // per-visit: a selection, an open popover, an open row menu.
   const {
     filters: F, setFilters, sort, setSort, range, setRange,
-    schedOpen, setSchedOpen, resetView,
+    schedOpenFor, toggleSchedOpen, resetView,
     phoneSelect, setPhoneSelect,
   } = useTxView();
+  const schedOpen = schedOpenFor(accountId);
+  const toggleSchedFold = () => toggleSchedOpen(accountId);
   // Focus stays on the header after sorting (React keeps the node, since
   // SortableHeader is a stable module-scope type), so the result is announced
   // through a live region rather than by moving focus.
@@ -1507,7 +1509,7 @@ export default function Transactions() {
               {scheduled.length > 0 && (
                 <tbody>
                   <GroupHead
-                    open={schedOpen} onToggle={() => setSchedOpen(o => !o)} label="SCHEDULED" bg="var(--warn-soft)" colSpan={gridColSpan}
+                    open={schedOpen} onToggle={toggleSchedFold} label="SCHEDULED" bg="var(--warn-soft)" colSpan={gridColSpan}
                     count={scheduled.length + (scheduled.length === 1 ? ' item' : ' items')}
                     note={schedNote(overdueCount, hiddenRuleCount)}
                   />
@@ -1553,7 +1555,7 @@ export default function Transactions() {
             <TxPhoneList
               groups={groups} postedRows={shownRows}
               scheduled={scheduled} schedKey={schedKey}
-              schedOpen={schedOpen} onToggleSchedOpen={() => setSchedOpen(o => !o)}
+              schedOpen={schedOpen} onToggleSchedOpen={toggleSchedFold}
               overdueCount={overdueCount} hiddenRuleCount={hiddenRuleCount}
               hideAccount={!!accountId} needsCat={needsCat} flashIds={flashIds}
               selectMode={phoneSelect} selected={selected} schedSel={schedSel}

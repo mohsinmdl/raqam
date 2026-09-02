@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { scheduledRules, sourceLabel } from '../src/lib/schedule.js';
-import { futureTxRowOf, ruleRowOf, txGroups, txRowOf } from '../src/lib/txRow.js';
+import { futureTxRowOf, ruleRowOf, schedOpenFor, txGroups, txRowOf } from '../src/lib/txRow.js';
 
 const NOW = '2026-08-06T10:00';
 
@@ -337,5 +337,20 @@ describe('txGroups — one row per rule', () => {
     const g = txGroups([futureTx('pencil', '2026-08-20T09:00')], S, fmt, NOW, { from: null, to: null }, false);
     expect(g.overdueCount).toBe(0);
     expect(g.hiddenRuleCount).toBe(1);
+  });
+});
+
+describe('schedOpenFor', () => {
+  it('starts collapsed on All Accounts and open in a single register', () => {
+    expect(schedOpenFor({}, null)).toBe(false);
+    expect(schedOpenFor({}, undefined)).toBe(false);
+    expect(schedOpenFor({}, 'a1')).toBe(true);
+  });
+
+  it('remembers a toggle per ledger without leaking across them', () => {
+    const openBy = { all: true, a1: false };
+    expect(schedOpenFor(openBy, null)).toBe(true);
+    expect(schedOpenFor(openBy, 'a1')).toBe(false);
+    expect(schedOpenFor(openBy, 'a2')).toBe(true);
   });
 });
