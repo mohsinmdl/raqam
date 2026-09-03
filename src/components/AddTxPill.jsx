@@ -11,7 +11,7 @@ import { useAI } from '../ui/ai/useAI.js';
 export default function AddTxPill() {
   const { openDrawer } = useDrawer();
   const { data: S } = useStore();
-  const { phoneSelect } = useTxView();
+  const { phoneSelect, addSeed } = useTxView();
   const { enabled: aiEnabled } = useAI();
   const disabled = S.accounts.filter(a => a.status === 'active').length === 0;
   if (phoneSelect || disabled) return null;
@@ -45,7 +45,7 @@ export default function AddTxPill() {
           Scan receipt
         </button>
       )}
-      <button onClick={() => openers.addTx(openDrawer)} className="hv-accent rq-btn-solid"
+      <button onClick={() => openers.addTx(openDrawer, 'expense', addSeed)} className="hv-accent rq-btn-solid"
         aria-label="Add transaction"
         style={{
           display: 'flex', alignItems: 'center', gap: 8, minHeight: 48,

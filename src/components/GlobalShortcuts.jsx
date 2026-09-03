@@ -7,6 +7,7 @@ import { SPEC } from '../lib/shortcuts.js';
 import { openers } from '../drawers/openers.js';
 import { useAppLock } from '../ui/AppLockContext.jsx';
 import { useIsPhone } from '../lib/useIsPhone.js';
+import { useTxView } from '../store/TxViewContext.jsx';
 
 // App-level keys that are not tied to a screen: ? toggles the help modal,
 // shift+N opens Add Transaction, ctrl/⌘+shift+L flips the theme, H hides amounts,
@@ -22,6 +23,7 @@ export default function GlobalShortcuts() {
   const nav = useNavigate();
   const location = useLocation();
   const phone = useIsPhone();
+  const { addSeed } = useTxView();
   const bindings = [
     { spec: SPEC.help,  run: () => (shortcutsOpen ? closeShortcuts() : openShortcuts()) },
     { spec: SPEC.addTx, when: () => !shortcutsOpen, run: () => {
@@ -31,11 +33,11 @@ export default function GlobalShortcuts() {
         // account page (/transactions/<id>) seeds that account without
         // navigating away from it, and an already-unscoped register just
         // opens in place too.
-        if (phone) { openers.addTx(openDrawer); return; }
+        if (phone) { openers.addTx(openDrawer, 'expense', addSeed); return; }
         const m = location.pathname.match(/^\/transactions\/([^/]+)$/);
-        if (m) { openers.addTx(openDrawer, 'expense', { payWith: 'acc:' + m[1] }); return; }
+        if (m) { openers.addTx(openDrawer, 'expense', { ...addSeed, payWith: 'acc:' + m[1] }); return; }
         if (location.pathname !== '/transactions') nav('/transactions');
-        openers.addTx(openDrawer);
+        openers.addTx(openDrawer, 'expense', addSeed);
       } },
     { spec: SPEC.toggleTheme, when: () => !shortcutsOpen, run: () => setPrefs({ theme: prefs.theme === 'light' ? 'dark' : 'light' }) },
     { spec: SPEC.hideAmounts, when: () => !shortcutsOpen, run: () => setPrefs({ masked: !prefs.masked }) },

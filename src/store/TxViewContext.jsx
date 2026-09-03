@@ -12,6 +12,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useMonth } from './MonthContext.jsx';
 import { DEFAULT_SORT } from '../lib/sortRows.js';
+import { singleDayOf } from '../lib/dateRange.js';
 import { schedOpenFor } from '../lib/txRow.js';
 
 // Search only. The account, category, type, status and budget-impact filters
@@ -61,12 +62,19 @@ export function TxViewProvider({ children }) {
     setRange({ from: month, to: month });
   }, [month]);
 
+  // What a new entry inherits from the view: a register scoped to ONE day
+  // (Today, Yesterday, a custom one-day range) seeds that day, so the row you
+  // add lands where you are looking. Wider ranges seed nothing — the form keeps
+  // its own default (today). Spread into every openers.addTx seed.
+  const viewDay = singleDayOf(range);
+  const addSeed = useMemo(() => (viewDay ? { date: viewDay } : {}), [viewDay]);
+
   const value = useMemo(() => ({
-    filters, setFilters, sort, setSort, range, setRange,
+    filters, setFilters, sort, setSort, range, setRange, addSeed,
     schedOpenFor: schedOpenFor_, toggleSchedOpen, postedOpen, setPostedOpen,
     phoneSelect, setPhoneSelect,
     resetView: () => { setFilters(DEFAULT_FILTERS); setRange({ from: month, to: month }); setSort(DEFAULT_SORT); },
-  }), [filters, sort, range, schedOpenBy, postedOpen, phoneSelect, month]);
+  }), [filters, sort, range, addSeed, schedOpenBy, postedOpen, phoneSelect, month]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

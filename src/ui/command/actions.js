@@ -15,11 +15,12 @@ export function buildActions({ plans = [], openPlanId } = {}) {
       // Mirrors GlobalShortcuts' Shift+N: desktop addTx renders inline in the
       // register, so get onto /transactions first (preserving a scoped account).
       perform: ctx => {
-        if (ctx.phone) { openers.addTx(ctx.openDrawer); return; }
+        const seed = ctx.addSeed || {};   // a single-day register seeds its day (TxViewContext)
+        if (ctx.phone) { openers.addTx(ctx.openDrawer, 'expense', seed); return; }
         const m = ctx.pathname && ctx.pathname.match(/^\/transactions\/([^/]+)$/);
-        if (m) { openers.addTx(ctx.openDrawer, 'expense', { payWith: 'acc:' + m[1] }); return; }
+        if (m) { openers.addTx(ctx.openDrawer, 'expense', { ...seed, payWith: 'acc:' + m[1] }); return; }
         if (ctx.pathname !== '/transactions') ctx.navigate('/transactions');
-        openers.addTx(ctx.openDrawer);
+        openers.addTx(ctx.openDrawer, 'expense', seed);
       },
     },
     {

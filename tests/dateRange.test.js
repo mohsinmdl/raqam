@@ -1,7 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import {
-  RANGE_PRESETS, REPORT_PRESETS, rangeFor, inRange, presetOf, rangeLabel, clampRange, yearOpts, shiftRange,
+  RANGE_PRESETS, REPORT_PRESETS, rangeFor, inRange, presetOf, rangeLabel, clampRange, yearOpts, shiftRange, singleDayOf,
 } from '../src/lib/dateRange.js';
+
+// A register scoped to ONE day (Today, Yesterday, a custom one-day range) seeds
+// that day into a new entry; anything wider seeds nothing and the form keeps
+// its own default (today).
+describe('singleDayOf', () => {
+  it('returns the day when from and to are the same full date', () => {
+    expect(singleDayOf({ from: '2026-08-05', to: '2026-08-05' })).toBe('2026-08-05');
+    expect(singleDayOf(rangeFor('today', '2026-08-31'))).toBe('2026-08-31');
+    expect(singleDayOf(rangeFor('yesterday', '2026-08-31'))).toBe('2026-08-30');
+  });
+  it('is null for a month, a multi-day span, All dates, or a missing range', () => {
+    expect(singleDayOf({ from: '2026-08', to: '2026-08' })).toBeNull();
+    expect(singleDayOf({ from: '2026-08-05', to: '2026-08-06' })).toBeNull();
+    expect(singleDayOf({ from: null, to: null })).toBeNull();
+    expect(singleDayOf(null)).toBeNull();
+  });
+});
 
 const AUG = '2026-08';   // mid-year, nothing wraps
 const FEB = '2026-02';   // a three-month window here reaches into last year

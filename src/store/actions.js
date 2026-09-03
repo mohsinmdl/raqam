@@ -119,10 +119,28 @@ function resolveCategory(next, f, type) {
 // payload: validated addTx form + { amt, fee } parsed amounts. `id` is optional:
 // the caller may inject it so it can flash the new row immediately (see TxForm);
 // omitted, buildTx mints one.
+// A brand-new BACK-DATED entry whose time the user did not pick lands on TOP
+// of its day — after the newest row already there — rather than at the flat
+// clock time buildTx gives it, which would drop it mid-day among older rows.
+// Today is untouched (buildTx already stamps the real clock, newer than every
+// row on today), as are edits (an edit is not a new entry) and a picked time
+// (that is the user's word). `made` are the freshly built rows in the order
+// they should read TOP-DOWN after the add (split leg 1 above leg 2) —
+// landAfterLatest hands back ascending stamps, so the first row gets the
+// newest one.
+function landBackdated(data, f, made) {
+  if (f.editId || f.timeTouched || made.length === 0) return;
+  const day = made[0].date.slice(0, 10);
+  if (day === todayStr()) return;
+  const stamps = landAfterLatest({ transactions: data.transactions, day, count: made.length, now: nowIsoSec() });
+  if (stamps) made.forEach((t, i) => { t.date = stamps[made.length - 1 - i]; });
+}
+
 export function addTransaction(data, { form: f, type, amt, fee, id }) {
   const next = { ...data, transactions: [...data.transactions], recurring: data.recurring.map(r => ({ ...r })) };
   const catId = resolveCategory(next, f, type);
   const t = buildTx(f, type, amt, fee, catId, id);
+  landBackdated(data, f, [t]);
   next.transactions = [t, ...next.transactions];
   next.audit = [makeAudit({ entityType: 'transaction', entityId: t.id, action: 'create', summary: 'Recorded ' + t.type, after: { type: t.type, amount: t.amount, date: t.date } }), ...(next.audit || [])];
   if (f.fromRecurring) markOccurrenceRecorded(next, f, t, amt);
@@ -145,6 +163,7 @@ export function addSplitTransaction(data, { form: f, legs, amt, ids }) {
     t.splitId = splitId;
     return t;
   });
+  landBackdated(data, f, made);
   next.transactions = [...made, ...next.transactions];
   next.audit = [makeAudit({
     entityType: 'transaction', entityId: splitId, action: 'create',

@@ -1,8 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import { buildTx, reorderTransaction } from './actions.js';
+import { addSplitTransaction, addTransaction, buildTx, reorderTransaction } from './actions.js';
 import { todayStr } from '../lib/dates.js';
 
 const SEC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
+
+// A brand-new BACK-DATED entry lands on top of its day — after the newest row
+// already there — instead of at a flat clock time in the middle of it. Only an
+// untouched time yields; a time the user picked is kept to the minute.
+describe('addTransaction — a back-dated add lands on top of its day', () => {
+  const store = rows => ({
+    categories: [{ id: 'c1', name: 'Rent', type: 'expense', status: 'active' }],
+    accounts: [{ id: 'a1', nickname: 'Main', status: 'active' }],
+    transactions: rows, recurring: [], audit: [],
+  });
+  const form = over => ({ date: '2026-01-05', time: '15:00', payWith: 'acc:a1', category: 'c1', repeat: 'never', ...(over || {}) });
+  const onDay = [
+    { id: 'p', date: '2026-01-05T09:00', type: 'expense', amount: 1, accountId: 'a1' },
+    { id: 'q', date: '2026-01-05T18:20:10', type: 'expense', amount: 1, accountId: 'a1' },  // newest on the 5th
+    { id: 'r', date: '2026-01-06T08:00', type: 'expense', amount: 1, accountId: 'a1' },
+  ];
+
+  it('lands one second after the newest row on that day', () => {
+    const s = addTransaction(store(onDay), { form: form(), type: 'expense', amt: 500, fee: 0, id: 'new' });
+    expect(s.transactions.find(t => t.id === 'new').date).toBe('2026-01-05T18:20:11');
+  });
+
+  it('keeps an explicitly picked time to the minute', () => {
+    const s = addTransaction(store(onDay), { form: form({ timeTouched: true }), type: 'expense', amt: 500, fee: 0, id: 'new' });
+    expect(s.transactions.find(t => t.id === 'new').date).toBe('2026-01-05T15:00');
+  });
+
+  it('falls back to the form time when the day is otherwise empty', () => {
+    const s = addTransaction(store([]), { form: form(), type: 'expense', amt: 500, fee: 0, id: 'new' });
+    expect(s.transactions.find(t => t.id === 'new').date).toBe('2026-01-05T15:00');
+  });
+
+  it('split legs land on top of the day too, leg 1 reading above leg 2', () => {
+    const legs = [{ amount: '300', category: 'c1' }, { amount: '200', category: 'c1' }];
+    const s = addSplitTransaction(store(onDay), { form: form(), legs, amt: 500, ids: ['l1', 'l2'] });
+    expect(s.transactions.find(t => t.id === 'l1').date).toBe('2026-01-05T18:20:12');
+    expect(s.transactions.find(t => t.id === 'l2').date).toBe('2026-01-05T18:20:11');
+  });
+});
 
 describe('buildTx — timestamp on create', () => {
   it('a new today-dated tx with an untouched time gets the real clock (seconds)', () => {
