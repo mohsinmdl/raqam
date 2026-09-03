@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deleteTransactions, duplicateTransactions, setTransactionsAccount, setTransactionsCategory, setTransactionsDate, setTransactionsStatus } from '../src/store/actions.js';
+import { deleteTransactions, duplicateTransactions, planDateMove, setTransactionsAccount, setTransactionsCategory, setTransactionsDate, setTransactionsStatus } from '../src/store/actions.js';
 
 const tx = over => ({
   id: 't1', date: '2026-08-05T12:00', type: 'expense', amount: 100, status: 'cleared',
@@ -326,6 +326,64 @@ describe('setTransactionsDate', () => {
     expect(rows).toHaveLength(2);
     expect(new Set(rows.map(a => a.after.batchId)).size).toBe(1);
     expect(auditFor(s, 'd1')[0].after.date).toBe('2026-08-20T09:00');
+  });
+
+  // Landing ON a day means on TOP of it: after the newest row already there,
+  // in register order (oldest of the selection first). Only when the day is
+  // otherwise empty does each row keep its own time-of-day (the tests above).
+  it('lands the selection after the latest row already on the target day', () => {
+    const base = dateStore([
+      dated({ id: 'k', date: '2026-08-20T10:00' }),        // already on the 20th, unselected
+      dated({ id: 'd1', date: '2026-08-05T09:00' }),
+      dated({ id: 'd2', date: '2026-08-05T15:30:45' }),
+    ]);
+    const s = setTransactionsDate(base, { ids: ['d1', 'd2'], date: '2026-08-20', now: NOW });
+    expect(s.transactions.find(t => t.id === 'd1').date).toBe('2026-08-20T10:00:01');
+    expect(s.transactions.find(t => t.id === 'd2').date).toBe('2026-08-20T10:00:02');
+    expect(s.transactions.find(t => t.id === 'k').date).toBe('2026-08-20T10:00');
+  });
+
+  it('a selected row already on the day rides along with the group, keeping register order', () => {
+    const base = dateStore([
+      dated({ id: 'k', date: '2026-08-20T10:00' }),
+      dated({ id: 'd1', date: '2026-08-20T09:00' }),        // on the day, but below k
+      dated({ id: 'd2', date: '2026-08-05T09:00' }),
+    ]);
+    const s = setTransactionsDate(base, { ids: ['d1', 'd2'], date: '2026-08-20', now: NOW });
+    expect(s.transactions.find(t => t.id === 'd2').date).toBe('2026-08-20T10:00:01'); // older → lower
+    expect(s.transactions.find(t => t.id === 'd1').date).toBe('2026-08-20T10:00:02'); // newer → on top
+  });
+
+  it('is a no-op when the selection already sits on top of the day', () => {
+    const base = dateStore([
+      dated({ id: 'k', date: '2026-08-20T08:00' }),
+      dated({ id: 'd1', date: '2026-08-20T09:00' }),
+      dated({ id: 'd2', date: '2026-08-20T10:00' }),
+    ]);
+    expect(setTransactionsDate(base, { ids: ['d1', 'd2'], date: '2026-08-20', now: NOW })).toBe(base);
+  });
+
+  it('clamps a landing onto today to now', () => {
+    const now = '2026-08-31T14:00:00';
+    const base = dateStore([
+      dated({ id: 'k', date: '2026-08-31T13:59:59' }),
+      dated({ id: 'd1', date: '2026-08-05T09:00' }),
+      dated({ id: 'd2', date: '2026-08-05T10:00' }),
+    ]);
+    const s = setTransactionsDate(base, { ids: ['d1', 'd2'], date: '2026-08-31', now });
+    expect(s.transactions.find(t => t.id === 'd1').date).toBe(now);
+    expect(s.transactions.find(t => t.id === 'd2').date).toBe(now);
+  });
+
+  it('planDateMove exposes the same plan the store applies (for the screen toast)', () => {
+    const base = dateStore([
+      dated({ id: 'k', date: '2026-08-20T10:00' }),
+      dated({ id: 'd1', date: '2026-08-05T09:00' }),
+      dated({ id: 'd2', date: '2026-08-20T10:00:01' }),   // would land where it already is? no — k is latest OTHER
+    ]);
+    const plan = planDateMove(base, { ids: ['d1', 'd2'], date: '2026-08-20', now: NOW });
+    expect(plan.map(p => [p.id, p.to])).toEqual([['d1', '2026-08-20T10:00:01'], ['d2', '2026-08-20T10:00:02']]);
+    expect(planDateMove(base, { ids: ['d1'], date: 'NaN-08-20', now: NOW })).toEqual([]);
   });
 
   it('rejects a malformed date, empty or missing selection', () => {

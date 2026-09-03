@@ -22,7 +22,7 @@ import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import { Chevron } from '../ui/icons.jsx';
 import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
-import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, postTransactionNow, reorderTransaction, resyncOpening, setTransactionsAccount, setTransactionsCategory, setTransactionsDate, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
+import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, planDateMove, postTransactionNow, reorderTransaction, resyncOpening, setTransactionsAccount, setTransactionsCategory, setTransactionsDate, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
 import { dayGroups } from '../lib/dayGroups.js';
@@ -1030,21 +1030,20 @@ export default function Transactions() {
     flashRows(moved);
     notify('Moved ' + moved.length + ' to ' + acct.nickname + (skipped.length ? ' — ' + skipped.length + ' skipped' : '') + '.');
   };
-  // Bulk "Move to Date": one chosen DAY applied to every selected row, each row
-  // keeping its own time-of-day so intra-day order is preserved
-  // (setTransactionsDate). Opened from the More menu → the date-only picker,
-  // which disables future days so the chosen day is the day rows land on. Mirror
-  // the store's clamp/no-op rule here so the toast counts only rows that actually
-  // move (like bulkMoveAccount), not the whole selection — a row already sitting
-  // on that day (at that time) is neither moved nor reported as such.
+  // Bulk "Move to Date": one chosen DAY applied to every selected row — the
+  // whole selection lands on TOP of that day, after whatever is already there
+  // (setTransactionsDate / planDateMove). Opened from the More menu → the
+  // date-only picker, which disables future days so the chosen day is the day
+  // rows land on. The toast counts only rows the store's own plan will actually
+  // move (like bulkMoveAccount), not the whole selection — a selection already
+  // sitting on top of that day is neither moved nor reported as such.
   const bulkMoveDate = day => {
     setBulkDateOpen(false);
     const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const [, m, d] = day.split('-');
     const label = Number(d) + ' ' + MN[Number(m) - 1];
     const now = nowIsoSec();
-    const landsOn = t => { const s = day + (t.date.slice(10) || 'T12:00'); return now && s > now ? now : s; };
-    const moved = sel.filter(id => { const t = S.transactions.find(x => x.id === id); return t && landsOn(t) !== t.date; });
+    const moved = planDateMove(S, { ids: sel, date: day, now }).map(p => p.id);
     applyData(data => setTransactionsDate(data, { ids: sel, date: day, now }));
     clearSel();
     if (moved.length === 0) { notify('Already on ' + label + '.'); return; }

@@ -29,6 +29,38 @@ function topAnchor(below, now, nowInView) {
   return plus1 <= endOfDay ? plus1 : endOfDay;
 }
 
+// The moments `count` rows take when they are told to land ON a day, after
+// everything already there. Rows are date-DESC and order IS the date, so
+// "put these on the 20th" means "on top of the 20th": one second after that
+// day's newest row, then two, … — ascending, so the caller hands them out in
+// register order (its oldest row gets +1s, its newest +Ns) and the group reads
+// the same way after the move. Capped at the day's last second (a move onto a
+// day must stay on that day) and clamped to `now` (the app rule against
+// future-dated rows). `exclude` lists the moved rows themselves, so a row
+// already sitting on the day can't anchor its own move. Returns null when
+// nothing else sits on the day — there is no "top" to land on, and the caller
+// keeps whatever it did before (own time-of-day, a flat noon, …).
+//
+// Shared by bulk Move to Date, a back-dated add, and a top drop in a past-day
+// view; keeping it here (not in the store) keeps the register's timestamp
+// policy in one pure module.
+export function landAfterLatest({ transactions, day, count, exclude, now }) {
+  const skip = new Set(exclude || []);
+  let latest = null;
+  for (const t of transactions) {
+    if (skip.has(t.id) || String(t.date).slice(0, 10) !== day) continue;
+    if (latest == null || t.date > latest) latest = t.date;
+  }
+  if (latest == null) return null;
+  const endOfDay = day + 'T23:59:59';
+  const cap = now && now < endOfDay ? now : endOfDay;
+  const base = toEpochMs(latest);
+  return Array.from({ length: count }, (_, i) => {
+    const s = fmtIsoSec(base + (i + 1) * 1000);
+    return s > cap ? cap : s;
+  });
+}
+
 // above  — the more-recent neighbor (row displayed above the drop gap), or null
 //          when dropping at the very top.
 // below  — the older neighbor (row displayed below the gap), or null at the
