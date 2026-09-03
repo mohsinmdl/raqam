@@ -145,6 +145,63 @@ export function planDrop({ above, below, now, windowDays = 3, nowInView = true, 
   return { mode: 'picker', seed };
 }
 
+// Make room in a gap that has no whole second to land on. Rows entered or
+// imported together sit TIED at the same minute, so "between these two" names
+// no instant — but the register only shows the day, so seconds within it are
+// ours to assign. The tight neighbourhood around the gap (starting with the
+// two neighbours, widening a row at a time, never past the day's edges) is
+// respread evenly across the seconds available between the next distinct
+// stamps, the dragged group inserted at the drop, display order kept. When
+// the two neighbours share a minute, that minute is tried first so tied rows
+// keep the minute they had. Returns { ids, dates } newest-first for the whole
+// respread run, or null when no room can be made inside the day (rows never
+// change day) — the caller then asks.
+//
+//   order     — rendered ids WITHOUT the moving group, date-DESC.
+//   insertIdx — index in `order` the group lands before (the row below).
+function makeRoom({ order, rowDate, insertIdx, count, now }) {
+  if (insertIdx <= 0 || insertIdx >= order.length) return null;
+  const at = i => toEpochMs(rowDate(order[i]));
+  const dayOf = i => String(rowDate(order[i])).slice(0, 10);
+  const day = dayOf(insertIdx - 1);
+  if (dayOf(insertIdx) !== day) return null;
+  const dayStart = toEpochMs(day);
+  const dayEnd = toEpochMs(day + 'T23:59:59');
+  const cap = Math.min(dayEnd, toEpochMs(now) || dayEnd);
+
+  const spread = (hiIdx, loIdx, lo, hi) => {
+    const n = loIdx - hiIdx + 1 + count;
+    if (hi - lo < (n + 1) * 1000) return null;
+    const step = Math.floor((hi - lo) / (n + 1) / 1000) * 1000;
+    return Array.from({ length: n }, (_, i) => fmtIsoSec(lo + step * (n - i)));
+  };
+  let hiIdx = insertIdx - 1, loIdx = insertIdx;
+  for (;;) {
+    // Inclusive bounds: one second inside the next distinct row on either
+    // side, or the day's edge (capped at now) when there is none on this day.
+    const lo = loIdx + 1 < order.length && dayOf(loIdx + 1) === day ? at(loIdx + 1) + 1000 : dayStart;
+    const hi = hiIdx - 1 >= 0 && dayOf(hiIdx - 1) === day ? at(hiIdx - 1) - 1000 : cap;
+    let dates = null;
+    if (hiIdx === insertIdx - 1 && loIdx === insertIdx) {
+      const a = rowDate(order[hiIdx]), b = rowDate(order[loIdx]);
+      if (sameMinute(a, b)) {
+        const minute = toEpochMs(String(a).slice(0, 16));
+        dates = spread(hiIdx, loIdx, Math.max(lo, minute), Math.min(hi, minute + 59000));
+      }
+    }
+    dates = dates || spread(hiIdx, loIdx, lo, hi);
+    if (dates) {
+      return { ids: [...order.slice(hiIdx, insertIdx), ...Array(count).fill(null), ...order.slice(insertIdx, loIdx + 1)], dates };
+    }
+    // Widen towards whichever neighbour is nearer in time; stop at the day's edges.
+    const canUp = hiIdx - 1 >= 0 && dayOf(hiIdx - 1) === day;
+    const canDown = loIdx + 1 < order.length && dayOf(loIdx + 1) === day;
+    if (!canUp && !canDown) return null;
+    if (canUp && (!canDown || at(hiIdx - 1) - at(hiIdx) <= at(loIdx) - at(loIdx + 1))) hiIdx -= 1;
+    else loIdx += 1;
+  }
+}
+
 // Turn a drop gesture into a plan. Kept pure (no DOM, no store) so the hook is
 // just event plumbing over it and the neighbour math is unit-tested.
 //
@@ -158,8 +215,11 @@ export function planDrop({ above, below, now, windowDays = 3, nowInView = true, 
 // Returns null when the drop would leave the register in the order it already
 // has (dropped onto a member, or back into its own gap), else the planDrop
 // result tagged with the group's `ids` in register order — so `dates[i]`
-// (newest first) belongs to `ids[i]`. A picker plan also carries `bounds`, the
-// gap's neighbour dates, for groupFromPick to keep the pick inside the gap.
+// (newest first) belongs to `ids[i]`. A gap too tight for the group is first
+// widened by respreading its tied neighbourhood (makeRoom), in which case
+// `ids` also carries the nudged neighbours. A picker plan also carries
+// `bounds`, the gap's neighbour dates, for groupFromPick to keep the pick
+// inside the gap.
 export function resolveDrop({ ids, rowDate, dragIds, beforeId, now, windowDays, nowInView }) {
   const moving = new Set(dragIds);
   const group = ids.filter(id => moving.has(id));
@@ -177,6 +237,13 @@ export function resolveDrop({ ids, rowDate, dragIds, beforeId, now, windowDays, 
   const above = aboveId ? { id: aboveId, date: rowDate(aboveId) } : null;
   const below = beforeId != null ? { id: beforeId, date: rowDate(beforeId) } : null;
   const plan = planDrop({ above, below, now, windowDays, nowInView, count: group.length });
-  if (plan.mode === 'picker') return { ids: group, ...plan, bounds: { above: above ? above.date : null, below: below ? below.date : null } };
+  if (plan.mode === 'picker') {
+    // Between two neighbours with no room: make some before asking. (Wider
+    // than the window is a different refusal — a real gap needs a real date.)
+    const tight = above && below && toEpochMs(above.date) - toEpochMs(below.date) < Math.max(MIN_ROOM_MS, (group.length + 1) * 1000);
+    const room = tight ? makeRoom({ order, rowDate, insertIdx, count: group.length, now }) : null;
+    if (room) return { ids: room.ids.map(id => id ?? group.shift()), mode: 'auto', dates: room.dates };
+    return { ids: group, ...plan, bounds: { above: above ? above.date : null, below: below ? below.date : null } };
+  }
   return { ids: group, ...plan };
 }
