@@ -952,9 +952,10 @@ export function planDateMove(data, { ids, date, now }) {
   let landing;
   if (stamps) {
     // Already on top: every row is on the day and the oldest of them is still
-    // newer than everything else there (the anchor is one second past that).
-    const anchor = toEpochMs(stamps[0]) - 1000;
-    const onTop = rows.every(t => t.date.slice(0, 10) === date) && toEpochMs(rows[0].date) > anchor;
+    // newer than everything else there.
+    const others = data.transactions.filter(t => !set.has(t.id) && t.date.slice(0, 10) === date).map(t => toEpochMs(t.date));
+    const latestOther = Math.max(...others);
+    const onTop = rows.every(t => t.date.slice(0, 10) === date) && toEpochMs(rows[0].date) > latestOther;
     if (onTop) return [];
     landing = rows.map((t, i) => stamps[i]);
   } else {
