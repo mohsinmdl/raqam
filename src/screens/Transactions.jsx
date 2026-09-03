@@ -740,7 +740,7 @@ export default function Transactions() {
   const [reorderPicker, setReorderPicker] = useState(null);
   // Bulk "Move to Date": a lightweight open flag (true → the date-only picker,
   // applied to the whole selection). Separate from reorderPicker, which carries
-  // a single row's id/seed.
+  // the dragged rows' ids, the picker's seed and the drop gap's bounds.
   const [bulkDateOpen, setBulkDateOpen] = useState(false);
   const reorderable = !phone && sort.key === 'date' && sort.dir === 'desc';
   // When the register is scoped to a past date/month, `now` is outside the view,
@@ -1795,13 +1795,15 @@ export default function Transactions() {
         {/* Drag-to-reorder fallback: a moment the drop couldn't honestly
             interpolate is chosen here, then written like any other reorder.
             A dragged GROUP fans out from the pick — newest row at the chosen
-            instant, the rest a second earlier each (groupFromPick). */}
+            instant, the rest a second earlier each — and a pick in a
+            neighbour's minute stays strictly inside the gap it was dropped in,
+            never tied to that neighbour (groupFromPick). */}
         {reorderPicker && (
           <TxWhenPicker
             seed={reorderPicker.seed} x={reorderPicker.x} y={reorderPicker.y}
             onCancel={() => setReorderPicker(null)}
             onConfirm={iso => {
-              const dates = groupFromPick(iso, reorderPicker.ids.length);
+              const dates = groupFromPick(iso, reorderPicker.ids.length, reorderPicker.bounds);
               applyData(data => reorderTransactions(data, { moves: reorderPicker.ids.map((id, i) => ({ id, date: dates[i] })), now: nowIsoSec() }));
               setReorderPicker(null);
             }}

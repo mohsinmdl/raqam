@@ -44,8 +44,22 @@ function topStamps(below, now, nowInView, count) {
 // The picker fallback for a group: the instant the user picked is the group's
 // newest row, the rest sit one second earlier each — so a blind confirm keeps
 // the order they were dragged in. Newest first, like every `dates` here.
-export function groupFromPick(iso, count) {
-  return secondsDown(toEpochMs(iso), count);
+//
+// `bounds` — the gap the picker was opened for ({ above, below } neighbour
+// dates, either null). The picker is minute-granular and is SEEDED from a
+// neighbour, so a blind confirm lands in that neighbour's minute; taken
+// verbatim it would tie the neighbour to the second, and the register's
+// merchant tie-breaker then decides who is on top — a bottom drop could put
+// the dragged row straight back above the last row ("only one row moved").
+// A pick in the same minute as the row above therefore stays strictly older
+// than it, and one in the same minute as the row below strictly newer. A pick
+// in any other minute is an explicit choice and is honoured as is.
+const sameMinute = (a, b) => String(a).slice(0, 16) === String(b).slice(0, 16);
+export function groupFromPick(iso, count, { above = null, below = null } = {}) {
+  let top = toEpochMs(iso);
+  if (below && sameMinute(iso, below)) top = Math.max(top, toEpochMs(below) + count * 1000);
+  if (above && sameMinute(iso, above)) top = Math.min(top, toEpochMs(above) - 1000);
+  return secondsDown(top, count);
 }
 
 // The moments `count` rows take when they are told to land ON a day, after
@@ -144,7 +158,8 @@ export function planDrop({ above, below, now, windowDays = 3, nowInView = true, 
 // Returns null when the drop would leave the register in the order it already
 // has (dropped onto a member, or back into its own gap), else the planDrop
 // result tagged with the group's `ids` in register order — so `dates[i]`
-// (newest first) belongs to `ids[i]`.
+// (newest first) belongs to `ids[i]`. A picker plan also carries `bounds`, the
+// gap's neighbour dates, for groupFromPick to keep the pick inside the gap.
 export function resolveDrop({ ids, rowDate, dragIds, beforeId, now, windowDays, nowInView }) {
   const moving = new Set(dragIds);
   const group = ids.filter(id => moving.has(id));
@@ -161,5 +176,7 @@ export function resolveDrop({ ids, rowDate, dragIds, beforeId, now, windowDays, 
   const aboveId = insertIdx > 0 ? order[insertIdx - 1] : null;
   const above = aboveId ? { id: aboveId, date: rowDate(aboveId) } : null;
   const below = beforeId != null ? { id: beforeId, date: rowDate(beforeId) } : null;
-  return { ids: group, ...planDrop({ above, below, now, windowDays, nowInView, count: group.length }) };
+  const plan = planDrop({ above, below, now, windowDays, nowInView, count: group.length });
+  if (plan.mode === 'picker') return { ids: group, ...plan, bounds: { above: above ? above.date : null, below: below ? below.date : null } };
+  return { ids: group, ...plan };
 }

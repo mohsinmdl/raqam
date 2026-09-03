@@ -58,8 +58,9 @@ function edgeAutoScroll(e) {
 // nowInView — is today inside the register's current date/month filter? Governs
 //            whether a top drop stamps the clock or the viewed date's latest
 //            moment (forwarded to resolveDrop → planDrop).
-// openPicker({ id, seed, x, y }) — called when the drop needs an explicit
-//            date/time instead of an interpolated one.
+// openPicker({ ids, seed, bounds, x, y }) — called when the drop needs an
+//            explicit date/time instead of an interpolated one. `bounds` is the
+//            gap's neighbour dates, so the confirm can keep the pick inside it.
 // notify    — surfaces a drop that couldn't happen (the row vanished under a
 //            background sync), so a failed reorder is never silent.
 export default function useTxDnd({ rows, enabled, applyData, nowInView = true, selectedIds, openPicker, notify }) {
@@ -112,7 +113,7 @@ export default function useTxDnd({ rows, enabled, applyData, nowInView = true, s
     const plan = resolveDrop({ ids, rowDate, dragIds: drag.ids, beforeId: target.beforeId, now, nowInView });
     if (plan) {
       if (plan.mode === 'auto') applyData(d => reorderTransactions(d, { moves: plan.ids.map((id, i) => ({ id, date: plan.dates[i] })), now }));
-      else openPicker({ ids: plan.ids, seed: plan.seed, x: e.clientX, y: e.clientY });
+      else openPicker({ ids: plan.ids, seed: plan.seed, bounds: plan.bounds, x: e.clientX, y: e.clientY });
     }
     end();
   }, [drag, target, ids, rows, nowInView, applyData, openPicker, end, notify]);

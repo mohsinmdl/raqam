@@ -33,8 +33,8 @@ describe('planDrop — between two neighbors', () => {
     const above = '2026-08-30T12:00:02', below = '2026-08-30T12:00:00';
     const p = planDrop({ above: r('a', above), below: r('b', below), now: NOW });
     expect(p).toEqual({ mode: 'auto', dates: ['2026-08-30T12:00:01'] });
-    expect(p.date).not.toBe(above);
-    expect(p.date).not.toBe(below); // the property the whole auto/picker split protects
+    expect(p.dates[0]).not.toBe(above);
+    expect(p.dates[0]).not.toBe(below); // the property the whole auto/picker split protects
   });
 
   it('seeds the picker strictly BETWEEN the neighbors when they are far apart', () => {
@@ -225,6 +225,56 @@ describe('groupFromPick', () => {
   });
   it('is the picked instant alone for one row', () => {
     expect(groupFromPick('2026-08-30T11:00', 1)).toEqual(['2026-08-30T11:00:00']);
+  });
+
+  // The picker is minute-granular and is seeded from a neighbour, so a blind
+  // confirm lands in that neighbour's minute. A pick in the same minute as the
+  // row ABOVE the gap must stay strictly older than it (else the two tie and
+  // the merchant tie-breaker can put the dragged row back above it — "only one
+  // row moved"); the same minute as the row BELOW must stay strictly newer.
+  describe('with the drop gap\'s neighbours (bounds)', () => {
+    it('a pick in the same minute as the row above lands the group just below it', () => {
+      expect(groupFromPick('2026-09-01T09:15', 2, { above: '2026-09-01T09:15:00', below: null }))
+        .toEqual(['2026-09-01T09:14:59', '2026-09-01T09:14:58']);
+    });
+    it('a single row dropped at the bottom sits one second under the last row, never tied', () => {
+      expect(groupFromPick('2026-09-01T09:15', 1, { above: '2026-09-01T09:15:00', below: null }))
+        .toEqual(['2026-09-01T09:14:59']);
+    });
+    it('a pick in the same minute as the row below lands the group just above it, order kept', () => {
+      expect(groupFromPick('2026-08-30T10:00', 2, { above: null, below: '2026-08-30T10:00:00' }))
+        .toEqual(['2026-08-30T10:00:02', '2026-08-30T10:00:01']);
+    });
+    it('honours a pick outside both neighbours\' minutes verbatim (an explicit choice)', () => {
+      expect(groupFromPick('2026-08-30T08:00', 2, { above: '2026-08-30T12:00:00', below: '2026-08-30T10:00:00' }))
+        .toEqual(['2026-08-30T08:00:00', '2026-08-30T07:59:59']);
+    });
+    it('a minute-precision neighbour reads as :00', () => {
+      expect(groupFromPick('2026-09-01T09:15', 1, { above: '2026-09-01T09:15' })).toEqual(['2026-09-01T09:14:59']);
+    });
+  });
+});
+
+// The picker plan names the gap it was opened for, so the confirm can keep the
+// pick strictly inside it (groupFromPick bounds).
+describe('resolveDrop — picker plans carry the gap\'s neighbours', () => {
+  const dates = { a: '2026-08-30T13:00:00', b: '2026-08-30T12:00:00', c: '2026-08-30T10:00:00' };
+  const ids = ['a', 'b', 'c'];
+  const rowDate = id => dates[id];
+  it('bottom drop: above = the last row, below = null', () => {
+    expect(resolveDrop({ ids, rowDate, dragIds: ['a'], beforeId: null, now: NOW }))
+      .toEqual({ ids: ['a'], mode: 'picker', seed: dates.c, bounds: { above: dates.c, below: null } });
+  });
+  it('top drop that cannot fit in a past view: above = null, below = the first row', () => {
+    const p = resolveDrop({ ids: ['b', 'c'], rowDate, dragIds: ['c'], beforeId: 'b', now: NOW, nowInView: false });
+    // b is at 12:00 on the 30th — plenty of room — so force the spill case with a late row
+    const late = { x: '2026-07-15T23:59:59', y: '2026-07-15T08:00:00' };
+    const q = resolveDrop({ ids: ['x', 'y'], rowDate: id => late[id], dragIds: ['y'], beforeId: 'x', now: NOW, nowInView: false });
+    expect(p.mode).toBe('auto');
+    expect(q).toEqual({ ids: ['y'], mode: 'picker', seed: late.x, bounds: { above: null, below: late.x } });
+  });
+  it('auto plans carry no bounds', () => {
+    expect(resolveDrop({ ids, rowDate, dragIds: ['c'], beforeId: 'b', now: NOW })).not.toHaveProperty('bounds');
   });
 });
 
