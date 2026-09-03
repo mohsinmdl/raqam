@@ -497,7 +497,7 @@ export default function Transactions() {
   // screen and coming back does not reset it. Everything below is genuinely
   // per-visit: a selection, an open popover, an open row menu.
   const {
-    filters: F, setFilters, sort, setSort, range, setRange,
+    filters: F, setFilters, sort, setSort, range, setRange, addSeed,
     schedOpenFor, toggleSchedOpen, resetView,
     phoneSelect, setPhoneSelect,
   } = useTxView();
@@ -1427,7 +1427,7 @@ export default function Transactions() {
             icon={<PlusCircle />} label="Add Transaction" disabled={addDisabled}
             title={addDisabled ? 'Add a bank account first' : 'Record an expense, income, transfer, refund, or adjustment'}
             shortcut={addDisabled ? undefined : SHORTCUT_BY_ID.addTx}
-            onClick={() => openers.addTx(openDrawer, 'expense', accountId ? { payWith: 'acc:' + accountId } : {})}
+            onClick={() => openers.addTx(openDrawer, 'expense', { ...addSeed, ...(accountId ? { payWith: 'acc:' + accountId } : {}) })}
           />
           {/* U2 sms-parse: "Paste bank SMS" — AI-only affordance (US-1). */}
           {aiEnabled && (
@@ -1696,7 +1696,7 @@ export default function Transactions() {
             <div style={{ padding: '44px 20px', textAlign: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{range.from || range.to ? 'Nothing recorded in ' + rangeLabel(range.from, range.to) : 'Nothing recorded yet'}</div>
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4, maxWidth: '44ch', marginLeft: 'auto', marginRight: 'auto' }}>Transactions you add appear here with search and filters. Recording as you spend keeps your dashboard honest.</div>
-              <button onClick={() => openers.addTx(openDrawer, 'expense', accountId ? { payWith: 'acc:' + accountId } : {})} disabled={addDisabled} className="hv-accent rq-btn-solid" style={{ marginTop: 12, height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: addDisabled ? 'default' : 'pointer', opacity: addDisabled ? .45 : 1 }}>＋ Add transaction</button>
+              <button onClick={() => openers.addTx(openDrawer, 'expense', { ...addSeed, ...(accountId ? { payWith: 'acc:' + accountId } : {}) })} disabled={addDisabled} className="hv-accent rq-btn-solid" style={{ marginTop: 12, height: 34, padding: '0 16px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 13, fontWeight: 600, cursor: addDisabled ? 'default' : 'pointer', opacity: addDisabled ? .45 : 1 }}>＋ Add transaction</button>
             </div>
           )}
         </ScrollAreaContent>

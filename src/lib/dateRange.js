@@ -72,6 +72,15 @@ export function rangeFor(presetId, today) {
   }
 }
 
+// The one day a range is scoped to (Today, Yesterday, a custom one-day span),
+// or null for anything wider. A register looking at a single day seeds that
+// day into a new entry — the row you are about to add belongs where you are
+// looking, not on today — and a month, a span, or All dates seeds nothing.
+export function singleDayOf(range) {
+  const from = range && range.from;
+  return from && from.length === 10 && from === range.to ? from : null;
+}
+
 // Inclusive at both ends; a null bound is unbounded on that side. Each bound is
 // compared against the same-length prefix of the transaction date, so a month
 // bound filters by month and a day bound filters by day.

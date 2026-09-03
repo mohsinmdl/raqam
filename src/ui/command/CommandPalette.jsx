@@ -6,6 +6,7 @@ import { useStore } from '../../store/StoreProvider.jsx';
 import { usePlan } from '../../store/PlanProvider.jsx';
 import { useDrawer } from '../DrawerProvider.jsx';
 import { useIsPhone } from '../../lib/useIsPhone.js';
+import { useTxView } from '../../store/TxViewContext.jsx';
 import { isTypingTarget } from '../../lib/shortcuts.js';
 import { rankItems } from './matchRank.js';
 import { useCommandItems } from './useCommandItems.js';
@@ -131,7 +132,8 @@ export default function CommandPalette() {
     el?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex, open]);
 
-  const ctx = { navigate, openDrawer, setPrefs, prefs, phone, pathname, openPayees, switchPlan };
+  const { addSeed } = useTxView();
+  const ctx = { navigate, openDrawer, setPrefs, prefs, phone, pathname, openPayees, switchPlan, addSeed };
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
 
