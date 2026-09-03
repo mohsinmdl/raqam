@@ -326,3 +326,64 @@ describe('landAfterLatest', () => {
       .toEqual(['2026-08-20T15:30:46', '2026-08-20T15:30:46']);
   });
 });
+
+// A drop into a gap with no whole second to land on (rows entered or imported
+// in the same minute are TIED) is resolved by making room: the tight
+// neighbourhood is respread within its own day, display order kept, and the
+// nudged neighbours ride along as extra moves. Only a gap that cannot be
+// widened inside the day (or one wider than the window) still asks.
+describe('resolveDrop — makes room in a tied gap', () => {
+  const dates = {
+    a: '2026-08-30T07:20:00',
+    b: '2026-08-30T07:17',      // b and c are tied (minute precision)
+    c: '2026-08-30T07:17',
+    d: '2026-08-30T07:15:00',
+    e: '2026-08-30T07:10:00',
+  };
+  const ids = ['a', 'b', 'c', 'd', 'e'];
+  const rowDate = id => dates[id];
+  const call = (dragIds, beforeId, now = NOW) => resolveDrop({ ids, rowDate, dragIds, beforeId, now });
+
+  it('respreads the tied minute so the row lands between the two tied rows', () => {
+    // lo 07:17:00 … hi 07:17:59 → 59s over 4 steps = 14s: b 07:17:42, e 07:17:28, c 07:17:14
+    expect(call(['e'], 'c')).toEqual({
+      ids: ['b', 'e', 'c'], mode: 'auto',
+      dates: ['2026-08-30T07:17:42', '2026-08-30T07:17:28', '2026-08-30T07:17:14'],
+    });
+  });
+
+  it('a group dropped into a tied minute is respread with it, order kept', () => {
+    // 59s over 5 steps = 11s
+    expect(call(['d', 'e'], 'c')).toEqual({
+      ids: ['b', 'd', 'e', 'c'], mode: 'auto',
+      dates: ['2026-08-30T07:17:44', '2026-08-30T07:17:33', '2026-08-30T07:17:22', '2026-08-30T07:17:11'],
+    });
+  });
+
+  it('widens to the next distinct stamps when the neighbours do not share a minute', () => {
+    const d2 = { ...dates, b: '2026-08-30T07:18:00', c: '2026-08-30T07:17:59' };
+    const p = resolveDrop({ ids, rowDate: id => d2[id], dragIds: ['e'], beforeId: 'c', now: NOW });
+    // lo = d+1s 07:15:01 … hi = a−1s 07:19:59 → 298s over 4 steps = 74s
+    expect(p).toEqual({
+      ids: ['b', 'e', 'c'], mode: 'auto',
+      dates: ['2026-08-30T07:18:43', '2026-08-30T07:17:29', '2026-08-30T07:16:15'],
+    });
+  });
+
+  it('never respreads past now when the tied rows are the newest on today', () => {
+    const now = '2026-08-30T07:17:30';
+    const p = resolveDrop({ ids: ['b', 'c', 'e'], rowDate, dragIds: ['e'], beforeId: 'c', now });
+    // hi = now → 30s over 4 steps = 7s
+    expect(p).toEqual({
+      ids: ['b', 'e', 'c'], mode: 'auto',
+      dates: ['2026-08-30T07:17:21', '2026-08-30T07:17:14', '2026-08-30T07:17:07'],
+    });
+  });
+
+  it('still asks when the tied neighbours straddle midnight (rows never change day)', () => {
+    const d3 = { x: '2026-08-30T00:00:00', y: '2026-08-29T23:59:59', z: '2026-08-29T10:00:00' };
+    const p = resolveDrop({ ids: ['x', 'y', 'z'], rowDate: id => d3[id], dragIds: ['z'], beforeId: 'y', now: NOW });
+    expect(p.mode).toBe('picker');
+    expect(p.ids).toEqual(['z']);
+  });
+});
