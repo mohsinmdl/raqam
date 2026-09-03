@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addSplitTransaction, addTransaction, buildTx, reorderTransaction } from './actions.js';
+import { addSplitTransaction, addTransaction, buildTx, reorderTransaction, reorderTransactions } from './actions.js';
 import { todayStr } from '../lib/dates.js';
 
 const SEC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
@@ -125,5 +125,44 @@ describe('reorderTransaction', () => {
   it('does not clamp when now is omitted (documents the contract; callers always pass now)', () => {
     const after = reorderTransaction(base(), { id: 'b', date: '2027-01-01T00:00:00' });
     expect(after.transactions.find(t => t.id === 'b').date).toBe('2027-01-01T00:00:00');
+  });
+});
+
+// Several rows dropped together: one store call, one undo step, one audit
+// batch — the bulk counterpart of reorderTransaction.
+describe('reorderTransactions', () => {
+  const base = () => ({
+    transactions: [
+      { id: 'a', date: '2026-08-30T12:00:00', type: 'expense', amount: 100 },
+      { id: 'b', date: '2026-08-30T10:00:00', type: 'expense', amount: 200 },
+      { id: 'c', date: '2026-08-30T08:00:00', type: 'expense', amount: 300 },
+    ],
+    audit: [],
+  });
+  const NOW = '2026-08-30T14:00:00';
+
+  it('writes every move and one audit row per row, sharing a batchId', () => {
+    const after = reorderTransactions(base(), { moves: [{ id: 'b', date: '2026-08-30T13:00:00' }, { id: 'c', date: '2026-08-30T12:30:00' }], now: NOW });
+    expect(after.transactions.find(t => t.id === 'b').date).toBe('2026-08-30T13:00:00');
+    expect(after.transactions.find(t => t.id === 'c').date).toBe('2026-08-30T12:30:00');
+    const rows = after.audit.filter(x => x.action === 'update');
+    expect(rows.map(x => x.entityId).sort()).toEqual(['b', 'c']);
+    expect(new Set(rows.map(x => x.after.batchId)).size).toBe(1);
+    expect(rows[0].summary).toBe('Reordered 2 — moved to 2026-08-30 13:00');
+  });
+
+  it('clamps each move to now and skips moves that change nothing', () => {
+    const after = reorderTransactions(base(), { moves: [{ id: 'b', date: '2026-08-30T15:00:00' }, { id: 'c', date: '2026-08-30T08:00:00' }], now: NOW });
+    expect(after.transactions.find(t => t.id === 'b').date).toBe(NOW);
+    expect(after.audit.filter(x => x.action === 'update')).toHaveLength(1);
+  });
+
+  it('is a no-op (same ref) when nothing would change, or on malformed / unknown input', () => {
+    const b = base();
+    expect(reorderTransactions(b, { moves: [{ id: 'c', date: '2026-08-30T08:00:00' }], now: NOW })).toBe(b);
+    expect(reorderTransactions(b, { moves: [{ id: 'c', date: 'NaN-08-30T08:00:00' }], now: NOW })).toBe(b);
+    expect(reorderTransactions(b, { moves: [{ id: 'zz', date: '2026-08-30T09:00:00' }], now: NOW })).toBe(b);
+    expect(reorderTransactions(b, { moves: [], now: NOW })).toBe(b);
+    expect(reorderTransactions(b, {})).toBe(b);
   });
 });

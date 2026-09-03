@@ -22,7 +22,8 @@ import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import { Chevron } from '../ui/icons.jsx';
 import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
-import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, planDateMove, postTransactionNow, reorderTransaction, resyncOpening, setTransactionsAccount, setTransactionsCategory, setTransactionsDate, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
+import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, planDateMove, postTransactionNow, reorderTransactions, resyncOpening, setTransactionsAccount, setTransactionsCategory, setTransactionsDate, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
+import { groupFromPick } from '../lib/txReorder.js';
 import Checkbox from '../ui/Checkbox.jsx';
 import BulkBar from '../ui/BulkBar.jsx';
 import { dayGroups } from '../lib/dayGroups.js';
@@ -751,6 +752,7 @@ export default function Transactions() {
     enabled: reorderable,
     applyData,
     nowInView,
+    selectedIds: selected,   // grabbing a selected row drags the whole selection
     openPicker: setReorderPicker,
     notify,
   });
@@ -1791,13 +1793,16 @@ export default function Transactions() {
           onPick={categorizeOne}
         />
         {/* Drag-to-reorder fallback: a moment the drop couldn't honestly
-            interpolate is chosen here, then written like any other reorder. */}
+            interpolate is chosen here, then written like any other reorder.
+            A dragged GROUP fans out from the pick — newest row at the chosen
+            instant, the rest a second earlier each (groupFromPick). */}
         {reorderPicker && (
           <TxWhenPicker
             seed={reorderPicker.seed} x={reorderPicker.x} y={reorderPicker.y}
             onCancel={() => setReorderPicker(null)}
             onConfirm={iso => {
-              applyData(data => reorderTransaction(data, { id: reorderPicker.id, date: iso, now: nowIsoSec() }));
+              const dates = groupFromPick(iso, reorderPicker.ids.length);
+              applyData(data => reorderTransactions(data, { moves: reorderPicker.ids.map((id, i) => ({ id, date: dates[i] })), now: nowIsoSec() }));
               setReorderPicker(null);
             }}
           />

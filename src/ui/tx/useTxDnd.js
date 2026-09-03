@@ -1,16 +1,20 @@
 import { useCallback, useMemo, useState } from 'react';
 import { resolveDrop } from '../../lib/txReorder.js';
-import { reorderTransaction } from '../../store/actions.js';
+import { reorderTransactions } from '../../store/actions.js';
 import { nowIsoSec } from '../../lib/dates.js';
 
 // Drag-to-reorder for the transactions register. Rows are date-DESC and a
-// transaction's order IS its timestamp, so a drop rewrites the dropped row's
-// `date` to a moment between its new neighbors (planDrop decides auto vs. the
+// transaction's order IS its timestamp, so a drop rewrites the dropped rows'
+// `date` to moments between their new neighbors (planDrop decides auto vs. the
 // picker). Native HTML5 DnD, desktop mouse only — modelled on usePlanDnd.
 //
-// The dragged row and the drop target are transient UI state; the actual move
+// Grabbing a row that is part of the current selection drags the WHOLE
+// selection as one group (it keeps its order among itself); grabbing an
+// unselected row drags that row alone, as before.
+//
+// The dragged rows and the drop target are transient UI state; the actual move
 // is a pure reducer dispatched on drop, so the register re-derives order, day
-// group, running balance and budget month from the new date alone.
+// group, running balance and budget month from the new dates alone.
 
 // A compact drag ghost, appended off-screen (the DnD spec requires the node to
 // be in the document at setDragImage time) and removed on the next tick.
@@ -46,6 +50,8 @@ function edgeAutoScroll(e) {
 
 // rows     — the recorded rows AS RENDERED (presenter rows; `.id` and `.sortAt`).
 // enabled  — reorder only makes sense in the natural date-desc order.
+// selectedIds — the register's current selection (a Set of ids). A drag that
+//            starts on a selected row moves every selected row together.
 // applyData — dispatch for the pure reducer. `now` is read fresh at drop time
 //            (nowIsoSec) rather than per-render, so it's exact at the moment of
 //            the drop and doesn't churn the row handlers every second.
@@ -56,8 +62,11 @@ function edgeAutoScroll(e) {
 //            date/time instead of an interpolated one.
 // notify    — surfaces a drop that couldn't happen (the row vanished under a
 //            background sync), so a failed reorder is never silent.
-export default function useTxDnd({ rows, enabled, applyData, nowInView = true, openPicker, notify }) {
-  const [dragId, setDragId] = useState(null);
+export default function useTxDnd({ rows, enabled, applyData, nowInView = true, selectedIds, openPicker, notify }) {
+  // { id, ids } — the grabbed row and the group moving with it (ids in
+  // register order; just [id] for a lone row). null when idle.
+  const [drag, setDrag] = useState(null);
+  const dragId = drag ? drag.id : null;
   const [target, setTarget] = useState(null); // { beforeId } — row the line sits above; null = end
 
   const ids = useMemo(() => rows.map(r => r.id), [rows]);
@@ -68,9 +77,10 @@ export default function useTxDnd({ rows, enabled, applyData, nowInView = true, o
     // menu, chip, an open popover) stays that interaction, not a reorder.
     if (e.target.closest('button, input, textarea, select, [role="dialog"], [contenteditable]')) { e.preventDefault(); return; }
     e.dataTransfer.effectAllowed = 'move';
-    setGhost(e, label || 'Transaction');
-    setDragId(id);
-  }, [enabled]);
+    const group = selectedIds && selectedIds.has(id) ? ids.filter(x => selectedIds.has(x)) : [id];
+    setGhost(e, group.length > 1 ? group.length + ' transactions' : (label || 'Transaction'));
+    setDrag({ id, ids: group });
+  }, [enabled, ids, selectedIds]);
 
   const over = useCallback((e, id) => {
     if (dragId == null) return;
@@ -84,28 +94,28 @@ export default function useTxDnd({ rows, enabled, applyData, nowInView = true, o
     setTarget({ beforeId });
   }, [dragId, ids]);
 
-  const end = useCallback(() => { setDragId(null); setTarget(null); }, []);
+  const end = useCallback(() => { setDrag(null); setTarget(null); }, []);
 
   const drop = useCallback(e => {
     e.preventDefault();
-    if (dragId == null || !target) { end(); return; }
-    // A background sync between grab and drop can remove the row; reorder would
-    // then no-op silently (findIndex → -1). Say so rather than leave the user
-    // wondering why the drag did nothing.
-    if (!rows.some(r => r.id === dragId)) {
-      notify?.('That transaction is no longer here — reload to try again.');
+    if (!drag || !target) { end(); return; }
+    // A background sync between grab and drop can remove a row; the reorder
+    // would then quietly skip it. Say so rather than leave the user wondering
+    // why the drag did nothing (or did less than it showed).
+    if (!drag.ids.every(id => rows.some(r => r.id === id))) {
+      notify?.(drag.ids.length > 1 ? 'Some of those transactions are no longer here — reload to try again.' : 'That transaction is no longer here — reload to try again.');
       end();
       return;
     }
     const now = nowIsoSec();
     const rowDate = id => rows.find(r => r.id === id)?.sortAt;
-    const plan = resolveDrop({ ids, rowDate, dragId, beforeId: target.beforeId, now, nowInView });
+    const plan = resolveDrop({ ids, rowDate, dragIds: drag.ids, beforeId: target.beforeId, now, nowInView });
     if (plan) {
-      if (plan.mode === 'auto') applyData(d => reorderTransaction(d, { id: plan.id, date: plan.date, now }));
-      else openPicker({ id: plan.id, seed: plan.seed, x: e.clientX, y: e.clientY });
+      if (plan.mode === 'auto') applyData(d => reorderTransactions(d, { moves: plan.ids.map((id, i) => ({ id, date: plan.dates[i] })), now }));
+      else openPicker({ ids: plan.ids, seed: plan.seed, x: e.clientX, y: e.clientY });
     }
     end();
-  }, [dragId, target, ids, rows, nowInView, applyData, openPicker, end, notify]);
+  }, [drag, target, ids, rows, nowInView, applyData, openPicker, end, notify]);
 
   // Handlers to spread onto a row's <tr>. null when reorder is off, so the row
   // stays a plain click/selection target.
