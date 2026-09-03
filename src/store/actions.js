@@ -367,27 +367,50 @@ export function postTransactionNow(data, { id, now }) {
 // A row can't sit in the future, so `date` is clamped to `now`. An unchanged
 // date returns the same reference (no re-stamp, no spurious audit/sync write).
 export function reorderTransaction(data, { id, date, now }) {
-  const i = data.transactions.findIndex(x => x.id === id);
-  // This is the one boundary every reorder path (interpolated auto-move AND the
-  // picker) funnels through before the date reaches the store and the sync
-  // queue, so it validates the SHAPE the DB CHECK (0019) enforces — not just a
-  // falsy guard. A malformed 'NaN-…' or otherwise off-format string is refused
-  // as a no-op rather than laundered into permanent state + the audit trail.
-  if (i < 0 || !date || !TX_DATE_RE.test(date)) return data;
-  const before = data.transactions[i];
-  const clamped = now && date > now ? now : date;
-  if (clamped === before.date) return data;
-  const after = stampUpdate({ ...before, date: clamped });
-  const transactions = [...data.transactions];
-  transactions[i] = after;
+  return reorderTransactions(data, { moves: [{ id, date }], now });
+}
+
+// Several rows dropped together (a multi-selection dragged as one): every
+// move applied in one store call — one undo step, one sync push, one audit
+// batch. `moves` are [{ id, date }], the group's stamps as planDrop /
+// groupFromPick hand them out.
+//
+// This is the one boundary every reorder path (interpolated auto-move AND the
+// picker, single row or group) funnels through before a date reaches the
+// store and the sync queue, so it validates the SHAPE the DB CHECK (0019)
+// enforces — not just a falsy guard. A malformed 'NaN-…' or otherwise
+// off-format string is refused as a no-op rather than laundered into
+// permanent state + the audit trail. Each stamp is clamped to `now` (no
+// future-dated rows), and a move that lands where the row already is drops
+// out; nothing left → same ref back.
+export function reorderTransactions(data, { moves, now } = {}) {
+  if (!Array.isArray(moves) || moves.length === 0) return data;
+  const byId = new Map(data.transactions.map(t => [t.id, t]));
+  const planned = [];
+  for (const m of moves) {
+    const before = m && byId.get(m.id);
+    if (!before || !m.date || !TX_DATE_RE.test(m.date)) continue;
+    const to = now && m.date > now ? now : m.date;
+    if (to !== before.date) planned.push({ before, to });
+  }
+  if (planned.length === 0) return data;
+  const toById = new Map(planned.map(p => [p.before.id, p.to]));
+  const n = planned.length;
+  // One row keeps the single-row summary; a group says how many and names the
+  // group's newest landing.
+  const newest = planned.map(p => p.to).sort().at(-1);
+  const summary = 'Reordered ' + (n === 1 ? '' : n + ' ') + '— moved to ' + newest.slice(0, 16).replace('T', ' ');
+  const batchId = n === 1 ? null : uid();
   return {
     ...data,
-    transactions,
-    audit: [makeAudit({
-      entityType: 'transaction', entityId: before.id, action: 'update',
-      summary: 'Reordered — moved to ' + clamped.slice(0, 16).replace('T', ' '),
-      before: { date: before.date }, after: { date: after.date },
-    }), ...(data.audit || [])],
+    transactions: data.transactions.map(t => (toById.has(t.id) ? stampUpdate({ ...t, date: toById.get(t.id) }) : t)),
+    audit: [
+      ...planned.map(p => makeAudit({
+        entityType: 'transaction', entityId: p.before.id, action: 'update',
+        summary, before: { date: p.before.date }, after: { date: p.to, ...(batchId ? { batchId } : {}) },
+      })),
+      ...(data.audit || []),
+    ],
   };
 }
 
