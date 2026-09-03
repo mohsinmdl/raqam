@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planDrop, resolveDrop } from './txReorder.js';
+import { landAfterLatest, planDrop, resolveDrop } from './txReorder.js';
 
 // Rows are date-DESC: `above` is the more-recent neighbor, `below` the older.
 const r = (id, date) => ({ id, date });
@@ -140,5 +140,54 @@ describe('resolveDrop — neighbour math', () => {
 
   it('is a no-op when dropped onto itself', () => {
     expect(call('b', 'b')).toBeNull();
+  });
+});
+
+// "Land after the latest row on that day": the one rule shared by bulk Move to
+// Date, a back-dated add, and a top drop into a past-day view. Stamps come back
+// ASCENDING so the caller can hand them out in register order (oldest first).
+describe('landAfterLatest', () => {
+  const rows = [
+    { id: 'x', date: '2026-08-20T09:00:00' },
+    { id: 'y', date: '2026-08-20T15:30:45' },   // the latest on the 20th
+    { id: 'z', date: '2026-08-21T08:00:00' },   // another day — ignored
+  ];
+  const NOW = '2026-08-31T12:00:00';
+
+  it('returns count stamps 1s, 2s, … after the latest row on that day', () => {
+    expect(landAfterLatest({ transactions: rows, day: '2026-08-20', count: 2, now: NOW }))
+      .toEqual(['2026-08-20T15:30:46', '2026-08-20T15:30:47']);
+  });
+
+  it('ignores rows on other days', () => {
+    expect(landAfterLatest({ transactions: rows, day: '2026-08-21', count: 1, now: NOW }))
+      .toEqual(['2026-08-21T08:00:01']);
+  });
+
+  it('ignores the rows being moved, even when they already sit on that day', () => {
+    expect(landAfterLatest({ transactions: rows, day: '2026-08-20', count: 1, exclude: ['y'], now: NOW }))
+      .toEqual(['2026-08-20T09:00:01']);
+  });
+
+  it('is null when nothing else is on that day (caller keeps its own fallback)', () => {
+    expect(landAfterLatest({ transactions: rows, day: '2026-08-22', count: 1, now: NOW })).toBeNull();
+    expect(landAfterLatest({ transactions: rows, day: '2026-08-20', count: 1, exclude: ['x', 'y'], now: NOW })).toBeNull();
+  });
+
+  it('reads a minute-precision latest row as :00 and lands one second after it', () => {
+    expect(landAfterLatest({ transactions: [{ id: 'm', date: '2026-08-20T12:00' }], day: '2026-08-20', count: 1, now: NOW }))
+      .toEqual(['2026-08-20T12:00:01']);
+  });
+
+  it('caps at the last second of the day rather than spilling into the next', () => {
+    const late = [{ id: 'l', date: '2026-08-20T23:59:58' }];
+    expect(landAfterLatest({ transactions: late, day: '2026-08-20', count: 3, now: NOW }))
+      .toEqual(['2026-08-20T23:59:59', '2026-08-20T23:59:59', '2026-08-20T23:59:59']);
+  });
+
+  it('clamps to now so a move onto today never lands in the future', () => {
+    const now = '2026-08-20T15:30:46';
+    expect(landAfterLatest({ transactions: rows, day: '2026-08-20', count: 2, now }))
+      .toEqual(['2026-08-20T15:30:46', '2026-08-20T15:30:46']);
   });
 });

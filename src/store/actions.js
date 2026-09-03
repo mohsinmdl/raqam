@@ -2,8 +2,9 @@
 // and returns a NEW store. The reducer in StoreProvider applies them immutably.
 // Ported from the prototype's submit handlers; the month-rollover logic is new (real-date layer).
 import { accountBalance, accountDeletePolicy, cardOutstanding, duplicateCat, monthLabel, moveCollision, normalizeName, INST_KINDS } from '../lib/calc.js';
-import { addMonths, currentMonth, nowIso, nowIsoSec, todayStr } from '../lib/dates.js';
+import { addMonths, currentMonth, nowIso, nowIsoSec, toEpochMs, todayStr } from '../lib/dates.js';
 import { liveOpening } from '../lib/openingDrift.js';
+import { landAfterLatest } from '../lib/txReorder.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
 import { uid } from '../lib/util.js';
@@ -883,28 +884,50 @@ export function setTransactionsAccount(data, { ids, accountId }) {
   };
 }
 
-// Move every selected row to a new DAY, keeping each row's own time-of-day so
-// their order within that day is preserved (the bulk counterpart of
-// reorderTransaction, which moves ONE row to a precise instant). `date` is a
-// 'YYYY-MM-DD'; it is spliced onto each row's existing 'THH:mm[:ss]' and clamped
-// to `now` — like the single-row path, a bulk move can never push a row into the
-// future (an app rule: future-dated rows sit unposted, out of balances — the
-// 0019 CHECK only enforces the stamp's SHAPE, not that it's in the past). Rows
-// already on that day, and any that clamp back to their current stamp, are
-// no-ops. The assembled stamp is validated against TX_DATE_RE (the shape the
-// 0019 CHECK enforces) before it can reach the store.
-export function setTransactionsDate(data, { ids, date, now }) {
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return data;
+// The plan behind setTransactionsDate — `[{ id, t, to }]`, oldest first — kept
+// separate so the screen can count what will actually move for its toast
+// without re-deriving the landing rule. Empty when nothing would change.
+//
+// Moving rows to a DAY means putting them on TOP of it: the whole selection
+// lands after the newest row already there (landAfterLatest — +1s, +2s, … in
+// register order, so the group reads the same way afterwards), capped at the
+// day's last second and clamped to `now` — like the single-row path, a bulk
+// move can never push a row into the future (an app rule: future-dated rows
+// sit unposted, out of balances — the 0019 CHECK only enforces the stamp's
+// SHAPE, not that it's in the past). A selection that already IS the top of
+// that day is left alone rather than churned by seconds. When the day is
+// otherwise empty there is no top to land on, so each row keeps its own
+// time-of-day and their order among themselves is preserved. Every stamp is
+// validated against TX_DATE_RE (the shape the 0019 CHECK enforces) before it
+// can reach the store.
+export function planDateMove(data, { ids, date, now }) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
   const set = bulkIds(ids);
-  const nextDate = t => {
-    const stamped = date + (t.date.slice(10) || 'T12:00');   // keep the row's own time
-    const clamped = now && stamped > now ? now : stamped;
-    return TX_DATE_RE.test(clamped) ? clamped : null;
-  };
-  const planned = data.transactions
-    .filter(t => set.has(t.id))
-    .map(t => ({ t, to: nextDate(t) }))
-    .filter(p => p.to && p.to !== p.t.date);
+  const rows = data.transactions.filter(t => set.has(t.id)).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  if (rows.length === 0) return [];
+  const clamp = s => (now && s > now ? now : s);
+  const stamps = landAfterLatest({ transactions: data.transactions, day: date, count: rows.length, exclude: rows.map(t => t.id), now });
+  let landing;
+  if (stamps) {
+    // Already on top: every row is on the day and the oldest of them is still
+    // newer than everything else there (the anchor is one second past that).
+    const anchor = toEpochMs(stamps[0]) - 1000;
+    const onTop = rows.every(t => t.date.slice(0, 10) === date) && toEpochMs(rows[0].date) > anchor;
+    if (onTop) return [];
+    landing = rows.map((t, i) => stamps[i]);
+  } else {
+    landing = rows.map(t => clamp(date + (t.date.slice(10) || 'T12:00')));   // keep the row's own time
+  }
+  return rows
+    .map((t, i) => ({ id: t.id, t, to: landing[i] }))
+    .filter(p => TX_DATE_RE.test(p.to) && p.to !== p.t.date);
+}
+
+// Move every selected row to a new DAY (the bulk counterpart of
+// reorderTransaction, which moves ONE row to a precise instant). The landing
+// rule lives in planDateMove; this applies it as one batch.
+export function setTransactionsDate(data, { ids, date, now }) {
+  const planned = planDateMove(data, { ids, date, now });
   if (planned.length === 0) return data;
   const byId = new Map(planned.map(p => [p.t.id, p.to]));
   const batchId = uid();
