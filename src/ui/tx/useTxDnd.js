@@ -10,7 +10,7 @@ import { nowIsoSec } from '../../lib/dates.js';
 //
 // Grabbing a row that is part of the current selection drags the WHOLE
 // selection as one group (it keeps its order among itself); grabbing an
-// unselected row drags that row alone, as before.
+// unselected row drags that row alone.
 //
 // The dragged rows and the drop target are transient UI state; the actual move
 // is a pure reducer dispatched on drop, so the register re-derives order, day
@@ -61,8 +61,10 @@ function edgeAutoScroll(e) {
 // openPicker({ ids, seed, bounds, x, y }) — called when the drop needs an
 //            explicit date/time instead of an interpolated one. `bounds` is the
 //            gap's neighbour dates, so the confirm can keep the pick inside it.
-// notify    — surfaces a drop that couldn't happen (the row vanished under a
-//            background sync), so a failed reorder is never silent.
+// notify    — surfaces a drop that couldn't happen (a dragged row or the target
+//            vanished under a background sync) and a drop that touched more
+//            than the dragged rows (neighbours nudged to make room), so a
+//            reorder is never silent about what it did or didn't do.
 export default function useTxDnd({ rows, enabled, applyData, nowInView = true, selectedIds, openPicker, notify }) {
   // { id, ids } — the grabbed row and the group moving with it (ids in
   // register order; just [id] for a lone row). null when idle.
@@ -84,16 +86,21 @@ export default function useTxDnd({ rows, enabled, applyData, nowInView = true, s
   }, [enabled, ids, selectedIds]);
 
   const over = useCallback((e, id) => {
-    if (dragId == null) return;
+    if (!drag) return;
     e.preventDefault();
     edgeAutoScroll(e);
     // Top half of the hovered row → insert above it; bottom half → below it
-    // (i.e. above the next row down).
+    // (i.e. above the next row down). The line never sits on a member of the
+    // moving group: a gap above a member means "gather the group here", i.e.
+    // above the next row that stays — so the line the user sees is the gap
+    // the drop will actually use, never one where the drop would do nothing.
     const r = e.currentTarget.getBoundingClientRect();
     const idx = ids.indexOf(id);
-    const beforeId = (e.clientY - r.top) < r.height / 2 ? id : (ids[idx + 1] ?? null);
+    let beforeId = (e.clientY - r.top) < r.height / 2 ? id : (ids[idx + 1] ?? null);
+    const moving = new Set(drag.ids);
+    while (beforeId != null && moving.has(beforeId)) beforeId = ids[ids.indexOf(beforeId) + 1] ?? null;
     setTarget({ beforeId });
-  }, [dragId, ids]);
+  }, [drag, ids]);
 
   const end = useCallback(() => { setDrag(null); setTarget(null); }, []);
 
@@ -103,7 +110,8 @@ export default function useTxDnd({ rows, enabled, applyData, nowInView = true, s
     // A background sync between grab and drop can remove a row; the reorder
     // would then quietly skip it. Say so rather than leave the user wondering
     // why the drag did nothing (or did less than it showed).
-    if (!drag.ids.every(id => rows.some(r => r.id === id))) {
+    const here = id => rows.some(r => r.id === id);
+    if (!drag.ids.every(here) || (target.beforeId != null && !here(target.beforeId))) {
       notify?.(drag.ids.length > 1 ? 'Some of those transactions are no longer here — reload to try again.' : 'That transaction is no longer here — reload to try again.');
       end();
       return;
@@ -112,8 +120,13 @@ export default function useTxDnd({ rows, enabled, applyData, nowInView = true, s
     const rowDate = id => rows.find(r => r.id === id)?.sortAt;
     const plan = resolveDrop({ ids, rowDate, dragIds: drag.ids, beforeId: target.beforeId, now, nowInView });
     if (plan) {
-      if (plan.mode === 'auto') applyData(d => reorderTransactions(d, { moves: plan.ids.map((id, i) => ({ id, date: plan.dates[i] })), now }));
-      else openPicker({ ids: plan.ids, seed: plan.seed, bounds: plan.bounds, x: e.clientX, y: e.clientY });
+      if (plan.mode === 'auto') {
+        const nudged = new Set(plan.nudged || []);
+        applyData(d => reorderTransactions(d, { moves: plan.ids.map((id, i) => ({ id, date: plan.dates[i], nudged: nudged.has(id) })), now }));
+        if (nudged.size) notify?.('Moved ' + drag.ids.length + ' — ' + nudged.size + (nudged.size === 1 ? ' neighbour' : ' neighbours') + ' nudged to make room.');
+      } else {
+        openPicker({ ids: plan.ids, seed: plan.seed, bounds: plan.bounds, x: e.clientX, y: e.clientY });
+      }
     }
     end();
   }, [drag, target, ids, rows, nowInView, applyData, openPicker, end, notify]);

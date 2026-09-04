@@ -35,6 +35,12 @@ describe('addTransaction — a back-dated add lands on top of its day', () => {
     expect(s.transactions.find(t => t.id === 'new').date).toBe('2026-01-05T15:00');
   });
 
+  it('a FUTURE-dated add with rows already on that day lands on top of that day, never on today', () => {
+    const future = [{ id: 'f', date: '2099-12-25T09:00', type: 'expense', amount: 1, accountId: 'a1' }];
+    const s = addTransaction(store(future), { form: form({ date: '2099-12-25' }), type: 'expense', amt: 500, fee: 0, id: 'new' });
+    expect(s.transactions.find(t => t.id === 'new').date).toBe('2099-12-25T09:00:01');
+  });
+
   it('split legs land on top of the day too, leg 1 reading above leg 2', () => {
     const legs = [{ amount: '300', category: 'c1' }, { amount: '200', category: 'c1' }];
     const s = addSplitTransaction(store(onDay), { form: form(), legs, amt: 500, ids: ['l1', 'l2'] });
@@ -155,6 +161,24 @@ describe('reorderTransactions', () => {
     const after = reorderTransactions(base(), { moves: [{ id: 'b', date: '2026-08-30T15:00:00' }, { id: 'c', date: '2026-08-30T08:00:00' }], now: NOW });
     expect(after.transactions.find(t => t.id === 'b').date).toBe(NOW);
     expect(after.audit.filter(x => x.action === 'update')).toHaveLength(1);
+  });
+
+  it('a duplicated id takes its last move and writes one audit row', () => {
+    const after = reorderTransactions(base(), { moves: [{ id: 'b', date: '2026-08-30T11:00:00' }, { id: 'b', date: '2026-08-30T11:30:00' }], now: NOW });
+    expect(after.transactions.find(t => t.id === 'b').date).toBe('2026-08-30T11:30:00');
+    expect(after.audit.filter(x => x.action === 'update')).toHaveLength(1);
+    expect(after.audit[0].summary).toBe('Reordered — moved to 2026-08-30 11:30');
+  });
+
+  it('a nudged neighbour takes its new stamp without an Edited mark and the audit says why', () => {
+    const after = reorderTransactions(base(), { moves: [{ id: 'c', date: '2026-08-30T11:00:00' }, { id: 'b', date: '2026-08-30T11:30:00', nudged: true }], now: NOW });
+    const b = after.transactions.find(t => t.id === 'b');
+    expect(b.date).toBe('2026-08-30T11:30:00');
+    expect(b.editCount).toBeUndefined();
+    expect(after.transactions.find(t => t.id === 'c').editCount).toBe(1);
+    const forB = after.audit.find(x => x.entityId === 'b');
+    expect(forB.summary).toBe('Nudged to make room — moved to 2026-08-30 11:30');
+    expect(forB.after.batchId).toBe(after.audit.find(x => x.entityId === 'c').after.batchId);
   });
 
   it('is a no-op (same ref) when nothing would change, or on malformed / unknown input', () => {

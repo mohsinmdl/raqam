@@ -733,8 +733,8 @@ export default function Transactions() {
   // repeated sub-label there would be pure noise.
   const foldAccount = hideAccountCol && !accountId;
 
-  // Drag-to-reorder (desktop register). Reorder writes the dropped row's
-  // timestamp — order IS the date — so it only makes sense in the natural
+  // Drag-to-reorder (desktop register). Reorder writes the dropped rows'
+  // timestamps — order IS the date — so it only makes sense in the natural
   // date-descending order; any other sort or the phone list opts out. The
   // picker opens when a moment can't be honestly interpolated (see planDrop).
   const [reorderPicker, setReorderPicker] = useState(null);
@@ -745,7 +745,7 @@ export default function Transactions() {
   const reorderable = !phone && sort.key === 'date' && sort.dir === 'desc';
   // When the register is scoped to a past date/month, `now` is outside the view,
   // so a top-of-list drop must anchor to that date's latest moment instead of
-  // the real clock — otherwise the row would jump to today and vanish from view.
+  // the real clock — otherwise the rows would jump to today and vanish from view.
   const nowInView = inRange({ date: now }, range.from, range.to);
   const dnd = useTxDnd({
     rows: tableRows,
@@ -1048,10 +1048,17 @@ export default function Transactions() {
     const moved = planDateMove(S, { ids: sel, date: day, now }).map(p => p.id);
     applyData(data => setTransactionsDate(data, { ids: sel, date: day, now }));
     clearSel();
-    if (moved.length === 0) { notify('Already on ' + label + '.'); return; }
+    if (moved.length === 0) {
+      // An empty plan is "already on top" only when every row already sits on
+      // that day; otherwise nothing could be moved (a row vanished under a
+      // sync, or the day is refused) and saying "already" would be false.
+      const allThere = sel.every(id => S.transactions.find(t => t.id === id)?.date.slice(0, 10) === day);
+      notify(allThere ? 'Already on ' + label + '.' : 'Nothing moved — reload and try again.');
+      return;
+    }
     flashRows(moved);
     const rest = sel.length - moved.length;
-    notify('Moved ' + moved.length + ' to ' + label + (rest ? ' — ' + rest + ' already there' : '') + '.');
+    notify('Moved ' + moved.length + ' to ' + label + (rest ? ' — ' + rest + ' already in place' : '') + '.');
   };
   // Active accounts as bulk-menu options (nickname, in order). Empty → the
   // BulkBar flyout shows a "No other accounts" hint.
@@ -1796,21 +1803,28 @@ export default function Transactions() {
             interpolate is chosen here, then written like any other reorder.
             A dragged GROUP fans out from the pick — newest row at the chosen
             instant, the rest a second earlier each — and a pick in a
-            neighbour's minute stays strictly inside the gap it was dropped in,
-            never tied to that neighbour (groupFromPick). */}
+            neighbour's minute stays inside the gap it was dropped in wherever
+            the gap has room for it (groupFromPick). Rows that vanished while
+            the picker was open are dropped from the move and said so. */}
         {reorderPicker && (
           <TxWhenPicker
             seed={reorderPicker.seed} x={reorderPicker.x} y={reorderPicker.y}
             onCancel={() => setReorderPicker(null)}
             onConfirm={iso => {
-              const dates = groupFromPick(iso, reorderPicker.ids.length, reorderPicker.bounds);
-              applyData(data => reorderTransactions(data, { moves: reorderPicker.ids.map((id, i) => ({ id, date: dates[i] })), now: nowIsoSec() }));
+              const ids = reorderPicker.ids.filter(id => S.transactions.some(t => t.id === id));
+              if (ids.length < reorderPicker.ids.length) notify(ids.length ? 'Some of those transactions are no longer here.' : 'That transaction is no longer here — reload to try again.');
+              if (ids.length) {
+                const nowSec = nowIsoSec();
+                const dates = groupFromPick(iso, ids.length, reorderPicker.bounds, nowSec);
+                applyData(data => reorderTransactions(data, { moves: ids.map((id, i) => ({ id, date: dates[i] })), now: nowSec }));
+              }
               setReorderPicker(null);
             }}
           />
         )}
-        {/* Bulk "Move to Date": the same picker in date-only mode (no time — each
-            row keeps its own), centred above the bulk bar. Confirms a 'YYYY-MM-DD'. */}
+        {/* Bulk "Move to Date": the same picker in date-only mode (no time — the
+            selection lands on TOP of the chosen day, so the time is derived from
+            what is already there), centred above the bulk bar. Confirms a 'YYYY-MM-DD'. */}
         {bulkDateOpen && (
           <TxWhenPicker
             dateOnly

@@ -20,8 +20,9 @@ const chip = on => ({ height: 28, padding: '0 10px', borderRadius: 7, cursor: 'p
 // onConfirm(iso) receives a 'YYYY-MM-DDTHH:mm:ss' string whose seconds are
 // always ':00' — the <input type="time"> is minute-granular.
 // dateOnly — hide the time field and confirm a bare 'YYYY-MM-DD' day. Used by
-// the bulk "Move to Date" flow, where every selected row keeps its own time and
-// only the day is set, so asking for one time would be misleading.
+// the bulk "Move to Date" flow, which lands the selection on TOP of the chosen
+// day (planDateMove) — the time is derived from what is already there, so
+// asking for one would be misleading.
 export default function TxWhenPicker({ seed, x, y, dateOnly, onCancel, onConfirm }) {
   const today = todayStr();
   const [date, setDate] = useState(() => (seed || today).slice(0, 10));

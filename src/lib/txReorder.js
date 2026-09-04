@@ -2,7 +2,7 @@
 //
 // Rows are date-DESC, and a transaction's order IS its `date` — so reordering
 // means writing a new timestamp. This module answers one question, with no DOM
-// and no store: given the two rows a dragged row was dropped between, should we
+// and no store: given the two rows a dragged row (or group) was dropped between, should we
 // silently interpolate a moment between them, or open the date/time picker and
 // let the user say when it actually happened?
 //
@@ -28,17 +28,20 @@ const secondsDown = (topMs, count) => Array.from({ length: count }, (_, i) => fm
 // scoped to a PAST date or month, `now` lies outside the view — stamping it
 // would yank the rows out of sight and into today. There the top means "the
 // latest txns ON the date you're looking at": one second after the newest
-// visible row (`below`) per row, which only holds while the last of them is
-// still inside that day.
+// visible row (`below`) per row, which only holds while the newest of them
+// (`below` + count seconds) is still inside that day. Instants are compared
+// as epochs, so a minute-precision neighbour and a seconds-precision stamp of
+// the same moment count as equal (no room), and an unreadable neighbour
+// refuses rather than stamping empty strings.
 function topStamps(below, now, nowInView, count) {
+  const belowMs = toEpochMs(below.date);
+  if (!Number.isFinite(belowMs)) return null;
   if (nowInView) {
     const dates = secondsDown(toEpochMs(now), count);
-    return dates[count - 1] > below.date ? dates : null;
+    return toEpochMs(dates[count - 1]) > belowMs ? dates : null;
   }
-  const endOfDay = below.date.slice(0, 10) + 'T23:59:59';
-  const base = toEpochMs(below.date);
-  const dates = secondsDown(base + count * 1000, count);
-  return dates[0] <= endOfDay ? dates : null;
+  const endOfDay = toEpochMs(below.date.slice(0, 10) + 'T23:59:59');
+  return belowMs + count * 1000 <= endOfDay ? secondsDown(belowMs + count * 1000, count) : null;
 }
 
 // The picker fallback for a group: the instant the user picked is the group's
@@ -46,19 +49,25 @@ function topStamps(below, now, nowInView, count) {
 // the order they were dragged in. Newest first, like every `dates` here.
 //
 // `bounds` — the gap the picker was opened for ({ above, below } neighbour
-// dates, either null). The picker is minute-granular and is SEEDED from a
-// neighbour, so a blind confirm lands in that neighbour's minute; taken
+// dates, either null). The picker is minute-granular and is usually SEEDED
+// from a neighbour, so a blind confirm lands in that neighbour's minute; taken
 // verbatim it would tie the neighbour to the second, and the register's
 // merchant tie-breaker then decides who is on top — a bottom drop could put
 // the dragged row straight back above the last row ("only one row moved").
 // A pick in the same minute as the row above therefore stays strictly older
-// than it, and one in the same minute as the row below strictly newer. A pick
-// in any other minute is an explicit choice and is honoured as is.
+// than it, and one in the same minute as the row below lifts the WHOLE group
+// strictly above it. A pick in any other minute is an explicit choice and is
+// honoured as is. When both clauses fire on a gap narrower than the group
+// (only reachable once makeRoom has given up on it), the row-above bound wins
+// and a tie below is unavoidable. `now` caps the top so the store never has
+// to flatten the group into a tie at the clock.
 const sameMinute = (a, b) => String(a).slice(0, 16) === String(b).slice(0, 16);
-export function groupFromPick(iso, count, { above = null, below = null } = {}) {
+export function groupFromPick(iso, count, bounds, now) {
+  const { above = null, below = null } = bounds || {};
   let top = toEpochMs(iso);
   if (below && sameMinute(iso, below)) top = Math.max(top, toEpochMs(below) + count * 1000);
   if (above && sameMinute(iso, above)) top = Math.min(top, toEpochMs(above) - 1000);
+  if (now) top = Math.min(top, toEpochMs(now));
   return secondsDown(top, count);
 }
 
@@ -67,31 +76,35 @@ export function groupFromPick(iso, count, { above = null, below = null } = {}) {
 // "put these on the 20th" means "on top of the 20th": one second after that
 // day's newest row, then two, … — ascending, so the caller hands them out in
 // register order (its oldest row gets +1s, its newest +Ns) and the group reads
-// the same way after the move. Capped at the day's last second (a move onto a
-// day must stay on that day) and clamped to `now` (the app rule against
-// future-dated rows). `exclude` lists the moved rows themselves, so a row
-// already sitting on the day can't anchor its own move. Returns null when
-// nothing else sits on the day — there is no "top" to land on, and the caller
-// keeps whatever it did before (own time-of-day, a flat noon, …).
+// the same way after the move. The stamps must stay on the day (a move onto a
+// day must stay on that day) and, on TODAY, must not pass `now` (the app rule
+// against future-dated rows) — a row later than now on today is unposted and
+// is not a "top" to land on, so it is ignored. A future day is capped at its
+// own last second: a new entry dated ahead lands on its own day, never back
+// on today. `exclude` lists the moved rows themselves, so a row already
+// sitting on the day can't anchor its own move. Returns null when nothing
+// else sits on the day — there is no "top" to land on — OR when the group
+// cannot fit between the newest row and the cap (the day is full up to its
+// cap); either way the caller keeps whatever it did before (own time-of-day,
+// a flat noon, …) rather than tying rows to one second.
 //
 // Shared by bulk Move to Date, a back-dated add, and a top drop in a past-day
 // view; keeping it here (not in the store) keeps the register's timestamp
 // policy in one pure module.
 export function landAfterLatest({ transactions, day, count, exclude, now }) {
   const skip = new Set(exclude || []);
-  let latest = null;
+  const endOfDay = toEpochMs(day + 'T23:59:59');
+  const nowMs = now ? toEpochMs(now) : NaN;
+  const isToday = Number.isFinite(nowMs) && nowMs >= toEpochMs(day) && nowMs <= endOfDay;
+  const cap = isToday ? nowMs : endOfDay;
+  let latest = -Infinity;
   for (const t of transactions) {
     if (skip.has(t.id) || String(t.date).slice(0, 10) !== day) continue;
-    if (latest == null || t.date > latest) latest = t.date;
+    const ms = toEpochMs(t.date);
+    if (ms > latest && ms <= cap) latest = ms;
   }
-  if (latest == null) return null;
-  const endOfDay = day + 'T23:59:59';
-  const cap = now && now < endOfDay ? now : endOfDay;
-  const base = toEpochMs(latest);
-  return Array.from({ length: count }, (_, i) => {
-    const s = fmtIsoSec(base + (i + 1) * 1000);
-    return s > cap ? cap : s;
-  });
+  if (!Number.isFinite(latest) || latest + count * 1000 > cap) return null;
+  return Array.from({ length: count }, (_, i) => fmtIsoSec(latest + (i + 1) * 1000));
 }
 
 // above  — the more-recent neighbor (row displayed above the drop gap), or null
@@ -104,10 +117,10 @@ export function landAfterLatest({ transactions, day, count, exclude, now }) {
 //          date's latest moment instead of the real clock (see topStamps).
 // count  — how many rows are moving together (a multi-selection dragged as
 //          one). They keep their order among themselves.
-// Returns { mode:'auto', dates } — `count` stamps, NEWEST FIRST, aligned with
-// the group's ids in register order — or { mode:'picker', seed } to open the
-// picker pre-filled from `seed` (the group then fans out from the pick via
-// groupFromPick).
+// Returns { mode:'auto', dates } — `count` stamps, NEWEST FIRST (resolveDrop
+// pairs them with the group's ids in register order) — or { mode:'picker',
+// seed } to open the picker pre-filled from `seed` (the group then fans out
+// from the pick via groupFromPick).
 export function planDrop({ above, below, now, windowDays = 3, nowInView = true, count = 1 }) {
   // Top of the list: the rows become the most recent in view. The anchor is
   // the real clock in a live view, or the viewed date's latest moment in a
@@ -124,8 +137,8 @@ export function planDrop({ above, below, now, windowDays = 3, nowInView = true, 
 
   // Between two neighbors: interpolate only inside the window, and only when
   // there is a distinct second for every row. One row takes the midpoint; a
-  // group is spread evenly across the gap (count+1 equal steps, each at least
-  // a whole second), newest nearest the row above.
+  // group is spread over count+1 whole-second steps up from the row below
+  // (the top step absorbs the remainder), newest nearest the row above.
   const room = toEpochMs(above.date) - toEpochMs(below.date);
   const withinWindow = dayGapAbs(above.date, below.date) <= windowDays;
   if (withinWindow && room >= Math.max(MIN_ROOM_MS, (count + 1) * 1000)) {
@@ -134,13 +147,12 @@ export function planDrop({ above, below, now, windowDays = 3, nowInView = true, 
     const step = Math.floor(room / (count + 1) / 1000) * 1000;
     return { mode: 'auto', dates: Array.from({ length: count }, (_, i) => fmtIsoSec(lo + step * (count - i))) };
   }
-  // Open the picker. When there IS room (neighbours just span more than the
-  // window), seed the midpoint — it sorts strictly between them, so a blind
-  // confirm keeps the order. When they're under two seconds apart there is no
-  // such moment: seed the upper neighbour as a starting point and rely on the
-  // user to choose (the picker is minute-granular, so a blind confirm here can
-  // tie a neighbour — acceptable for a sub-2-second gap that never arises from
-  // hand-entered data).
+  // Open the picker. With room but a span wider than the window, seed the
+  // midpoint — a single row then sorts strictly between them on a blind
+  // confirm. With less room than the group needs there is no such moment
+  // (resolveDrop reaches this only after makeRoom could not respread the day):
+  // seed the upper neighbour as a starting point; groupFromPick keeps a blind
+  // confirm inside the gap wherever the gap has room for it.
   const seed = room >= MIN_ROOM_MS ? midpointIso(above.date, below.date) : above.date;
   return { mode: 'picker', seed };
 }
@@ -149,13 +161,17 @@ export function planDrop({ above, below, now, windowDays = 3, nowInView = true, 
 // imported together sit TIED at the same minute, so "between these two" names
 // no instant — but the register only shows the day, so seconds within it are
 // ours to assign. The tight neighbourhood around the gap (starting with the
-// two neighbours, widening a row at a time, never past the day's edges) is
-// respread evenly across the seconds available between the next distinct
-// stamps, the dragged group inserted at the drop, display order kept. When
-// the two neighbours share a minute, that minute is tried first so tied rows
-// keep the minute they had. Returns { ids, dates } newest-first for the whole
-// respread run, or null when no room can be made inside the day (rows never
-// change day) — the caller then asks.
+// two neighbours, widening a row at a time, never past the day's edges or
+// now) is respread evenly across the seconds available between the adjacent
+// rows outside the run, the dragged group inserted at the drop, display order
+// kept. When the two neighbours share a minute, that minute is tried first so
+// tied rows keep the minute they had where it has room; otherwise they may
+// leave it. The nudged neighbours are re-stamped in the same batch (flagged
+// so they carry no "Edited" mark — the user did not edit them). Returns
+// { ids, dates } newest-first for the whole respread run, with `null` in `ids`
+// where the moving group slots in (the caller fills those), or null when no
+// room can be made inside the day (rows never change day) — the caller then
+// asks.
 //
 //   order     — rendered ids WITHOUT the moving group, date-DESC.
 //   insertIdx — index in `order` the group lands before (the row below).
@@ -177,10 +193,10 @@ function makeRoom({ order, rowDate, insertIdx, count, now }) {
   };
   let hiIdx = insertIdx - 1, loIdx = insertIdx;
   for (;;) {
-    // Inclusive bounds: one second inside the next distinct row on either
-    // side, or the day's edge (capped at now) when there is none on this day.
+    // Inclusive bounds: one second inside the adjacent row on either side, or
+    // the day's edge when there is none on this day — and never past now.
     const lo = loIdx + 1 < order.length && dayOf(loIdx + 1) === day ? at(loIdx + 1) + 1000 : dayStart;
-    const hi = hiIdx - 1 >= 0 && dayOf(hiIdx - 1) === day ? at(hiIdx - 1) - 1000 : cap;
+    const hi = Math.min(cap, hiIdx - 1 >= 0 && dayOf(hiIdx - 1) === day ? at(hiIdx - 1) - 1000 : cap);
     let dates = null;
     if (hiIdx === insertIdx - 1 && loIdx === insertIdx) {
       const a = rowDate(order[hiIdx]), b = rowDate(order[loIdx]);
@@ -210,16 +226,19 @@ function makeRoom({ order, rowDate, insertIdx, count, now }) {
 //   dragIds   — the rows being moved: the dragged row alone, or the whole
 //               selection when the dragged row is part of it. Any order.
 //   beforeId  — the row the insertion line sits ABOVE, or null for the very end.
+//   now       — wall clock, seconds ISO (see planDrop).
+//   windowDays — forwarded to planDrop.
 //   nowInView — forwarded to planDrop; governs a top drop's anchor (see above).
 //
 // Returns null when the drop would leave the register in the order it already
-// has (dropped onto a member, or back into its own gap), else the planDrop
-// result tagged with the group's `ids` in register order — so `dates[i]`
-// (newest first) belongs to `ids[i]`. A gap too tight for the group is first
-// widened by respreading its tied neighbourhood (makeRoom), in which case
-// `ids` also carries the nudged neighbours. A picker plan also carries
-// `bounds`, the gap's neighbour dates, for groupFromPick to keep the pick
-// inside the gap.
+// has (dropped onto a member, or back into its own gap) or when the target row
+// is no longer in the list, else the planDrop result tagged with the group's
+// `ids` in register order — so `dates[i]` (newest first) belongs to `ids[i]`.
+// A gap too tight for the group is first widened by respreading its tied
+// neighbourhood (makeRoom), in which case `ids` also carries the nudged
+// neighbours and `nudged` lists them. A picker plan also carries `bounds`,
+// the gap's neighbour dates, for groupFromPick to keep the pick inside the
+// gap.
 export function resolveDrop({ ids, rowDate, dragIds, beforeId, now, windowDays, nowInView }) {
   const moving = new Set(dragIds);
   const group = ids.filter(id => moving.has(id));
@@ -227,6 +246,7 @@ export function resolveDrop({ ids, rowDate, dragIds, beforeId, now, windowDays, 
 
   const order = ids.filter(id => !moving.has(id));
   const insertIdx = beforeId == null ? order.length : order.indexOf(beforeId);
+  if (insertIdx < 0) return null;   // the target vanished between hover and drop
   // The register after the drop; if that is the register as it stands, the
   // gesture changes nothing (this covers "back into its own gap" for a single
   // row AND a contiguous group; a scattered group always gathers, so it moves).
@@ -242,7 +262,10 @@ export function resolveDrop({ ids, rowDate, dragIds, beforeId, now, windowDays, 
     // than the window is a different refusal — a real gap needs a real date.)
     const tight = above && below && toEpochMs(above.date) - toEpochMs(below.date) < Math.max(MIN_ROOM_MS, (group.length + 1) * 1000);
     const room = tight ? makeRoom({ order, rowDate, insertIdx, count: group.length, now }) : null;
-    if (room) return { ids: room.ids.map(id => id ?? group.shift()), mode: 'auto', dates: room.dates };
+    if (room) {
+      let k = 0;
+      return { ids: room.ids.map(id => id ?? group[k++]), mode: 'auto', dates: room.dates, nudged: room.ids.filter(Boolean) };
+    }
     return { ids: group, ...plan, bounds: { above: above ? above.date : null, below: below ? below.date : null } };
   }
   return { ids: group, ...plan };

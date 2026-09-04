@@ -4,7 +4,8 @@
 import { openers } from '../../drawers/openers.js';
 
 // ctx shape (supplied by CommandPalette.jsx at call time):
-//   { navigate, openDrawer, setPrefs, prefs, phone, pathname, openPayees, switchPlan }
+//   { navigate, openDrawer, setPrefs, prefs, phone, pathname, openPayees, switchPlan,
+//     addSeed /* TxViewContext: a single-day register seeds its day into a new entry */ }
 export function buildActions({ plans = [], openPlanId } = {}) {
   const items = [
     {

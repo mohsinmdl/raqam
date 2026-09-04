@@ -54,8 +54,10 @@ export function stampFor(date, now) {
 //   - editing, day AND time untouched → keep the record's exact original stamp
 //     (seconds included), so an unrelated edit never nudges the order
 //   - brand-new, dated today, time untouched → nowIsoSec() → strictly on top
-//   - anything else → the historical 'day T HH:mm' (a back-dated add keeps the
-//     seeded clock it always used; no new precision is invented here)
+//   - anything else → the historical 'day T HH:mm' as a starting point; a
+//     brand-new entry on any other day is then moved on top of that day by
+//     landBackdated (below), so this is the final stamp only when the day is
+//     otherwise empty
 // The stored-timestamp shape the DB CHECK enforces (0001, relaxed by 0019):
 // 'YYYY-MM-DDTHH:mm' with optional ':ss'. Used to refuse a malformed reorder
 // date before it can reach the store or the sync push.
@@ -119,12 +121,14 @@ function resolveCategory(next, f, type) {
 // payload: validated addTx form + { amt, fee } parsed amounts. `id` is optional:
 // the caller may inject it so it can flash the new row immediately (see TxForm);
 // omitted, buildTx mints one.
-// A brand-new BACK-DATED entry whose time the user did not pick lands on TOP
-// of its day — after the newest row already there — rather than at the flat
-// clock time buildTx gives it, which would drop it mid-day among older rows.
-// Today is untouched (buildTx already stamps the real clock, newer than every
-// row on today), as are edits (an edit is not a new entry) and a picked time
-// (that is the user's word). `made` are the freshly built rows in the order
+// A brand-new entry on any day but today whose time the user did not pick
+// lands on TOP of its day — after the newest row already there — rather than
+// at the flat clock time buildTx gives it, which would drop it mid-day among
+// older rows. That covers a back-dated add AND a future-dated one (landAfterLatest
+// caps a future day at its own last second, so it stays on its day). Today is
+// untouched (buildTx already stamps the real clock, newer than every row on
+// today), as are edits (an edit is not a new entry) and a picked time (that
+// is the user's word). `made` are the freshly built rows in the order
 // they should read TOP-DOWN after the add (split leg 1 above leg 2) —
 // landAfterLatest hands back ascending stamps, so the first row gets the
 // newest one.
@@ -366,14 +370,19 @@ export function postTransactionNow(data, { id, now }) {
 //
 // A row can't sit in the future, so `date` is clamped to `now`. An unchanged
 // date returns the same reference (no re-stamp, no spurious audit/sync write).
+// One row to one instant — a thin wrapper over reorderTransactions kept for
+// the single-row contract (and its tests); every live path now dispatches
+// reorderTransactions directly.
 export function reorderTransaction(data, { id, date, now }) {
   return reorderTransactions(data, { moves: [{ id, date }], now });
 }
 
 // Several rows dropped together (a multi-selection dragged as one): every
 // move applied in one store call — one undo step, one sync push, one audit
-// batch. `moves` are [{ id, date }], the group's stamps as planDrop /
-// groupFromPick hand them out.
+// batch. `moves` are [{ id, date, nudged? }], the group's stamps as planDrop /
+// groupFromPick hand them out; `nudged` marks a neighbour makeRoom re-stamped
+// to open a gap — it takes its new stamp without the "Edited" mark (the user
+// did not edit it) and its audit row says why.
 //
 // This is the one boundary every reorder path (interpolated auto-move AND the
 // picker, single row or group) funnels through before a date reaches the
@@ -381,33 +390,40 @@ export function reorderTransaction(data, { id, date, now }) {
 // enforces — not just a falsy guard. A malformed 'NaN-…' or otherwise
 // off-format string is refused as a no-op rather than laundered into
 // permanent state + the audit trail. Each stamp is clamped to `now` (no
-// future-dated rows), and a move that lands where the row already is drops
-// out; nothing left → same ref back.
+// future-dated rows), a duplicated id takes its last move, and a move that
+// lands where the row already is drops out; nothing left → same ref back.
 export function reorderTransactions(data, { moves, now } = {}) {
   if (!Array.isArray(moves) || moves.length === 0) return data;
   const byId = new Map(data.transactions.map(t => [t.id, t]));
-  const planned = [];
+  const planned = new Map();
   for (const m of moves) {
     const before = m && byId.get(m.id);
     if (!before || !m.date || !TX_DATE_RE.test(m.date)) continue;
     const to = now && m.date > now ? now : m.date;
-    if (to !== before.date) planned.push({ before, to });
+    if (to !== before.date) planned.set(before.id, { before, to, nudged: !!m.nudged });
+    else planned.delete(before.id);
   }
-  if (planned.length === 0) return data;
-  const toById = new Map(planned.map(p => [p.before.id, p.to]));
-  const n = planned.length;
+  if (planned.size === 0) return data;
+  const list = [...planned.values()];
+  const moved = list.filter(p => !p.nudged);
   // One row keeps the single-row summary; a group says how many and names the
-  // group's newest landing.
-  const newest = planned.map(p => p.to).sort().at(-1);
-  const summary = 'Reordered ' + (n === 1 ? '' : n + ' ') + '— moved to ' + newest.slice(0, 16).replace('T', ' ');
-  const batchId = n === 1 ? null : uid();
+  // group's newest landing. Nudged neighbours get their own line.
+  const fmt = iso => iso.slice(0, 16).replace('T', ' ');
+  const newest = (moved.length ? moved : list).map(p => p.to).sort().at(-1);
+  const summary = 'Reordered ' + (moved.length <= 1 ? '' : moved.length + ' ') + '— moved to ' + fmt(newest);
+  const batchId = list.length === 1 ? null : uid();
   return {
     ...data,
-    transactions: data.transactions.map(t => (toById.has(t.id) ? stampUpdate({ ...t, date: toById.get(t.id) }) : t)),
+    transactions: data.transactions.map(t => {
+      const p = planned.get(t.id);
+      if (!p) return t;
+      return p.nudged ? { ...t, date: p.to } : stampUpdate({ ...t, date: p.to });
+    }),
     audit: [
-      ...planned.map(p => makeAudit({
+      ...list.map(p => makeAudit({
         entityType: 'transaction', entityId: p.before.id, action: 'update',
-        summary, before: { date: p.before.date }, after: { date: p.to, ...(batchId ? { batchId } : {}) },
+        summary: p.nudged ? 'Nudged to make room — moved to ' + fmt(p.to) : summary,
+        before: { date: p.before.date }, after: { date: p.to, ...(batchId ? { batchId } : {}) },
       })),
       ...(data.audit || []),
     ],
@@ -932,18 +948,22 @@ export function setTransactionsAccount(data, { ids, accountId }) {
 //
 // Moving rows to a DAY means putting them on TOP of it: the whole selection
 // lands after the newest row already there (landAfterLatest — +1s, +2s, … in
-// register order, so the group reads the same way afterwards), capped at the
-// day's last second and clamped to `now` — like the single-row path, a bulk
-// move can never push a row into the future (an app rule: future-dated rows
-// sit unposted, out of balances — the 0019 CHECK only enforces the stamp's
-// SHAPE, not that it's in the past). A selection that already IS the top of
-// that day is left alone rather than churned by seconds. When the day is
-// otherwise empty there is no top to land on, so each row keeps its own
-// time-of-day and their order among themselves is preserved. Every stamp is
-// validated against TX_DATE_RE (the shape the 0019 CHECK enforces) before it
-// can reach the store.
+// register order, so the group reads the same way afterwards), inside the
+// day and, on today, under `now` — like the single-row path, a bulk move can
+// never push a row into the future (an app rule: future-dated rows sit
+// unposted, out of balances — the 0019 CHECK only enforces the stamp's SHAPE,
+// not that it's in the past), so a future DAY is refused outright (the picker
+// blocks it; this is the last line). A selection that already IS the top of
+// that day — its oldest row at or after the day's newest posted row — is left
+// alone rather than churned by seconds. When the day is otherwise empty there
+// is no top to land on, and when the day is full up to its cap there is no
+// room for the group; in both cases each row keeps its own time-of-day
+// (clamped to now) and their order among themselves is preserved. Every stamp
+// is validated against TX_DATE_RE (the shape the 0019 CHECK enforces) before
+// it can reach the store.
 export function planDateMove(data, { ids, date, now }) {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+  if (now && date > now.slice(0, 10)) return [];
   const set = bulkIds(ids);
   const rows = data.transactions.filter(t => set.has(t.id)).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   if (rows.length === 0) return [];
@@ -951,11 +971,18 @@ export function planDateMove(data, { ids, date, now }) {
   const stamps = landAfterLatest({ transactions: data.transactions, day: date, count: rows.length, exclude: rows.map(t => t.id), now });
   let landing;
   if (stamps) {
-    // Already on top: every row is on the day and the oldest of them is still
-    // newer than everything else there.
-    const others = data.transactions.filter(t => !set.has(t.id) && t.date.slice(0, 10) === date).map(t => toEpochMs(t.date));
+    // Already on top: every row is on the day and the oldest of them is at or
+    // after the day's newest POSTED row (a row later than now on today is
+    // unposted and does not count; a tie counts as on top so repeating the
+    // move never churns stamps). `others` is non-empty whenever `stamps` is:
+    // both read the same rows under the same cap.
+    const nowMs = now ? toEpochMs(now) : Infinity;
+    const others = data.transactions
+      .filter(t => !set.has(t.id) && t.date.slice(0, 10) === date)
+      .map(t => toEpochMs(t.date))
+      .filter(ms => ms <= nowMs);
     const latestOther = Math.max(...others);
-    const onTop = rows.every(t => t.date.slice(0, 10) === date) && toEpochMs(rows[0].date) > latestOther;
+    const onTop = rows.every(t => t.date.slice(0, 10) === date) && toEpochMs(rows[0].date) >= latestOther;
     if (onTop) return [];
     landing = rows.map((t, i) => stamps[i]);
   } else {

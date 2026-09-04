@@ -363,26 +363,64 @@ describe('setTransactionsDate', () => {
     expect(setTransactionsDate(base, { ids: ['d1', 'd2'], date: '2026-08-20', now: NOW })).toBe(base);
   });
 
-  it('clamps a landing onto today to now', () => {
+  it('onto today, fits the group exactly up to now with distinct stamps', () => {
     const now = '2026-08-31T14:00:00';
     const base = dateStore([
-      dated({ id: 'k', date: '2026-08-31T13:59:59' }),
+      dated({ id: 'k', date: '2026-08-31T13:59:58' }),
       dated({ id: 'd1', date: '2026-08-05T09:00' }),
       dated({ id: 'd2', date: '2026-08-05T10:00' }),
     ]);
     const s = setTransactionsDate(base, { ids: ['d1', 'd2'], date: '2026-08-31', now });
-    expect(s.transactions.find(t => t.id === 'd1').date).toBe(now);
+    expect(s.transactions.find(t => t.id === 'd1').date).toBe('2026-08-31T13:59:59');
     expect(s.transactions.find(t => t.id === 'd2').date).toBe(now);
   });
 
-  it('planDateMove exposes the same plan the store applies (for the screen toast)', () => {
+  it('falls back to each row\'s own time (clamped) when today is full up to now', () => {
+    const now = '2026-08-31T14:00:00';
+    const base = dateStore([
+      dated({ id: 'k', date: '2026-08-31T13:59:59' }),
+      dated({ id: 'd1', date: '2026-08-05T09:00' }),
+      dated({ id: 'd2', date: '2026-08-05T23:30' }),
+    ]);
+    const s = setTransactionsDate(base, { ids: ['d1', 'd2'], date: '2026-08-31', now });
+    expect(s.transactions.find(t => t.id === 'd1').date).toBe('2026-08-31T09:00');
+    expect(s.transactions.find(t => t.id === 'd2').date).toBe(now);
+  });
+
+  it('a selection tied with the day\'s newest row counts as on top — repeating the move does not churn it', () => {
+    const base = dateStore([dated({ id: 'k', date: '2026-08-20T10:00' }), dated({ id: 'd1', date: '2026-08-20T10:00' })]);
+    expect(setTransactionsDate(base, { ids: ['d1'], date: '2026-08-20', now: NOW })).toBe(base);
+  });
+
+  it('on today, lands beneath a scheduled-later row and treats the newest POSTED rows as on top', () => {
+    const now = '2026-08-31T14:00:00';
+    const base = dateStore([
+      dated({ id: 's', date: '2026-08-31T18:00' }),        // scheduled later today — unposted
+      dated({ id: 'm', date: '2026-08-31T13:00' }),
+      dated({ id: 'd1', date: '2026-08-05T09:00' }),
+    ]);
+    const s = setTransactionsDate(base, { ids: ['d1'], date: '2026-08-31', now });
+    expect(s.transactions.find(t => t.id === 'd1').date).toBe('2026-08-31T13:00:01');
+    const onTop = dateStore([dated({ id: 's', date: '2026-08-31T18:00' }), dated({ id: 'm', date: '2026-08-31T13:00' }), dated({ id: 'd1', date: '2026-08-31T13:30' })]);
+    expect(setTransactionsDate(onTop, { ids: ['d1'], date: '2026-08-31', now })).toBe(onTop);
+  });
+
+  it('refuses a future day (the picker blocks it; the store is the last line)', () => {
+    const base = dateStore([dated({ id: 'f', date: '2099-12-25T09:00' }), dated({ id: 'd1' })]);
+    expect(planDateMove(base, { ids: ['d1'], date: '2099-12-25', now: NOW })).toEqual([]);
+    expect(setTransactionsDate(base, { ids: ['d1'], date: '2099-12-25', now: NOW })).toBe(base);
+  });
+
+  it('planDateMove is exactly the plan setTransactionsDate applies (the screen toast counts from it)', () => {
     const base = dateStore([
       dated({ id: 'k', date: '2026-08-20T10:00' }),
       dated({ id: 'd1', date: '2026-08-05T09:00' }),
-      dated({ id: 'd2', date: '2026-08-20T10:00:01' }),   // would land where it already is? no — k is latest OTHER
+      dated({ id: 'd2', date: '2026-08-06T09:00' }),
     ]);
     const plan = planDateMove(base, { ids: ['d1', 'd2'], date: '2026-08-20', now: NOW });
     expect(plan.map(p => [p.id, p.to])).toEqual([['d1', '2026-08-20T10:00:01'], ['d2', '2026-08-20T10:00:02']]);
+    const s = setTransactionsDate(base, { ids: ['d1', 'd2'], date: '2026-08-20', now: NOW });
+    expect(plan.map(p => s.transactions.find(t => t.id === p.id).date)).toEqual(plan.map(p => p.to));
     expect(planDateMove(base, { ids: ['d1'], date: 'NaN-08-20', now: NOW })).toEqual([]);
   });
 

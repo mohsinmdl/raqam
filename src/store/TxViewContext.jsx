@@ -65,7 +65,9 @@ export function TxViewProvider({ children }) {
   // What a new entry inherits from the view: a register scoped to ONE day
   // (Today, Yesterday, a custom one-day range) seeds that day, so the row you
   // add lands where you are looking. Wider ranges seed nothing — the form keeps
-  // its own default (today). Spread into every openers.addTx seed.
+  // its own default (today). Spread into the generic Add-transaction entry
+  // points (register toolbar and empty state, Shift+N, ⌘K, the phone pill);
+  // the AI prefill flows and first-use bring their own seed.
   const viewDay = singleDayOf(range);
   const addSeed = useMemo(() => (viewDay ? { date: viewDay } : {}), [viewDay]);
 
