@@ -756,6 +756,23 @@ export default function Transactions() {
     openPicker: setReorderPicker,
     notify,
   });
+  // The reorder picker's confirm: the dragged group fans out from the chosen
+  // instant (groupFromPick — newest row at the pick, the rest a second earlier
+  // each, kept inside the drop gap), then lands like any other reorder. Rows
+  // that vanished under a background sync while the picker was open drop out of
+  // the move and the toast says so, rather than silently moving fewer rows than
+  // were dragged.
+  const confirmReorder = iso => {
+    const dragged = reorderPicker.ids;
+    const ids = dragged.filter(id => S.transactions.some(t => t.id === id));
+    if (ids.length < dragged.length) notify(ids.length ? 'Some of those transactions are no longer here.' : 'That transaction is no longer here — reload to try again.');
+    if (ids.length) {
+      const nowSec = nowIsoSec();
+      const dates = groupFromPick(iso, ids.length, reorderPicker.bounds, nowSec);
+      applyData(data => reorderTransactions(data, { moves: ids.map((id, i) => ({ id, date: dates[i] })), now: nowSec }));
+    }
+    setReorderPicker(null);
+  };
 
   // Selection is pruned to what is currently visible. Keeping ids that a filter
   // has hidden would let the toolbar claim "12 selected" while showing three,
@@ -1800,26 +1817,13 @@ export default function Transactions() {
           onPick={categorizeOne}
         />
         {/* Drag-to-reorder fallback: a moment the drop couldn't honestly
-            interpolate is chosen here, then written like any other reorder.
-            A dragged GROUP fans out from the pick — newest row at the chosen
-            instant, the rest a second earlier each — and a pick in a
-            neighbour's minute stays inside the gap it was dropped in wherever
-            the gap has room for it (groupFromPick). Rows that vanished while
-            the picker was open are dropped from the move and said so. */}
+            interpolate is chosen here, then written like any other reorder
+            (confirmReorder). */}
         {reorderPicker && (
           <TxWhenPicker
             seed={reorderPicker.seed} x={reorderPicker.x} y={reorderPicker.y}
             onCancel={() => setReorderPicker(null)}
-            onConfirm={iso => {
-              const ids = reorderPicker.ids.filter(id => S.transactions.some(t => t.id === id));
-              if (ids.length < reorderPicker.ids.length) notify(ids.length ? 'Some of those transactions are no longer here.' : 'That transaction is no longer here — reload to try again.');
-              if (ids.length) {
-                const nowSec = nowIsoSec();
-                const dates = groupFromPick(iso, ids.length, reorderPicker.bounds, nowSec);
-                applyData(data => reorderTransactions(data, { moves: ids.map((id, i) => ({ id, date: dates[i] })), now: nowSec }));
-              }
-              setReorderPicker(null);
-            }}
+            onConfirm={confirmReorder}
           />
         )}
         {/* Bulk "Move to Date": the same picker in date-only mode (no time — the

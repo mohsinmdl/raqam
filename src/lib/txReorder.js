@@ -41,7 +41,8 @@ function topStamps(below, now, nowInView, count) {
     return toEpochMs(dates[count - 1]) > belowMs ? dates : null;
   }
   const endOfDay = toEpochMs(below.date.slice(0, 10) + 'T23:59:59');
-  return belowMs + count * 1000 <= endOfDay ? secondsDown(belowMs + count * 1000, count) : null;
+  const top = belowMs + count * 1000;   // the newest of the group, one second per row above `below`
+  return top <= endOfDay ? secondsDown(top, count) : null;
 }
 
 // The picker fallback for a group: the instant the user picked is the group's
@@ -71,27 +72,19 @@ export function groupFromPick(iso, count, bounds, now) {
   return secondsDown(top, count);
 }
 
-// The moments `count` rows take when they are told to land ON a day, after
-// everything already there. Rows are date-DESC and order IS the date, so
-// "put these on the 20th" means "on top of the 20th": one second after that
-// day's newest row, then two, … — ascending, so the caller hands them out in
-// register order (its oldest row gets +1s, its newest +Ns) and the group reads
-// the same way after the move. The stamps must stay on the day (a move onto a
-// day must stay on that day) and, on TODAY, must not pass `now` (the app rule
-// against future-dated rows) — a row later than now on today is unposted and
-// is not a "top" to land on, so it is ignored. A future day is capped at its
-// own last second: a new entry dated ahead lands on its own day, never back
-// on today. `exclude` lists the moved rows themselves, so a row already
-// sitting on the day can't anchor its own move. Returns null when nothing
-// else sits on the day — there is no "top" to land on — OR when the group
-// cannot fit between the newest row and the cap (the day is full up to its
-// cap); either way the caller keeps whatever it did before (own time-of-day,
-// a flat noon, …) rather than tying rows to one second.
+// The newest row already on `day` that a landing can sit AFTER, plus the cap
+// no landing may pass — both in epoch ms. On TODAY the cap is `now` (the app
+// rule against future-dated rows): a row later than now is unposted and is not
+// a "top" to land on, so it is ignored. Any other day is capped at its own
+// last second, so a future day's rows land on that day and never back on
+// today. `exclude` lists rows that must not anchor a landing — typically the
+// rows being moved, so a row already sitting on the day can't anchor its own
+// move. `latest` is -Infinity when the day holds no such row.
 //
-// Shared by bulk Move to Date, a back-dated add, and a top drop in a past-day
-// view; keeping it here (not in the store) keeps the register's timestamp
-// policy in one pure module.
-export function landAfterLatest({ transactions, day, count, exclude, now }) {
+// Exported alongside landAfterLatest so the bulk Move-to-Date path can ask
+// "is this selection already the top of the day?" against exactly the row
+// landAfterLatest would have anchored on, instead of re-deriving the rule.
+export function latestOnDay({ transactions, day, exclude, now }) {
   const skip = new Set(exclude || []);
   const endOfDay = toEpochMs(day + 'T23:59:59');
   const nowMs = now ? toEpochMs(now) : NaN;
@@ -103,6 +96,25 @@ export function landAfterLatest({ transactions, day, count, exclude, now }) {
     const ms = toEpochMs(t.date);
     if (ms > latest && ms <= cap) latest = ms;
   }
+  return { latest, cap };
+}
+
+// The moments `count` rows take when they are told to land ON a day, after
+// everything already there. Rows are date-DESC and order IS the date, so
+// "put these on the 20th" means "on top of the 20th": one second after that
+// day's newest row (latestOnDay), then two, … — ascending, so the caller hands
+// them out in register order (its oldest row gets +1s, its newest +Ns) and the
+// group reads the same way after the move. Returns null when nothing else sits
+// on the day — there is no "top" to land on — OR when the group cannot fit
+// between that newest row and the cap (the day is full up to its cap); either
+// way the caller keeps whatever it did before (own time-of-day, a flat noon,
+// …) rather than tying rows to one second.
+//
+// Shared by bulk Move to Date, a back-dated add, and a top drop in a past-day
+// view; keeping it here (not in the store) keeps the register's timestamp
+// policy in one pure module.
+export function landAfterLatest({ transactions, day, count, exclude, now }) {
+  const { latest, cap } = latestOnDay({ transactions, day, exclude, now });
   if (!Number.isFinite(latest) || latest + count * 1000 > cap) return null;
   return Array.from({ length: count }, (_, i) => fmtIsoSec(latest + (i + 1) * 1000));
 }
@@ -167,11 +179,11 @@ export function planDrop({ above, below, now, windowDays = 3, nowInView = true, 
 // kept. When the two neighbours share a minute, that minute is tried first so
 // tied rows keep the minute they had where it has room; otherwise they may
 // leave it. The nudged neighbours are re-stamped in the same batch (flagged
-// so they carry no "Edited" mark — the user did not edit them). Returns
-// { ids, dates } newest-first for the whole respread run, with `null` in `ids`
-// where the moving group slots in (the caller fills those), or null when no
-// room can be made inside the day (rows never change day) — the caller then
-// asks.
+// so they carry no "Edited" mark — the user did not edit them). Returns the
+// respread run split around the drop — { above, below } (the nudged ids, in
+// display order) and `dates`, newest-first for `above` ++ the moving group ++
+// `below` — or null when no room can be made inside the day (rows never change
+// day) — the caller then asks.
 //
 //   order     — rendered ids WITHOUT the moving group, date-DESC.
 //   insertIdx — index in `order` the group lands before (the row below).
@@ -181,37 +193,43 @@ function makeRoom({ order, rowDate, insertIdx, count, now }) {
   const dayOf = i => String(rowDate(order[i])).slice(0, 10);
   const day = dayOf(insertIdx - 1);
   if (dayOf(insertIdx) !== day) return null;
+  // Is there another row of this same day just outside the run? It answers
+  // both questions asked below: where the run's bounds are, and whether the
+  // run can still widen that way.
+  const onDay = i => i >= 0 && i < order.length && dayOf(i) === day;
   const dayStart = toEpochMs(day);
   const dayEnd = toEpochMs(day + 'T23:59:59');
   const cap = Math.min(dayEnd, toEpochMs(now) || dayEnd);
+  // The minute the two neighbours share, if they share one (epoch ms, else
+  // null): tried first, so tied rows keep the minute they had.
+  const aboveDate = rowDate(order[insertIdx - 1]);
+  const tiedMinute = sameMinute(aboveDate, rowDate(order[insertIdx])) ? toEpochMs(String(aboveDate).slice(0, 16)) : null;
 
-  const spread = (hiIdx, loIdx, lo, hi) => {
-    const n = loIdx - hiIdx + 1 + count;
+  // `runLen` existing rows plus the moving group, evenly spaced on whole
+  // seconds strictly inside [lo, hi]; null when they don't all fit.
+  const spread = (runLen, lo, hi) => {
+    const n = runLen + count;
     if (hi - lo < (n + 1) * 1000) return null;
     const step = Math.floor((hi - lo) / (n + 1) / 1000) * 1000;
     return Array.from({ length: n }, (_, i) => fmtIsoSec(lo + step * (n - i)));
   };
   let hiIdx = insertIdx - 1, loIdx = insertIdx;
   for (;;) {
+    const canUp = onDay(hiIdx - 1);
+    const canDown = onDay(loIdx + 1);
     // Inclusive bounds: one second inside the adjacent row on either side, or
     // the day's edge when there is none on this day — and never past now.
-    const lo = loIdx + 1 < order.length && dayOf(loIdx + 1) === day ? at(loIdx + 1) + 1000 : dayStart;
-    const hi = Math.min(cap, hiIdx - 1 >= 0 && dayOf(hiIdx - 1) === day ? at(hiIdx - 1) - 1000 : cap);
+    const lo = canDown ? at(loIdx + 1) + 1000 : dayStart;
+    const hi = canUp ? Math.min(cap, at(hiIdx - 1) - 1000) : cap;
+    const runLen = loIdx - hiIdx + 1;
+    // The tied minute is only on offer on the first pass, where the run IS the
+    // two neighbours; once widened, the run spans rows outside that minute.
+    const firstPass = runLen === 2;
     let dates = null;
-    if (hiIdx === insertIdx - 1 && loIdx === insertIdx) {
-      const a = rowDate(order[hiIdx]), b = rowDate(order[loIdx]);
-      if (sameMinute(a, b)) {
-        const minute = toEpochMs(String(a).slice(0, 16));
-        dates = spread(hiIdx, loIdx, Math.max(lo, minute), Math.min(hi, minute + 59000));
-      }
-    }
-    dates = dates || spread(hiIdx, loIdx, lo, hi);
-    if (dates) {
-      return { ids: [...order.slice(hiIdx, insertIdx), ...Array(count).fill(null), ...order.slice(insertIdx, loIdx + 1)], dates };
-    }
+    if (firstPass && tiedMinute !== null) dates = spread(runLen, Math.max(lo, tiedMinute), Math.min(hi, tiedMinute + 59000));
+    if (!dates) dates = spread(runLen, lo, hi);
+    if (dates) return { above: order.slice(hiIdx, insertIdx), below: order.slice(insertIdx, loIdx + 1), dates };
     // Widen towards whichever neighbour is nearer in time; stop at the day's edges.
-    const canUp = hiIdx - 1 >= 0 && dayOf(hiIdx - 1) === day;
-    const canDown = loIdx + 1 < order.length && dayOf(loIdx + 1) === day;
     if (!canUp && !canDown) return null;
     if (canUp && (!canDown || at(hiIdx - 1) - at(hiIdx) <= at(loIdx) - at(loIdx + 1))) hiIdx -= 1;
     else loIdx += 1;
@@ -263,8 +281,10 @@ export function resolveDrop({ ids, rowDate, dragIds, beforeId, now, windowDays, 
     const tight = above && below && toEpochMs(above.date) - toEpochMs(below.date) < Math.max(MIN_ROOM_MS, (group.length + 1) * 1000);
     const room = tight ? makeRoom({ order, rowDate, insertIdx, count: group.length, now }) : null;
     if (room) {
-      let k = 0;
-      return { ids: room.ids.map(id => id ?? group[k++]), mode: 'auto', dates: room.dates, nudged: room.ids.filter(Boolean) };
+      return {
+        ids: [...room.above, ...group, ...room.below],
+        mode: 'auto', dates: room.dates, nudged: [...room.above, ...room.below],
+      };
     }
     return { ids: group, ...plan, bounds: { above: above ? above.date : null, below: below ? below.date : null } };
   }

@@ -4,7 +4,7 @@
 import { accountBalance, accountDeletePolicy, cardOutstanding, duplicateCat, monthLabel, moveCollision, normalizeName, INST_KINDS } from '../lib/calc.js';
 import { addMonths, currentMonth, nowIso, nowIsoSec, toEpochMs, todayStr } from '../lib/dates.js';
 import { liveOpening } from '../lib/openingDrift.js';
-import { landAfterLatest } from '../lib/txReorder.js';
+import { landAfterLatest, latestOnDay } from '../lib/txReorder.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { advanceDue, buildSchedule, nextOnOrAfter, presetSchedule, ruleFromTx } from '../lib/schedule.js';
 import { uid } from '../lib/util.js';
@@ -404,14 +404,15 @@ export function reorderTransactions(data, { moves, now } = {}) {
     else planned.delete(before.id);
   }
   if (planned.size === 0) return data;
-  const list = [...planned.values()];
-  const moved = list.filter(p => !p.nudged);
-  // One row keeps the single-row summary; a group says how many and names the
-  // group's newest landing. Nudged neighbours get their own line.
+  const all = [...planned.values()];
+  const moved = all.filter(p => !p.nudged);
+  // Every moved row shares one summary: a single row reads plain "Reordered",
+  // a group says how many, and both name the group's newest landing. Nudged
+  // neighbours get their own line instead.
   const fmt = iso => iso.slice(0, 16).replace('T', ' ');
-  const newest = (moved.length ? moved : list).map(p => p.to).sort().at(-1);
+  const newest = (moved.length ? moved : all).map(p => p.to).sort().at(-1);
   const summary = 'Reordered ' + (moved.length <= 1 ? '' : moved.length + ' ') + '— moved to ' + fmt(newest);
-  const batchId = list.length === 1 ? null : uid();
+  const batchId = all.length === 1 ? null : uid();
   return {
     ...data,
     transactions: data.transactions.map(t => {
@@ -420,7 +421,7 @@ export function reorderTransactions(data, { moves, now } = {}) {
       return p.nudged ? { ...t, date: p.to } : stampUpdate({ ...t, date: p.to });
     }),
     audit: [
-      ...list.map(p => makeAudit({
+      ...all.map(p => makeAudit({
         entityType: 'transaction', entityId: p.before.id, action: 'update',
         summary: p.nudged ? 'Nudged to make room — moved to ' + fmt(p.to) : summary,
         before: { date: p.before.date }, after: { date: p.to, ...(batchId ? { batchId } : {}) },
@@ -967,25 +968,22 @@ export function planDateMove(data, { ids, date, now }) {
   const set = bulkIds(ids);
   const rows = data.transactions.filter(t => set.has(t.id)).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   if (rows.length === 0) return [];
-  const clamp = s => (now && s > now ? now : s);
-  const stamps = landAfterLatest({ transactions: data.transactions, day: date, count: rows.length, exclude: rows.map(t => t.id), now });
+  const moving = rows.map(t => t.id);
+  const stamps = landAfterLatest({ transactions: data.transactions, day: date, count: rows.length, exclude: moving, now });
   let landing;
   if (stamps) {
     // Already on top: every row is on the day and the oldest of them is at or
-    // after the day's newest POSTED row (a row later than now on today is
-    // unposted and does not count; a tie counts as on top so repeating the
-    // move never churns stamps). `others` is non-empty whenever `stamps` is:
-    // both read the same rows under the same cap.
-    const nowMs = now ? toEpochMs(now) : Infinity;
-    const others = data.transactions
-      .filter(t => !set.has(t.id) && t.date.slice(0, 10) === date)
-      .map(t => toEpochMs(t.date))
-      .filter(ms => ms <= nowMs);
-    const latestOther = Math.max(...others);
-    const onTop = rows.every(t => t.date.slice(0, 10) === date) && toEpochMs(rows[0].date) >= latestOther;
+    // after the day's newest POSTED row — the very row the landing would have
+    // been stacked on (a row later than now on today is unposted and does not
+    // count; a tie counts as on top so repeating the move never churns
+    // stamps). `latest` is finite whenever `stamps` is: both come from the
+    // same latestOnDay read.
+    const { latest } = latestOnDay({ transactions: data.transactions, day: date, exclude: moving, now });
+    const onTop = rows.every(t => t.date.slice(0, 10) === date) && toEpochMs(rows[0].date) >= latest;
     if (onTop) return [];
-    landing = rows.map((t, i) => stamps[i]);
+    landing = stamps;
   } else {
+    const clamp = s => (now && s > now ? now : s);
     landing = rows.map(t => clamp(date + (t.date.slice(10) || 'T12:00')));   // keep the row's own time
   }
   return rows

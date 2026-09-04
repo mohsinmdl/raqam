@@ -96,10 +96,10 @@ export default function useTxDnd({ rows, enabled, applyData, nowInView = true, s
     // the drop will actually use, never one where the drop would do nothing.
     const r = e.currentTarget.getBoundingClientRect();
     const idx = ids.indexOf(id);
-    let beforeId = (e.clientY - r.top) < r.height / 2 ? id : (ids[idx + 1] ?? null);
     const moving = new Set(drag.ids);
-    while (beforeId != null && moving.has(beforeId)) beforeId = ids[ids.indexOf(beforeId) + 1] ?? null;
-    setTarget({ beforeId });
+    let at = (e.clientY - r.top) < r.height / 2 ? idx : idx + 1;
+    while (at < ids.length && moving.has(ids[at])) at += 1;
+    setTarget({ beforeId: ids[at] ?? null });   // past the last row → the very end
   }, [drag, ids]);
 
   const end = useCallback(() => { setDrag(null); setTarget(null); }, []);
