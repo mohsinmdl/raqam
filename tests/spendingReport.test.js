@@ -462,8 +462,11 @@ describe('categoryTxRows', () => {
     ]);
     const rows = categoryTxRows(S, 'groc', {});
     expect(rows.map(r => r.id)).toEqual(['t2', 't1']); // date desc
-    expect(rows[1]).toEqual({ id: 't1', account: 'Main', date: CUR + '-05', payee: 'Metro', memo: 'weekly', amt: -8000 });
+    expect(rows[1]).toEqual({ id: 't1', accountId: 'a1', account: 'Main', date: CUR + '-05', payee: 'Metro', memo: 'weekly', amt: -8000 });
     expect(rows[0]).toMatchObject({ amt: 2000 }); // refund is positive (YNAB-style sign convention)
+    // accountId (the raw id, not the nickname) rides along so a row can deep-link
+    // into its register via activityDrillTarget — the nickname is display only.
+    expect(rows[0].accountId).toBe('a1');
   });
 
   // Clicking the Deleted category row opens the popover with this call. The
