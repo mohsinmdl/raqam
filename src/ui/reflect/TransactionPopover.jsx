@@ -4,8 +4,10 @@
 // (spendingReport.js's categoryTxRows). Desktop uses Base UI's Popover directly (the
 // CategoryPickerPopover pattern: the shared PopoverPanel primitive has no
 // `anchor` prop for an external anchor); phone uses the BottomSheet.
+import { useNavigate } from 'react-router-dom';
 import { Popover as BasePopover } from '@base-ui/react/popover';
 import { useIsPhone } from '../../lib/useIsPhone.js';
+import { activityDrillTarget } from '../../lib/activityDrill.js';
 import { BottomSheet, BottomSheetPanel } from '../primitives/BottomSheet.jsx';
 
 const fmtDate = ymd => {
@@ -17,7 +19,7 @@ const headerCellStyle = {
   fontSize: 11, fontWeight: 700, letterSpacing: '.4px', textTransform: 'uppercase', color: 'var(--muted)',
 };
 
-function Table({ rows, money, dropMemo }) {
+function Table({ rows, money, dropMemo, onDrill }) {
   const cols = dropMemo ? '1fr 84px 1fr 96px' : '1fr 90px 1fr 1fr 110px';
   return (
     <div>
@@ -33,12 +35,21 @@ function Table({ rows, money, dropMemo }) {
           <p style={{ margin: 0, padding: '16px 4px', fontSize: 13, color: 'var(--muted)' }}>No transactions</p>
         )}
         {rows.map(r => (
-          <div key={r.id} style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, padding: '8px 4px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+          // Each row deep-links into its account register with the transaction
+          // pre-selected (activityDrillTarget → ?sel=), matching the Plan tab's
+          // ActivityPopover. A positive amt is income/refund/inflow → green, the
+          // same sign rule the register uses (txRow.js); expenses keep the
+          // default text colour rather than turning red.
+          <div key={r.id} role="button" tabIndex={0} className="hv-soft"
+            onClick={() => onDrill(r)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDrill(r); } }}
+            aria-label={'Open ' + (r.payee || 'transaction') + ' in ' + r.account + ' register'}
+            style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, padding: '8px 4px', borderBottom: '1px solid var(--border)', fontSize: 13, cursor: 'pointer' }}>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.account}</span>
             <span className="tnum" style={{ color: 'var(--muted)' }}>{fmtDate(r.date)}</span>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.payee}</span>
             {!dropMemo && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--muted)' }}>{r.memo}</span>}
-            <span className="tnum" style={{ textAlign: 'right' }}>{money(r.amt)}</span>
+            <span className="tnum" style={{ textAlign: 'right', color: r.amt > 0 ? 'var(--pos)' : undefined }}>{money(r.amt)}</span>
           </div>
         ))}
       </div>
@@ -56,6 +67,11 @@ function Header({ title }) {
 
 export default function TransactionPopover({ open, onClose, anchor, title, rows, money }) {
   const isPhone = useIsPhone();
+  const navigate = useNavigate();
+  // Navigating away unmounts the Reflect screen, which closes this popover — no
+  // explicit onClose needed (same as ActivityPopover). accountId + id are all
+  // activityDrillTarget reads off the row.
+  const drill = r => { if (r?.id) navigate(activityDrillTarget(r)); };
 
   if (isPhone) {
     return (
@@ -65,7 +81,7 @@ export default function TransactionPopover({ open, onClose, anchor, title, rows,
             <Header title={title} />
           </div>
           <div style={{ padding: '12px 12px 8px', flex: 1, overflowY: 'auto' }}>
-            <Table rows={rows} money={money} dropMemo />
+            <Table rows={rows} money={money} dropMemo onDrill={drill} />
           </div>
           <div style={{ padding: '12px 16px 16px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)' }}>
             <button
@@ -96,7 +112,7 @@ export default function TransactionPopover({ open, onClose, anchor, title, rows,
             }}
           >
             <Header title={title} />
-            <Table rows={rows} money={money} />
+            <Table rows={rows} money={money} onDrill={drill} />
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={onClose}

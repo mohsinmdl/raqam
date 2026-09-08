@@ -196,7 +196,7 @@ export function categoryTxRows(store, catIdOrIds, opts = {}) {
   return reportTxns(store, opts)
     .filter(t => wanted.has(catKey(t)))
     .map(t => ({
-      id: t.id, account: name(t.accountId), date: String(t.date).slice(0, 10),
+      id: t.id, accountId: t.accountId, account: name(t.accountId), date: String(t.date).slice(0, 10),
       payee: t.merchant || '', memo: t.notes || '', amt: t.type === 'expense' ? -t.amount : t.amount,
     }))
     .sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
