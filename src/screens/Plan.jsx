@@ -151,6 +151,10 @@ function usePopoverPosition(open, triggerRef, width, estHeight, onClose, cardRef
     place();
     const onScroll = e => {
       if (cardRef?.current && cardRef.current.contains(e.target)) return;
+      // The category picker's list is PORTALLED to <body> (data-rq-overlay), so
+      // it lives outside cardRef — scrolling it must NOT close the host popover.
+      // Same overlay exemption usePopoverDismiss already makes for outside-clicks.
+      if (e.target?.closest?.('[data-rq-overlay]')) return;
       onClose?.();
     };
     window.addEventListener('scroll', onScroll, true);
