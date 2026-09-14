@@ -12,7 +12,7 @@ import { txDefaults } from '../../../drawers/openers.js';
 import { ruleFromTx } from '../../../lib/schedule.js';
 import { cellsFromForm, editorPatch, editableCells, errorCells, firstEmptyCell, keepForNext, sourceRef, tabCells, tabTarget } from '../../../lib/txEditorState.js';
 import { blankLine, splitHalves } from '../../../lib/splitTx.js';
-import { autoCategoryPatchArgs } from '../../../lib/payees.js';
+import { inferCategoryForPayee } from '../../../lib/payees.js';
 import { formatAmountInput } from '../../../lib/amountInput.js';
 import { CheckIcon } from '../../icons.jsx';
 import AccountCell from './AccountCell.jsx';
@@ -110,7 +110,9 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
   // category pick or an inflow's type inference (see FIX 1 — a blind flip to
   // refund on any category was a data-corruption bug).
   const catTypeOf = id => (S.categories.find(c => c.id === id) || {}).type || null;
-  const patch = (key, value) => setForm(editorPatch(f, key, value, { catTypeOf }));
+  // A direct category edit is the user's own pick — clear catAuto so a later
+  // payee change won't overwrite it (only a value WE auto-filled is re-pointed).
+  const patch = (key, value) => setForm({ ...editorPatch(f, key, value, { catTypeOf }), ...(key === 'category' ? { catAuto: false } : {}) });
   const saveAndAdd = async () => {
     const keep = keepForNext(f);
     // On a scoped register (a single account's page) the next row always
@@ -140,11 +142,18 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
   }, [drawer.errors]);
   const pickPayee = name => {
     const payeePatch = editorPatch(f, 'payee', name, { catTypeOf });
-    const auto = autoCategoryPatchArgs(S, name, f.category);
-    if (!auto) { setForm(payeePatch); return; }
-    // One setForm: category inference runs against the payee-patched form.
+    // Split rows own the category cell — never auto-fill under an open split.
+    if (f.splitOn) { setForm(payeePatch); return; }
     const f2 = { ...f, ...payeePatch };
-    setForm({ ...payeePatch, ...editorPatch(f2, 'category', auto, { catTypeOf }) });
+    // Rule OR learned-from-history; protects a manual pick, re-points an
+    // earlier auto-fill (see inferCategoryForPayee).
+    const auto = inferCategoryForPayee(S, name, { currentCategory: f.category, catAuto: f.catAuto });
+    if (auto) { setForm({ ...payeePatch, ...editorPatch(f2, 'category', auto, { catTypeOf }), catAuto: true }); return; }
+    // The new payee has no suggestion. If the current category was one WE
+    // auto-filled for the previous payee, it's now stale — clear it rather than
+    // leave a wrong guess; a manual pick (catAuto false) is left untouched.
+    if (f.catAuto && f.category) { setForm({ ...payeePatch, ...editorPatch(f2, 'category', '', { catTypeOf }), catAuto: false }); return; }
+    setForm(payeePatch);
   };
   const onRowKey = e => {
     if (e.key === 'Enter' && !e.defaultPrevented && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SELECT') attemptSubmit();
@@ -188,14 +197,14 @@ export default function TxEditorRow({ hideAccount, hideMemo, showBalance, colSpa
         </td>
         <td style={cellTd} onKeyDown={onTab('category')}>
           {splitOn
-            ? <button type="button" ref={cellRefs.category} className="field hv-soft" onClick={() => setForm({ splitOn: false, splits: undefined, category: (f.splits || [])[0]?.category || '', newCat: (f.splits || [])[0]?.newCat || '', newCatGroup: (f.splits || [])[0]?.newCatGroup || '' })}
+            ? <button type="button" ref={cellRefs.category} className="field hv-soft" onClick={() => setForm({ splitOn: false, splits: undefined, catAuto: false, category: (f.splits || [])[0]?.category || '', newCat: (f.splits || [])[0]?.newCat || '', newCatGroup: (f.splits || [])[0]?.newCatGroup || '' })}
                 style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13, color: 'var(--muted)', cursor: 'pointer', width: '100%' }}>
                 Split ({(f.splits || []).length}) — un-split
               </button>
             : <CategoryCell ref={cellRefs.category} value={cells.category} catType={catType} inflow={type === 'income'} isTransfer={isTransfer} disabled={!can.category}
                 invalid={!!cellErrors.category} errorMsg={cellErrors.category}
                 onChange={id => patch('category', id)}
-                onCreate={({ name, groupId }) => setForm({ category: '__new', newCat: name, newCatGroup: groupId || '' })}
+                onCreate={({ name, groupId }) => setForm({ category: '__new', newCat: name, newCatGroup: groupId || '', catAuto: false })}
                 canSplit={canSplit} onSplit={() => {
                   // Seed a 50/50 prefill from the total (the common shared-purchase
                   // case); with no total yet the lines start empty as before.
