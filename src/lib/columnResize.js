@@ -1,65 +1,71 @@
 // Pure helpers for the register's drag-to-resize columns. The DOM drag lives in
 // Transactions.jsx; the width math lives here so it gets a direct unit test.
 //
-// Model (see the resize handles in Transactions.jsx): the register is
-// `table-layout: fixed` with PAYEE (`details`) as the one width-less column, so
-// it absorbs whatever the fixed columns don't take. Resizing a fixed column
-// therefore just changes ITS number — PAYEE re-flows automatically and the
-// table stays 100% wide (no horizontal scroll). The clamp below is what keeps
-// that promise: a column can only grow by as much as PAYEE can spare above its
-// floor.
+// Model — proportional weights, neighbour trade. Every column (PAYEE included)
+// is a weight, not an absolute px width; the rendered widths are those weights
+// normalised to exactly fill the register. Because they always sum to the
+// container, the table is always 100% wide with NO horizontal scrollbar, and no
+// single column is a special "absorber". Dragging a divider trades width between
+// the two columns it sits between (cascading rightward past any column already
+// at its floor), so a resize never disturbs the columns to its left — PAYEE only
+// changes when you drag one of ITS OWN edges. A window resize just re-normalises
+// (all columns scale together); a folded column drops out of the weight sum and
+// the rest renormalise to fill.
 
-// Merge stored per-column widths over the COLUMNS defaults. Only columns that
-// have a default (non-null) width can be overridden — PAYEE stays the flex
-// remainder no matter what a stale stored value says — and only by a positive
-// number, so a corrupt pref can't zero a column out.
-export function mergeColumnWidths(columns, stored) {
-  const widths = stored || {};
-  return columns.map(c => {
-    if (c.width == null) return c;
-    const w = widths[c.key];
-    return typeof w === 'number' && w > 0 ? { ...c, width: w } : c;
+// Normalise per-column weights to px that sum EXACTLY to `available`. Weight for
+// a column is its stored value, else the caller's default for that key, else the
+// column's own default width, else a neutral fallback. The rounding remainder
+// lands on the last column so the total is exact (a 1px overflow here would be a
+// scrollbar). Returns null before the container has been measured (available
+// null/0) so the caller can fall back to the unmeasured default layout.
+export function resolveRenderedWidths(columns, stored, defaults, available) {
+  if (!available || available <= 0) return null;
+  const s = stored || {};
+  const weights = columns.map(c => s[c.key] ?? defaults[c.key] ?? c.width ?? 100);
+  const total = weights.reduce((a, b) => a + b, 0) || 1;
+  let acc = 0;
+  return weights.map((w, i) => {
+    if (i === weights.length - 1) return available - acc;
+    const px = Math.round((w / total) * available);
+    acc += px;
+    return px;
   });
 }
 
-// New width for the column being dragged, given a cumulative pixel delta from
-// the start of the drag. `current` and `payeeWidth` are captured at drag start;
-// growing this column by X shrinks PAYEE by X, so PAYEE hits `payeeMin` exactly
-// when X === payeeWidth - payeeMin — that difference (never negative) is the
-// most this column may grow. Shrinking is bounded only by the column's own min.
-export function clampWidth({ current, delta, payeeWidth, colMin, payeeMin }) {
-  const maxGrow = Math.max(0, payeeWidth - payeeMin);
-  const max = current + maxGrow;
-  return Math.round(Math.min(max, Math.max(colMin, current + delta)));
+// New rendered widths after dragging the divider on the right edge of column
+// `index` by `delta` px (positive grows it, negative shrinks it). The total is
+// always conserved, so the table stays 100% wide. Growing takes width from the
+// columns to the RIGHT in order, each only down to `colMin` (cascade); shrinking
+// hands the freed width to the immediate right neighbour. Columns left of the
+// boundary are never touched. Integer px in, integer px out.
+export function resizeNeighbors(rendered, index, delta, colMin) {
+  const r = rendered.slice();
+  if (delta >= 0) {
+    const slack = r.slice(index + 1).reduce((sum, w) => sum + Math.max(0, w - colMin), 0);
+    let take = Math.min(Math.round(delta), slack);
+    r[index] += take;
+    for (let j = index + 1; j < r.length && take > 0; j++) {
+      const give = Math.min(take, Math.max(0, r[j] - colMin));
+      r[j] -= give;
+      take -= give;
+    }
+  } else {
+    const give = Math.min(Math.round(-delta), Math.max(0, r[index] - colMin));
+    r[index] -= give;
+    r[index + 1] += give;
+  }
+  return r;
 }
 
-// Fit the (already-merged) widths to the CURRENT container. clampWidth only
-// promises "PAYEE >= payeeMin, no horizontal scroll" for the container width
-// measured at drag time; a stored width re-applied verbatim after the window or
-// sidebar later narrows could squeeze PAYEE below its floor (and eventually push
-// the fixed columns into a scrollbar — the invariant the feature exists to keep).
-// This is the render-time guard: when the fixed columns no longer leave PAYEE its
-// minimum, reclaim the shortfall from them proportionally to each column's slack
-// above colMin (so a column already near the floor barely moves and none dips
-// below it). Display-only — stored prefs keep the user's intended widths and
-// re-expand when the room returns. Untouched before the container is measured.
-export function fitColumnWidths(columns, containerWidth, { checkboxW, payeeMin, colMin }) {
-  if (containerWidth == null) return columns;
-  const fixed = columns.filter(c => c.width != null);
-  const totalFixed = fixed.reduce((s, c) => s + c.width, 0);
-  const maxFixed = containerWidth - checkboxW - payeeMin;
-  if (totalFixed <= maxFixed) return columns;
-  const need = totalFixed - maxFixed;
-  const slackTotal = fixed.reduce((s, c) => s + Math.max(0, c.width - colMin), 0);
-  // Every column already at the floor: nothing left to give, pin them at colMin.
-  if (slackTotal <= 0) return columns.map(c => (c.width != null ? { ...c, width: colMin } : c));
-  const shrink = Math.min(1, need / slackTotal);
-  return columns.map(c => {
-    if (c.width == null) return c;
-    const slack = Math.max(0, c.width - colMin);
-    // Floor, not round: the summed fixed widths must never creep BACK over the
-    // budget through rounding (that's a 1-2px horizontal scrollbar). Flooring
-    // spends at most a sub-pixel per column and hands the remainder to PAYEE.
-    return { ...c, width: Math.floor(c.width - slack * shrink) };
-  });
+// Reset just the divider at `index`: re-split the combined width of columns
+// `index` and `index+1` by their default weight ratio, leaving every other
+// column exactly where it is (so a reset, like a drag, never disturbs the rest —
+// reset-all is the way to restore the whole default layout). Total preserved.
+export function resetPair(rendered, index, wA, wB, colMin) {
+  const combined = rendered[index] + rendered[index + 1];
+  const a = Math.max(colMin, Math.min(combined - colMin, Math.round((combined * wA) / (wA + wB))));
+  const r = rendered.slice();
+  r[index] = a;
+  r[index + 1] = combined - a;
+  return r;
 }
