@@ -299,6 +299,22 @@ textarea.field { height: auto; min-height: 64px; padding: 10px 12px; resize: ver
 .tx-toolbar { container-type: inline-size; }
 @container (max-width: 1080px) { .tx-toolbar-divider { display: none; } }
 
+/* Register column resize handle. Straddles the column's right border (sticky
+   <th> is the containing block); the hairline only shows on hover/focus so the
+   header stays quiet at rest. touch-action:none lets a pointer drag work without
+   the browser hijacking it for scroll. */
+.tx-col-resizer {
+  position: absolute; top: 0; right: -4px; width: 9px; height: 100%;
+  cursor: col-resize; z-index: 3; touch-action: none; user-select: none;
+}
+.tx-col-resizer::before {
+  content: ''; position: absolute; top: 18%; bottom: 18%; left: 50%;
+  width: 2px; transform: translateX(-50%); border-radius: 2px;
+  background: transparent; transition: background 90ms ease;
+}
+.tx-col-resizer:hover::before, .tx-col-resizer:focus-visible::before { background: var(--accent); }
+.tx-col-resizer:focus-visible { outline: none; }
+
 .sidebar-accounts { container-type: inline-size; }
 @container (max-width: 236px) { .sidebar-accounts-total { display: none; } }
 
