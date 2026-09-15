@@ -3,10 +3,10 @@
 // folded left-to-right by applyCalcExpr on Enter/blur (seeded with the cell's
 // prior committed value, same contract as the plan-cell calculator). The ⌗
 // trigger opens a 2×2 op pad that appends the operator, YNAB-style.
-import { forwardRef, useRef, useState } from 'react';
+import { forwardRef, useLayoutEffect, useRef, useState } from 'react';
 import { Popover, PopoverTrigger, PopoverPanel } from '../../primitives/Popover.jsx';
 import { applyCalcExpr } from '../../../lib/calcExpr.js';
-import { formatAmountInput } from '../../../lib/amountInput.js';
+import { caretAfterDigits, digitsBefore, formatAmountInput } from '../../../lib/amountInput.js';
 import { parseAmt } from '../../../lib/format.js';
 import { CalcIcon } from '../../icons.jsx';
 
@@ -34,6 +34,20 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
   // so finalFocus returns false for exactly that close — Escape keeps the
   // normal restore to the ⌗ trigger.
   const tabbedAway = useRef(false);
+  // The input's own DOM node, merged into the forwarded ref (which the editor
+  // row uses for focus/Tab). Needed to reposition the caret after a live
+  // regroup — see the layout effect below.
+  const inputRef = useRef(null);
+  const setInputRef = node => {
+    inputRef.current = node;
+    if (typeof ref === 'function') ref(node);
+    else if (ref) ref.current = node;
+  };
+  // Where the caret belongs after the next live regroup, measured in VALUE
+  // CHARACTERS not offsets (separators come and go) — see src/lib/amountInput.js.
+  // Null means "leave the caret alone" (idle, or a calculator draft, which is
+  // not regrouped). Set only by a plain-number onChange below.
+  const caretRef = useRef(null);
   const shown = draft !== null ? draft : (value || '');
   const showInvalid = !!calcErr || !!invalid;
   const message = calcErr ? CALC_MSG[calcErr] : errorMsg;
@@ -41,6 +55,29 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
   // Distinct per cell (Outflow/Inflow both render one) so the input's
   // aria-controls can point at ITS pad, not its sibling's.
   const padId = 'txeditor-oppad-' + (ariaLabel || 'amount').toLowerCase();
+
+  // Runs after the regrouped draft is painted. Without it the caret lands at
+  // the end on every keystroke, making it impossible to fix a digit
+  // mid-number. Mirrors the drawer's AmountField (src/drawers/fields.jsx).
+  useLayoutEffect(() => {
+    if (caretRef.current == null || !inputRef.current) return;
+    const at = caretAfterDigits(shown, caretRef.current);
+    caretRef.current = null;
+    inputRef.current.setSelectionRange(at, at);
+  });
+
+  // Live thousands grouping as the user types a plain number ("1500000" →
+  // "1,500,000"), with the caret held in place. A draft carrying an operator
+  // is a calculator expression, kept RAW and folded on commit — regrouping it
+  // would strip the operators — so that path skips both the format and the
+  // caret bookkeeping.
+  const onType = e => {
+    const v = e.target.value;
+    setCalcErr(null);
+    if (OP_KEYS.test(v)) { caretRef.current = null; setDraft(v); return; }
+    caretRef.current = digitsBefore(v, e.target.selectionStart);
+    setDraft(formatAmountInput(v));
+  };
 
   const commit = () => {
     if (draft === null) return;
@@ -101,7 +138,7 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
           </div>
         </PopoverPanel>
       </Popover>
-      <input ref={ref} className="field tnum" inputMode="decimal" placeholder={placeholder} aria-label={ariaLabel}
+      <input ref={setInputRef} className="field tnum" inputMode="decimal" placeholder={placeholder} aria-label={ariaLabel}
         // Same contract as the date field: the op pad is this input's popup,
         // so the input announces it exists, whether it's open, and the chord
         // (Alt+ArrowDown) that opens it with focus.
@@ -110,7 +147,7 @@ const AmountCell = forwardRef(function AmountCell({ value, onCommit, placeholder
         aria-invalid={showInvalid || undefined} aria-describedby={showInvalid ? id : undefined}
         disabled={disabled} autoFocus={autoFocus} value={shown}
         onFocus={e => e.target.select()}
-        onChange={e => { setDraft(e.target.value); setCalcErr(null); }}
+        onChange={onType}
         onBlur={commit}
         onKeyDown={e => {
           if (e.key === 'Enter' && draft !== null) { e.preventDefault(); commit(); }
