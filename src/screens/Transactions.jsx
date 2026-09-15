@@ -1,5 +1,5 @@
 // Transactions list screen — template 268-336, txScreenVals script 1018-1054.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../store/StoreProvider.jsx';
 import { DEFAULT_FILTERS, useTxView } from '../store/TxViewContext.jsx';
@@ -36,6 +36,7 @@ import { matchesSearch, searchSuggestions } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { useContainerWidth } from '../lib/useContainerWidth.js';
 import { visibleColumnKeys } from '../lib/registerColumns.js';
+import { clampWidth, fitColumnWidths, mergeColumnWidths } from '../lib/columnResize.js';
 import { ScrollArea, ScrollAreaViewport, ScrollAreaContent, ScrollAreaScrollbar } from '../ui/primitives/ScrollArea.jsx';
 import { needsCategoryBannerCount } from '../lib/needsCategoryBanner.js';
 import { openingDrift, openingDriftLabel } from '../lib/openingDrift.js';
@@ -103,12 +104,24 @@ const COLUMNS = [
   { key: 'status', label: 'STATUS', width: 68, align: 'center' },
 ];
 
+// Drag-to-resize floors. A resized column can't go below COL_MIN, and can only
+// grow by as much as PAYEE (the flex remainder) can spare above PAYEE_MIN — so
+// the table stays 100% wide and PAYEE never collapses (columnResize.js does the
+// math). CHECKBOX_COL_W is the fixed leading select column (see <colgroup>),
+// which owes nothing to PAYEE but must come off the width budget.
+const COL_MIN = 56;
+const PAYEE_MIN = 140;
+const CHECKBOX_COL_W = 34;
+// Keyboard nudge per ArrowLeft/Right on a resize handle; Shift takes bigger steps.
+const NUDGE = 8;
+const NUDGE_BIG = 24;
+
 // Types that carry a category; transfers/adjustments never do.
 const CAT_TYPES = ['expense', 'refund', 'income'];
 
 // A sortable column header. The whole cell is the control, so the target is the
 // full header height rather than the width of the label text.
-function SortableHeader({ col, sort, onSort, last }) {
+function SortableHeader({ col, sort, onSort, last, resizer }) {
   const active = sort.key === col.key || (col.altKeys || []).includes(sort.key);
   // `signed` borrows the OUTFLOW header (altKeys) but ranks by effect on the
   // balance, so its stored direction is the OPPOSITE of what this column shows:
@@ -160,6 +173,7 @@ function SortableHeader({ col, sort, onSort, last }) {
         <span>{col.label}</span>
         {col.align !== 'right' && <SortIcon dir={dir} />}
       </button>
+      {resizer}
     </th>
   );
 }
@@ -171,7 +185,7 @@ function SortableHeader({ col, sort, onSort, last }) {
 // running totals would be worse than no affordance at all. Plain text, no
 // button, no aria-sort (the column is not a sort candidate, which "none"
 // would wrongly imply).
-function PlainHeader({ col, last }) {
+function PlainHeader({ col, last, resizer }) {
   return (
     <th scope="col" style={{ ...th, padding: 0, textAlign: col.align || 'left', ...(last ? { borderRight: 'none' } : null) }}>
       {/* Same box as SortableHeader's button (32px, 0 8px, matching
@@ -181,7 +195,63 @@ function PlainHeader({ col, last }) {
         display: 'flex', alignItems: 'center', minHeight: 32, padding: '0 8px', whiteSpace: 'nowrap',
         justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start',
       }}>{col.label}</span>
+      {resizer}
     </th>
+  );
+}
+
+// The drag handle on a resizable column's right edge. It sits ABOVE the sort
+// button (higher z-index) and stops propagation, so grabbing the edge resizes
+// instead of sorting. Pointer capture routes move/up back here, so there are no
+// window listeners to leak. Double-click (or Enter/Home when focused) resets the
+// column to its default; ArrowLeft/Right nudge it. `onStart` returns the drag
+// context (start widths) or null when the column can't be resized right now.
+function ColumnResizer({ col, onStart, onMove, onEnd, onReset, onNudge }) {
+  const drag = useRef(null);
+  const down = e => {
+    if (e.button != null && e.button !== 0) return;
+    const ctx = onStart(col.key, e.clientX);
+    if (!ctx) return;
+    e.preventDefault();
+    e.stopPropagation();
+    drag.current = ctx;
+    document.body.style.cursor = 'col-resize';
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const move = e => { if (drag.current) { e.stopPropagation(); onMove(drag.current, e.clientX); } };
+  const finish = e => {
+    if (!drag.current) return;
+    e.stopPropagation();
+    onEnd(drag.current, e.clientX);
+    drag.current = null;
+    document.body.style.cursor = '';
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+  };
+  const key = e => {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); onNudge(col.key, -(e.shiftKey ? NUDGE_BIG : NUDGE)); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); onNudge(col.key, e.shiftKey ? NUDGE_BIG : NUDGE); }
+    else if (e.key === 'Enter' || e.key === 'Home') { e.preventDefault(); e.stopPropagation(); onReset(col.key); }
+  };
+  return (
+    <span
+      className="tx-col-resizer"
+      role="separator"
+      aria-orientation="vertical"
+      tabIndex={0}
+      // Window-splitter pattern: aria-valuenow/min let a screen reader hear the
+      // width and its change on each arrow-key nudge, not just the static label.
+      aria-valuenow={col.width}
+      aria-valuemin={COL_MIN}
+      aria-valuetext={col.width + ' pixels'}
+      aria-label={'Resize ' + col.label.toLowerCase() + ' column (arrow keys to adjust, double-click or Enter to reset)'}
+      onPointerDown={down}
+      onPointerMove={move}
+      onPointerUp={finish}
+      onPointerCancel={finish}
+      onDoubleClick={e => { e.stopPropagation(); onReset(col.key); }}
+      onClick={e => e.stopPropagation()}
+      onKeyDown={key}
+    />
   );
 }
 
@@ -710,7 +780,64 @@ export default function Transactions() {
     () => visibleColumnKeys(COLUMNS, containerWidth, !!accountId, balanceEligible),
     [containerWidth, accountId, balanceEligible],
   );
-  const columns = useMemo(() => COLUMNS.filter(c => visibleKeys.has(c.key)), [visibleKeys]);
+  // Drag-to-resize columns. Committed widths live in prefs.colWidths (per-user,
+  // device-local, same channel as `wide`); dragW is the transient live width
+  // while a handle is held — kept out of prefs so a drag isn't a localStorage
+  // write per pixel, then committed on pointer-up. mergeColumnWidths overlays
+  // both onto the COLUMNS defaults (PAYEE stays the flex remainder regardless).
+  const [dragW, setDragW] = useState(null); // { key, width } | null
+  const colWidths = prefs.colWidths;
+  const columns = useMemo(() => {
+    const base = colWidths || {};
+    const widths = dragW ? { ...base, [dragW.key]: dragW.width } : base;
+    const merged = mergeColumnWidths(COLUMNS.filter(c => visibleKeys.has(c.key)), widths);
+    // Re-fit stored widths to the CURRENT container so PAYEE keeps its floor and
+    // the table never scrolls, even after the window/sidebar narrowed since the
+    // drag (clampWidth only guards drag-time width). Display-only — prefs keep
+    // the intended widths and re-expand when the room comes back.
+    return fitColumnWidths(merged, containerWidth, { checkboxW: CHECKBOX_COL_W, payeeMin: PAYEE_MIN, colMin: COL_MIN });
+  }, [visibleKeys, colWidths, dragW, containerWidth]);
+  // Snapshot the drag's start geometry: this column's width and how wide PAYEE is
+  // right now (container minus the select column minus every fixed column). That
+  // PAYEE width is the budget clampWidth spends. Refs so the pointer-move closure
+  // always reads current geometry without re-subscribing.
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
+  const containerWidthRef = useRef(containerWidth);
+  containerWidthRef.current = containerWidth;
+  const beginResize = useCallback((colKey, startX) => {
+    const cols = columnsRef.current;
+    const target = cols.find(c => c.key === colKey);
+    if (!target || target.width == null) return null;
+    const fixedSum = cols.reduce((s, c) => s + (c.width || 0), 0);
+    const payeeWidth = (containerWidthRef.current || 0) - CHECKBOX_COL_W - fixedSum;
+    return { key: colKey, startX, startWidth: target.width, payeeWidth };
+  }, []);
+  const resizeTo = useCallback((ctx, delta) => clampWidth({
+    current: ctx.startWidth, delta, payeeWidth: ctx.payeeWidth, colMin: COL_MIN, payeeMin: PAYEE_MIN,
+  }), []);
+  const onResizeMove = useCallback((ctx, clientX) => {
+    setDragW({ key: ctx.key, width: resizeTo(ctx, clientX - ctx.startX) });
+  }, [resizeTo]);
+  const onResizeEnd = useCallback((ctx, clientX) => {
+    const width = resizeTo(ctx, clientX - ctx.startX);
+    setDragW(null);
+    // A plain click (no drag) leaves the width at its start; don't pin the
+    // current value into prefs and silently freeze the column then.
+    if (width !== ctx.startWidth) setPrefs({ colWidths: { ...(colWidths || {}), [ctx.key]: width } });
+  }, [resizeTo, setPrefs, colWidths]);
+  const resetCol = useCallback((colKey) => {
+    if (!colWidths || !(colKey in colWidths)) return;
+    const next = { ...colWidths };
+    delete next[colKey];
+    setPrefs({ colWidths: next });
+  }, [setPrefs, colWidths]);
+  const nudgeCol = useCallback((colKey, delta) => {
+    const ctx = beginResize(colKey, 0);
+    if (!ctx) return;
+    const width = resizeTo(ctx, delta);
+    if (width !== ctx.startWidth) setPrefs({ colWidths: { ...(colWidths || {}), [colKey]: width } });
+  }, [beginResize, resizeTo, setPrefs, colWidths]);
   const gridColSpan = columns.length + 1;
   const hideAccountCol = !visibleKeys.has('account');
   const hideMemoCol = !visibleKeys.has('notes');
@@ -1587,9 +1714,19 @@ export default function Transactions() {
                       label={allVisibleSelected ? 'Clear selection' : 'Select all ' + visibleIds.length + ' visible transactions'}
                     />
                   </th>
-                  {columns.map((c, i) => (isSortable(c.key)
-                    ? <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} last={i === columns.length - 1} />
-                    : <PlainHeader key={c.key} col={c} last={i === columns.length - 1} />))}
+                  {columns.map((c, i) => {
+                    const last = i === columns.length - 1;
+                    // Resizable = a fixed-width column that isn't the flex PAYEE
+                    // absorber (width null) and isn't the trailing column (no
+                    // neighbour to its right, and it's always the narrow STATUS
+                    // badge). All others get a right-edge handle.
+                    const resizer = c.width != null && !last
+                      ? <ColumnResizer col={c} onStart={beginResize} onMove={onResizeMove} onEnd={onResizeEnd} onReset={resetCol} onNudge={nudgeCol} />
+                      : null;
+                    return isSortable(c.key)
+                      ? <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} last={last} resizer={resizer} />
+                      : <PlainHeader key={c.key} col={c} last={last} resizer={resizer} />;
+                  })}
                 </tr>
               </thead>
               {inlineTx && !editingId && (
