@@ -36,7 +36,7 @@ import { matchesSearch, searchSuggestions } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { useContainerWidth } from '../lib/useContainerWidth.js';
 import { visibleColumnKeys } from '../lib/registerColumns.js';
-import { clampWidth, fitColumnWidths, mergeColumnWidths } from '../lib/columnResize.js';
+import { resolveRenderedWidths, resizeNeighbors, resetPair } from '../lib/columnResize.js';
 import { ScrollArea, ScrollAreaViewport, ScrollAreaContent, ScrollAreaScrollbar } from '../ui/primitives/ScrollArea.jsx';
 import { needsCategoryBannerCount } from '../lib/needsCategoryBanner.js';
 import { openingDrift, openingDriftLabel } from '../lib/openingDrift.js';
@@ -104,14 +104,17 @@ const COLUMNS = [
   { key: 'status', label: 'STATUS', width: 68, align: 'center' },
 ];
 
-// Drag-to-resize floors. A resized column can't go below COL_MIN, and can only
-// grow by as much as PAYEE (the flex remainder) can spare above PAYEE_MIN — so
-// the table stays 100% wide and PAYEE never collapses (columnResize.js does the
-// math). CHECKBOX_COL_W is the fixed leading select column (see <colgroup>),
-// which owes nothing to PAYEE but must come off the width budget.
+// Drag-to-resize geometry. Columns are proportional weights normalised to fill
+// the register (columnResize.js); dragging a divider trades width between the two
+// columns it sits between, floored per column at COL_MIN. CHECKBOX_COL_W is the
+// fixed leading select column (see <colgroup>), taken off the width budget before
+// the data columns divide it. PAYEE has no default width in COLUMNS (it was the
+// old flex remainder), so it needs an explicit default WEIGHT to sit among the
+// others; every other column's default weight is just its COLUMNS width.
 const COL_MIN = 56;
-const PAYEE_MIN = 140;
 const CHECKBOX_COL_W = 34;
+const PAYEE_DEFAULT_WEIGHT = 260;
+const DEFAULT_WEIGHTS = Object.fromEntries(COLUMNS.map(c => [c.key, c.width ?? PAYEE_DEFAULT_WEIGHT]));
 // Keyboard nudge per ArrowLeft/Right on a resize handle; Shift takes bigger steps.
 const NUDGE = 8;
 const NUDGE_BIG = 24;
@@ -162,6 +165,10 @@ function SortableHeader({ col, sort, onSort, last, resizer }) {
         style={{
           display: 'flex', alignItems: 'center', gap: 5, width: '100%',
           minHeight: 32, padding: '0 8px', whiteSpace: 'nowrap',
+          // Clip the header to its (now user-resizable) column: without this the
+          // uppercase label + sort icon keep their intrinsic width and push the
+          // table past 100% into a scrollbar once a column is dragged narrow.
+          overflow: 'hidden', minWidth: 0,
           justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start',
           border: 'none', background: 'none', font: 'inherit', cursor: 'pointer',
           letterSpacing: '0.6px',
@@ -170,7 +177,7 @@ function SortableHeader({ col, sort, onSort, last, resizer }) {
         }}
       >
         {col.align === 'right' && <SortIcon dir={dir} />}
-        <span>{col.label}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{col.label}</span>
         {col.align !== 'right' && <SortIcon dir={dir} />}
       </button>
       {resizer}
@@ -193,24 +200,27 @@ function PlainHeader({ col, last, resizer }) {
           taller than its sortable neighbours. */}
       <span style={{
         display: 'flex', alignItems: 'center', minHeight: 32, padding: '0 8px', whiteSpace: 'nowrap',
+        overflow: 'hidden', minWidth: 0,
         justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start',
-      }}>{col.label}</span>
+      }}><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{col.label}</span></span>
       {resizer}
     </th>
   );
 }
 
-// The drag handle on a resizable column's right edge. It sits ABOVE the sort
-// button (higher z-index) and stops propagation, so grabbing the edge resizes
-// instead of sorting. Pointer capture routes move/up back here, so there are no
-// window listeners to leak. Double-click (or Enter/Home when focused) resets the
-// column to its default; ArrowLeft/Right nudge it. `onStart` returns the drag
-// context (start widths) or null when the column can't be resized right now.
-function ColumnResizer({ col, onStart, onMove, onEnd, onReset, onNudge }) {
+// The drag handle sitting on the divider to the right of a column. It sits ABOVE
+// the sort button (higher z-index) and stops propagation, so grabbing the edge
+// resizes instead of sorting. Pointer capture routes move/up back here, so there
+// are no window listeners to leak. Dragging trades width between this column and
+// the one to its right (columnResize.js). Double-click (or Enter/Home) resets
+// both to their default proportion; ArrowLeft/Right nudge the boundary. `index`
+// is the column's position in the visible set — the neighbour math is positional.
+// `onStart` returns the drag context or null when resizing isn't possible yet.
+function ColumnResizer({ col, index, onStart, onMove, onEnd, onReset, onNudge }) {
   const drag = useRef(null);
   const down = e => {
     if (e.button != null && e.button !== 0) return;
-    const ctx = onStart(col.key, e.clientX);
+    const ctx = onStart(index, e.clientX);
     if (!ctx) return;
     e.preventDefault();
     e.stopPropagation();
@@ -228,9 +238,9 @@ function ColumnResizer({ col, onStart, onMove, onEnd, onReset, onNudge }) {
     e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
   const key = e => {
-    if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); onNudge(col.key, -(e.shiftKey ? NUDGE_BIG : NUDGE)); }
-    else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); onNudge(col.key, e.shiftKey ? NUDGE_BIG : NUDGE); }
-    else if (e.key === 'Enter' || e.key === 'Home') { e.preventDefault(); e.stopPropagation(); onReset(col.key); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); onNudge(index, -(e.shiftKey ? NUDGE_BIG : NUDGE)); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); onNudge(index, e.shiftKey ? NUDGE_BIG : NUDGE); }
+    else if (e.key === 'Enter' || e.key === 'Home') { e.preventDefault(); e.stopPropagation(); onReset(index); }
   };
   return (
     <span
@@ -248,7 +258,7 @@ function ColumnResizer({ col, onStart, onMove, onEnd, onReset, onNudge }) {
       onPointerMove={move}
       onPointerUp={finish}
       onPointerCancel={finish}
-      onDoubleClick={e => { e.stopPropagation(); onReset(col.key); }}
+      onDoubleClick={e => { e.stopPropagation(); onReset(index); }}
       onClick={e => e.stopPropagation()}
       onKeyDown={key}
     />
@@ -780,64 +790,74 @@ export default function Transactions() {
     () => visibleColumnKeys(COLUMNS, containerWidth, !!accountId, balanceEligible),
     [containerWidth, accountId, balanceEligible],
   );
-  // Drag-to-resize columns. Committed widths live in prefs.colWidths (per-user,
-  // device-local, same channel as `wide`); dragW is the transient live width
-  // while a handle is held — kept out of prefs so a drag isn't a localStorage
-  // write per pixel, then committed on pointer-up. mergeColumnWidths overlays
-  // both onto the COLUMNS defaults (PAYEE stays the flex remainder regardless).
-  const [dragW, setDragW] = useState(null); // { key, width } | null
+  // Drag-to-resize columns. Widths are proportional weights in prefs.colWidths
+  // (per-user, device-local, same channel as `wide`), resolved to px that fill
+  // the register exactly (columnResize.js) so the table is always 100% wide with
+  // no scrollbar. dragW holds the live px array while a handle is held — kept out
+  // of prefs so a drag isn't a localStorage write per pixel — then committed on
+  // pointer-up. Both dragW and baseWidths are px arrays aligned to visibleCols.
+  const [dragW, setDragW] = useState(null); // number[] | null
   const colWidths = prefs.colWidths;
-  const columns = useMemo(() => {
-    const base = colWidths || {};
-    const widths = dragW ? { ...base, [dragW.key]: dragW.width } : base;
-    const merged = mergeColumnWidths(COLUMNS.filter(c => visibleKeys.has(c.key)), widths);
-    // Re-fit stored widths to the CURRENT container so PAYEE keeps its floor and
-    // the table never scrolls, even after the window/sidebar narrowed since the
-    // drag (clampWidth only guards drag-time width). Display-only — prefs keep
-    // the intended widths and re-expand when the room comes back.
-    return fitColumnWidths(merged, containerWidth, { checkboxW: CHECKBOX_COL_W, payeeMin: PAYEE_MIN, colMin: COL_MIN });
-  }, [visibleKeys, colWidths, dragW, containerWidth]);
-  // Snapshot the drag's start geometry: this column's width and how wide PAYEE is
-  // right now (container minus the select column minus every fixed column). That
-  // PAYEE width is the budget clampWidth spends. Refs so the pointer-move closure
-  // always reads current geometry without re-subscribing.
-  const columnsRef = useRef(columns);
-  columnsRef.current = columns;
-  const containerWidthRef = useRef(containerWidth);
-  containerWidthRef.current = containerWidth;
-  const beginResize = useCallback((colKey, startX) => {
-    const cols = columnsRef.current;
-    const target = cols.find(c => c.key === colKey);
-    if (!target || target.width == null) return null;
-    const fixedSum = cols.reduce((s, c) => s + (c.width || 0), 0);
-    const payeeWidth = (containerWidthRef.current || 0) - CHECKBOX_COL_W - fixedSum;
-    return { key: colKey, startX, startWidth: target.width, payeeWidth };
-  }, []);
-  const resizeTo = useCallback((ctx, delta) => clampWidth({
-    current: ctx.startWidth, delta, payeeWidth: ctx.payeeWidth, colMin: COL_MIN, payeeMin: PAYEE_MIN,
-  }), []);
-  const onResizeMove = useCallback((ctx, clientX) => {
-    setDragW({ key: ctx.key, width: resizeTo(ctx, clientX - ctx.startX) });
-  }, [resizeTo]);
-  const onResizeEnd = useCallback((ctx, clientX) => {
-    const width = resizeTo(ctx, clientX - ctx.startX);
-    setDragW(null);
-    // A plain click (no drag) leaves the width at its start; don't pin the
-    // current value into prefs and silently freeze the column then.
-    if (width !== ctx.startWidth) setPrefs({ colWidths: { ...(colWidths || {}), [ctx.key]: width } });
-  }, [resizeTo, setPrefs, colWidths]);
-  const resetCol = useCallback((colKey) => {
-    if (!colWidths || !(colKey in colWidths)) return;
-    const next = { ...colWidths };
-    delete next[colKey];
-    setPrefs({ colWidths: next });
+  const visibleCols = useMemo(() => COLUMNS.filter(c => visibleKeys.has(c.key)), [visibleKeys]);
+  const available = containerWidth != null ? containerWidth - CHECKBOX_COL_W : null;
+  const baseWidths = useMemo(
+    () => resolveRenderedWidths(visibleCols, colWidths, DEFAULT_WEIGHTS, available),
+    [visibleCols, colWidths, available],
+  );
+  const widthPx = dragW || baseWidths;
+  const columns = useMemo(
+    () => visibleCols.map((c, i) => ({ ...c, width: widthPx ? widthPx[i] : c.width })),
+    [visibleCols, widthPx],
+  );
+  // Refs so the pointer-move closure reads the live geometry (widths + which
+  // columns are visible) without re-subscribing each frame.
+  const widthPxRef = useRef(widthPx);
+  widthPxRef.current = widthPx;
+  const visibleColsRef = useRef(visibleCols);
+  visibleColsRef.current = visibleCols;
+  // Persist the whole visible layout as weights (the rendered px ARE the weights —
+  // resolveRenderedWidths renormalises them to whatever the container later is),
+  // merged over any folded column's stored weight so folding doesn't drop it.
+  const commitWidths = useCallback((next) => {
+    const patch = {};
+    visibleColsRef.current.forEach((c, i) => { patch[c.key] = next[i]; });
+    setPrefs({ colWidths: { ...(colWidths || {}), ...patch } });
   }, [setPrefs, colWidths]);
-  const nudgeCol = useCallback((colKey, delta) => {
-    const ctx = beginResize(colKey, 0);
-    if (!ctx) return;
-    const width = resizeTo(ctx, delta);
-    if (width !== ctx.startWidth) setPrefs({ colWidths: { ...(colWidths || {}), [colKey]: width } });
-  }, [beginResize, resizeTo, setPrefs, colWidths]);
+  const beginResize = useCallback((index, startX) => {
+    const w = widthPxRef.current;
+    if (!w) return null; // container not measured yet — nothing to resize from
+    return { index, startX, startWidths: w.slice() };
+  }, []);
+  const onResizeMove = useCallback((ctx, clientX) => {
+    setDragW(resizeNeighbors(ctx.startWidths, ctx.index, clientX - ctx.startX, COL_MIN));
+  }, []);
+  const onResizeEnd = useCallback((ctx, clientX) => {
+    const next = resizeNeighbors(ctx.startWidths, ctx.index, clientX - ctx.startX, COL_MIN);
+    setDragW(null);
+    // A plain click (no drag) leaves widths untouched; don't pin the current
+    // layout into prefs then.
+    if (next.some((w, i) => w !== ctx.startWidths[i])) commitWidths(next);
+  }, [commitWidths]);
+  // Double-click a divider: re-split just those two columns by their default
+  // ratio, leaving every other column where it is (columnResize.js). No-op when
+  // they're already at that split, so it doesn't pin an otherwise-default table.
+  const resetCol = useCallback((index) => {
+    const w = widthPxRef.current;
+    const cols = visibleColsRef.current;
+    if (!w) return;
+    const next = resetPair(w, index, DEFAULT_WEIGHTS[cols[index].key], DEFAULT_WEIGHTS[cols[index + 1].key], COL_MIN);
+    if (next.some((x, i) => Math.abs(x - w[i]) > 1)) commitWidths(next);
+  }, [commitWidths]);
+  const resetAllCols = useCallback(() => {
+    if (colWidths && Object.keys(colWidths).length) setPrefs({ colWidths: {} });
+  }, [setPrefs, colWidths]);
+  const hasCustomWidths = !!colWidths && Object.keys(colWidths).length > 0;
+  const nudgeCol = useCallback((index, delta) => {
+    const w = widthPxRef.current;
+    if (!w) return;
+    const next = resizeNeighbors(w, index, delta, COL_MIN);
+    if (next.some((x, i) => x !== w[i])) commitWidths(next);
+  }, [commitWidths]);
   const gridColSpan = columns.length + 1;
   const hideAccountCol = !visibleKeys.has('account');
   const hideMemoCol = !visibleKeys.has('notes');
@@ -1606,6 +1626,21 @@ export default function Transactions() {
           >
             <WideIcon />
           </button>
+          {/* Reset column widths — only once the user has actually resized
+              something, so it stays out of the way until it means anything. */}
+          {!phone && hasCustomWidths && (
+            <button
+              onClick={resetAllCols}
+              aria-label="Reset column widths"
+              title="Reset column widths"
+              className="hv-soft rq-btn-outline"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 7, background: 'transparent', color: 'var(--muted)', cursor: 'pointer', flex: 'none' }}
+            >
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 2.6-6.4" /><path d="M3 4v4h4" />
+              </svg>
+            </button>
+          )}
           {/* Divider: Fit-width is a display control; Sort + Search are the
               content pair to its right. It is the FIRST thing dropped once the
               row wraps (theme.css, container query on .tx-toolbar): a divider
@@ -1716,12 +1751,11 @@ export default function Transactions() {
                   </th>
                   {columns.map((c, i) => {
                     const last = i === columns.length - 1;
-                    // Resizable = a fixed-width column that isn't the flex PAYEE
-                    // absorber (width null) and isn't the trailing column (no
-                    // neighbour to its right, and it's always the narrow STATUS
-                    // badge). All others get a right-edge handle.
-                    const resizer = c.width != null && !last
-                      ? <ColumnResizer col={c} onStart={beginResize} onMove={onResizeMove} onEnd={onResizeEnd} onReset={resetCol} onNudge={nudgeCol} />
+                    // Every divider is draggable except the last column's right
+                    // edge (no neighbour to trade with, and it's the table edge).
+                    // Widths only exist once the container is measured (widthPx).
+                    const resizer = !last && widthPx
+                      ? <ColumnResizer col={c} index={i} onStart={beginResize} onMove={onResizeMove} onEnd={onResizeEnd} onReset={resetCol} onNudge={nudgeCol} />
                       : null;
                     return isSortable(c.key)
                       ? <SortableHeader key={c.key} col={c} sort={sort} onSort={onSort} last={last} resizer={resizer} />
