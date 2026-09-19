@@ -725,7 +725,7 @@ function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, befor
       </div>
       <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600 }}>{money(t.assigned)}</div>
       <div className="tnum" style={{ textAlign: 'right' }}>
-        {groupCatIds.length > 0 ? (
+        {groupCatIds.length > 0 && t.activity !== 0 ? (
           <ActivityPopover
             title={group.name} catIds={groupCatIds} month={month} S={S} money={money}
             triggerClassName="tnum hv-soft"
@@ -1205,12 +1205,17 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
         )}
       </div>
       <div data-noselect style={{ textAlign: 'right' }}>
-        <ActivityPopover
-          title={cat.name} catIds={[cat.id]} month={month} S={S} money={money}
-          triggerClassName="tnum hv-soft"
-          triggerLabel={'Activity for ' + cat.name}
-          triggerStyle={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}
-        >{moneyS(r.activity)}</ActivityPopover>
+        {r.activity === 0 ? (
+          // Nothing to drill into — render a plain figure, no hover underline or click.
+          <span className="tnum" style={{ padding: `2px ${NUM_INSET}px`, color: 'var(--muted)', fontSize: 14, fontWeight: 500 }}>{moneyS(r.activity)}</span>
+        ) : (
+          <ActivityPopover
+            title={cat.name} catIds={[cat.id]} month={month} S={S} money={money}
+            triggerClassName="tnum hv-soft"
+            triggerLabel={'Activity for ' + cat.name}
+            triggerStyle={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}
+          >{moneyS(r.activity)}</ActivityPopover>
+        )}
       </div>
       <div style={{ textAlign: 'right' }}>
         {r.available === 0 ? (
