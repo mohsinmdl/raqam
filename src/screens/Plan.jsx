@@ -61,10 +61,15 @@ const OTHER = { id: null, name: 'Other' };
 // selection checkbox (22px), then the name — so group names align exactly with
 // the category names beneath them. Group rows fill the chevron cell with the
 // collapse toggle; category rows leave it empty.
-// Tightened numeric columns (YNAB-like) so the CATEGORY column has room for the
-// progress bar + its status label. The three money columns still fit large PKR
-// amounts (millions) without wrapping.
-const ROW_COLS = { display: 'grid', gridTemplateColumns: '20px 22px minmax(0,3fr) minmax(0,0.9fr) minmax(0,0.9fr) minmax(0,1fr)', gap: 10, alignItems: 'center' };
+// The three money columns are FIXED-width (identical on every row, since each row
+// is its own grid) so they stay column-aligned AND — together with whiteSpace:
+// nowrap on each figure — reserve enough width for large PKR amounts (millions)
+// instead of wrapping onto two lines. The CATEGORY column takes all remaining
+// space (1fr, min 0) for the progress bar + label, ellipsising a long name when
+// the window is narrow. Wider than the old 2.2/1/1/1.1 category share at typical
+// widths, while the px floors keep numbers legible when the right summary panel
+// is open and the table is squeezed.
+const ROW_COLS = { display: 'grid', gridTemplateColumns: '20px 22px minmax(0,1fr) 136px 136px 140px', gap: 10, alignItems: 'center' };
 
 // Progress-bar fills (see CategoryRow). Green is a diagonal candy-stripe (two
 // tones of --pos) for the spent/funded share; the overage segment is a solid
@@ -732,20 +737,20 @@ function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, befor
           </span>
         )}
       </div>
-      <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600 }}>{money(t.assigned)}</div>
+      <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{money(t.assigned)}</div>
       <div className="tnum" style={{ textAlign: 'right' }}>
         {groupCatIds.length > 0 && t.activity !== 0 ? (
           <ActivityPopover
             title={group.name} catIds={groupCatIds} month={month} S={S} money={money}
             triggerClassName="tnum hv-soft"
             triggerLabel={'Activity for ' + group.name}
-            triggerStyle={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}
+            triggerStyle={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap' }}
           >{money(t.activity)}</ActivityPopover>
         ) : (
-          <span className="tnum" style={{ paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>{money(t.activity)}</span>
+          <span className="tnum" style={{ paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{money(t.activity)}</span>
         )}
       </div>
-      <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600 }}>{money(t.available)}</div>
+      <div className="tnum" style={{ textAlign: 'right', paddingRight: NUM_INSET, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{money(t.available)}</div>
     </div>
   );
 }
@@ -863,7 +868,7 @@ function PillPopover({ open, onToggle, onClose, tone, value, ariaLabel, children
       <button
         onClick={onToggle} aria-haspopup="dialog" aria-expanded={String(open)}
         className="tnum hv-elev"
-        style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, border: 'none', background: `var(--${tone}-soft)`, color: `var(--${tone})`, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, border: 'none', background: `var(--${tone}-soft)`, color: `var(--${tone})`, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
       >{value}</button>
       {open && pos && createPortal(
         <div ref={popRef} role="dialog" aria-label={ariaLabel} style={{ ...popCard, position: 'fixed', ...pos, textAlign: 'left' }}>
@@ -1136,7 +1141,9 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
             <span className="tnum" style={{ flex: '0 0 auto', fontSize: 11, color: bar.state === 'over' ? 'var(--neg)' : 'var(--muted)', whiteSpace: 'nowrap' }}>{bar.label}</span>
           )}
         </div>
-        {view !== 'compact' && bar.show && (
+        {/* The track always renders in progress view (YNAB-style): an empty
+            category shows the bare light track with no fill and no label. */}
+        {view !== 'compact' && (
           <div style={{ display: 'flex', height: 8, borderRadius: 4, background: 'var(--track)', overflow: 'hidden', marginTop: 5 }}>
             <div style={{ width: (bar.greenPct * 100) + '%', height: '100%', background: BAR_GREEN }} />
             <div style={{ width: (bar.redPct * 100) + '%', height: '100%', background: BAR_RED }} />
@@ -1204,26 +1211,26 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
         ) : (
           <button
             onClick={startEdit} className="tnum hv-elev"
-            style={{ width: '100%', height: 30, padding: `0 ${NUM_INSET}px`, textAlign: 'right', border: '1px solid transparent', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+            style={{ width: '100%', height: 30, padding: `0 ${NUM_INSET}px`, textAlign: 'right', border: '1px solid transparent', borderRadius: 6, background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >{money(r.assigned)}</button>
         )}
       </div>
       <div data-noselect style={{ textAlign: 'right' }}>
         {r.activity === 0 ? (
           // Nothing to drill into — render a plain figure, no hover underline or click.
-          <span className="tnum" style={{ padding: `2px ${NUM_INSET}px`, color: 'var(--muted)', fontSize: 14, fontWeight: 500 }}>{moneyS(r.activity)}</span>
+          <span className="tnum" style={{ padding: `2px ${NUM_INSET}px`, color: 'var(--muted)', fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap' }}>{moneyS(r.activity)}</span>
         ) : (
           <ActivityPopover
             title={cat.name} catIds={[cat.id]} month={month} S={S} money={money}
             triggerClassName="tnum hv-soft"
             triggerLabel={'Activity for ' + cat.name}
-            triggerStyle={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}
+            triggerStyle={{ padding: `2px ${NUM_INSET}px`, border: 'none', borderRadius: 6, background: 'transparent', color: 'var(--muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap' }}
           >{moneyS(r.activity)}</ActivityPopover>
         )}
       </div>
       <div style={{ textAlign: 'right' }}>
         {r.available === 0 ? (
-          <span className="tnum" style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, background: pillBg, color: pillFg, fontSize: 13, fontWeight: 600 }}>{money(r.available)}</span>
+          <span className="tnum" style={{ display: 'inline-block', minWidth: 72, padding: `4px ${NUM_INSET}px`, borderRadius: 999, background: pillBg, color: pillFg, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{money(r.available)}</span>
         ) : r.available < 0 ? (
           <CoverPopover cat={cat} month={month} available={r.available} env={env} S={S} money={money} applyData={applyData} />
         ) : (
