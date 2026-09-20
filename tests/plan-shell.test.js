@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildPlanInsert, dateFormatExample, deleteConfirmReady,
-  PLAN_NAME_MAX, planNameError, switcherPlans,
+  PLAN_NAME_MAX, planMissMessage, planNameError, switcherPlans,
 } from '../src/ui/plans/planShellLogic.js';
 import { resetAll } from '../src/store/actions.js';
 import { CATEGORIES, PLAN_DATE_FORMATS, PLAN_DEFAULTS } from '../src/store/seed.js';
@@ -130,5 +130,17 @@ describe('resetAll fresh category ids (U2 handoff)', () => {
     const b = resetAll().categories.map(c => c.id);
     expect(new Set(a).size).toBe(a.length);
     expect(a.some(id => b.includes(id))).toBe(false);
+  });
+});
+
+describe('planMissMessage', () => {
+  it('says which plan opened instead, for a missed link and for a missed tab pin', () => {
+    expect(planMissMessage({ kind: 'url', openedName: 'My Plan' })).toBe('That plan isn’t available anymore — this tab opened “My Plan” instead.');
+    expect(planMissMessage({ kind: 'pin', openedName: 'My Plan' })).toBe('The plan this tab was on isn’t available anymore — it opened “My Plan” instead.');
+  });
+
+  it('is null without a miss and survives a nameless plan', () => {
+    expect(planMissMessage(null)).toBe(null);
+    expect(planMissMessage({ kind: 'url' })).toContain('another plan');
   });
 });

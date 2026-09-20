@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildItems, PAGES } from './buildItems.js';
-import { buildActions } from './actions.js';
+import { buildActions, pickPerform } from './actions.js';
 
 const data = {
   accounts: [
@@ -80,5 +80,29 @@ describe('buildActions', () => {
     for (const id of ['action:addTx', 'action:addAccount', 'action:addCategory', 'action:managePayees', 'action:toggleTheme', 'action:toggleMask']) {
       expect(ids).toContain(id);
     }
+  });
+});
+
+// Which of an item's handlers a palette activation runs, and whether it must
+// run synchronously (window.open has to stay inside the user gesture).
+describe('pickPerform', () => {
+  const plain = { perform: () => 'plain' };
+  const both = { perform: () => 'switch', performNewTab: () => 'new-tab' };
+
+  it('runs the new-tab variant immediately when asked for and offered', () => {
+    const { fn, immediate } = pickPerform(both, { newTab: true });
+    expect(fn()).toBe('new-tab');
+    expect(immediate).toBe(true);
+  });
+
+  it('ignores the modifier on an item with no new-tab variant', () => {
+    const { fn, immediate } = pickPerform(plain, { newTab: true });
+    expect(fn()).toBe('plain');
+    expect(immediate).toBe(false);
+  });
+
+  it('never runs the new-tab variant on a plain activation', () => {
+    expect(pickPerform(both, { newTab: false }).fn()).toBe('switch');
+    expect(pickPerform(both).immediate).toBe(false);
   });
 });

@@ -12,7 +12,8 @@ import AuthScreen from './auth/AuthScreen.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import { MonthProvider } from './store/MonthContext.jsx';
 import { TxViewProvider } from './store/TxViewContext.jsx';
-import { UIProvider } from './ui/UIProvider.jsx';
+import { UIProvider, useUI } from './ui/UIProvider.jsx';
+import { planMissMessage } from './ui/plans/planShellLogic.js';
 import { DrawerProvider } from './ui/DrawerProvider.jsx';
 import { drawerRegistry } from './drawers/index.js';
 import GlobalShortcuts from './components/GlobalShortcuts.jsx';
@@ -74,6 +75,16 @@ function Shell() {
   };
   const resetWidth = () => { setSbW(SB_DEFAULT); try { localStorage.setItem(SB_KEY, String(SB_DEFAULT)); } catch {} };
   const phone = useIsPhone();
+  // Boot could not open the plan this tab was asked for. The desktop sidebar
+  // switcher shows that as a standing line; the phone has no sidebar, so say it
+  // once here — which ledger is open must never change silently.
+  const { planMiss, dismissPlanMiss } = usePlan();
+  const { notify } = useUI();
+  useEffect(() => {
+    if (!phone || !planMiss) return;
+    notify(planMissMessage(planMiss));
+    dismissPlanMiss();
+  }, [phone, planMiss, notify, dismissPlanMiss]);
   // U2 sms-parse: the paste sheet reads the 'pasteSms' drawer slot (opened by
   // openers.pasteSms). Held-mounted here like ManagePayees.
   const { drawer, closeDrawer } = useDrawer();
