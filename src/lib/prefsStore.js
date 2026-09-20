@@ -59,3 +59,20 @@ export function migrateFlatViewPrefs(prefs) {
 export function planPrefs(prefs, planId) {
   return (prefs.plans || {})[planId] || {};
 }
+
+// Two tabs on different plans share this one blob, and a tab writes it from its
+// own in-memory snapshot. Keys the writing tab does NOT own must therefore come
+// from storage at write time, or it silently erases what the other tab saved:
+// other plans' view namespaces, and the device-wide openPlanId (only ever
+// written by PlanProvider, never through setPrefs). This tab's own plan
+// namespace and every other key — including the pendingSeed NewPlanModal queues
+// right before it switches — still come from memory. Pure — mutates neither input.
+export function mergePrefsForWrite(stored, next, planId) {
+  const plans = { ...(stored.plans || {}) };
+  const mine = (next.plans || {})[planId];
+  if (mine !== undefined) plans[planId] = mine;
+  const out = { ...next, plans };
+  if (stored.openPlanId === undefined) delete out.openPlanId;
+  else out.openPlanId = stored.openPlanId;
+  return out;
+}

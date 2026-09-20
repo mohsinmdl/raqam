@@ -3,10 +3,12 @@
 // (ordered by name, open one checked) plus New Plan / Manage Plans. Owns the
 // two management modals so the phone entry can stay a thin sheet.
 import { useState } from 'react';
-import { Menu, MenuTrigger, MenuPanel, MenuItem } from '../primitives/Menu.jsx';
+import { useLocation } from 'react-router-dom';
+import { Menu, MenuTrigger, MenuPanel, MenuItem, MenuLinkItem } from '../primitives/Menu.jsx';
 import { usePlan } from '../../store/PlanProvider.jsx';
 import { useAuth } from '../../auth/AuthProvider.jsx';
 import { switcherPlans } from './planShellLogic.js';
+import { planHref, isNewTabClick } from '../../lib/planDeepLink.js';
 import NewPlanModal from './NewPlanModal.jsx';
 import ManagePlansModal from './ManagePlansModal.jsx';
 import { CheckIcon, Chevron } from '../icons.jsx';
@@ -20,6 +22,8 @@ export default function PlanSwitcher() {
   const [manageOpen, setManageOpen] = useState(false);
   const [aborted, setAborted] = useState(false);
   const list = switcherPlans(plans, openPlanId);
+  // The rows' hrefs carry the current #/route — subscribe so they track it.
+  useLocation();
 
   const pick = async id => {
     setAborted(false);
@@ -40,15 +44,19 @@ export default function PlanSwitcher() {
         </MenuTrigger>
         <MenuPanel side="bottom" align="start" style={{ minWidth: 232 }}>
           {list.map(p => (
-            <MenuItem key={p.id} data-testid="plan-switcher-item" data-plan-id={p.id}
-              data-open={p.open || undefined} onClick={() => pick(p.id)}>
+            // A real link: a plain click switches in place (as ever), while the
+            // browser's open-elsewhere gestures (Ctrl/Cmd+click, Shift+click,
+            // middle-click, context menu) open THAT plan in a new tab/window.
+            <MenuLinkItem key={p.id} href={planHref(p.id)} data-testid="plan-switcher-item" data-plan-id={p.id}
+              data-open={p.open || undefined}
+              onClick={e => { if (isNewTabClick(e)) return; e.preventDefault(); pick(p.id); }}>
               {/* Fixed check slot so unchecked names align under the checked one. */}
               <span aria-hidden="true" style={{ width: 14, flex: 'none', display: 'inline-flex', color: 'var(--accent)' }}>{p.open ? <CheckIcon /> : null}</span>
               <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
               {/* aria-checked isn't valid on role=menuitem, so the open state
                   is spoken through text instead of a state attribute. */}
               {p.open && <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>(open)</span>}
-            </MenuItem>
+            </MenuLinkItem>
           ))}
           {sep}
           <MenuItem data-testid="plan-switcher-new-plan" onClick={() => setNewOpen(true)}>

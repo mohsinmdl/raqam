@@ -65,6 +65,16 @@ describe('buildActions', () => {
     expect(ids).not.toContain('action:switchPlan:pl1');
   });
 
+  it('gives only switch-plan actions an open-in-new-tab variant', () => {
+    const plans = [{ id: 'pl1', name: 'Home' }, { id: 'pl2', name: 'Business' }];
+    const actions = buildActions({ plans, openPlanId: 'pl1' });
+    const sw = actions.find(a => a.id === 'action:switchPlan:pl2');
+    const opened = [];
+    sw.performNewTab({ openPlanInNewTab: id => opened.push(id) });
+    expect(opened).toEqual(['pl2']);
+    expect(actions.filter(a => a.performNewTab).map(a => a.id)).toEqual(['action:switchPlan:pl2']);
+  });
+
   it('always includes the core actions', () => {
     const ids = buildActions({}).map(a => a.id);
     for (const id of ['action:addTx', 'action:addAccount', 'action:addCategory', 'action:managePayees', 'action:toggleTheme', 'action:toggleMask']) {

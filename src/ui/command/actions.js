@@ -58,6 +58,8 @@ export function buildActions({ plans = [], openPlanId } = {}) {
       label: 'Switch to plan: ' + p.name,
       keywords: ['switch plan', 'change plan', 'ledger', p.name],
       priority: 6, perform: ctx => ctx.switchPlan(p.id),
+      // ⌘/Ctrl+Enter or ⌘/Ctrl+click: open it in a new tab, keep this one as is.
+      performNewTab: ctx => ctx.openPlanInNewTab(p.id),
     });
   }
 

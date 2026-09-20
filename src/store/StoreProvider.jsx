@@ -8,7 +8,7 @@ import { currentMonth } from '../lib/dates.js';
 import LoadingScreen from '../components/LoadingScreen.jsx';
 import { makeAudit } from './audit.js';
 import { applyRedo, applyUndo, emptyStacks, labelFor, recordChange, redoLabel, topSeq, undoLabel } from '../lib/undo.js';
-import { loadUserPrefs, planPrefs, writeUserPrefs } from '../lib/prefsStore.js';
+import { loadUserPrefs, mergePrefsForWrite, planPrefs, writeUserPrefs } from '../lib/prefsStore.js';
 
 // Server-backed store. The in-memory store + pure actions are unchanged from the
 // localStorage era; persistence is now: hydrate from Supabase once per login, then
@@ -211,10 +211,13 @@ export function StoreProvider({ userId, planId, children }) {
     if (Object.keys(device).length) setDevicePrefs(device);
     if (Object.keys(user).length || Object.keys(plan).length) {
       const cur = userPrefsRef.current;
-      const next = { ...cur, ...user };
+      const patched = { ...cur, ...user };
       if (Object.keys(plan).length) {
-        next.plans = { ...(cur.plans || {}), [planId]: { ...planPrefs(cur, planId), ...plan } };
+        patched.plans = { ...(cur.plans || {}), [planId]: { ...planPrefs(cur, planId), ...plan } };
       }
+      // Another tab may be open on a different plan and sharing this blob —
+      // take the keys this tab doesn't own from storage, not from our snapshot.
+      const next = mergePrefsForWrite(loadUserPrefs(userId), patched, planId);
       userPrefsRef.current = next;
       // A failed write leaves the in-memory prefs updated (the UI stays
       // responsive) but flips prefsSaved so the Header can say it didn't stick.
