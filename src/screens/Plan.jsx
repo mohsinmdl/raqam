@@ -21,7 +21,7 @@ import { resolveDisplayName } from '../lib/identity.js';
 import { applyCalcExpr } from '../lib/calcExpr.js';
 import { rtaBreakdownLines } from '../lib/rtaBreakdown.js';
 import { BUILTIN_VIEWS, MAX_NAME, normalizeViews, newView, reorderViews, visibleSections, normalizeBuiltins, reorderBuiltins, toggleBuiltinHidden, orderedBuiltinViews, builtinRows, isHiddenBuiltin } from '../lib/planViews.js';
-import { hasTarget, targetNeeded } from '../lib/targets.js';
+import { planBar } from '../lib/planBar.js';
 import { autoAssignAmount } from '../lib/inspector.js';
 import { rangeBetween } from '../lib/rowCursor.js';
 import PlanCategoryPicker from '../ui/PlanCategoryPicker.jsx';
@@ -61,7 +61,16 @@ const OTHER = { id: null, name: 'Other' };
 // selection checkbox (22px), then the name — so group names align exactly with
 // the category names beneath them. Group rows fill the chevron cell with the
 // collapse toggle; category rows leave it empty.
-const ROW_COLS = { display: 'grid', gridTemplateColumns: '20px 22px minmax(0,2.2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr)', gap: 10, alignItems: 'center' };
+// Tightened numeric columns (YNAB-like) so the CATEGORY column has room for the
+// progress bar + its status label. The three money columns still fit large PKR
+// amounts (millions) without wrapping.
+const ROW_COLS = { display: 'grid', gridTemplateColumns: '20px 22px minmax(0,3fr) minmax(0,0.9fr) minmax(0,0.9fr) minmax(0,1fr)', gap: 10, alignItems: 'center' };
+
+// Progress-bar fills (see CategoryRow). Green is a diagonal candy-stripe (two
+// tones of --pos) for the spent/funded share; the overage segment is a solid
+// deep red. Both use color-mix so they track light/dark theme --pos/--neg.
+const BAR_GREEN = 'repeating-linear-gradient(45deg, var(--pos) 0, var(--pos) 5px, color-mix(in srgb, var(--pos) 72%, #000) 5px, color-mix(in srgb, var(--pos) 72%, #000) 10px)';
+const BAR_RED = 'color-mix(in srgb, var(--neg) 60%, #000)';
 // Column headers use the DESIGN.md "Label" role: a quiet small-caps table
 // header — muted, semibold, lightly tracked — so the figures below lead.
 const HEAD = { fontSize: 11.5, fontWeight: 600, letterSpacing: '.8px', textTransform: 'uppercase', color: 'var(--muted)' };
@@ -1062,21 +1071,9 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
     if (inputRef.current) inputRef.current.focus();
   };
 
-  const spend = Math.max(0, -r.activity);
-  const overspent = r.available < 0;
-  let target, funded, pct, subLabel;
-  if (hasTarget(cat)) {
-    target = cat.targetAmount;
-    funded = cat.targetMode === 'setaside' ? r.assigned : r.available;
-    pct = target > 0 ? Math.min(1, Math.max(0, funded / target)) : 0;
-    const need = targetNeeded(r, cat);
-    subLabel = need > 0 ? 'Needs ' + money(need) + ' more' : 'Funded';
-  } else {
-    target = r.carryIn + r.assigned;
-    pct = target > 0 ? Math.min(1, spend / target) : (spend > 0 ? 1 : 0);
-    subLabel = 'Spent ' + money(spend) + ' of ' + money(target);
-  }
-  const barColor = overspent ? 'var(--neg)' : 'var(--pos)';
+  // YNAB-style progress descriptor: label + a two-segment bar (green striped
+  // fill, then a dark-red overage). See src/lib/planBar.js for the state logic.
+  const bar = planBar(r, cat, money);
 
   const pillBg = r.available > 0 ? 'var(--pos-soft)' : r.available < 0 ? 'var(--neg-soft)' : 'var(--elev)';
   const pillFg = r.available > 0 ? 'var(--pos)' : r.available < 0 ? 'var(--neg)' : 'var(--muted)';
@@ -1116,26 +1113,33 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
       <span aria-hidden="true" />
       <PlanCheckbox label={'Select ' + cat.name} checked={selected.has(cat.id)} onChange={() => toggleSelect(cat.id, true)} />
       <div style={{ minWidth: 0 }}>
-        <EditNamePopover
-          name={cat.name} title={'Edit ' + cat.name} align="left"
-          triggerClassName="hv-text"
-          triggerStyle={{ display: 'block', maxWidth: '100%', border: 'none', background: 'transparent', padding: 0, font: 'inherit', fontSize: 16, fontWeight: 500, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}
-          onRename={nm => {
-            // renameCategory refuses a colliding rename as a no-op (0018); guard
-            // here too or the success toast would fire on a rename that didn't happen.
-            const dup = duplicateCat(S, { name: nm, type: cat.type, groupId: cat.groupId, excludeId: cat.id });
-            if (dup) { notify('A category called “' + dup.name + '” already exists in this group.'); return; }
-            applyData(d => renameCategory(d, { id: cat.id, name: nm })); notify('Renamed to “' + nm + '”.');
-          }}
-          onHide={() => { const back = (month === currentMonth() && r.available > 0) ? r.available : 0; applyData(d => archiveCategory(d, { id: cat.id })); notify('“' + cat.name + '” hidden.' + (back ? ' ' + money(back) + ' returned to Ready to Assign.' : '')); }}
-          onDelete={() => askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer })}
-        >{cat.name}</EditNamePopover>
-        {view !== 'compact' && (
-          <div style={{ marginTop: 4 }}>
-            <div style={{ height: 4, borderRadius: 2, background: 'var(--track)', overflow: 'hidden' }}>
-              <div style={{ width: (pct * 100) + '%', height: '100%', background: barColor }} />
-            </div>
-            <div className="tnum" style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{subLabel}</div>
+        {/* Name on the left; YNAB-style status label right-aligned on the same
+            line, sitting ABOVE the bar. */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+            <EditNamePopover
+              name={cat.name} title={'Edit ' + cat.name} align="left"
+              triggerClassName="hv-text"
+              triggerStyle={{ display: 'block', maxWidth: '100%', border: 'none', background: 'transparent', padding: 0, font: 'inherit', fontSize: 16, fontWeight: 500, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}
+              onRename={nm => {
+                // renameCategory refuses a colliding rename as a no-op (0018); guard
+                // here too or the success toast would fire on a rename that didn't happen.
+                const dup = duplicateCat(S, { name: nm, type: cat.type, groupId: cat.groupId, excludeId: cat.id });
+                if (dup) { notify('A category called “' + dup.name + '” already exists in this group.'); return; }
+                applyData(d => renameCategory(d, { id: cat.id, name: nm })); notify('Renamed to “' + nm + '”.');
+              }}
+              onHide={() => { const back = (month === currentMonth() && r.available > 0) ? r.available : 0; applyData(d => archiveCategory(d, { id: cat.id })); notify('“' + cat.name + '” hidden.' + (back ? ' ' + money(back) + ' returned to Ready to Assign.' : '')); }}
+              onDelete={() => askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer })}
+            >{cat.name}</EditNamePopover>
+          </div>
+          {view !== 'compact' && bar.show && (
+            <span className="tnum" style={{ flex: '0 0 auto', fontSize: 11, color: bar.state === 'over' ? 'var(--neg)' : 'var(--muted)', whiteSpace: 'nowrap' }}>{bar.label}</span>
+          )}
+        </div>
+        {view !== 'compact' && bar.show && (
+          <div style={{ display: 'flex', height: 8, borderRadius: 4, background: 'var(--track)', overflow: 'hidden', marginTop: 5 }}>
+            <div style={{ width: (bar.greenPct * 100) + '%', height: '100%', background: BAR_GREEN }} />
+            <div style={{ width: (bar.redPct * 100) + '%', height: '100%', background: BAR_RED }} />
           </div>
         )}
       </div>
