@@ -24,7 +24,9 @@ export default function PlanSwitcherPhone() {
   const pick = async id => {
     if (id === openPlanId) { setSheetOpen(false); return; }
     setAborted(false);
-    const ok = await switchPlan(id); // true → reload; the sheet dies with the page
+    let ok = false;
+    try { ok = await switchPlan(id); } // true → the page navigates; the sheet dies with it
+    catch (e) { console.error('Raqam: plan switch failed', e); }
     if (!ok) setAborted(true);
   };
 

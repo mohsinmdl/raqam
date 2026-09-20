@@ -11,6 +11,7 @@ import { isTypingTarget } from '../../lib/shortcuts.js';
 import { rankItems } from './matchRank.js';
 import { useCommandItems } from './useCommandItems.js';
 import { getRecents, pushRecent } from './recents.js';
+import { pickPerform } from './actions.js';
 
 const GROUP_ORDER = ['Pages', 'Accounts', 'Categories', 'Payees', 'Actions'];
 
@@ -140,22 +141,19 @@ export default function CommandPalette() {
   const perform = useCallback((item, { newTab = false } = {}) => {
     if (!item) return;
     pushRecent(item.id);
-    // ⌘/Ctrl+Enter or ⌘/Ctrl+click on an item that can open elsewhere (switch
-    // plan): run it NOW, inside the user gesture, so window.open isn't treated
-    // as a popup — nothing opens in this tab, so there's no focus trap to dodge.
-    if (newTab && item.performNewTab) {
-      try { item.performNewTab(ctxRef.current); }
+    const { fn, immediate } = pickPerform(item, { newTab });
+    const run = () => {
+      try { fn(ctxRef.current); }
       catch (err) { console.error('Raqam: command failed', err); }
-      closePalette();
-      return;
-    }
+    };
+    // ⌘/Ctrl+Enter or ⌘/Ctrl+click on an item that offers a new-tab variant: run
+    // it NOW, inside the user gesture, so window.open can't be classed as a popup
+    // — nothing opens in this tab, so there's no focus trap to wait out.
+    if (immediate) { run(); closePalette(); return; }
     closePalette();
     // Run AFTER the dialog closes and restores focus, so a freshly opened drawer
     // (e.g. Add transaction) or navigation isn't fighting this overlay's focus trap.
-    setTimeout(() => {
-      try { item.perform(ctxRef.current); }
-      catch (err) { console.error('Raqam: command failed', err); }
-    }, 0);
+    setTimeout(run, 0);
   }, [closePalette]);
 
   const onInputKeyDown = e => {

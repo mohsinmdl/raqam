@@ -8,7 +8,7 @@ import { currentMonth } from '../lib/dates.js';
 import LoadingScreen from '../components/LoadingScreen.jsx';
 import { makeAudit } from './audit.js';
 import { applyRedo, applyUndo, emptyStacks, labelFor, recordChange, redoLabel, topSeq, undoLabel } from '../lib/undo.js';
-import { loadUserPrefs, mergePrefsForWrite, planPrefs, writeUserPrefs } from '../lib/prefsStore.js';
+import { consumePendingSeed, loadStoredUserPrefs, loadUserPrefs, mergePrefsForWrite, planPrefs, writeUserPrefs } from '../lib/prefsStore.js';
 
 // Server-backed store. The in-memory store + pure actions are unchanged from the
 // localStorage era; persistence is now: hydrate from Supabase once per login, then
@@ -67,17 +67,30 @@ export function StoreProvider({ userId, planId, children }) {
   const { registerBeforeSignOut } = useAuth();
   const { registerDrain, publishPlans } = usePlan();
   const [userPrefs, setUserPrefs] = useState(() => loadUserPrefs(userId));
-  // Mirror of userPrefs so setPrefs can build `next` and persist OUTSIDE the
+  // Mirror of userPrefs so persistPrefs can build `next` and persist OUTSIDE the
   // setState updater — a nested setState (to flip prefsSaved) inside the updater
-  // is the React anti-pattern this avoids. setPrefs is the only writer, so the
-  // ref stays authoritative as long as it's updated alongside every write. If
-  // any other call site writes userPrefs/setUserPrefs, update userPrefsRef.current
-  // there too or this ref goes stale.
+  // is the React anti-pattern this avoids. persistPrefs is the only writer of
+  // the blob in this provider (setPrefs and the hydrate seed-consume both go
+  // through it); any new writer must too, or it reintroduces the cross-tab
+  // clobber mergePrefsForWrite exists to prevent.
   const userPrefsRef = useRef(userPrefs);
   const [userPrefsSaved, setUserPrefsSaved] = useState(true);
   const [syncStatus, setSyncStatus] = useState('synced');
   const queueRef = useRef(null);
   const pushTimer = useRef(null);
+
+  // The one write path for the per-user blob. Other tabs share it (there can be
+  // a tab per plan), so the base is what's in STORAGE now, never this tab's
+  // snapshot; the snapshot only stands in when storage can't be read, so an
+  // unreadable blob isn't overwritten with defaults.
+  const persistPrefs = useCallback((userPatch, planPatch) => {
+    const next = mergePrefsForWrite(loadStoredUserPrefs(userId) ?? userPrefsRef.current, userPatch, planId, planPatch);
+    userPrefsRef.current = next;
+    // A failed write leaves the in-memory prefs updated (the UI stays
+    // responsive) but flips prefsSaved so the Header can say it didn't stick.
+    setUserPrefsSaved(writeUserPrefs(userId, next));
+    setUserPrefs(next);
+  }, [userId, planId]);
 
   // ---- hydrate once per login (StrictMode-safe) ----
   useEffect(() => {
@@ -88,21 +101,19 @@ export function StoreProvider({ userId, planId, children }) {
         const server = await fetchAll(planId);
         if (cancelled) return;
         // Seeding is now an explicit one-shot (BR-U2-5): pendingSeed names the
-        // plan whose defaults were requested at creation. Cleared on ANY
-        // consumption attempt — even for a plan that no longer exists, and
-        // even though a later sync failure would lose the rows (they are
-        // already optimistic store rows in the queue by then). A plan without
+        // plan whose defaults were requested at creation, and only THAT plan's
+        // hydrate consumes it (there can be a tab per plan — another plan's tab
+        // booting in between must not eat it). Cleared on consumption even
+        // though a later sync failure would lose the rows (they are already
+        // optimistic store rows in the queue by then). A plan without
         // the flag stays exactly as the server has it: deliberately empty
         // plans remain empty forever (the old categories.length heuristic
         // would have re-seeded them on every login).
-        let base = server;
-        if (userPrefsRef.current.pendingSeed !== undefined) {
-          if (userPrefsRef.current.pendingSeed === planId) base = seedPlanCategories(server);
-          const nextPrefs = { ...userPrefsRef.current, pendingSeed: undefined };
-          userPrefsRef.current = nextPrefs;
-          setUserPrefsSaved(writeUserPrefs(userId, nextPrefs));
-          setUserPrefs(nextPrefs);
-        }
+        // Read fresh, not from the mount snapshot: another tab may have queued
+        // (or consumed) a seed since — and only the plan the flag names acts on it.
+        const { seed, clear } = consumePendingSeed(loadStoredUserPrefs(userId) ?? userPrefsRef.current, planId);
+        const base = seed ? seedPlanCategories(server) : server;
+        if (clear) persistPrefs({ pendingSeed: undefined });
         queueRef.current?.stop();
         // NOTE: onStatus must NOT be gated on `cancelled` — this effect re-runs
         // (and flips cancelled) the moment hydration lands, but the queue lives on.
@@ -121,7 +132,7 @@ export function StoreProvider({ userId, planId, children }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [state.status, planId, userId]);
+  }, [state.status, planId, userId, persistPrefs]);
 
   // Symmetric lifecycle: HMR runs this cleanup without a real remount, so the
   // (re-)run must undo the stop or the queue stays silenced and writes never push.
@@ -209,22 +220,8 @@ export function StoreProvider({ userId, planId, children }) {
       else user[k] = v;
     });
     if (Object.keys(device).length) setDevicePrefs(device);
-    if (Object.keys(user).length || Object.keys(plan).length) {
-      const cur = userPrefsRef.current;
-      const patched = { ...cur, ...user };
-      if (Object.keys(plan).length) {
-        patched.plans = { ...(cur.plans || {}), [planId]: { ...planPrefs(cur, planId), ...plan } };
-      }
-      // Another tab may be open on a different plan and sharing this blob —
-      // take the keys this tab doesn't own from storage, not from our snapshot.
-      const next = mergePrefsForWrite(loadUserPrefs(userId), patched, planId);
-      userPrefsRef.current = next;
-      // A failed write leaves the in-memory prefs updated (the UI stays
-      // responsive) but flips prefsSaved so the Header can say it didn't stick.
-      setUserPrefsSaved(writeUserPrefs(userId, next));
-      setUserPrefs(next);
-    }
-  }, [setDevicePrefs, userId, planId]);
+    if (Object.keys(user).length || Object.keys(plan).length) persistPrefs(user, plan);
+  }, [setDevicePrefs, persistPrefs]);
 
   const value = useMemo(() => ({
     data: state.data,

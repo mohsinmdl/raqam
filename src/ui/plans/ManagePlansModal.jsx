@@ -14,7 +14,8 @@ const btnOutline = { height: 32, padding: '0 12px', border: '1px solid var(--bor
 const inputStyle = { width: '100%', boxSizing: 'border-box', height: 32, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
 
 // One plan row: name (click → inline rename input), an Open marker for the
-// current plan (the others get an open-in-new-tab link instead), and the delete opener. The typed-name confirm expands beneath.
+// current plan (the others get an open-in-new-tab link instead), and the
+// delete opener. The typed-name confirm expands beneath.
 function PlanRow({
   plan, canDelete, renaming, draft, renameErr, onDraftChange, onStartRename, onCommitRename, onCancelRename,
   confirming, typed, onTypedChange, onOpenConfirm, onCancelConfirm, onConfirmDelete, deleting, busy,
@@ -53,7 +54,8 @@ function PlanRow({
           <span style={{ flex: 'none', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: 'var(--soft)', color: 'var(--accent)' }}>Open</span>
         )}
         {!plan.open && !confirming && (
-          // A real link, so it opens THAT plan in its own tab and this one stays put.
+          // A real <a target=_blank> rather than a button + window.open: no popup-
+          // blocker risk, and the browser's link context menu works. This tab stays put.
           <a href={planHref(plan.id)} target="_blank" rel="noopener" data-testid="manage-plans-open-new-tab" data-plan-id={plan.id}
             aria-label={'Open ' + plan.name + ' in new tab'} title="Open in new tab" className="hv-soft rq-btn-outline"
             style={{ ...btnOutline, width: 32, padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>

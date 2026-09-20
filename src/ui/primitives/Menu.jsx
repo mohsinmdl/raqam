@@ -64,7 +64,8 @@ export function MenuItem({ children, style, ...rest }) {
 // The same row as a real <a href> (Base UI's Menu.LinkItem), for items that
 // name a destination: the browser's own Ctrl/Cmd+click, Shift+click,
 // middle-click and "Open link in new tab" all work on it. Closes on click like
-// MenuItem (LinkItem's own default is to stay open).
+// MenuItem (LinkItem's own default is to stay open) — the last two gestures
+// don't fire `click`, so the menu stays open behind them.
 export function MenuLinkItem({ children, style, closeOnClick = true, ...rest }) {
   return (
     <BaseMenu.LinkItem

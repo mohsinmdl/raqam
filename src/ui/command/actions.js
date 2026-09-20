@@ -58,10 +58,20 @@ export function buildActions({ plans = [], openPlanId } = {}) {
       label: 'Switch to plan: ' + p.name,
       keywords: ['switch plan', 'change plan', 'ledger', p.name],
       priority: 6, perform: ctx => ctx.switchPlan(p.id),
-      // ⌘/Ctrl+Enter or ⌘/Ctrl+click: open it in a new tab, keep this one as is.
+      // Optional new-tab variant: the palette runs this instead of perform when
+      // activated with its open-in-new-tab modifier (see pickPerform).
       performNewTab: ctx => ctx.openPlanInNewTab(p.id),
     });
   }
 
   return items;
+}
+
+// Which handler a palette activation runs. The new-tab variant only when it was
+// asked for AND the item offers one — any other item ignores the modifier — and
+// it must run `immediate`ly: window.open has to stay inside the user gesture,
+// while a normal perform is deferred until the dialog has closed.
+export function pickPerform(item, { newTab = false } = {}) {
+  const immediate = !!(newTab && item.performNewTab);
+  return { fn: immediate ? item.performNewTab : item.perform, immediate };
 }

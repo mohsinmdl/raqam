@@ -29,6 +29,16 @@ export function switcherPlans(plans, openPlanId) {
     .map(p => ({ ...p, open: p.id === openPlanId }));
 }
 
+// The line shown when boot could not open the plan this tab was asked for
+// (PlanProvider's planMiss) — which LEDGER is open must never change silently.
+export function planMissMessage(miss) {
+  if (!miss) return null;
+  const opened = miss.openedName ? `“${miss.openedName}”` : 'another plan';
+  return miss.kind === 'pin'
+    ? `The plan this tab was on isn’t available anymore — it opened ${opened} instead.`
+    : `That plan isn’t available anymore — this tab opened ${opened} instead.`;
+}
+
 // Worked example for a date-format key ('DD/MM/YYYY' → '30/12/2026'): the
 // select shows what a date will look like, not the raw pattern.
 export function dateFormatExample(key) {

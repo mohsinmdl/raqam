@@ -10,20 +10,30 @@ export const userPrefsKey = uid => `raqam.prefs.u.${uid}`;
 
 // Returns true when the write landed, false when storage rejected it (or the
 // value couldn't be serialized, e.g. a circular object). Never throws.
-export function writeJson(key, obj, storage = localStorage) {
-  try { storage.setItem(key, JSON.stringify(obj)); return true; }
+// The default storage is resolved INSIDE the guard, not as a default argument:
+// with site data blocked, merely reading window.localStorage throws.
+export function writeJson(key, obj, storage) {
+  try { (storage ?? localStorage).setItem(key, JSON.stringify(obj)); return true; }
   catch { return false; }
+}
+
+const isPlainObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
+
+// The stored object, or null when nothing usable is there (absent, unreadable,
+// malformed, or not an object). Never throws.
+function readStored(key, storage) {
+  try {
+    const p = JSON.parse((storage ?? localStorage).getItem(key) || 'null');
+    return isPlainObject(p) ? p : null;
+  } catch { return null; }
 }
 
 // Merges the stored object over `fallback`. Guards against non-object JSON
 // (a stored array would otherwise spread its indices as keys; a stored
 // number/string/null is simply ignored) and survives malformed JSON — both
 // cases fall back to the defaults. Never throws.
-export function readJson(key, fallback, storage = localStorage) {
-  try {
-    const p = JSON.parse(storage.getItem(key) || 'null');
-    return { ...fallback, ...(p && typeof p === 'object' && !Array.isArray(p) ? p : {}) };
-  } catch { return { ...fallback }; }
+export function readJson(key, fallback, storage) {
+  return { ...fallback, ...(readStored(key, storage) || {}) };
 }
 
 // Defaults: skippedSetup stays account-global; openPlanId (last-opened plan on
@@ -31,13 +41,20 @@ export function readJson(key, fallback, storage = localStorage) {
 // simply absent until set — JSON drops undefined, so absence IS the default.
 // prefs.plans namespaces the per-plan view prefs (BR-U2-7):
 //   plans: { [planId]: { customViews: [...], builtinViews: [...] } }
-export function loadUserPrefs(uid, storage = localStorage) {
+export function loadUserPrefs(uid, storage) {
   // Migrating on every load (idempotent, pure) means no reader ever sees the
   // pre-plans flat keys, even before the migrated shape is first written back.
   return migrateFlatViewPrefs(readJson(userPrefsKey(uid), { skippedSetup: false, plans: {} }, storage));
 }
 
-export function writeUserPrefs(uid, obj, storage = localStorage) {
+// loadUserPrefs, except null when nothing usable is stored — for a caller that
+// is about to write and must tell "empty" from "couldn't read" (defaults look
+// the same for both, and writing them back would erase what it couldn't see).
+export function loadStoredUserPrefs(uid, storage) {
+  return readStored(userPrefsKey(uid), storage) ? loadUserPrefs(uid, storage) : null;
+}
+
+export function writeUserPrefs(uid, obj, storage) {
   return writeJson(userPrefsKey(uid), obj, storage);
 }
 
@@ -60,19 +77,26 @@ export function planPrefs(prefs, planId) {
   return (prefs.plans || {})[planId] || {};
 }
 
-// Two tabs on different plans share this one blob, and a tab writes it from its
-// own in-memory snapshot. Keys the writing tab does NOT own must therefore come
-// from storage at write time, or it silently erases what the other tab saved:
-// other plans' view namespaces, and the device-wide openPlanId (only ever
-// written by PlanProvider, never through setPrefs). This tab's own plan
-// namespace and every other key — including the pendingSeed NewPlanModal queues
-// right before it switches — still come from memory. Pure — mutates neither input.
-export function mergePrefsForWrite(stored, next, planId) {
-  const plans = { ...(stored.plans || {}) };
-  const mine = (next.plans || {})[planId];
-  if (mine !== undefined) plans[planId] = mine;
-  const out = { ...next, plans };
-  if (stored.openPlanId === undefined) delete out.openPlanId;
-  else out.openPlanId = stored.openPlanId;
-  return out;
+// Tabs share this one blob (there can be a tab per plan), so every write is a
+// read-modify-write: STORAGE is the base and only what this write changes is
+// laid over it — `userPatch` for account-level keys, `planPatch` into this
+// plan's view namespace. A tab's in-memory snapshot must never be the base: it
+// is stale the moment another tab writes, and writing it back would erase that
+// tab's saved views, its queued pendingSeed, or the device-wide openPlanId.
+// An `undefined` in a patch clears the key (JSON drops it). Pure; tolerates a
+// missing or malformed `stored`.
+export function mergePrefsForWrite(stored, userPatch, planId, planPatch) {
+  const base = isPlainObject(stored) ? stored : {};
+  const plans = { ...(isPlainObject(base.plans) ? base.plans : {}) };
+  if (planPatch && Object.keys(planPatch).length) plans[planId] = { ...(plans[planId] || {}), ...planPatch };
+  return { ...base, ...userPatch, plans };
+}
+
+// The hydrate-time decision for NewPlanModal's one-shot seed flag: only the plan
+// it NAMES consumes it. Some other plan's tab hydrating in between must neither
+// seed itself nor eat the flag. A flag left naming a plan that never opens here
+// is harmless — seedPlanCategories no-ops on a plan that already has categories.
+export function consumePendingSeed(prefs, planId) {
+  const mine = !!prefs && prefs.pendingSeed !== undefined && prefs.pendingSeed === planId;
+  return { seed: mine, clear: mine };
 }

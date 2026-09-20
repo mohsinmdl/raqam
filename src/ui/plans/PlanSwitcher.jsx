@@ -7,7 +7,7 @@ import { useLocation } from 'react-router-dom';
 import { Menu, MenuTrigger, MenuPanel, MenuItem, MenuLinkItem } from '../primitives/Menu.jsx';
 import { usePlan } from '../../store/PlanProvider.jsx';
 import { useAuth } from '../../auth/AuthProvider.jsx';
-import { switcherPlans } from './planShellLogic.js';
+import { planMissMessage, switcherPlans } from './planShellLogic.js';
 import { planHref, isNewTabClick } from '../../lib/planDeepLink.js';
 import NewPlanModal from './NewPlanModal.jsx';
 import ManagePlansModal from './ManagePlansModal.jsx';
@@ -16,7 +16,7 @@ import { CheckIcon, Chevron } from '../icons.jsx';
 const sep = <div aria-hidden="true" style={{ borderTop: '1px solid var(--border)', margin: '4px 8px' }} />;
 
 export default function PlanSwitcher() {
-  const { plans, openPlan, openPlanId, switchPlan } = usePlan();
+  const { plans, openPlan, openPlanId, switchPlan, planMiss, dismissPlanMiss } = usePlan();
   const { user } = useAuth();
   const [newOpen, setNewOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -27,7 +27,9 @@ export default function PlanSwitcher() {
 
   const pick = async id => {
     setAborted(false);
-    const ok = await switchPlan(id); // true for the open plan too (no-op) — reload otherwise
+    let ok = false;
+    try { ok = await switchPlan(id); } // true → the page navigates; nothing after runs
+    catch (e) { console.error('Raqam: plan switch failed', e); }
     if (!ok) setAborted(true); // drain refused: the header's sync pill says why
   };
 
@@ -43,21 +45,29 @@ export default function PlanSwitcher() {
           <span aria-hidden="true" style={{ color: 'var(--muted)', flex: 'none', display: 'inline-flex' }}><Chevron /></span>
         </MenuTrigger>
         <MenuPanel side="bottom" align="start" style={{ minWidth: 232 }}>
-          {list.map(p => (
-            // A real link: a plain click switches in place (as ever), while the
-            // browser's open-elsewhere gestures (Ctrl/Cmd+click, Shift+click,
-            // middle-click, context menu) open THAT plan in a new tab/window.
-            <MenuLinkItem key={p.id} href={planHref(p.id)} data-testid="plan-switcher-item" data-plan-id={p.id}
-              data-open={p.open || undefined}
-              onClick={e => { if (isNewTabClick(e)) return; e.preventDefault(); pick(p.id); }}>
+          {list.map(p => (p.open ? (
+            // The open plan is not a destination: no link, so it can't spawn a
+            // second tab (and a second sync queue) over the same ledger.
+            <MenuItem key={p.id} data-testid="plan-switcher-item" data-plan-id={p.id} data-open>
               {/* Fixed check slot so unchecked names align under the checked one. */}
-              <span aria-hidden="true" style={{ width: 14, flex: 'none', display: 'inline-flex', color: 'var(--accent)' }}>{p.open ? <CheckIcon /> : null}</span>
+              <span aria-hidden="true" style={{ width: 14, flex: 'none', display: 'inline-flex', color: 'var(--accent)' }}><CheckIcon /></span>
               <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
               {/* aria-checked isn't valid on role=menuitem, so the open state
                   is spoken through text instead of a state attribute. */}
-              {p.open && <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>(open)</span>}
+              <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>(open)</span>
+            </MenuItem>
+          ) : (
+            // A real link, so the browser's open-elsewhere gestures (Ctrl/Cmd+click,
+            // Shift+click, middle-click, context menu) open THAT plan in a new
+            // tab/window. Every other activation is intercepted and routed through
+            // switchPlan — following the href in this tab would cross the plan
+            // boundary without the fail-closed sync drain (BR-U2-2).
+            <MenuLinkItem key={p.id} href={planHref(p.id)} data-testid="plan-switcher-item" data-plan-id={p.id}
+              onClick={e => { if (isNewTabClick(e)) return; e.preventDefault(); pick(p.id); }}>
+              <span aria-hidden="true" style={{ width: 14, flex: 'none' }} />
+              <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
             </MenuLinkItem>
-          ))}
+          )))}
           {sep}
           <MenuItem data-testid="plan-switcher-new-plan" onClick={() => setNewOpen(true)}>
             <span aria-hidden="true" style={{ width: 14, flex: 'none' }} />New Plan
@@ -70,6 +80,12 @@ export default function PlanSwitcher() {
       {aborted && (
         <div role="status" style={{ margin: '0 12px 10px', padding: '6px 9px', borderRadius: 8, background: 'var(--warn-soft)', color: 'var(--warn)', fontSize: 11.5, fontWeight: 600 }}>
           Can’t switch yet — changes are still syncing.
+        </div>
+      )}
+      {planMiss && (
+        <div role="status" data-testid="plan-miss-notice" style={{ display: 'flex', alignItems: 'flex-start', gap: 6, margin: '0 12px 10px', padding: '6px 9px', borderRadius: 8, background: 'var(--warn-soft)', color: 'var(--warn)', fontSize: 11.5, fontWeight: 600 }}>
+          <span style={{ flex: 1, minWidth: 0 }}>{planMissMessage(planMiss)}</span>
+          <button onClick={dismissPlanMiss} aria-label="Dismiss" style={{ flex: 'none', width: 22, height: 22, margin: '-3px -4px -3px 0', border: 'none', borderRadius: 6, background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 15, lineHeight: 1 }}>×</button>
         </div>
       )}
       <NewPlanModal open={newOpen} onClose={() => setNewOpen(false)} />

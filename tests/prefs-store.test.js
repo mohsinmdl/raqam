@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { userPrefsKey, loadUserPrefs, writeUserPrefs, readJson, writeJson, mergePrefsForWrite } from '../src/lib/prefsStore.js';
+import { describe, it, expect, afterEach } from 'vitest';
+import { userPrefsKey, loadUserPrefs, loadStoredUserPrefs, writeUserPrefs, readJson, writeJson, mergePrefsForWrite, consumePendingSeed } from '../src/lib/prefsStore.js';
 
 // A minimal in-memory Storage stub; `fail` makes setItem throw like a full/disabled store.
 const makeStorage = (fail = false) => {
@@ -125,49 +125,100 @@ describe('prefsStore', () => {
   });
 });
 
-// Two tabs on different plans share one prefs blob. A tab writes from its own
-// in-memory snapshot, so the keys it does not own must come from storage or
-// it silently erases what the other tab saved.
+// Tabs share one prefs blob, so a write is a read-modify-write: STORAGE is the
+// base and only what this write changes is laid over it. A tab's in-memory
+// snapshot is never the base — it is stale the moment another tab writes.
 describe('mergePrefsForWrite', () => {
-  const stored = {
-    skippedSetup: false, openPlanId: 'pB', pendingSeed: 'pC',
-    plans: { pA: { customViews: ['old-a'] }, pB: { customViews: ['b-saved-in-other-tab'] } },
-  };
-  const mine = {
-    skippedSetup: true, colWidths: { payee: 2 }, openPlanId: 'pA',
-    plans: { pA: { customViews: ['new-a'] }, pB: { customViews: [] } },
-  };
+  const freeze = o => { Object.values(o).forEach(v => v && typeof v === 'object' && freeze(v)); return Object.freeze(o); };
+  const stored = freeze({
+    skippedSetup: true, openPlanId: 'pB', pendingSeed: 'pC', colWidths: { payee: 3 },
+    plans: { pA: { customViews: ['a1'], builtinViews: ['x'] }, pB: { customViews: ['b-saved-in-other-tab'] } },
+  });
 
-  it('keeps this tab\'s own plan namespace and user keys', () => {
-    const out = mergePrefsForWrite(stored, mine, 'pA');
-    expect(out.plans.pA).toEqual({ customViews: ['new-a'] });
-    expect(out.skippedSetup).toBe(true);
+  it('lays the user-level patch over storage and keeps every key it does not name', () => {
+    const out = mergePrefsForWrite(stored, freeze({ colWidths: { payee: 2 } }), 'pA');
     expect(out.colWidths).toEqual({ payee: 2 });
-  });
-
-  it('takes other plans\' namespaces and the device-wide openPlanId from storage', () => {
-    const out = mergePrefsForWrite(stored, mine, 'pA');
-    expect(out.plans.pB).toEqual({ customViews: ['b-saved-in-other-tab'] });
+    expect(out.skippedSetup).toBe(true); // another tab dismissed first-use — still dismissed
     expect(out.openPlanId).toBe('pB');
+    expect(out.pendingSeed).toBe('pC'); // another tab's queued seed survives this tab's write
+    expect(out.plans).toEqual(stored.plans);
   });
 
-  it('drops a stale in-memory openPlanId when storage has none', () => {
-    const out = mergePrefsForWrite({ plans: {} }, mine, 'pA');
-    expect('openPlanId' in out).toBe(false);
+  it('merges the plan patch into THIS plan\'s stored namespace and leaves the others alone', () => {
+    const out = mergePrefsForWrite(stored, {}, 'pA', freeze({ customViews: ['a2'] }));
+    expect(out.plans.pA).toEqual({ customViews: ['a2'], builtinViews: ['x'] });
+    expect(out.plans.pB).toEqual({ customViews: ['b-saved-in-other-tab'] });
+  });
+
+  it('starts a namespace for a plan that has none yet', () => {
+    expect(mergePrefsForWrite(stored, {}, 'pNew', { builtinViews: ['y'] }).plans.pNew).toEqual({ builtinViews: ['y'] });
   });
 
   // NewPlanModal queues the one-shot seed through setPrefs right before it
   // switches — that write is this tab's own and must reach storage.
-  it('lets this tab write pendingSeed', () => {
-    const out = mergePrefsForWrite(stored, { ...mine, pendingSeed: 'pNew' }, 'pA');
-    expect(out.pendingSeed).toBe('pNew');
+  it('lets this tab set and clear pendingSeed', () => {
+    expect(mergePrefsForWrite(stored, { pendingSeed: 'pNew' }, 'pA').pendingSeed).toBe('pNew');
+    const cleared = mergePrefsForWrite(stored, { pendingSeed: undefined }, 'pA');
+    expect(JSON.parse(JSON.stringify(cleared))).not.toHaveProperty('pendingSeed');
   });
 
-  it('leaves the stored namespace alone when this tab has none for its plan, and mutates nothing', () => {
-    const a = JSON.stringify(stored), b = JSON.stringify(mine);
-    const out = mergePrefsForWrite(stored, { skippedSetup: false }, 'pA');
-    expect(out.plans).toEqual(stored.plans);
-    expect(JSON.stringify(stored)).toBe(a);
-    expect(JSON.stringify(mine)).toBe(b);
+  it('tolerates a missing or malformed stored blob', () => {
+    expect(mergePrefsForWrite(null, { skippedSetup: true }, 'pA')).toEqual({ skippedSetup: true, plans: {} });
+    expect(mergePrefsForWrite({ plans: 'garbage' }, {}, 'pA', { customViews: [] }).plans).toEqual({ pA: { customViews: [] } });
+    expect(mergePrefsForWrite({ plans: ['x'] }, {}, 'pA').plans).toEqual({});
+  });
+});
+
+// The hydrate-time consume of NewPlanModal's one-shot seed flag. Only the plan
+// it NAMES may consume it: with a tab per plan, some other plan's tab hydrating
+// in between must neither seed itself nor eat the flag.
+describe('consumePendingSeed', () => {
+  it('seeds and clears when the flag names this plan', () => {
+    expect(consumePendingSeed({ pendingSeed: 'pA' }, 'pA')).toEqual({ seed: true, clear: true });
+  });
+
+  it('leaves the flag alone when it names another plan, or is absent', () => {
+    expect(consumePendingSeed({ pendingSeed: 'pB' }, 'pA')).toEqual({ seed: false, clear: false });
+    expect(consumePendingSeed({}, 'pA')).toEqual({ seed: false, clear: false });
+    expect(consumePendingSeed(null, 'pA')).toEqual({ seed: false, clear: false });
+  });
+});
+
+describe('loadStoredUserPrefs', () => {
+  it('returns null when nothing usable is stored, so a caller can tell "empty" from "defaults"', () => {
+    const s = makeStorage();
+    expect(loadStoredUserPrefs('u1', s)).toBe(null);
+    s.map.set('raqam.prefs.u.u1', 'not json');
+    expect(loadStoredUserPrefs('u1', s)).toBe(null);
+    s.map.set('raqam.prefs.u.u1', '[1]');
+    expect(loadStoredUserPrefs('u1', s)).toBe(null);
+    expect(loadStoredUserPrefs('u1', makeThrowingReadStorage())).toBe(null);
+  });
+
+  it('returns the stored prefs over the defaults, like loadUserPrefs', () => {
+    const s = makeStorage();
+    writeUserPrefs('u1', { openPlanId: 'pA' }, s);
+    expect(loadStoredUserPrefs('u1', s)).toEqual(loadUserPrefs('u1', s));
+    expect(loadStoredUserPrefs('u1', s).openPlanId).toBe('pA');
+  });
+});
+
+// With site data blocked, merely READING window.localStorage throws — the
+// default storage must be resolved inside the guard, not as a default argument.
+describe('when the localStorage getter itself throws', () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  afterEach(() => {
+    if (original) Object.defineProperty(globalThis, 'localStorage', original);
+    else delete globalThis.localStorage;
+  });
+
+  it('reads fall back to defaults and writes report false, never a throw', () => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() { throw new DOMException('access denied', 'SecurityError'); },
+    });
+    expect(loadUserPrefs('u1')).toEqual({ skippedSetup: false, plans: {} });
+    expect(loadStoredUserPrefs('u1')).toBe(null);
+    expect(writeUserPrefs('u1', { a: 1 })).toBe(false);
   });
 });
