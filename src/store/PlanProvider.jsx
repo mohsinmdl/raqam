@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { fetchPlans, setActivePlanId } from './sync.js';
 import { setActiveFormat } from '../lib/planFormat.js';
 import { loadUserPrefs, writeUserPrefs } from '../lib/prefsStore.js';
+import { planHref, planIdFromSearch, stripPlanParam, loadTabPlan, writeTabPlan } from '../lib/planDeepLink.js';
 import LoadingScreen from '../components/LoadingScreen.jsx';
 import FirstPlanSetup from '../ui/plans/FirstPlanSetup.jsx';
 
@@ -13,13 +14,17 @@ import FirstPlanSetup from '../ui/plans/FirstPlanSetup.jsx';
 // single-plan by design, so no in-place swap can be correct.
 const Ctx = createContext(null);
 
-// The three resolution branches (L2, US-9): the persisted id when it still
-// exists, else the first plan by name (a deleted plan degrades gracefully),
-// else null — the zero-plan first-use gate.
-export function resolveOpenPlan(plans, persistedId) {
+// The resolution branches (L2, US-9): the persisted id when it still exists,
+// else the first plan by name (a deleted plan degrades gracefully), else null
+// — the zero-plan first-use gate. `overrides` are tab-scoped candidates that
+// outrank the device-wide persisted id, in order (the URL's one-shot ?plan=,
+// then this tab's session pin — see planDeepLink.js); a stale one falls through.
+export function resolveOpenPlan(plans, persistedId, overrides = []) {
   const list = plans || [];
-  const persisted = list.find(p => p.id === persistedId);
-  if (persisted) return persisted;
+  for (const id of [...overrides, persistedId]) {
+    const hit = id != null && list.find(p => p.id === id);
+    if (hit) return hit;
+  }
   if (list.length) return [...list].sort((a, b) => a.name.localeCompare(b.name))[0];
   return null;
 }
@@ -41,17 +46,32 @@ export function PlanProvider({ userId, children }) {
       try {
         const plans = await fetchPlans();
         if (cancelled) return;
-        const open = resolveOpenPlan(plans, loadUserPrefs(userId).openPlanId);
+        // A tab owns its plan: a one-shot ?plan= (how "open in new tab" tells a
+        // fresh tab which plan it is) beats this tab's session pin, which beats
+        // the device-wide last-used id. The param is consumed here — left in the
+        // URL it would override a later in-tab switch on its reload.
+        const urlId = planIdFromSearch(window.location.search);
+        const persistedId = loadUserPrefs(userId).openPlanId;
+        const open = resolveOpenPlan(plans, persistedId, [urlId, loadTabPlan(userId)]);
+        if (urlId) {
+          const { pathname, search, hash } = window.location;
+          window.history.replaceState(window.history.state, '', pathname + stripPlanParam(search) + hash);
+        }
         if (open) {
-          // Arm the stamp BEFORE StoreProvider can mount and hydrate; persist
-          // the resolution (BR-U2-6) so a stale/deleted id self-heals. A failed
+          // Arm the stamp BEFORE StoreProvider can mount and hydrate. A failed
           // prefs write degrades to "re-resolve next boot" — never a blocker.
           setActivePlanId(open.id);
           // Bind the format singleton at the same moment (U3): from here on
           // every fmt* wrapper renders in this plan's currency/number/date
           // settings. No plan → the singleton keeps its legacy default.
           setActiveFormat(open);
-          writeUserPrefs(userId, { ...loadUserPrefs(userId), openPlanId: open.id });
+          writeTabPlan(userId, open.id);
+          // The device-wide id is only SELF-HEALED here (BR-U2-6: stale/deleted/
+          // never set). Booting another tab into a different plan must not change
+          // what a fresh launch opens — only an explicit switchPlan does that.
+          if (!plans.some(p => p.id === persistedId)) {
+            writeUserPrefs(userId, { ...loadUserPrefs(userId), openPlanId: open.id });
+          }
         }
         setState({ status: 'ready', plans, openPlanId: open ? open.id : null, error: null });
       } catch (e) {
@@ -76,6 +96,7 @@ export function PlanProvider({ userId, children }) {
   const completeFirstPlan = useCallback(({ planId, seed }) => {
     const prefs = loadUserPrefs(userId);
     writeUserPrefs(userId, { ...prefs, openPlanId: planId, ...(seed ? { pendingSeed: planId } : {}) });
+    writeTabPlan(userId, planId);
     setState(s => ({ ...s, status: 'loading', error: null }));
   }, [userId]);
 
@@ -89,9 +110,17 @@ export function PlanProvider({ userId, children }) {
     // A failed write still reloads: the switch succeeds this session, and the
     // stale pref merely re-resolves differently next boot (error table, US-9).
     writeUserPrefs(userId, { ...loadUserPrefs(userId), openPlanId: targetId });
+    writeTabPlan(userId, targetId); // the pin outranks openPlanId at boot — move it too
     location.reload();
     return true;
   }, [state.openPlanId, userId]);
+
+  // Opens `targetId` in a new tab on the current route, leaving this tab alone.
+  // No drain: this tab keeps its plan and its queue. Call inside a user gesture
+  // (popup blockers); noopener gives the new tab a fresh sessionStorage pin.
+  const openPlanInNewTab = useCallback(targetId => {
+    window.open(planHref(targetId), '_blank', 'noopener');
+  }, []);
 
   const value = useMemo(() => {
     const plans = storePlans ?? state.plans;
@@ -101,11 +130,12 @@ export function PlanProvider({ userId, children }) {
       openPlan: plans.find(p => p.id === state.openPlanId) || null,
       planCount: plans.length,
       switchPlan,
+      openPlanInNewTab,
       drain,
       registerDrain,
       publishPlans,
     };
-  }, [storePlans, state.plans, state.openPlanId, switchPlan, drain, registerDrain, publishPlans]);
+  }, [storePlans, state.plans, state.openPlanId, switchPlan, openPlanInNewTab, drain, registerDrain, publishPlans]);
 
   if (state.status === 'loading') return <LoadingScreen message="Loading your plans…" />;
   if (state.status === 'error') {

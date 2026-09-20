@@ -41,25 +41,39 @@ export function MenuPanel({
   );
 }
 
+const itemStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  borderRadius: 8,
+  padding: '10px 12px',
+  fontSize: 13.5,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
 // Menu item with flex layout, hover/soft interactive styling via hv-soft class.
 export function MenuItem({ children, style, ...rest }) {
   return (
-    <BaseMenu.Item
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        borderRadius: 8,
-        padding: '10px 12px',
-        fontSize: 13.5,
-        fontWeight: 600,
-        cursor: 'pointer',
-        ...style,
-      }}
+    <BaseMenu.Item style={{ ...itemStyle, ...style }} className="hv-soft" {...rest}>
+      {children}
+    </BaseMenu.Item>
+  );
+}
+
+// The same row as a real <a href> (Base UI's Menu.LinkItem), for items that
+// name a destination: the browser's own Ctrl/Cmd+click, Shift+click,
+// middle-click and "Open link in new tab" all work on it. Closes on click like
+// MenuItem (LinkItem's own default is to stay open).
+export function MenuLinkItem({ children, style, closeOnClick = true, ...rest }) {
+  return (
+    <BaseMenu.LinkItem
+      closeOnClick={closeOnClick}
+      style={{ ...itemStyle, color: 'inherit', textDecoration: 'none', ...style }}
       className="hv-soft"
       {...rest}
     >
       {children}
-    </BaseMenu.Item>
+    </BaseMenu.LinkItem>
   );
 }

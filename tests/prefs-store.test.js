@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { userPrefsKey, loadUserPrefs, writeUserPrefs, readJson, writeJson } from '../src/lib/prefsStore.js';
+import { userPrefsKey, loadUserPrefs, writeUserPrefs, readJson, writeJson, mergePrefsForWrite } from '../src/lib/prefsStore.js';
 
 // A minimal in-memory Storage stub; `fail` makes setItem throw like a full/disabled store.
 const makeStorage = (fail = false) => {
@@ -122,5 +122,52 @@ describe('prefsStore', () => {
       s.map.set('k', 'not json');
       expect(readJson('k', { theme: 'light' }, s)).toEqual({ theme: 'light' });
     });
+  });
+});
+
+// Two tabs on different plans share one prefs blob. A tab writes from its own
+// in-memory snapshot, so the keys it does not own must come from storage or
+// it silently erases what the other tab saved.
+describe('mergePrefsForWrite', () => {
+  const stored = {
+    skippedSetup: false, openPlanId: 'pB', pendingSeed: 'pC',
+    plans: { pA: { customViews: ['old-a'] }, pB: { customViews: ['b-saved-in-other-tab'] } },
+  };
+  const mine = {
+    skippedSetup: true, colWidths: { payee: 2 }, openPlanId: 'pA',
+    plans: { pA: { customViews: ['new-a'] }, pB: { customViews: [] } },
+  };
+
+  it('keeps this tab\'s own plan namespace and user keys', () => {
+    const out = mergePrefsForWrite(stored, mine, 'pA');
+    expect(out.plans.pA).toEqual({ customViews: ['new-a'] });
+    expect(out.skippedSetup).toBe(true);
+    expect(out.colWidths).toEqual({ payee: 2 });
+  });
+
+  it('takes other plans\' namespaces and the device-wide openPlanId from storage', () => {
+    const out = mergePrefsForWrite(stored, mine, 'pA');
+    expect(out.plans.pB).toEqual({ customViews: ['b-saved-in-other-tab'] });
+    expect(out.openPlanId).toBe('pB');
+  });
+
+  it('drops a stale in-memory openPlanId when storage has none', () => {
+    const out = mergePrefsForWrite({ plans: {} }, mine, 'pA');
+    expect('openPlanId' in out).toBe(false);
+  });
+
+  // NewPlanModal queues the one-shot seed through setPrefs right before it
+  // switches — that write is this tab's own and must reach storage.
+  it('lets this tab write pendingSeed', () => {
+    const out = mergePrefsForWrite(stored, { ...mine, pendingSeed: 'pNew' }, 'pA');
+    expect(out.pendingSeed).toBe('pNew');
+  });
+
+  it('leaves the stored namespace alone when this tab has none for its plan, and mutates nothing', () => {
+    const a = JSON.stringify(stored), b = JSON.stringify(mine);
+    const out = mergePrefsForWrite(stored, { skippedSetup: false }, 'pA');
+    expect(out.plans).toEqual(stored.plans);
+    expect(JSON.stringify(stored)).toBe(a);
+    expect(JSON.stringify(mine)).toBe(b);
   });
 });

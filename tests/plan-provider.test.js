@@ -31,4 +31,19 @@ describe('resolveOpenPlan', () => {
     expect(resolveOpenPlan([], 'p1')).toBe(null);
     expect(resolveOpenPlan(undefined, undefined)).toBe(null);
   });
+
+  // A tab owns its plan: the URL's one-shot ?plan= and this tab's session pin
+  // outrank the device-wide last-used id, in that order.
+  it('prefers the first override that still exists: URL, then tab pin, then persisted', () => {
+    expect(resolveOpenPlan(plans, 'p1', ['p3', 'p2']).id).toBe('p3');
+    expect(resolveOpenPlan(plans, 'p1', [null, 'p2']).id).toBe('p2');
+    expect(resolveOpenPlan(plans, 'p2', [null, null]).id).toBe('p2');
+  });
+
+  it('lets a stale override fall through to the next candidate', () => {
+    expect(resolveOpenPlan(plans, 'p2', ['deleted-plan', 'p3']).id).toBe('p3');
+    expect(resolveOpenPlan(plans, 'p2', ['deleted-plan', 'also-gone']).id).toBe('p2');
+    expect(resolveOpenPlan(plans, 'gone', ['deleted-plan']).id).toBe('p1'); // first by name
+    expect(resolveOpenPlan([], 'p1', ['p2'])).toBe(null);
+  });
 });

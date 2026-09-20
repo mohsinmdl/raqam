@@ -8,12 +8,13 @@ import { usePlan } from '../../store/PlanProvider.jsx';
 import { useStore } from '../../store/StoreProvider.jsx';
 import { deletePlan, renamePlan } from '../../store/actions.js';
 import { deleteConfirmReady, PLAN_NAME_MAX, planNameError, switcherPlans } from './planShellLogic.js';
+import { planHref } from '../../lib/planDeepLink.js';
 
 const btnOutline = { height: 32, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flex: 'none' };
 const inputStyle = { width: '100%', boxSizing: 'border-box', height: 32, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
 
 // One plan row: name (click → inline rename input), an Open marker for the
-// current plan, and the delete opener. The typed-name confirm expands beneath.
+// current plan (the others get an open-in-new-tab link instead), and the delete opener. The typed-name confirm expands beneath.
 function PlanRow({
   plan, canDelete, renaming, draft, renameErr, onDraftChange, onStartRename, onCommitRename, onCancelRename,
   confirming, typed, onTypedChange, onOpenConfirm, onCancelConfirm, onConfirmDelete, deleting, busy,
@@ -50,6 +51,14 @@ function PlanRow({
         </div>
         {plan.open && (
           <span style={{ flex: 'none', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: 'var(--soft)', color: 'var(--accent)' }}>Open</span>
+        )}
+        {!plan.open && !confirming && (
+          // A real link, so it opens THAT plan in its own tab and this one stays put.
+          <a href={planHref(plan.id)} target="_blank" rel="noopener" data-testid="manage-plans-open-new-tab" data-plan-id={plan.id}
+            aria-label={'Open ' + plan.name + ' in new tab'} title="Open in new tab" className="hv-soft rq-btn-outline"
+            style={{ ...btnOutline, width: 32, padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6" /><path d="M20 4 10 14" /><path d="M19 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4" /></svg>
+          </a>
         )}
         {canDelete && !confirming && (
           <button onClick={onOpenConfirm} disabled={busy} data-testid="manage-plans-delete-button" data-plan-id={plan.id}

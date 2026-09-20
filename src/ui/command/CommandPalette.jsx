@@ -57,7 +57,7 @@ export default function CommandPalette() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { prefs, setPrefs } = useStore();
-  const { switchPlan } = usePlan();
+  const { switchPlan, openPlanInNewTab } = usePlan();
   const { openDrawer } = useDrawer();
   const phone = useIsPhone();
 
@@ -133,13 +133,22 @@ export default function CommandPalette() {
   }, [activeIndex, open]);
 
   const { addSeed } = useTxView();
-  const ctx = { navigate, openDrawer, setPrefs, prefs, phone, pathname, openPayees, switchPlan, addSeed };
+  const ctx = { navigate, openDrawer, setPrefs, prefs, phone, pathname, openPayees, switchPlan, openPlanInNewTab, addSeed };
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
 
-  const perform = useCallback(item => {
+  const perform = useCallback((item, { newTab = false } = {}) => {
     if (!item) return;
     pushRecent(item.id);
+    // ⌘/Ctrl+Enter or ⌘/Ctrl+click on an item that can open elsewhere (switch
+    // plan): run it NOW, inside the user gesture, so window.open isn't treated
+    // as a popup — nothing opens in this tab, so there's no focus trap to dodge.
+    if (newTab && item.performNewTab) {
+      try { item.performNewTab(ctxRef.current); }
+      catch (err) { console.error('Raqam: command failed', err); }
+      closePalette();
+      return;
+    }
     closePalette();
     // Run AFTER the dialog closes and restores focus, so a freshly opened drawer
     // (e.g. Add transaction) or navigation isn't fighting this overlay's focus trap.
@@ -152,7 +161,7 @@ export default function CommandPalette() {
   const onInputKeyDown = e => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex(i => Math.min(flat.length - 1, i + 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIndex(i => Math.max(0, i - 1)); }
-    else if (e.key === 'Enter') { e.preventDefault(); perform(flat[activeIndex]); }
+    else if (e.key === 'Enter') { e.preventDefault(); perform(flat[activeIndex], { newTab: e.metaKey || e.ctrlKey }); }
     else if (e.key === 'Home') { e.preventDefault(); setActiveIndex(0); }
     else if (e.key === 'End') { e.preventDefault(); setActiveIndex(flat.length - 1); }
     // Escape falls through to Base UI's Dialog (onOpenChange → close).
@@ -215,7 +224,7 @@ export default function CommandPalette() {
                       role="option"
                       aria-selected={active}
                       onMouseMove={() => setActiveIndex(idx)}
-                      onClick={() => perform(item)}
+                      onClick={e => perform(item, { newTab: e.metaKey || e.ctrlKey })}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 11, padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
                         background: active ? 'var(--soft)' : 'transparent',
