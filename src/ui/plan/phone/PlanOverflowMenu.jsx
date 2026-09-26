@@ -8,6 +8,7 @@ import { RecentMovesList } from '../../../components/RecentMoves.jsx';
 
 export default function PlanOverflowMenu({
   undo, canUndo, allCollapsed, onToggleAll, progressOn, onToggleProgress, maskedOn, onToggleMasked,
+  totalsOn, onToggleTotals,
 }) {
   const [movesOpen, setMovesOpen] = useState(false);
   return (
@@ -25,6 +26,7 @@ export default function PlanOverflowMenu({
           <MenuItem onClick={onToggleAll}>{allCollapsed ? <><span aria-hidden="true">⌄</span> Expand all groups</> : <><span aria-hidden="true">⌃</span> Collapse all groups</>}</MenuItem>
           <MenuItem onClick={onToggleProgress}>{progressOn ? 'Hide progress bars' : 'Show progress bars'}</MenuItem>
           <MenuItem onClick={onToggleMasked}>{maskedOn ? 'Show amounts' : 'Hide amounts'}</MenuItem>
+          {onToggleTotals && <MenuItem onClick={onToggleTotals}>{totalsOn ? 'Hide whole-plan totals' : 'Show whole-plan totals'}</MenuItem>}
         </MenuPanel>
       </Menu>
       <BottomSheet open={movesOpen} onOpenChange={setMovesOpen}>

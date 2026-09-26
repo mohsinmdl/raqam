@@ -23,15 +23,21 @@ const cardStyle = { background: 'var(--surface)', borderRadius: 12, padding: 14 
 const lineRow = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, padding: '3px 0' };
 const tone = v => (v > 0 ? 'var(--pos)' : v < 0 ? 'var(--neg)' : 'var(--muted)');
 
-function Card({ title, children }) {
+// Small text-link button (card header actions, "show …" affordances).
+const linkBtn = { border: 'none', background: 'none', padding: 0, color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer' };
+
+function Card({ title, children, action }) {
   const [open, setOpen] = useState(true);
   return (
     <section style={cardStyle}>
-      <button onClick={() => setOpen(o => !o)} aria-expanded={open}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', border: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', padding: 0, textAlign: 'left' }}>
-        <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--muted)' }}>{open ? '▾' : '▸'}</span>
-        {title}
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button onClick={() => setOpen(o => !o)} aria-expanded={open}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, border: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', padding: 0, textAlign: 'left' }}>
+          <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--muted)' }}>{open ? '▾' : '▸'}</span>
+          {title}
+        </button>
+        {action}
+      </div>
       {open && <div style={{ marginTop: 8 }}>{children}</div>}
     </section>
   );
@@ -275,7 +281,7 @@ function ExcludeToggle({ ids, S, applyData }) {
   );
 }
 
-export default function Inspector({ S, env, envAt, month, money, applyData, selected, rtaBanner, totals }) {
+export default function Inspector({ S, env, envAt, month, money, applyData, selected, rtaBanner, totals, totalsOn, onToggleTotals }) {
   const ctx = { S, month, env, envAt };
   const monthName = monthLabel(month).split(' ')[0]; // "August" from "August 2026"
   const activeCats = useMemo(
@@ -299,9 +305,16 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
               <span>Cost to Be Me</span><span className="tnum">{money(costToBeMe(activeCats))}</span>
             </div>
           )}
+          {!totalsOn && onToggleTotals && (
+            <button type="button" onClick={() => onToggleTotals(true)} style={{ ...linkBtn, marginTop: 8 }}
+              title="Total budget, spent and remaining across every month — handy for a one-off plan like a wedding.">
+              Show whole-plan totals
+            </button>
+          )}
         </Card>
-        {totals && (totals.budget !== 0 || totals.spent !== 0) && (
-          <Card title="Whole plan">
+        {totalsOn && totals && (
+          <Card title="Whole plan"
+            action={<button type="button" onClick={() => onToggleTotals(false)} style={linkBtn} aria-label="Hide whole-plan totals">Hide</button>}>
             <PlanTotalsLines t={totals} money={money} />
           </Card>
         )}

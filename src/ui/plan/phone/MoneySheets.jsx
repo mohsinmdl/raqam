@@ -160,7 +160,7 @@ function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, apply
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         <button onClick={confirm} disabled={!canAssign} className="hv-accent rq-btn-solid" style={okBtn(canAssign)}>Assign</button>
       </div>
-      {totals && (totals.budget !== 0 || totals.spent !== 0) && (
+      {totals && (
         <section aria-label="Whole plan" style={{ background: 'var(--elev)', borderRadius: 8, padding: '8px 10px', marginTop: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Whole plan</div>
           <PlanTotalsLines t={totals} money={money} />

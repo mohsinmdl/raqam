@@ -8,7 +8,7 @@ import { currentMonth } from '../lib/dates.js';
 import LoadingScreen from '../components/LoadingScreen.jsx';
 import { makeAudit } from './audit.js';
 import { applyRedo, applyUndo, emptyStacks, labelFor, recordChange, redoLabel, topSeq, undoLabel } from '../lib/undo.js';
-import { consumePendingSeed, loadStoredUserPrefs, loadUserPrefs, mergePrefsForWrite, planPrefs, writeUserPrefs } from '../lib/prefsStore.js';
+import { consumePendingSeed, loadStoredUserPrefs, loadUserPrefs, mergePrefsForWrite, planPrefsFacade, routePrefsPatch, writeUserPrefs } from '../lib/prefsStore.js';
 
 // Server-backed store. The in-memory store + pure actions are unchanged from the
 // localStorage era; persistence is now: hydrate from Supabase once per login, then
@@ -209,16 +209,9 @@ export function StoreProvider({ userId, planId, children }) {
   }, [state.status]);
 
   const setPrefs = useCallback(patch => {
-    const device = {}, user = {}, plan = {};
-    Object.entries(patch).forEach(([k, v]) => {
-      if (k === 'theme' || k === 'masked' || k === 'maskedPosition' || k === 'decimals' || k === 'appLock') device[k] = v;
-      // Plan-screen views are per-plan (BR-U2-7). The screen-facing key
-      // `planViews` predates plans; the persisted namespace uses the design
-      // name `customViews` — the facade below maps it back.
-      else if (k === 'planViews') plan.customViews = v;
-      else if (k === 'builtinViews') plan.builtinViews = v;
-      else user[k] = v;
-    });
+    // Device / per-plan (views BR-U2-7, whole-plan totals) / account-level —
+    // see routePrefsPatch; the facade below maps plan keys back.
+    const { device, user, plan } = routePrefsPatch(patch);
     if (Object.keys(device).length) setDevicePrefs(device);
     if (Object.keys(user).length || Object.keys(plan).length) persistPrefs(user, plan);
   }, [setDevicePrefs, persistPrefs]);
@@ -237,8 +230,7 @@ export function StoreProvider({ userId, planId, children }) {
     // withheld — no consumer should address another plan's prefs).
     prefs: {
       ...userPrefs, plans: undefined,
-      planViews: planPrefs(userPrefs, planId).customViews,
-      builtinViews: planPrefs(userPrefs, planId).builtinViews,
+      ...planPrefsFacade(userPrefs, planId),
       theme: devicePrefs.theme, masked: devicePrefs.masked, maskedPosition: devicePrefs.maskedPosition, decimals: devicePrefs.decimals, appLock: devicePrefs.appLock,
     },
     setPrefs,
