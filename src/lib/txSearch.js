@@ -107,6 +107,7 @@ export function matchesTerm(t, term, S, accountId) {
     case 'status':
       return term.value === 'uncleared' ? t.status === 'pending' : t.status !== 'pending';
     case 'needsCategory': return txNeedsCategory(t, S);
+    case 'type': return t.type === term.value;
     case 'date': {
       const d = (t.date || '').slice(0, 10);
       if (!d) return false;
@@ -149,6 +150,21 @@ export function parseSearchAmount(text) {
 
 // Two decimals, no currency symbol — matches the "2.00" the dropdown shows.
 const amt2 = n => Number(n).toFixed(2);
+
+// "Is: Income" — a type facet. Offered as a suggestion and applied by the
+// Overview Income tile's deep link (txLinkFilter below).
+export const incomeTerm = () => ({ kind: 'type', value: 'income', label: 'Is: Income', text: 'Income' });
+
+// One-shot deep link into the register: `?is=income&month=YYYY-MM` → the
+// "Is: Income" term plus that month as the date range (null range when the
+// month is missing/malformed — keep whatever range is showing). Anything else
+// → null, so an unknown link filters nothing rather than guessing.
+export function txLinkFilter(params) {
+  if (!params || params.get('is') !== 'income') return null;
+  const month = params.get('month');
+  const range = month && /^\d{4}-\d{2}$/.test(month) ? { from: month, to: month } : null;
+  return { term: incomeTerm(), range };
+}
 
 const STATUS_KEYWORDS = [
   ['uncleared', 'Uncleared', 'uncleared'],
@@ -223,6 +239,11 @@ export function searchSuggestions(q, S, anchorIso, limit = 5) {
   if ('needs category'.startsWith(low) || 'uncategorized'.startsWith(low) || 'uncategorised'.startsWith(low)) {
     out.push({ key: 'needsCat', prefix: 'Is:', icon: 'needs', main: 'Needs Category',
       term: { kind: 'needsCategory', label: 'Is: Needs Category', text: 'Needs Category' } });
+  }
+
+  // 4b. Income (Is:) — the type facet the Overview Income tile links to.
+  if (raw.length >= 2 && 'income'.startsWith(low)) {
+    out.push({ key: 'type:income', prefix: 'Is:', icon: 'inflow', main: 'Income', term: incomeTerm() });
   }
 
   // 5. Date (On / On or before / On or after) when the query parses as a date.

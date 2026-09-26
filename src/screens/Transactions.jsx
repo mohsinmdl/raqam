@@ -32,7 +32,7 @@ import RecentMoves from '../components/RecentMoves.jsx';
 import TxSearchField from '../ui/tx/TxSearchField.jsx';
 import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon, SmsIcon, CameraIcon } from '../ui/ToolbarAction.jsx';
 import { useAI } from '../ui/ai/useAI.js';
-import { matchesSearch, searchSuggestions } from '../lib/txSearch.js';
+import { matchesSearch, searchSuggestions, txLinkFilter } from '../lib/txSearch.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { useContainerWidth } from '../lib/useContainerWidth.js';
 import { visibleColumnKeys } from '../lib/registerColumns.js';
@@ -942,6 +942,19 @@ export default function Transactions() {
     setSelected(new Set([target.id]));
     setCursorId(target.id);     // reuses the cursor's scrollIntoView to bring it on screen
   }, [selParam]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Deep-link filter from the Overview tiles: ?is=income&month=YYYY-MM applies
+  // the "Is: Income" facet for that month (txLinkFilter). One-shot like ?sel:
+  // consumed and cleared, so the user can then clear or change it freely.
+  const isParam = searchParams.get('is');
+  useEffect(() => {
+    const link = txLinkFilter(searchParams);
+    if (!isParam) return;
+    setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('is'); p.delete('month'); return p; }, { replace: true });
+    if (!link) return;
+    if (link.range) setRange(link.range);
+    setFilters({ q: '', term: link.term });
+    setListFilter('all'); // a banner filter (uncleared / needs category) would hide income rows
+  }, [isParam]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleRow = (id, on, e) => {
     setCursorId(id);
     setSchedSel(new Set()); // mutual exclusion with the scheduled selection

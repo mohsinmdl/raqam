@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   matchesQuery, txHaystack, matchesTerm, matchesSearch,
-  searchSuggestions, parseSearchAmount, txFlows, txNeedsCategory,
+  searchSuggestions, parseSearchAmount, txFlows, txNeedsCategory, txLinkFilter, incomeTerm,
 } from '../src/lib/txSearch.js';
 
 const S = {
@@ -383,5 +383,31 @@ describe('matchesTerm — fails closed and guards malformed terms', () => {
   });
   it('a date term against a dateless row matches nothing', () => {
     expect(matchesTerm(T({ date: '' }), { kind: 'date', op: 'on', iso: '2026-08-11' }, SS)).toBe(false);
+  });
+});
+
+// "Is: Income" — the facet the Overview Income tile deep-links to.
+describe('type facet (Is: Income) and the tile deep link', () => {
+  it('matches income rows only', () => {
+    const term = { kind: 'type', value: 'income' };
+    expect(matchesTerm(tx({ type: 'income' }), term, S)).toBe(true);
+    expect(matchesTerm(tx({ type: 'expense' }), term, S)).toBe(false);
+    expect(matchesTerm(tx({ type: 'refund' }), term, S)).toBe(false);
+    expect(matchesTerm(tx({ type: 'transfer' }), term, S)).toBe(false);
+  });
+
+  it('is offered as a suggestion when typing "inc"', () => {
+    const s = searchSuggestions('inc', S, '2026-09-27');
+    const hit = s.find(x => x.term && x.term.kind === 'type');
+    expect(hit && hit.term).toMatchObject({ kind: 'type', value: 'income', label: 'Is: Income' });
+  });
+
+  it('txLinkFilter turns ?is=income&month=YYYY-MM into a term + month range', () => {
+    expect(txLinkFilter(new URLSearchParams('is=income&month=2026-09')))
+      .toEqual({ term: incomeTerm(), range: { from: '2026-09', to: '2026-09' } });
+    expect(txLinkFilter(new URLSearchParams('is=income'))).toEqual({ term: incomeTerm(), range: null });
+    expect(txLinkFilter(new URLSearchParams('is=income&month=Sept'))).toEqual({ term: incomeTerm(), range: null });
+    expect(txLinkFilter(new URLSearchParams('is=bogus&month=2026-09'))).toBeNull();
+    expect(txLinkFilter(new URLSearchParams(''))).toBeNull();
   });
 });
