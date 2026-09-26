@@ -207,6 +207,11 @@ export function envelopeFor(store, month, now) {
   let prevOverspend = 0;
   let rows = new Map();
   let income = 0, assignedTotal = 0, uncategorized = 0, openingTotal = 0, adjustments = 0;
+  // Running totals from the first data month THROUGH the viewed month — the
+  // whole-plan view (planTotals.js). `covered` is overspending written off a
+  // category and charged to Ready to Assign instead (prevOverspend below), which
+  // is why Σavailable = assigned − spent + covered rather than assigned − spent.
+  const toDate = { assigned: 0, spent: 0, covered: 0 };
   let m = earliestMonth(store, month, openingSnapshots);
   let reached = false;
   const MAX_STEPS = 601; // the clamp in earliestMonth guarantees this is always enough
@@ -226,7 +231,10 @@ export function envelopeFor(store, month, now) {
       rows.set(c.id, { assigned, activity, available, carryIn });
       if (available < 0) overspend += -available;
       monthAssigned += assigned;
+      toDate.spent -= activity; // activity is signed (spending negative); refunds net off
     });
+    toDate.assigned += monthAssigned;
+    toDate.covered += prevOverspend;
     const monthIncome = incomeByMonth.get(m) || 0;
     const monthOpening = openingByMonth.get(m) || 0;
     const monthUncategorized = uncategorizedByMonth.get(m) || 0;
@@ -255,5 +263,5 @@ export function envelopeFor(store, month, now) {
     g.assigned += r.assigned; g.activity += r.activity; g.available += r.available;
     groupTotals.set(key, g);
   });
-  return { rows, groupTotals, rta, income, assignedTotal, uncategorized, openingTotal, adjustments };
+  return { rows, groupTotals, rta, income, assignedTotal, uncategorized, openingTotal, adjustments, toDate };
 }

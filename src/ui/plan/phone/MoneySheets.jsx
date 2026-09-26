@@ -14,6 +14,7 @@ import { moveAssigned } from '../../../store/actions.js';
 import { parseAmt } from '../../../lib/format.js';
 import { useUI } from '../../UIProvider.jsx';
 import { rtaBreakdownLines } from '../../../lib/rtaBreakdown.js';
+import PlanTotalsLines from '../PlanTotalsLines.jsx';
 
 const label = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', margin: '0 0 4px' };
 const amountInput = { width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', textAlign: 'right',
@@ -119,7 +120,7 @@ function MoveSheetBody({ sheet, onClose, env, S, month, money, applyData }) {
 // breakdown rows above the amount field reuse rtaBreakdownLines (from
 // lib/rtaBreakdown.js), the same pure derivation RtaBreakdown's desktop
 // popover renders from — so the two surfaces can never drift apart.
-function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, applyData }) {
+function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, applyData, totals }) {
   const { notify } = useUI();
   const [amount, setAmount] = useState(() => String(Math.max(0, env.rta)));
   const [to, setTo] = useState(null);
@@ -159,6 +160,12 @@ function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, apply
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         <button onClick={confirm} disabled={!canAssign} className="hv-accent rq-btn-solid" style={okBtn(canAssign)}>Assign</button>
       </div>
+      {totals && (totals.budget !== 0 || totals.spent !== 0) && (
+        <section aria-label="Whole plan" style={{ background: 'var(--elev)', borderRadius: 8, padding: '8px 10px', marginTop: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Whole plan</div>
+          <PlanTotalsLines t={totals} money={money} />
+        </section>
+      )}
     </>
   );
 }
@@ -210,7 +217,7 @@ function HiddenSheetBody({ S }) {
   );
 }
 
-export default function MoneySheets({ sheet, onClose, env, prevRta, S, month, money, moneyS, applyData }) {
+export default function MoneySheets({ sheet, onClose, env, prevRta, S, month, money, moneyS, applyData, totals }) {
   const titles = { cover: 'Cover overspending', move: 'Move money', assign: 'Assign money', overspent: 'Overspent Categories', hidden: 'Hidden categories' };
   // Keep the shell (and its last body) mounted through the close animation
   // instead of unmount-yanking the content the instant `sheet` goes null —
@@ -222,7 +229,7 @@ export default function MoneySheets({ sheet, onClose, env, prevRta, S, month, mo
     <SheetShell open={!!sheet} onClose={onClose} title={shown ? titles[shown.kind] : ''}>
       {shown && shown.kind === 'cover' && <CoverSheetBody {...{ sheet: shown, onClose, env, S, month, money, applyData }} />}
       {shown && shown.kind === 'move' && <MoveSheetBody {...{ sheet: shown, onClose, env, S, month, money, applyData }} />}
-      {shown && shown.kind === 'assign' && <AssignSheetBody {...{ onClose, env, prevRta, S, month, money, moneyS, applyData }} />}
+      {shown && shown.kind === 'assign' && <AssignSheetBody {...{ onClose, env, prevRta, S, month, money, moneyS, applyData, totals }} />}
       {shown && shown.kind === 'overspent' && <OverspentSheetBody {...{ sheet: shown, env, S, money }} />}
       {shown && shown.kind === 'hidden' && <HiddenSheetBody {...{ S }} />}
     </SheetShell>
