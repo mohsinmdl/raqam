@@ -4,7 +4,7 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import {
   PALETTE, MAX_SLICES, reportTxns, breakdownByCategory, breakdownByGroup,
-  rangeMonths, breakdownStats, categoryTxRows, foldForDonut,
+  rangeMonths, breakdownStats, categoryTxRows, foldForDonut, drillOther,
 } from '../src/lib/spendingReport.js';
 import { daysInMonth } from '../src/lib/calc.js';
 import { addMonths, currentMonth } from '../src/lib/dates.js';
@@ -527,5 +527,52 @@ describe('includeExcluded: false (hide recoverable)', () => {
     expect(living ? living.amt : 0).toBe(0);
     expect(breakdownStats(S, { includeExcluded: false }).total).toBe(3500);
     expect(categoryTxRows(S, 'adv', { includeExcluded: false })).toEqual([]);
+  });
+});
+
+// Clicking the donut's "Other" drills into the rows it folded; a remainder that
+// is itself too long folds again, so the user can keep drilling.
+describe('drillOther', () => {
+  const mkRows = n => Array.from({ length: n }, (_, i) => ({
+    id: 'c' + i, name: 'Cat ' + i, amt: (n - i) * 1000, pct: 0.01, color: i < PALETTE.length ? PALETTE[i] : null,
+  }));
+
+  it('depth 0 is the rows untouched', () => {
+    const rows = mkRows(20);
+    expect(drillOther(rows, 0)).toBe(rows);
+  });
+
+  it('depth 1 is exactly the tail foldForDonut folded, re-based and re-colored', () => {
+    const rows = mkRows(MAX_SLICES + 4);
+    const tail = rows.slice(MAX_SLICES);
+    const out = drillOther(rows, 1);
+    expect(out.map(r => r.id)).toEqual(tail.map(r => r.id));
+    const t = tail.reduce((s, r) => s + r.amt, 0);
+    expect(out[0].pct).toBeCloseTo(tail[0].amt / t, 10);
+    expect(out.reduce((s, r) => s + r.pct, 0)).toBeCloseTo(1, 10);
+    expect(out.map(r => r.color)).toEqual(PALETTE.slice(0, tail.length));
+  });
+
+  it('a long remainder folds again, and depth 2 drills into that', () => {
+    const rows = mkRows(MAX_SLICES * 2 + 5);
+    const lvl1 = drillOther(rows, 1);
+    expect(lvl1).toHaveLength(MAX_SLICES + 5);
+    const donut1 = foldForDonut(lvl1);
+    expect(donut1[donut1.length - 1]).toMatchObject({ id: '__other__', other: true });
+    const lvl2 = drillOther(rows, 2);
+    expect(lvl2.map(r => r.id)).toEqual(rows.slice(MAX_SLICES * 2).map(r => r.id));
+    expect(foldForDonut(lvl2)).toBe(lvl2); // 5 rows: shown in full
+  });
+
+  it('stops at the last level that actually folded (depth past the end is clamped)', () => {
+    const rows = mkRows(MAX_SLICES + 3);
+    expect(drillOther(rows, 5).map(r => r.id)).toEqual(drillOther(rows, 1).map(r => r.id));
+    const small = mkRows(MAX_SLICES + 1); // never folds
+    expect(drillOther(small, 1)).toBe(small);
+  });
+
+  it('only counts positive rows, as the donut does', () => {
+    const rows = [...mkRows(MAX_SLICES + 2), { id: 'z', name: 'Zero', amt: 0, pct: 0, color: null }];
+    expect(drillOther(rows, 1).map(r => r.id)).toEqual(['c' + MAX_SLICES, 'c' + (MAX_SLICES + 1)]);
   });
 });

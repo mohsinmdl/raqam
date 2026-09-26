@@ -113,7 +113,7 @@ export default function SpendingDonut({ slices = [], total = 0, money, size = 38
     const out = () => setHover(null);
     const click = e => {
       if (e.seriesIndex !== 0 || !onSliceClick) return;
-      if (e.data.slice.other) return; // the folded aggregate has no single tx list
+      // The folded "Other" is passed through too: the page drills into it.
       const me = e.event && e.event.event; // the raw browser MouseEvent
       const x = me ? me.clientX : 0, y = me ? me.clientY : 0;
       onSliceClick(e.data.slice.id, {

@@ -158,6 +158,22 @@ export function foldForDonut(rows, { max = MAX_SLICES } = {}) {
   return [...head, { id: '__other__', name: 'Other', icon: null, amt, pct, color: null, other: true }];
 }
 
+// The rows behind the donut's "Other", `depth` levels deep: each level drops
+// the top `max` slices that level's donut showed and keeps the folded tail. A
+// tail still longer than max + 1 folds again under foldForDonut, which is what
+// lets the user keep drilling. Only positive rows count (they are what the
+// donut draws); depth is clamped to the last level that actually folded. pct
+// and color are re-based within the tail — same as a group drill — so the
+// drilled ring reads 40/25/… of THIS Other and gets distinct hues, not gray.
+export function drillOther(rows, depth, { max = MAX_SLICES } = {}) {
+  let cur = rows.filter(r => r.amt > 0);
+  let d = 0;
+  while (d < depth && cur.length > max + 1) { cur = cur.slice(max); d += 1; }
+  if (d === 0) return rows;
+  const t = cur.reduce((s, r) => s + r.amt, 0);
+  return cur.map((r, i) => ({ ...r, pct: t ? r.amt / t : 0, color: i < PALETTE.length ? PALETTE[i] : null }));
+}
+
 export function rangeMonths(store, from, to, now) {
   const cur = (now || nowIso()).slice(0, 7);
   let lo = from && from.slice(0, 7);
