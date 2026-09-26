@@ -493,3 +493,39 @@ describe('categoryTxRows', () => {
     expect(rows.map(r => r.id).sort()).toEqual(['t1', 't2']);
   });
 });
+
+// Page toggle "Include recoverable spending": opts.includeExcluded === false
+// drops excluded (excludeFromBudget) categories from every downstream figure.
+// Omitted/true keeps today's gross behavior.
+describe('includeExcluded: false (hide recoverable)', () => {
+  const S = makeStore([
+    tx({ id: 'r1', type: 'expense', amount: 3000, category: 'rent' }),
+    tx({ id: 'a1x', type: 'expense', amount: 9000, category: 'adv' }),
+    tx({ id: 'a1r', type: 'refund', amount: 1000, category: 'adv' }),
+    tx({ id: 'u1', type: 'expense', amount: 500, category: null }),
+  ]);
+
+  it('default still includes excluded categories', () => {
+    expect(reportTxns(S).map(t => t.id).sort()).toEqual(['a1r', 'a1x', 'r1', 'u1']);
+    expect(breakdownByCategory(S).find(r => r.id === 'adv').amt).toBe(8000);
+  });
+
+  it('reportTxns drops excluded-category txns (expenses and refunds), keeps uncategorized', () => {
+    expect(reportTxns(S, { includeExcluded: false }).map(t => t.id).sort()).toEqual(['r1', 'u1']);
+  });
+
+  it('breakdownByCategory drops the excluded row and re-bases pct', () => {
+    const rows = breakdownByCategory(S, { includeExcluded: false });
+    expect(rows.some(r => r.id === 'adv')).toBe(false);
+    const rent = rows.find(r => r.id === 'rent');
+    expect(rent.amt).toBe(3000);
+    expect(rent.pct).toBeCloseTo(3000 / 3500);
+  });
+
+  it('groups, stats and drill rows follow', () => {
+    const living = breakdownByGroup(S, { includeExcluded: false }).find(g => g.id === 'living');
+    expect(living ? living.amt : 0).toBe(0);
+    expect(breakdownStats(S, { includeExcluded: false }).total).toBe(3500);
+    expect(categoryTxRows(S, 'adv', { includeExcluded: false })).toEqual([]);
+  });
+});

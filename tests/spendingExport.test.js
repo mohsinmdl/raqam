@@ -309,3 +309,18 @@ describe('icon-free exports (plainName strips category/group emoji)', () => {
     expect(row[3]).toBe('🍕 Pizza Place');
   });
 });
+
+describe('includeExcluded: false carries into both CSVs', () => {
+  it('omits excluded-category rows and transactions', () => {
+    const S = makeStore([
+      tx({ id: 'r1', type: 'expense', amount: 3000, category: 'rent' }),
+      tx({ id: 'a1x', type: 'expense', amount: 9000, category: 'adv' }),
+    ]);
+    const adv = S.categories.find(c => c.id === 'adv');
+    expect(adv && adv.excludeFromBudget).toBe(true);
+    expect(buildSummaryCsv(S, {}).csv).toContain(adv.name);
+    expect(buildSummaryCsv(S, { includeExcluded: false }).csv).not.toContain(adv.name);
+    expect(buildTransactionsCsv(S, {}).csv).toContain(adv.name);
+    expect(buildTransactionsCsv(S, { includeExcluded: false }).csv).not.toContain(adv.name);
+  });
+});

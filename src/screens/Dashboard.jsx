@@ -21,6 +21,7 @@ import { setTransactionsCategory } from '../store/actions.js';
 import { useSuggestions } from '../ui/ai/useSuggestions.js';
 import GraduationOffer from '../ui/ai/GraduationOffer.jsx';
 import InsightsCard from '../ui/ai/InsightsCard.jsx';
+import RecoverableSwitch from '../ui/RecoverableSwitch.jsx';
 import { effectiveNextDate, overdueRules, upcomingRules } from '../lib/schedule.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { leftToSpend } from '../lib/leftToSpend.js';
@@ -120,19 +121,7 @@ export default function Dashboard() {
   );
 
   const recSwitch = withLabel => (
-    <button
-      onClick={() => setPrefs({ includeRecoverableDash: !incDash })}
-      role="switch"
-      aria-checked={String(incDash)}
-      aria-label="Include recoverable spending"
-      title="Includes advances and other expenses marked as excluded from budgets."
-      style={{ display: 'flex', alignItems: 'center', gap: 7, height: 24, padding: withLabel ? '0 4px' : 0, border: 'none', background: 'none', color: 'var(--muted)', fontSize: 11.5, fontWeight: 500, cursor: 'pointer', flex: 'none' }}
-    >
-      <span aria-hidden="true" style={{ width: 30, height: 18, padding: 2, boxSizing: 'border-box', borderRadius: 999, background: incDash ? 'var(--accent)' : 'var(--track)', border: `1px solid ${incDash ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: incDash ? 'flex-end' : 'flex-start', flex: 'none' }}>
-        <span style={{ display: 'block', width: 12, height: 12, borderRadius: 999, background: incDash ? 'var(--on-accent)' : 'var(--surface)' }} />
-      </span>
-      {withLabel ? 'Include recoverable spending' : null}
-    </button>
+    <RecoverableSwitch checked={incDash} onChange={on => setPrefs({ includeRecoverableDash: on })} withLabel={withLabel} />
   );
 
   // Hooks must all run before the first-use early return: this useMemo used to

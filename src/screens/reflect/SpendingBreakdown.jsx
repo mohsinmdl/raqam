@@ -21,6 +21,7 @@ import ReportFilterBar from '../../ui/reflect/ReportFilterBar.jsx';
 import SpendingDonut, { pctLabel } from '../../ui/reflect/SpendingDonut.jsx';
 import TransactionPopover from '../../ui/reflect/TransactionPopover.jsx';
 import ExportModal from '../../ui/reflect/ExportModal.jsx';
+import RecoverableSwitch from '../../ui/RecoverableSwitch.jsx';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
 
@@ -52,7 +53,7 @@ function ViewToggle({ view, onChange }) {
 
 export default function SpendingBreakdown() {
   const { month } = useOutletContext();
-  const { data: S } = useStore();
+  const { data: S, prefs, setPrefs } = useStore();
   const { money } = useMoney();
   const { notify } = useUI();
   const isPhone = useIsPhone();
@@ -65,9 +66,14 @@ export default function SpendingBreakdown() {
   const [focus, setFocus] = useState(null);     // { id, anchor } | null
   const [exportOpen, setExportOpen] = useState(false);
 
-  const opts = { from: range.from, to: range.to, acctIds: acctSel, catIds: catSel };
-  const catRows = useMemo(() => breakdownByCategory(S, opts), [S, range, catSel, acctSel]);
-  const groupRows = useMemo(() => breakdownByGroup(S, opts), [S, range, catSel, acctSel]);
+  // "Include recoverable spending" lens — own pref, like the Overview's.
+  // Defaults ON so the report keeps its gross YNAB-style total until the user
+  // opts out; OFF drops excluded (recoverable/advance) categories from the
+  // donut, list, stats, drill-down and export alike (all read `opts`).
+  const incRec = prefs.includeRecoverableBreakdown !== false;
+  const opts = { from: range.from, to: range.to, acctIds: acctSel, catIds: catSel, includeExcluded: incRec };
+  const catRows = useMemo(() => breakdownByCategory(S, opts), [S, range, catSel, acctSel, incRec]);
+  const groupRows = useMemo(() => breakdownByGroup(S, opts), [S, range, catSel, acctSel, incRec]);
   const drill = drillGroupId ? groupRows.find(g => g.id === drillGroupId) : null;
 
   // Visible rows: categories lens → catRows (zero rows hidden below); groups
@@ -95,7 +101,7 @@ export default function SpendingBreakdown() {
   const slices = useMemo(() => foldForDonut(rows.filter(r => r.amt > 0)), [rows]);
   const stats = useMemo(() => breakdownStats(S, drill
     ? { ...opts, catIds: new Set(drill.catIds.filter(id => !catSel || catSel.has(id))) }
-    : opts), [S, range, catSel, acctSel, drill]);
+    : opts), [S, range, catSel, acctSel, drill, incRec]);
 
   // Displayed list: top-level lenses hide zero-amount rows; the drilled group
   // list shows every member category, zeros included (rendered without a bar).
@@ -103,7 +109,7 @@ export default function SpendingBreakdown() {
 
   // Clear the open popover whenever anything upstream of the row set changes
   // — its anchor/id may no longer refer to a visible row.
-  useEffect(() => { setFocus(null); }, [range, catSel, acctSel, lens, drillGroupId]);
+  useEffect(() => { setFocus(null); }, [range, catSel, acctSel, lens, drillGroupId, incRec]);
   // If the drilled group disappears from the (filter-scoped) group list, back
   // out of drill rather than pointing at nothing.
   useEffect(() => {
@@ -203,6 +209,7 @@ export default function SpendingBreakdown() {
             <div className="tnum" style={{ fontSize: 22, fontWeight: 700, marginTop: 2, whiteSpace: 'nowrap' }}>{money(total)}</div>
           </div>
           <span style={{ flex: 1 }} />
+          <RecoverableSwitch checked={incRec} onChange={on => setPrefs({ includeRecoverableBreakdown: on })} withLabel={!isPhone} />
           <ViewToggle view={lens} onChange={changeLens} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>

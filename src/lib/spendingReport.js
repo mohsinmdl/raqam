@@ -2,7 +2,7 @@
 // reports.js (which stays single-month for the other tabs). Same conventions:
 // integer PKR, refunds net against expenses, pending/future excluded,
 // 'uncategorized' is the reserved id for a null category.
-import { daysInMonth, hasOccurred } from './calc.js';
+import { daysInMonth, hasOccurred, isExcludedCat } from './calc.js';
 import { inRange } from './dateRange.js';
 import { addMonths, currentMonth, monthsBetween, nowIso } from './dates.js';
 
@@ -41,16 +41,22 @@ export function catKeyFn(store) {
 }
 const signed = t => (t.type === 'expense' ? t.amount : -t.amount);
 
+// opts.includeExcluded === false hides excluded (recoverable/advance)
+// categories — the page's "Include recoverable spending" switch. Omitted, the
+// report stays gross, as it always was. Filtering here is enough: every row,
+// group, stat, drill list and both CSVs are built from these transactions.
 export function reportTxns(store, opts = {}) {
   const { from = null, to = null, acctIds = null, catIds = null } = opts;
   const now = opts.now || nowIso();
+  const hideExcluded = opts.includeExcluded === false;
   const catKey = catIds ? catKeyFn(store) : null; // only needed to answer the filter
   return store.transactions.filter(t =>
     (t.type === 'expense' || t.type === 'refund')
     && t.status !== 'pending' && hasOccurred(t, now)
     && inRange(t, from, to)
     && (!acctIds || acctIds.has(t.accountId))
-    && (!catIds || catIds.has(catKey(t))));
+    && (!catIds || catIds.has(catKey(t)))
+    && !(hideExcluded && isExcludedCat(store, t.category)));
 }
 
 export function breakdownByCategory(store, opts = {}) {
@@ -74,6 +80,7 @@ export function breakdownByCategory(store, opts = {}) {
   // transactions at all are left out to avoid clutter.
   const cats = store.categories.filter(c => c.type === 'expense'
     && (!catIds || catIds.has(c.id))
+    && !(opts.includeExcluded === false && c.excludeFromBudget)
     && (c.status === 'active' || counts[c.id]));
   // Floored at 0 on purpose, and only here: this is what the PAGE reports —
   // spending — and a category whose in-range refunds outweigh its expenses has
