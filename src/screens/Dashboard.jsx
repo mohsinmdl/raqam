@@ -229,9 +229,14 @@ export default function Dashboard() {
 
         <section aria-label="Monthly summary" className="dash-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
           {v.sumCards.map(s => (
-            <div key={s.label} style={{ ...card, padding: '14px 16px' }}>
+            // Each tile is an inline-size container so its figure can fit it: a
+            // 7-digit signed amount (+Rs 1,094,535.00) otherwise wraps at the "Rs"
+            // space in a ~175px tile. Never wrap; instead size the figure so ITS
+            // length fits (~0.53em per tabular glyph, 0.55 for headroom), capped at
+            // the 19px design size so shorter figures are untouched, floored at 13px.
+            <div key={s.label} style={{ ...card, padding: '14px 16px', containerType: 'inline-size' }}>
               <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>{s.label}</div>
-              <div className="tnum" style={{ fontSize: 19, fontWeight: 600, marginTop: 4, color: s.color }}>{s.val}</div>
+              <div className="tnum" style={{ fontSize: `clamp(13px, calc(100cqi / ${s.val.length * 0.55}), 19px)`, whiteSpace: 'nowrap', fontWeight: 600, marginTop: 4, color: s.color }}>{s.val}</div>
               <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{s.sub}</div>
             </div>
           ))}
