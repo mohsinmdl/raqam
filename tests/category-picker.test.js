@@ -23,7 +23,7 @@ describe('categoryPickerSections', () => {
     const secs = categoryPickerSections(S, 'expense', '');
     expect(idsBy(secs, 'Bills')).toEqual(['phone', 'rent']); // name-sorted (no explicit order)
     expect(idsBy(secs, 'Fun')).toEqual(['games']);
-    expect(idsBy(secs, 'Other')).toEqual(['loose']);
+    expect(idsBy(secs, 'Ungrouped')).toEqual(['loose']);
   });
 
   it('excludes archived categories and the wrong type (and RTA, which is never a real category)', () => {

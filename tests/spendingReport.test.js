@@ -288,7 +288,7 @@ describe('breakdownByGroup', () => {
     expect(byId.living.amt).toBe(8000); // groc(8000) + adv(0, zero row)
     expect(byId.living.catIds).toEqual(expect.arrayContaining(['groc', 'adv']));
     expect(byId.housing).toMatchObject({ amt: 35000, catIds: ['rent'] });
-    expect(byId.other).toMatchObject({ name: 'Other', amt: 700, catIds: ['legacy'] });
+    expect(byId.other).toMatchObject({ name: 'Ungrouped', amt: 700, catIds: ['legacy'] });
     expect(byId.uncategorized).toMatchObject({ name: 'Uncategorized', amt: 5000, catIds: ['uncategorized'] });
     expect(byId.deleted).toBeUndefined(); // nothing dangling in this fixture
 

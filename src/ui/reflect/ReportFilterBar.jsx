@@ -83,14 +83,14 @@ function categorySections(store, spentIds) {
     })
     .filter(s => s.items.length > 0);
   // A groupId pointing at a group that no longer exists is homeless too —
-  // breakdownByCategory folds those rows into 'Other' for the same reason.
+  // breakdownByCategory folds those rows into 'Ungrouped' for the same reason.
   const homeless = cats.filter(c => c.groupId == null || !groupIds.has(c.groupId));
   const ungrouped = homeless.filter(active).sort(byOrder).map(asItem);
   const archived = homeless.filter(c => !active(c)).sort(byOrder).map(asItem);
   return [
     root,
     ...groupSections,
-    ...(ungrouped.length ? [{ id: 'other', name: 'Other', items: ungrouped }] : []),
+    ...(ungrouped.length ? [{ id: 'other', name: 'Ungrouped', items: ungrouped }] : []),
     ...(archived.length ? [{ id: 'archived', name: 'Archived', items: archived }] : []),
   ];
 }

@@ -47,7 +47,7 @@ export function spendingByCategory(store, month, opts = {}) {
     .sort((a, b) => b.amt - a.amt || a.name.localeCompare(b.name));
 }
 
-// Same rows, folded by category group. Unknown/missing group -> 'Other';
+// Same rows, folded by category group. Unknown/missing group -> 'Ungrouped';
 // Uncategorized is never folded into a group.
 export function spendingByGroup(store, month, opts = {}) {
   const rows = spendingByCategory(store, month, opts);
@@ -61,7 +61,7 @@ export function spendingByGroup(store, month, opts = {}) {
     if (r.id === 'uncategorized') { put('uncategorized', 'Uncategorized', r.amt); return; }
     const cat = store.categories.find(c => c.id === r.id);
     const group = cat && cat.groupId && store.categoryGroups.find(g => g.id === cat.groupId);
-    put(group ? group.id : 'other', group ? group.name : 'Other', r.amt);
+    put(group ? group.id : 'other', group ? group.name : 'Ungrouped', r.amt);
   });
   return Object.values(groups)
     .map(g => ({ ...g, pct: total ? g.amt / total : 0 }))

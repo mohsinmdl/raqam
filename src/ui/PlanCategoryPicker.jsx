@@ -110,7 +110,7 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
   const nameOf = v => (v === 'rta' ? 'Ready to Assign'
     : v === '__new' ? (pendingName || '＋ New category')
     : v ? ((S.categories.find(c => c.id === v) || {}).name || '') : '');
-  const groupNameOf = c => (S.categoryGroups.find(g => g.id === (c || {}).groupId) || {}).name || 'Other';
+  const groupNameOf = c => (S.categoryGroups.find(g => g.id === (c || {}).groupId) || {}).name || 'Ungrouped';
 
   // excludeIds hides a whole set (e.g. every category already in a group being
   // deleted, or already-budgeted categories); excludeId is the single-id case.
@@ -133,7 +133,7 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
       if (members.length) out.push({ key: g.id, name: g.name, items: members.map(c => ({ kind: 'cat', cat: c })) });
     });
     const other = sortCats(cats.filter(c => !c.groupId || !ids.has(c.groupId)));
-    if (other.length) out.push({ key: 'other', name: 'Other', items: other.map(c => ({ kind: 'cat', cat: c })) });
+    if (other.length) out.push({ key: 'other', name: 'Ungrouped', items: other.map(c => ({ kind: 'cat', cat: c })) });
     return out;
   }, [S, q, excludeRta, excludeSet, catType, groups, inflow]);
   const pickable = useMemo(() => sections.flatMap(s => s.items), [sections]);

@@ -13,7 +13,7 @@ export function categoryPickerSections(S, catType, q) {
   const byGroup = key => cats.filter(c => ((c.groupId && ids.has(c.groupId)) ? c.groupId : 'other') === key)
     .sort(byOrderThenName);
   return [...groups.map(g => ({ id: g.id, name: g.name, cats: byGroup(g.id) })),
-    { id: 'other', name: 'Other', cats: byGroup('other') }]
+    { id: 'other', name: 'Ungrouped', cats: byGroup('other') }]
     .filter(s => s.cats.length > 0);
 }
 
