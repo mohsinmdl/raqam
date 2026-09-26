@@ -98,6 +98,19 @@ describe('planTotals — scope and edge cases', () => {
     expect(t.unassigned).toBe(422500);
   });
 
+  it('assignments the fold ignores (income / deleted categories) never move the end month', () => {
+    // Current month overspent by 10,000 — the case that shifts if `end` moves.
+    const S = wedding();
+    S.transactions.push(exp('o2', '21', 10000, 'streamer')); // Streamer: 61,500 assigned, 71,500 spent
+    const base = planTotals(S, NOW);
+    expect(base.covered).toBe(0);
+    expect(base.remaining).toBe(base.budget - base.spent); // this month's −10,000 stays in Remaining
+    const stray = wedding();
+    stray.transactions = S.transactions;
+    stray.assignments.push(asg('salary', '2026-10', 0), asg('ghost-deleted', '2026-12', 5));
+    expect(planTotals(stray, NOW)).toEqual(base);
+  });
+
   it('an empty plan is all zeros with no division by zero', () => {
     const t = planTotals(wedding({ assignments: [], transactions: [], snapshots: [] }), NOW);
     expect(t).toMatchObject({ budget: 0, spent: 0, remaining: 0, toFund: 0, unassigned: 0, covered: 0, pctSpent: 0 });

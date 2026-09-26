@@ -120,7 +120,7 @@ function MoveSheetBody({ sheet, onClose, env, S, month, money, applyData }) {
 // breakdown rows above the amount field reuse rtaBreakdownLines (from
 // lib/rtaBreakdown.js), the same pure derivation RtaBreakdown's desktop
 // popover renders from — so the two surfaces can never drift apart.
-function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, applyData, totals }) {
+function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, applyData, totals, moneyPos }) {
   const { notify } = useUI();
   const [amount, setAmount] = useState(() => String(Math.max(0, env.rta)));
   const [to, setTo] = useState(null);
@@ -163,7 +163,7 @@ function AssignSheetBody({ onClose, env, prevRta, S, month, money, moneyS, apply
       {totals && (
         <section aria-label="Whole plan" style={{ background: 'var(--elev)', borderRadius: 8, padding: '8px 10px', marginTop: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Whole plan</div>
-          <PlanTotalsLines t={totals} money={money} />
+          <PlanTotalsLines t={totals} money={money} moneyPos={moneyPos} />
         </section>
       )}
     </>
@@ -217,7 +217,7 @@ function HiddenSheetBody({ S }) {
   );
 }
 
-export default function MoneySheets({ sheet, onClose, env, prevRta, S, month, money, moneyS, applyData, totals }) {
+export default function MoneySheets({ sheet, onClose, env, prevRta, S, month, money, moneyS, applyData, totals, moneyPos }) {
   const titles = { cover: 'Cover overspending', move: 'Move money', assign: 'Assign money', overspent: 'Overspent Categories', hidden: 'Hidden categories' };
   // Keep the shell (and its last body) mounted through the close animation
   // instead of unmount-yanking the content the instant `sheet` goes null —
@@ -229,7 +229,7 @@ export default function MoneySheets({ sheet, onClose, env, prevRta, S, month, mo
     <SheetShell open={!!sheet} onClose={onClose} title={shown ? titles[shown.kind] : ''}>
       {shown && shown.kind === 'cover' && <CoverSheetBody {...{ sheet: shown, onClose, env, S, month, money, applyData }} />}
       {shown && shown.kind === 'move' && <MoveSheetBody {...{ sheet: shown, onClose, env, S, month, money, applyData }} />}
-      {shown && shown.kind === 'assign' && <AssignSheetBody {...{ onClose, env, prevRta, S, month, money, moneyS, applyData, totals }} />}
+      {shown && shown.kind === 'assign' && <AssignSheetBody {...{ onClose, env, prevRta, S, month, money, moneyS, applyData, totals, moneyPos }} />}
       {shown && shown.kind === 'overspent' && <OverspentSheetBody {...{ sheet: shown, env, S, money }} />}
       {shown && shown.kind === 'hidden' && <HiddenSheetBody {...{ S }} />}
     </SheetShell>
