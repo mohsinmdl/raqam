@@ -69,7 +69,7 @@ export function validateSplit(totalStr, lines, store, fmt) {
   // New-category names are unique per GROUP now (0018), not plan-wide: the same
   // name under two groups is fine, so the "same new category" and "already
   // called" checks are keyed on (group, name) — a __new line's group is its
-  // newCatGroup, or the ungrouped "Other" bucket when it names none.
+  // newCatGroup, or the "Ungrouped" bucket when it names none.
   const newLines = lines.filter(l => l.category === '__new');
   const seenNew = new Set();
   for (const l of newLines) {

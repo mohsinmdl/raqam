@@ -71,7 +71,7 @@ describe('buildSummaryCsv', () => {
       ['Housing', 'Rent'],
       ['Living', 'Groceries'],
       ['Living', 'Household advance'],
-      ['Other', 'Legacy cat'],
+      ['Ungrouped', 'Legacy cat'],
     ]);
   });
 
@@ -235,7 +235,7 @@ describe('buildTransactionsCsv', () => {
     ]);
 
     expect(rows[3]).toEqual([
-      'Main', '', '01/' + m + '/' + y, 'Old', 'Other: Legacy cat', 'Other', 'Legacy cat', '', '700', '0', 'Cleared',
+      'Main', '', '01/' + m + '/' + y, 'Old', 'Ungrouped: Legacy cat', 'Ungrouped', 'Legacy cat', '', '700', '0', 'Cleared',
     ]);
   });
 

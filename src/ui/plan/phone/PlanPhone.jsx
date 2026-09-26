@@ -37,7 +37,7 @@ export function phoneRowsFor(S, env, collapsed) {
   const ids = new Set(groups.map(g => g.id));
   groups.forEach(g => emit(g.id, g.name, bucket(g.id)));
   const other = sortCats(active.filter(c => !c.groupId || !ids.has(c.groupId)));
-  emit('other', 'Other', other);
+  emit('other', 'Ungrouped', other);
   return { list: out, hiddenCount, overspent };
 }
 

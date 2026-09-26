@@ -125,7 +125,7 @@ describe('spendingByGroup', () => {
     const byId = Object.fromEntries(rows.map(r => [r.id, r]));
     expect(byId.living.amt).toBe(8000 + 45386);
     expect(byId.housing.amt).toBe(35000);
-    expect(byId.other).toMatchObject({ name: 'Other', amt: 700 });
+    expect(byId.other).toMatchObject({ name: 'Ungrouped', amt: 700 });
     expect(byId.uncategorized).toMatchObject({ name: 'Uncategorized', amt: 5000 });
     const total = rows.reduce((s, r) => s + r.amt, 0);
     expect(total).toBe(8000 + 45386 + 35000 + 700 + 5000);

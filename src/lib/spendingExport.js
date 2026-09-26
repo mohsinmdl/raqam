@@ -29,7 +29,7 @@ export function buildSummaryCsv(store, opts = {}) {
   const groupName = r => {
     if (r.id === 'uncategorized' || r.id === 'deleted') return '';
     const g = r.groupId && store.categoryGroups.find(x => x.id === r.groupId);
-    return g ? plainName(g.name) : 'Other';
+    return g ? plainName(g.name) : 'Ungrouped';
   };
   // Per-month sums, netting refunds, keyed cat|month. NOT floored at 0, unlike
   // the page's per-category amounts (see spendingReport.js): this file is a net
@@ -82,7 +82,7 @@ export function buildTransactionsCsv(store, opts = {}) {
   const groupOf = id => {
     const c = store.categories.find(x => x.id === id);
     const g = c && c.groupId && store.categoryGroups.find(x => x.id === c.groupId);
-    return g ? plainName(g.name) : (c ? 'Other' : '');
+    return g ? plainName(g.name) : (c ? 'Ungrouped' : '');
   };
   const acct = id => { const a = store.accounts.find(x => x.id === id); return a ? a.nickname : id; };
   const body = reportTxns(store, opts)

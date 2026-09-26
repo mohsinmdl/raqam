@@ -55,7 +55,7 @@ import {
 
 // Synthetic group used only for rendering: categories with no groupId, or a
 // groupId whose group no longer exists, land here — never written to the store.
-const OTHER = { id: null, name: 'Other' };
+const OTHER = { id: null, name: 'Ungrouped' };
 
 // Leading columns match YNAB: a disclosure chevron FIRST (20px), then the
 // selection checkbox (22px), then the name — so group names align exactly with
@@ -611,7 +611,7 @@ function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, befor
   const { S, month, applyData, money, selected, setMany, dnd } = ctx;
   const { notify, ask } = useUI();
   const { openDrawer } = useDrawer();
-  // The synthetic "Other" (id null) is never draggable, but a group dropped on
+  // The synthetic "Ungrouped" (id null) is never draggable, but a group dropped on
   // it lands at the end of the real groups (beforeId → null, since Other's id
   // is null), and it still accepts a category drop (→ ungroup). So the group
   // insertion line IS allowed above Other — that is the "move to last" slot.
@@ -651,7 +651,7 @@ function GroupRow({ group, totals, cats, groupCatIds, collapsed, onToggle, befor
       draggable={!isOther}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       onDragStart={e => {
-        if (isOther) return;  // "Other" is a drop target but never draggable
+        if (isOther) return;  // "Ungrouped" is a drop target but never draggable
         if (e.target.closest('input, textarea, [role="dialog"], [contenteditable]')) { e.preventDefault(); return; }
         dnd.startGroupDrag(e, group.id, group.name);
       }}

@@ -132,11 +132,11 @@ export function breakdownByGroup(store, opts = {}) {
   };
   for (const r of rows) {
     if (r.id === 'uncategorized') { put('uncategorized', 'Uncategorized', r); continue; }
-    // Same treatment as Uncategorized: its own bucket, not folded into 'Other'
-    // (which means "a real category with no group").
+    // Same treatment as Uncategorized: its own bucket, not folded into
+    // 'Ungrouped' (which means "a real category with no group").
     if (r.id === 'deleted') { put('deleted', 'Deleted category', r); continue; }
     const g = r.groupId && store.categoryGroups.find(x => x.id === r.groupId);
-    put(g ? g.id : 'other', g ? g.name : 'Other', r);
+    put(g ? g.id : 'other', g ? g.name : 'Ungrouped', r);
   }
   return Object.values(groups)
     .sort((a, b) => b.amt - a.amt || a.name.localeCompare(b.name))
