@@ -45,7 +45,9 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   // true bank change (income − spending − recoverable === net) and the row reconciles.
   const hasRec = M.recoverable !== 0;
   v.sumCards = [
-    { label: 'Income', val: money(M.income), color: 'var(--text)', sub: C.monthLabel(month) },
+    // Links to the register filtered to this month's income (txLinkFilter).
+    { label: 'Income', val: money(M.income), color: 'var(--text)', sub: C.monthLabel(month),
+      to: '/transactions?is=income&month=' + month, linkLabel: 'Show ' + C.monthLabel(month) + ' income transactions' },
     { label: 'Expenses', val: money(M.spending), color: 'var(--text)', sub: hasRec ? 'excl. recoverable advances' : 'incl. transfer fees' },
     ...(hasRec ? [{ label: 'Recoverable', val: moneyS(M.recoverable), color: 'var(--text)', sub: 'advances, net this month' }] : []),
     { label: 'Net cash flow', val: moneyS(M.net), color: netColor, sub: hasRec ? 'income − expenses − recoverable' : 'income − expenses' },
@@ -74,6 +76,28 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   v.catBars = cats.slice(0, 6).map(c => ({ id: c.id, name: c.cat ? c.cat.name : (c.id === 'undefined' ? 'Uncategorized' : 'Deleted category'), color: c.cat ? c.cat.color : 'var(--border)', amt: money(c.amt), w: Math.max(Math.round(c.amt / cmaxAmt * 100), 3) + '%' }));
   v.hasCat = cats.length > 0; v.noCat = cats.length === 0;
   return { v, cats, daily, M };
+}
+
+// One Overview summary tile. Each tile is an inline-size container so its
+// figure can fit it (see the sizing note at the render site). A tile with `to`
+// renders as a router Link — the Income tile opens the register filtered to
+// that month's income.
+function SumTile({ s }) {
+  const body = (
+    <>
+      <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>{s.label}</div>
+      <div className="tnum" style={{ fontSize: `clamp(13px, calc(100cqi / ${s.val.length * 0.55}), 19px)`, whiteSpace: 'nowrap', fontWeight: 600, marginTop: 4, color: s.color }}>{s.val}</div>
+      <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{s.sub}</div>
+    </>
+  );
+  const style = { ...card, padding: '14px 16px', containerType: 'inline-size' };
+  if (!s.to) return <div style={style}>{body}</div>;
+  return (
+    <Link to={s.to} className="hv-soft" aria-label={s.label + ' ' + s.val + ' — ' + s.linkLabel} title={s.linkLabel}
+      style={{ ...style, display: 'block', color: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>
+      {body}
+    </Link>
+  );
 }
 
 export default function Dashboard() {
@@ -223,11 +247,8 @@ export default function Dashboard() {
             // space in a ~175px tile. Never wrap; instead size the figure so ITS
             // length fits (~0.53em per tabular glyph, 0.55 for headroom), capped at
             // the 19px design size so shorter figures are untouched, floored at 13px.
-            <div key={s.label} style={{ ...card, padding: '14px 16px', containerType: 'inline-size' }}>
-              <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>{s.label}</div>
-              <div className="tnum" style={{ fontSize: `clamp(13px, calc(100cqi / ${s.val.length * 0.55}), 19px)`, whiteSpace: 'nowrap', fontWeight: 600, marginTop: 4, color: s.color }}>{s.val}</div>
-              <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{s.sub}</div>
-            </div>
+            // A tile with `to` is a link into the register (same look, soft hover).
+            <SumTile key={s.label} s={s} />
           ))}
         </section>
 
