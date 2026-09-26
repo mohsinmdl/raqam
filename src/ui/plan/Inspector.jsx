@@ -14,6 +14,7 @@ import { useUI } from '../UIProvider.jsx';
 import { useDrawer } from '../DrawerProvider.jsx';
 import { askDeleteCategory } from '../categoryActions.js';
 import EditNamePopover from './EditNamePopover.jsx';
+import PlanTotalsLines from './PlanTotalsLines.jsx';
 
 // Borderless cards (YNAB-style): the white surface on the off-white page reads
 // as a panel without an outline. The single-select header/toggle rows reuse
@@ -274,7 +275,7 @@ function ExcludeToggle({ ids, S, applyData }) {
   );
 }
 
-export default function Inspector({ S, env, envAt, month, money, applyData, selected, rtaBanner }) {
+export default function Inspector({ S, env, envAt, month, money, applyData, selected, rtaBanner, totals }) {
   const ctx = { S, month, env, envAt };
   const monthName = monthLabel(month).split(' ')[0]; // "August" from "August 2026"
   const activeCats = useMemo(
@@ -299,6 +300,11 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
             </div>
           )}
         </Card>
+        {totals && (totals.budget !== 0 || totals.spent !== 0) && (
+          <Card title="Whole plan">
+            <PlanTotalsLines t={totals} money={money} />
+          </Card>
+        )}
         <Card title="Auto-Assign">
           <AutoAssignRows kinds={['underfunded', ...SIX_KINDS]} catIds={allIds} ctx={ctx} money={money} applyData={applyData} plural />
         </Card>

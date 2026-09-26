@@ -10,6 +10,7 @@ import { useStore } from '../store/StoreProvider.jsx';
 import { useMonth } from '../store/MonthContext.jsx';
 import { useMoney, parseAmt } from '../lib/format.js';
 import { envelopeFor } from '../lib/envelope.js';
+import { planTotals } from '../lib/planTotals.js';
 import { currentMonth, nowIso } from '../lib/dates.js';
 import { sortGroups, byOrderThenName } from '../lib/categoryOrder.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
@@ -1249,6 +1250,9 @@ export default function Plan() {
   const phone = useIsPhone();
 
   const env = useMemo(() => envelopeFor(S, month, nowIso()), [S, month]);
+  // Whole-plan totals (every month, future included) for the sidebar card and
+  // the phone Assign sheet — independent of the viewed month.
+  const totals = useMemo(() => planTotals(S, nowIso()), [S]);
   const prevRta = useMemo(() => envelopeFor(S, prevMonth(month), nowIso()).rta, [S, month]);
   const envAt = useMemo(() => {
     const cache = new Map();
@@ -1573,7 +1577,7 @@ export default function Plan() {
           onClose={() => { commitKp(); setKp(null); }}
           onAutoAssign={() => setKp(k => ({ ...k, draft: String(suggested) }))}
           onMoveMoney={() => { commitKp(); setKp(null); setSheet({ kind: 'move', cat: kpCat, row: kpRow }); }} />
-        <MoneySheets sheet={sheet} onClose={() => setSheet(null)} env={env} prevRta={prevRta} S={S} month={month} money={money} moneyS={moneyS} applyData={applyData} />
+        <MoneySheets sheet={sheet} onClose={() => setSheet(null)} env={env} prevRta={prevRta} S={S} month={month} money={money} moneyS={moneyS} applyData={applyData} totals={totals} />
       </>
     );
   }
@@ -1697,7 +1701,7 @@ export default function Plan() {
             )}
             </div>
           </div>
-          <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected}
+          <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} totals={totals}
             rtaBanner={<RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} moneyPos={moneyPos} moneySPos={moneySPos} S={S} applyData={applyData} />} />
         </div>
       </div>
