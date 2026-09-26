@@ -281,7 +281,7 @@ function ExcludeToggle({ ids, S, applyData }) {
   );
 }
 
-export default function Inspector({ S, env, envAt, month, money, applyData, selected, rtaBanner, totals, totalsOn, onToggleTotals }) {
+export default function Inspector({ S, env, envAt, month, money, applyData, selected, rtaBanner, totals, totalsOn, onToggleTotals, moneyPos }) {
   const ctx = { S, month, env, envAt };
   const monthName = monthLabel(month).split(' ')[0]; // "August" from "August 2026"
   const activeCats = useMemo(
@@ -315,7 +315,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
         {totalsOn && totals && (
           <Card title="Whole plan"
             action={<button type="button" onClick={() => onToggleTotals(false)} style={linkBtn} aria-label="Hide whole-plan totals">Hide</button>}>
-            <PlanTotalsLines t={totals} money={money} />
+            <PlanTotalsLines t={totals} money={money} moneyPos={moneyPos} />
           </Card>
         )}
         <Card title="Auto-Assign">

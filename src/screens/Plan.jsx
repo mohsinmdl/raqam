@@ -1582,7 +1582,7 @@ export default function Plan() {
           onClose={() => { commitKp(); setKp(null); }}
           onAutoAssign={() => setKp(k => ({ ...k, draft: String(suggested) }))}
           onMoveMoney={() => { commitKp(); setKp(null); setSheet({ kind: 'move', cat: kpCat, row: kpRow }); }} />
-        <MoneySheets sheet={sheet} onClose={() => setSheet(null)} env={env} prevRta={prevRta} S={S} month={month} money={money} moneyS={moneyS} applyData={applyData} totals={totals} />
+        <MoneySheets sheet={sheet} onClose={() => setSheet(null)} env={env} prevRta={prevRta} S={S} month={month} money={money} moneyS={moneyS} applyData={applyData} totals={totals} moneyPos={moneyPos} />
       </>
     );
   }
@@ -1706,7 +1706,7 @@ export default function Plan() {
             )}
             </div>
           </div>
-          <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} totals={totals} totalsOn={totalsOn} onToggleTotals={setTotalsOn}
+          <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} totals={totals} totalsOn={totalsOn} onToggleTotals={setTotalsOn} moneyPos={moneyPos}
             rtaBanner={<RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} moneyPos={moneyPos} moneySPos={moneySPos} S={S} applyData={applyData} />} />
         </div>
       </div>

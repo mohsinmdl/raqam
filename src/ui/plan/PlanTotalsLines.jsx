@@ -5,7 +5,10 @@
 const row = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, padding: '3px 0' };
 const muted = { color: 'var(--muted)' };
 
-export default function PlanTotalsLines({ t, money }) {
+// `moneyPos` masks with the Ready to Assign eye (maskedPosition), like the RTA
+// banner above this card: "Still to fund" / "Cash not yet budgeted" ARE ±RTA,
+// so they must hide whenever the banner's figure is hidden.
+export default function PlanTotalsLines({ t, money, moneyPos = money }) {
   const over = t.spent > t.budget;
   const pct = Math.round(t.pctSpent * 100);
   return (
@@ -27,21 +30,21 @@ export default function PlanTotalsLines({ t, money }) {
       </div>
       {t.covered > 0 && (
         <div style={{ ...row, ...muted, fontSize: 12 }}
-          title="Past overspending was taken from Ready to Assign, so Remaining is Total budget − Spent + this.">
-          <span>Overspent (covered)</span><span className="tnum">{money(t.covered)}</span>
+          title="Overspending moved from its category to Ready to Assign, so Remaining is Total budget − Spent + this.">
+          <span>Overspent (moved to Ready to Assign)</span><span className="tnum">{money(t.covered)}</span>
         </div>
       )}
       <div style={{ ...row, borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 7 }}>
         <span>Cash in accounts</span><span className="tnum">{money(t.cash)}</span>
       </div>
       {t.toFund > 0 && (
-        <div style={row} title="Budget assigned beyond the money you have — the Ready to Assign shortfall.">
+        <div style={row} title="Assigned money you don't have yet — the Ready to Assign shortfall.">
           <span style={{ color: 'var(--neg)' }}>Still to fund</span>
-          <span className="tnum" style={{ color: 'var(--neg)', fontWeight: 600 }}>{money(t.toFund)}</span>
+          <span className="tnum" style={{ color: 'var(--neg)', fontWeight: 600 }}>{moneyPos(t.toFund)}</span>
         </div>
       )}
       {t.unassigned > 0 && (
-        <div style={{ ...row, ...muted }}><span>Cash not yet budgeted</span><span className="tnum">{money(t.unassigned)}</span></div>
+        <div style={{ ...row, ...muted }}><span>Cash not yet budgeted</span><span className="tnum">{moneyPos(t.unassigned)}</span></div>
       )}
     </>
   );
