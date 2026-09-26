@@ -18,11 +18,13 @@ import { schedOpenFor } from '../lib/txRow.js';
 // Search only. The account, category, type, status and budget-impact filters
 // that used to live here were removed with their controls rather than left as
 // state nothing could set — each is returning on the screen that owns the
-// question (sidebar, Categories, Budgets, reporting). Reinstating one means
-// adding its key back here and a branch to the Transactions predicate.
+// question (sidebar, Categories, Budgets, reporting); account, category,
+// status and type came back as search facets (type as the "Is: <flow>" facet
+// the Overview tiles link to). Reinstating a separate filter means adding its
+// key back here and a branch to the Transactions predicate.
 // `q` is the free-text query (drives the search box and its suggestions);
 // `term` is the structured facet a picked suggestion applies (an account, a
-// category, a status, a date or amount comparison, a field-scoped match). One
+// category, a status, a flow, a date or amount comparison, a field-scoped match). One
 // or the other is active — typing clears `term`, picking a suggestion clears
 // `q` and sets `term`. The predicate is matchesSearch (lib/txSearch.js).
 export const DEFAULT_FILTERS = { q: '', term: null };

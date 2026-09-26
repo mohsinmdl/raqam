@@ -942,9 +942,10 @@ export default function Transactions() {
     setSelected(new Set([target.id]));
     setCursorId(target.id);     // reuses the cursor's scrollIntoView to bring it on screen
   }, [selParam]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Deep-link filter from the Overview tiles: ?is=income&month=YYYY-MM applies
-  // the "Is: Income" facet for that month (txLinkFilter). One-shot like ?sel:
-  // consumed and cleared, so the user can then clear or change it freely.
+  // Deep-link filter from the Overview tiles: ?is=<flow>&month=YYYY-MM
+  // (income / spending / recoverable / cashflow) applies that "Is: …" flow
+  // facet for the month (txLinkFilter). One-shot like ?sel: consumed and
+  // cleared, so the user can then clear or change it freely.
   const isParam = searchParams.get('is');
   useEffect(() => {
     const link = txLinkFilter(searchParams);
@@ -953,7 +954,8 @@ export default function Transactions() {
     if (!link) return;
     if (link.range) setRange(link.range);
     setFilters({ q: '', term: link.term });
-    setListFilter('all'); // a banner filter (uncleared / needs category) would hide income rows
+    setPhoneQOpen(true);  // phone: never narrow the list with the search row (and its chip) collapsed
+    setListFilter('all'); // a banner filter (uncleared / needs category) would hide the linked rows
   }, [isParam]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleRow = (id, on, e) => {
     setCursorId(id);

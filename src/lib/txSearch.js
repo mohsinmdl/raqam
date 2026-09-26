@@ -7,12 +7,14 @@
 //      side included). An empty query matches everything.
 //   2. Structured terms (searchSuggestions / matchesTerm): the register's
 //      search box offers interpretations of what you typed — an Account, a
-//      Category, a status, a date comparison, an amount comparison, or a
-//      field-scoped text match — and picking one filters the rows to it. This
-//      mirrors YNAB's register search, adapted to Raqam's data: there is no
-//      "reconciled" state here, only Cleared vs Uncleared, so the "Is:" facet
-//      offers those two (plus the real "Needs Category" flag) rather than
-//      inventing a status the ledger does not store.
+//      Category, a status, a flow (Income / Spending / Recoverable / Cash
+//      flow), a date comparison, an amount comparison, or a field-scoped text
+//      match — and picking one filters the rows to it. This mirrors YNAB's
+//      register search, adapted to Raqam's data: there is no "reconciled"
+//      state here, only Cleared vs Uncleared, so the "Is:" status facet offers
+//      those two rather than inventing a status the ledger does not store;
+//      "Is:" also carries the real "Needs Category" flag and the Overview
+//      tiles' flow facets.
 import { parseTypedDate } from './dates.js';
 import { isExcludedCat } from './calc.js';
 
@@ -108,7 +110,9 @@ export function matchesTerm(t, term, S, accountId) {
     case 'status':
       return term.value === 'uncleared' ? t.status === 'pending' : t.status !== 'pending';
     case 'needsCategory': return txNeedsCategory(t, S);
-    case 'type': { const f = FLOWS[term.value]; return f ? f.test(t, S) : false; } // unknown value: fail closed
+    // `type` is a FLOW facet (FLOWS below), not a raw t.type match. Own keys
+    // only: `constructor`/`toString` must fail closed, not throw.
+    case 'type': return Object.hasOwn(FLOWS, term.value) ? FLOWS[term.value].test(t, S) : false;
     case 'date': {
       const d = (t.date || '').slice(0, 10);
       if (!d) return false;
@@ -152,11 +156,15 @@ export function parseSearchAmount(text) {
 // Two decimals, no currency symbol — matches the "2.00" the dropdown shows.
 const amt2 = n => Number(n).toFixed(2);
 
-// "Is: …" flow facets — one per Reflect › Overview tile, each the row set
-// behind that tile's figure (monthMetrics in calc.js). Offered as search
-// suggestions and applied by the tiles' deep links (txLinkFilter below).
-// Transfers are never listed: only their fee counts in the tiles, and a
-// transfer between your own accounts isn't income or spending.
+// "Is: …" flow facets — one per Reflect › Overview flow tile (Income;
+// Expenses → Spending; Recoverable; Net cash flow → Cash flow), using the same
+// transaction types and recoverable (excludeFromBudget) split as monthMetrics
+// in calc.js. Offered as search suggestions and applied by the tiles' deep
+// links (txLinkFilter below). Deliberately a REGISTER view, not an exact
+// reconciliation of the tile: it also lists uncleared rows (the figure counts
+// cleared ones), and never lists transfers — the figure counts their fee, but
+// a transfer between your own accounts isn't income or spending. Pinned by the
+// "rows reconcile with the monthMetrics figures" test.
 const isSpendRow = t => t.type === 'expense' || t.type === 'refund';
 const FLOWS = {
   income: { label: 'Income', words: ['income'], icon: 'inflow', test: t => t.type === 'income' },
@@ -258,7 +266,8 @@ export function searchSuggestions(q, S, anchorIso, limit = 5) {
   }
 
   // 4b. Flows (Is: Income / Spending / Recoverable / Cash flow) — the facets
-  // the Overview tiles link to; any of their words, as a prefix (≥2 chars).
+  // the Overview tiles link to; shown when the query (≥2 chars) is a prefix of
+  // any of the flow's words ('exp' → Spending, 'cash' → Cash flow).
   if (raw.length >= 2) {
     for (const [value, f] of Object.entries(FLOWS)) {
       if (f.words.some(w => w.startsWith(low))) {

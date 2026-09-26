@@ -48,17 +48,22 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   // the register filtered to that month's rows (?is=<flow>, see txLinkFilter
   // in txSearch.js); Savings / Savings rate are derived from net cash flow, so
   // they open the Income v Expense report instead.
+  // The register lists uncleared rows too and never lists transfers, while
+  // the figures count cleared rows and include transfer fees (see FLOWS in
+  // txSearch.js) — the tooltip says so rather than let the totals surprise.
   const ml = C.monthLabel(month);
   const reg = flow => '/transactions?is=' + flow + '&month=' + month;
+  const CLEARED_NOTE = 'The figure counts cleared transactions; the list also shows uncleared ones';
+  const FEES_NOTE = CLEARED_NOTE + ', and transfer fees (counted in the figure) aren’t listed';
   v.sumCards = [
     { label: 'Income', val: money(M.income), color: 'var(--text)', sub: ml,
-      to: reg('income'), linkLabel: 'Show ' + ml + ' income transactions' },
+      to: reg('income'), linkLabel: 'Show ' + ml + ' income transactions', linkNote: CLEARED_NOTE },
     { label: 'Expenses', val: money(M.spending), color: 'var(--text)', sub: hasRec ? 'excl. recoverable advances' : 'incl. transfer fees',
-      to: reg('spending'), linkLabel: 'Show ' + ml + ' spending transactions' },
+      to: reg('spending'), linkLabel: 'Show ' + ml + ' spending transactions', linkNote: FEES_NOTE },
     ...(hasRec ? [{ label: 'Recoverable', val: moneyS(M.recoverable), color: 'var(--text)', sub: 'advances, net this month',
-      to: reg('recoverable'), linkLabel: 'Show ' + ml + ' recoverable transactions' }] : []),
+      to: reg('recoverable'), linkLabel: 'Show ' + ml + ' recoverable transactions', linkNote: CLEARED_NOTE }] : []),
     { label: 'Net cash flow', val: moneyS(M.net), color: netColor, sub: hasRec ? 'income − expenses − recoverable' : 'income − expenses',
-      to: reg('cashflow'), linkLabel: 'Show ' + ml + ' income and spending transactions' },
+      to: reg('cashflow'), linkLabel: 'Show ' + ml + ' income and spending transactions', linkNote: FEES_NOTE },
     { label: 'Savings', val: money(M.savings), color: 'var(--text)', sub: M.net < 0 ? 'overspent this month' : 'set aside so far',
       to: '/reflect/income-expense', linkLabel: 'Open the Income v Expense report' },
     { label: 'Savings rate', val: M.rate == null ? '—' : C.fmtPct(M.rate), color: M.rate != null && M.rate < 0 ? 'var(--neg)' : 'var(--text)', sub: M.rate == null ? 'no income recorded' : 'of income',
@@ -90,8 +95,8 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
 
 // One Overview summary tile. Each tile is an inline-size container so its
 // figure can fit it (see the sizing note at the render site). A tile with `to`
-// renders as a router Link — the Income tile opens the register filtered to
-// that month's income.
+// renders as a router Link (every tile has one — see v.sumCards); `linkNote`
+// adds to the tooltip how the linked list relates to the figure.
 function SumTile({ s }) {
   const body = (
     <>
@@ -103,7 +108,8 @@ function SumTile({ s }) {
   const style = { ...card, padding: '14px 16px', containerType: 'inline-size' };
   if (!s.to) return <div style={style}>{body}</div>;
   return (
-    <Link to={s.to} className="hv-soft" aria-label={s.label + ' ' + s.val + ' — ' + s.linkLabel} title={s.linkLabel}
+    <Link to={s.to} className="hv-soft" aria-label={s.label + ' ' + s.val + ' — ' + s.linkLabel}
+      title={s.linkNote ? s.linkLabel + '. ' + s.linkNote : s.linkLabel}
       style={{ ...style, display: 'block', color: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>
       {body}
     </Link>
