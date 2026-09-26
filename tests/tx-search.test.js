@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   matchesQuery, txHaystack, matchesTerm, matchesSearch,
-  searchSuggestions, parseSearchAmount, txFlows, txNeedsCategory, txLinkFilter, incomeTerm,
+  searchSuggestions, parseSearchAmount, txFlows, txNeedsCategory, txLinkFilter, incomeTerm, flowTerm,
 } from '../src/lib/txSearch.js';
 
 const S = {
@@ -409,5 +409,57 @@ describe('type facet (Is: Income) and the tile deep link', () => {
     expect(txLinkFilter(new URLSearchParams('is=income&month=Sept'))).toEqual({ term: incomeTerm(), range: null });
     expect(txLinkFilter(new URLSearchParams('is=bogus&month=2026-09'))).toBeNull();
     expect(txLinkFilter(new URLSearchParams(''))).toBeNull();
+  });
+});
+
+// The rest of the Overview tiles: Expenses → Is: Spending, Recoverable →
+// Is: Recoverable, Net cash flow → Is: Cash flow. Each mirrors monthMetrics'
+// row set (recoverable = excluded-from-budget categories).
+describe('flow facets for the Overview tiles', () => {
+  const FS = {
+    ...S,
+    categories: [...S.categories, { id: 'adv', name: 'Household advance', excludeFromBudget: true }],
+  };
+  const rows = {
+    inc: tx({ type: 'income', category: null }),
+    exp: tx({ type: 'expense', category: 'food' }),
+    unc: tx({ type: 'expense', category: null }),
+    ref: tx({ type: 'refund', category: 'food' }),
+    adv: tx({ type: 'expense', category: 'adv' }),
+    advBack: tx({ type: 'refund', category: 'adv' }),
+    xfer: tx({ type: 'transfer', toAccountId: 'a2', fee: 50 }),
+    adj: tx({ type: 'adjustment' }),
+  };
+  const hits = value => Object.entries(rows).filter(([, t]) => matchesTerm(t, flowTerm(value), FS)).map(([k]) => k);
+
+  it('Is: Spending = expense/refund rows outside recoverable categories', () => {
+    expect(hits('spending')).toEqual(['exp', 'unc', 'ref']);
+  });
+  it('Is: Recoverable = expense/refund rows in recoverable categories', () => {
+    expect(hits('recoverable')).toEqual(['adv', 'advBack']);
+  });
+  it('Is: Cash flow = income + every expense/refund; transfers and adjustments out', () => {
+    expect(hits('cashflow')).toEqual(['inc', 'exp', 'unc', 'ref', 'adv', 'advBack']);
+  });
+  it('an unknown flow value fails closed', () => {
+    expect(matchesTerm(rows.exp, { kind: 'type', value: 'nope' }, FS)).toBe(false);
+  });
+  it('labels read "Is: …" and incomeTerm is the income flow term', () => {
+    expect(flowTerm('spending')).toMatchObject({ kind: 'type', value: 'spending', label: 'Is: Spending' });
+    expect(flowTerm('cashflow').label).toBe('Is: Cash flow');
+    expect(incomeTerm()).toEqual(flowTerm('income'));
+  });
+  it('suggestions: "spe"/"exp" → Spending, "rec" → Recoverable, "cash" → Cash flow', () => {
+    const kinds = q => searchSuggestions(q, FS, '2026-09-27').filter(s => s.term && s.term.kind === 'type').map(s => s.term.value);
+    expect(kinds('spe')).toContain('spending');
+    expect(kinds('exp')).toContain('spending');
+    expect(kinds('rec')).toContain('recoverable');
+    expect(kinds('cash')).toContain('cashflow');
+  });
+  it('txLinkFilter accepts every flow value', () => {
+    for (const v of ['income', 'spending', 'recoverable', 'cashflow']) {
+      expect(txLinkFilter(new URLSearchParams(`is=${v}&month=2026-09`)))
+        .toEqual({ term: flowTerm(v), range: { from: '2026-09', to: '2026-09' } });
+    }
   });
 });
