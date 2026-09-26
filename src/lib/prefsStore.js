@@ -77,6 +77,32 @@ export function planPrefs(prefs, planId) {
   return (prefs.plans || {})[planId] || {};
 }
 
+// Where each preference is stored. Device-local keys stay on this device;
+// PLAN keys live in the open plan's namespace (screen-facing name → stored
+// name — `planViews` predates plans, so it persists as the design name
+// `customViews`); everything else is account-level. showPlanTotals is per plan
+// so the "Whole plan" totals card can be on for a one-off project plan and off
+// for a normal monthly budget.
+const DEVICE_PREF_KEYS = new Set(['theme', 'masked', 'maskedPosition', 'decimals', 'appLock']);
+const PLAN_PREF_KEYS = { planViews: 'customViews', builtinViews: 'builtinViews', showPlanTotals: 'showPlanTotals' };
+
+export function routePrefsPatch(patch) {
+  const device = {}, user = {}, plan = {};
+  Object.entries(patch).forEach(([k, v]) => {
+    if (DEVICE_PREF_KEYS.has(k)) device[k] = v;
+    else if (k in PLAN_PREF_KEYS) plan[PLAN_PREF_KEYS[k]] = v;
+    else user[k] = v;
+  });
+  return { device, user, plan };
+}
+
+// The open plan's keys under their screen-facing names, for the flat prefs
+// facade. Only the open plan's — no consumer should address another plan's.
+export function planPrefsFacade(prefs, planId) {
+  const ns = planPrefs(prefs, planId);
+  return Object.fromEntries(Object.entries(PLAN_PREF_KEYS).map(([screen, stored]) => [screen, ns[stored]]));
+}
+
 // Tabs share this one blob (there can be a tab per plan), so every write is a
 // read-modify-write: STORAGE is the base and only what this write changes is
 // laid over it — `userPatch` for account-level keys, `planPatch` into this

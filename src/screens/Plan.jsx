@@ -1251,8 +1251,12 @@ export default function Plan() {
 
   const env = useMemo(() => envelopeFor(S, month, nowIso()), [S, month]);
   // Whole-plan totals (every month, future included) for the sidebar card and
-  // the phone Assign sheet — independent of the viewed month.
-  const totals = useMemo(() => planTotals(S, nowIso()), [S]);
+  // the phone Assign sheet — independent of the viewed month. Opt-in PER PLAN
+  // (off by default): meaningful for a one-off project plan (a wedding), noise
+  // on a normal monthly budget whose lifetime totals only ever grow.
+  const totalsOn = !!prefs.showPlanTotals;
+  const setTotalsOn = on => setPrefs({ showPlanTotals: on });
+  const totals = useMemo(() => (totalsOn ? planTotals(S, nowIso()) : null), [S, totalsOn]);
   const prevRta = useMemo(() => envelopeFor(S, prevMonth(month), nowIso()).rta, [S, month]);
   const envAt = useMemo(() => {
     const cache = new Map();
@@ -1551,6 +1555,7 @@ export default function Plan() {
             progressOn={progressOn}
             onToggleProgress={() => setPrefs({ planView: progressOn ? 'compact' : 'progress' })}
             maskedOn={prefs.masked} onToggleMasked={() => setPrefs({ masked: !prefs.masked })}
+            totalsOn={totalsOn} onToggleTotals={() => setTotalsOn(!totalsOn)}
           />
         </div>
         <PlanPhone S={S} env={env} month={month} money={money} moneyPos={moneyPos}
@@ -1701,7 +1706,7 @@ export default function Plan() {
             )}
             </div>
           </div>
-          <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} totals={totals}
+          <Inspector S={S} env={env} envAt={envAt} month={month} money={money} applyData={applyData} selected={selected} totals={totals} totalsOn={totalsOn} onToggleTotals={setTotalsOn}
             rtaBanner={<RtaBanner env={env} prevRta={prevRta} month={month} money={money} moneyS={moneyS} moneyPos={moneyPos} moneySPos={moneySPos} S={S} applyData={applyData} />} />
         </div>
       </div>
