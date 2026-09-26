@@ -14,7 +14,7 @@ import { useStore } from '../../store/StoreProvider.jsx';
 import { useMoney } from '../../lib/format.js';
 import { useIsPhone } from '../../lib/useIsPhone.js';
 import { clampRange } from '../../lib/dateRange.js';
-import { PALETTE, breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows, foldForDonut } from '../../lib/spendingReport.js';
+import { PALETTE, breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows, drillOther, foldForDonut } from '../../lib/spendingReport.js';
 import { exportSpendingReport } from '../../lib/spendingExport.js';
 import { useUI } from '../../ui/UIProvider.jsx';
 import ReportFilterBar from '../../ui/reflect/ReportFilterBar.jsx';
@@ -63,6 +63,7 @@ export default function SpendingBreakdown() {
   const [acctSel, setAcctSel] = useState(null); // null | Set
   const [lens, setLens] = useState('categories');
   const [drillGroupId, setDrillGroupId] = useState(null);
+  const [otherDepth, setOtherDepth] = useState(0); // levels drilled into the donut's "Other"
   const [focus, setFocus] = useState(null);     // { id, anchor } | null
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -80,7 +81,7 @@ export default function SpendingBreakdown() {
   // lens → groupRows (zero rows hidden below); drilled → catRows subset
   // re-based so pct is within the group (YNAB: 82%/13%/5% inside Needs), all
   // members shown including zeros.
-  const rows = useMemo(() => {
+  const baseRows = useMemo(() => {
     if (lens === 'categories') return catRows;
     if (!drill) return groupRows;
     // Re-base pct within the group AND re-color by group-local rank. Members
@@ -92,6 +93,13 @@ export default function SpendingBreakdown() {
     const t = member.reduce((s, r) => s + r.amt, 0);
     return member.map((r, i) => ({ ...r, pct: t ? r.amt / t : 0, color: i < PALETTE.length ? PALETTE[i] : null }));
   }, [lens, drill, catRows, groupRows]);
+  // Drilled into "Other" (any lens, inside a group drill too): the page shows
+  // only the rows that slice folded, re-based within it; a still-long tail
+  // folds into its own "Other" below, so the drill can go deeper.
+  const rows = useMemo(() => (otherDepth ? drillOther(baseRows, otherDepth) : baseRows), [baseRows, otherDepth]);
+  // The category ids the Other drill covers (a group row carries its members),
+  // so stats and export narrow to exactly what's on screen. null = not drilled.
+  const otherCatIds = otherDepth ? new Set(rows.flatMap(r => r.catIds || [r.id])) : null;
   const total = rows.reduce((s, r) => s + r.amt, 0);
   // Memoized: SpendingDonut's option-building effect depends on `slices` by
   // identity, so a fresh array every render would rebuild the chart and
@@ -99,9 +107,11 @@ export default function SpendingBreakdown() {
   // foldForDonut caps the ring at the top few categories + one gray "Other";
   // the category list (visibleRows) is untouched and still shows every row.
   const slices = useMemo(() => foldForDonut(rows.filter(r => r.amt > 0)), [rows]);
-  const stats = useMemo(() => breakdownStats(S, drill
-    ? { ...opts, catIds: new Set(drill.catIds.filter(id => !catSel || catSel.has(id))) }
-    : opts), [S, range, catSel, acctSel, drill, incRec]);
+  const stats = useMemo(() => breakdownStats(S, otherCatIds
+    ? { ...opts, catIds: otherCatIds }
+    : drill
+      ? { ...opts, catIds: new Set(drill.catIds.filter(id => !catSel || catSel.has(id))) }
+      : opts), [S, range, catSel, acctSel, drill, incRec, rows, otherDepth]);
 
   // Displayed list: top-level lenses hide zero-amount rows; the drilled group
   // list shows every member category, zeros included (rendered without a bar).
@@ -109,7 +119,8 @@ export default function SpendingBreakdown() {
 
   // Clear the open popover whenever anything upstream of the row set changes
   // — its anchor/id may no longer refer to a visible row.
-  useEffect(() => { setFocus(null); }, [range, catSel, acctSel, lens, drillGroupId, incRec]);
+  // The Other drill resets too: which rows fold into it depends on all of these.
+  useEffect(() => { setFocus(null); setOtherDepth(0); }, [range, catSel, acctSel, lens, drillGroupId, incRec]);
   // If the drilled group disappears from the (filter-scoped) group list, back
   // out of drill rather than pointing at nothing.
   useEffect(() => {
@@ -117,7 +128,8 @@ export default function SpendingBreakdown() {
   }, [drillGroupId, groupRows]);
 
   const openFocus = useCallback((id, anchor) => {
-    if (id === '__other__') return; // the folded donut aggregate isn't one drillable category
+    // The folded aggregate isn't one category: clicking it drills into its rows.
+    if (id === '__other__') { setFocus(null); setOtherDepth(d => d + 1); return; }
     const g = lens === 'groups' && !drill ? groupRows.find(x => x.id === id) : null;
     if (g) { setDrillGroupId(id); return; } // donut slice click in groups lens drills too
     setFocus({ id, anchor });
@@ -142,7 +154,7 @@ export default function SpendingBreakdown() {
   // dismissed dialog and no files and has no way to tell the two apart.
   const exportNow = () => {
     try {
-      exportSpendingReport(S, drill ? { ...opts, catIds: new Set(drill.catIds) } : opts);
+      exportSpendingReport(S, otherCatIds ? { ...opts, catIds: otherCatIds } : drill ? { ...opts, catIds: new Set(drill.catIds) } : opts);
     } catch {
       notify("Couldn't export the report — please try again.");
     }
@@ -178,15 +190,28 @@ export default function SpendingBreakdown() {
   // The Header shell already renders the page's <h1> ("Reflect"), per
   // Header.jsx's one-h1-per-page rule — this is a section heading, so both
   // branches use <h2>.
-  const header = drill ? (
+  // Breadcrumb trail: root › group (if drilled) › Other › Other … — every crumb
+  // but the last steps back to that level. Undrilled, it's the plain title.
+  const crumbs = [];
+  if (drill || otherDepth) {
+    crumbs.push({ key: 'root', label: lens === 'groups' ? 'All Groups' : 'All Categories', go: () => { setDrillGroupId(null); setOtherDepth(0); } });
+    if (drill) crumbs.push({ key: 'group', label: drill.name, go: () => setOtherDepth(0) });
+    for (let d = 1; d <= otherDepth; d += 1) crumbs.push({ key: 'other' + d, label: 'Other', go: () => setOtherDepth(d) });
+  }
+  const header = crumbs.length ? (
     // Same 18/700 as the undrilled title below — the breadcrumb REPLACES it,
     // so a smaller size just made the whole page shift up on drill-in.
     <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontSize: 18, fontWeight: 700, margin: 0 }}>
-      <button type="button" onClick={() => setDrillGroupId(null)}
-        style={{ border: 'none', background: 'none', padding: 0, color: 'var(--accent)', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}
-      >All Groups</button>
-      <span style={{ color: 'var(--muted)', fontSize: 18, fontWeight: 400 }}>›</span>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drill.name}</span>
+      {crumbs.map((c, i) => (i === crumbs.length - 1 ? (
+        <span key={c.key} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
+      ) : (
+        <span key={c.key} style={{ display: 'contents' }}>
+          <button type="button" onClick={c.go}
+            style={{ border: 'none', background: 'none', padding: 0, color: 'var(--accent)', fontSize: 18, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >{c.label}</button>
+          <span aria-hidden="true" style={{ color: 'var(--muted)', fontSize: 18, fontWeight: 400 }}>›</span>
+        </span>
+      )))}
     </h2>
   ) : (
     <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Spending Breakdown</h2>
