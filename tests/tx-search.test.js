@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { monthMetrics } from '../src/lib/calc.js';
 import {
   matchesQuery, txHaystack, matchesTerm, matchesSearch,
   searchSuggestions, parseSearchAmount, txFlows, txNeedsCategory, txLinkFilter, incomeTerm, flowTerm,
@@ -372,9 +373,9 @@ describe('matchesTerm — fails closed and guards malformed terms', () => {
   });
   it('every kind searchSuggestions can emit is a handled (non-default) kind', () => {
     // Exhaustiveness guard: a query touching every family, plus cards/status.
-    const handled = new Set(['field', 'account', 'category', 'status', 'needsCategory', 'date', 'amount']);
+    const handled = new Set(['field', 'account', 'category', 'status', 'needsCategory', 'date', 'amount', 'type']);
     const kinds = new Set();
-    for (const q of ['bank', 'rent', 'faysal', 'cleared', 'unc', 'need', '11', 'inflo']) {
+    for (const q of ['bank', 'rent', 'faysal', 'cleared', 'unc', 'need', '11', 'inflo', 'inc']) {
       for (const s of searchSuggestions(q, SS, ANCHOR)) kinds.add(s.term.kind);
     }
     for (const k of kinds) expect(handled.has(k)).toBe(true);
@@ -441,8 +442,10 @@ describe('flow facets for the Overview tiles', () => {
   it('Is: Cash flow = income + every expense/refund; transfers and adjustments out', () => {
     expect(hits('cashflow')).toEqual(['inc', 'exp', 'unc', 'ref', 'adv', 'advBack']);
   });
-  it('an unknown flow value fails closed', () => {
-    expect(matchesTerm(rows.exp, { kind: 'type', value: 'nope' }, FS)).toBe(false);
+  it('an unknown flow value fails closed — prototype keys included (never throws)', () => {
+    for (const value of ['nope', 'constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(matchesTerm(rows.exp, { kind: 'type', value }, FS)).toBe(false);
+    }
   });
   it('labels read "Is: …" and incomeTerm is the income flow term', () => {
     expect(flowTerm('spending')).toMatchObject({ kind: 'type', value: 'spending', label: 'Is: Spending' });
@@ -456,6 +459,53 @@ describe('flow facets for the Overview tiles', () => {
     expect(kinds('rec')).toContain('recoverable');
     expect(kinds('cash')).toContain('cashflow');
   });
+  // The contract between each tile's figure (monthMetrics) and the rows its link
+  // lists, as decided: the register is a register — it lists UNCLEARED rows
+  // too (the figure counts cleared ones), and never lists transfers (the
+  // figure counts their fee). Everything else reconciles exactly, so a drift
+  // between FLOWS and monthMetrics fails here.
+  it('rows reconcile with the monthMetrics figures, bar uncleared rows and transfer fees', () => {
+    const M9 = '2026-09';
+    const d = day => `${M9}-${day}T10:00`;
+    const mk = (id, over) => ({ id, status: 'cleared', date: d('05'), accountId: 'a1', merchant: '', notes: '', ...over });
+    const store = {
+      categories: FS.categories, cards: [], snapshots: [], budgets: [], recurring: [],
+      accounts: [{ id: 'a1', nickname: 'HBL Islamic', status: 'active' }, { id: 'a2', nickname: 'Meezan Savings', status: 'active' }],
+      transactions: [
+        mk('i1', { type: 'income', amount: 1000, category: null }),
+        mk('e1', { type: 'expense', amount: 300, category: 'food' }),
+        mk('e2', { type: 'expense', amount: 40, category: null }),          // uncategorized
+        mk('e3', { type: 'expense', amount: 25, category: 'gone' }),        // deleted category id
+        mk('e4', { type: 'expense', amount: 60, category: 'rent', accountId: null, cardId: 'c1' }), // card-funded
+        mk('r1', { type: 'refund', amount: 100, category: 'food' }),
+        mk('v1', { type: 'expense', amount: 500, category: 'adv' }),       // recoverable advance
+        mk('v2', { type: 'refund', amount: 200, category: 'adv' }),        // paid back
+        mk('t1', { type: 'transfer', amount: 5000, toAccountId: 'a2', fee: 15 }),
+        mk('j1', { type: 'adjustment', amount: 70 }),
+        mk('p1', { type: 'expense', amount: 999, category: 'food', status: 'pending' }), // uncleared
+      ],
+    };
+    const now = `${M9}-27T12:00`;
+    const M = monthMetrics(store, M9, now);
+    const fees = 15;
+    const cleared = t => t.status !== 'pending';
+    const rowsOf = v => store.transactions.filter(t => matchesTerm(t, flowTerm(v), store));
+    const net = rs => rs.reduce((s, t) => s + (t.type === 'income' ? t.amount : t.type === 'refund' ? t.amount : -t.amount), 0);
+    const spend = rs => -net(rs);
+    // Cleared rows reconcile exactly (fees are the only gap on the spending side).
+    expect(net(rowsOf('income').filter(cleared))).toBe(M.income);
+    expect(spend(rowsOf('spending').filter(cleared)) + fees).toBe(M.spending);
+    expect(spend(rowsOf('recoverable').filter(cleared))).toBe(M.recoverable);
+    expect(net(rowsOf('cashflow').filter(cleared)) - fees).toBe(M.net);
+    // Uncleared rows ARE listed, but not counted in the figure.
+    expect(rowsOf('spending').map(t => t.id)).toContain('p1');
+    expect(spend(rowsOf('spending')) + fees).toBe(M.spending + 999);
+    // Transfers and adjustments are never listed.
+    for (const v of ['income', 'spending', 'recoverable', 'cashflow']) {
+      expect(rowsOf(v).some(t => t.type === 'transfer' || t.type === 'adjustment')).toBe(false);
+    }
+  });
+
   it('txLinkFilter accepts every flow value', () => {
     for (const v of ['income', 'spending', 'recoverable', 'cashflow']) {
       expect(txLinkFilter(new URLSearchParams(`is=${v}&month=2026-09`)))
