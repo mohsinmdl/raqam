@@ -11,9 +11,11 @@ export default function PlanTotalsLines({ t, money }) {
   return (
     <>
       <div style={row}><span>Total budget</span><span className="tnum">{money(t.budget)}</span></div>
+      {/* The percent rides in the label, not after the amount, so every figure
+          stays flush right in one column. */}
       <div style={row}>
-        <span>Spent so far</span>
-        <span className="tnum">{money(t.spent)}{t.budget > 0 && <span style={{ ...muted, marginLeft: 6, fontSize: 12 }}>{pct}%</span>}</span>
+        <span>Spent so far{t.budget > 0 && <span className="tnum" style={{ ...muted, fontSize: 12 }}> · {pct}%</span>}</span>
+        <span className="tnum">{money(t.spent)}</span>
       </div>
       <div role="img" aria-label={`${pct}% of the total budget spent`}
         style={{ height: 6, borderRadius: 999, background: 'var(--track)', overflow: 'hidden', margin: '4px 0 6px' }}>
