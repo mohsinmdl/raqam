@@ -14,6 +14,7 @@
 //      offers those two (plus the real "Needs Category" flag) rather than
 //      inventing a status the ledger does not store.
 import { parseTypedDate } from './dates.js';
+import { isExcludedCat } from './calc.js';
 
 // Everything about a transaction that free-text search should look through,
 // lowered once. Missing references drop out rather than emitting blanks.
@@ -107,7 +108,7 @@ export function matchesTerm(t, term, S, accountId) {
     case 'status':
       return term.value === 'uncleared' ? t.status === 'pending' : t.status !== 'pending';
     case 'needsCategory': return txNeedsCategory(t, S);
-    case 'type': return t.type === term.value;
+    case 'type': { const f = FLOWS[term.value]; return f ? f.test(t, S) : false; } // unknown value: fail closed
     case 'date': {
       const d = (t.date || '').slice(0, 10);
       if (!d) return false;
@@ -151,19 +152,34 @@ export function parseSearchAmount(text) {
 // Two decimals, no currency symbol — matches the "2.00" the dropdown shows.
 const amt2 = n => Number(n).toFixed(2);
 
-// "Is: Income" — a type facet. Offered as a suggestion and applied by the
-// Overview Income tile's deep link (txLinkFilter below).
-export const incomeTerm = () => ({ kind: 'type', value: 'income', label: 'Is: Income', text: 'Income' });
+// "Is: …" flow facets — one per Reflect › Overview tile, each the row set
+// behind that tile's figure (monthMetrics in calc.js). Offered as search
+// suggestions and applied by the tiles' deep links (txLinkFilter below).
+// Transfers are never listed: only their fee counts in the tiles, and a
+// transfer between your own accounts isn't income or spending.
+const isSpendRow = t => t.type === 'expense' || t.type === 'refund';
+const FLOWS = {
+  income: { label: 'Income', words: ['income'], icon: 'inflow', test: t => t.type === 'income' },
+  spending: { label: 'Spending', words: ['spending', 'expenses'], icon: 'outflow',
+    test: (t, S) => isSpendRow(t) && !isExcludedCat(S, t.category) },
+  recoverable: { label: 'Recoverable', words: ['recoverable', 'advances'], icon: null,
+    test: (t, S) => isSpendRow(t) && isExcludedCat(S, t.category) },
+  cashflow: { label: 'Cash flow', words: ['cash flow', 'cashflow'], icon: null,
+    test: t => t.type === 'income' || isSpendRow(t) },
+};
+export const flowTerm = value => ({ kind: 'type', value, label: 'Is: ' + FLOWS[value].label, text: FLOWS[value].label });
+export const incomeTerm = () => flowTerm('income');
 
-// One-shot deep link into the register: `?is=income&month=YYYY-MM` → the
-// "Is: Income" term plus that month as the date range (null range when the
-// month is missing/malformed — keep whatever range is showing). Anything else
-// → null, so an unknown link filters nothing rather than guessing.
+// One-shot deep link into the register: `?is=<flow>&month=YYYY-MM` → that
+// flow's term plus the month as the date range (null range when the month is
+// missing/malformed — keep whatever range is showing). Anything else → null,
+// so an unknown link filters nothing rather than guessing.
 export function txLinkFilter(params) {
-  if (!params || params.get('is') !== 'income') return null;
+  const is = params && params.get('is');
+  if (!is || !Object.hasOwn(FLOWS, is)) return null;
   const month = params.get('month');
   const range = month && /^\d{4}-\d{2}$/.test(month) ? { from: month, to: month } : null;
-  return { term: incomeTerm(), range };
+  return { term: flowTerm(is), range };
 }
 
 const STATUS_KEYWORDS = [
@@ -241,9 +257,14 @@ export function searchSuggestions(q, S, anchorIso, limit = 5) {
       term: { kind: 'needsCategory', label: 'Is: Needs Category', text: 'Needs Category' } });
   }
 
-  // 4b. Income (Is:) — the type facet the Overview Income tile links to.
-  if (raw.length >= 2 && 'income'.startsWith(low)) {
-    out.push({ key: 'type:income', prefix: 'Is:', icon: 'inflow', main: 'Income', term: incomeTerm() });
+  // 4b. Flows (Is: Income / Spending / Recoverable / Cash flow) — the facets
+  // the Overview tiles link to; any of their words, as a prefix (≥2 chars).
+  if (raw.length >= 2) {
+    for (const [value, f] of Object.entries(FLOWS)) {
+      if (f.words.some(w => w.startsWith(low))) {
+        out.push({ key: 'type:' + value, prefix: 'Is:', icon: f.icon, main: f.label, term: flowTerm(value) });
+      }
+    }
   }
 
   // 5. Date (On / On or before / On or after) when the query parses as a date.

@@ -44,15 +44,25 @@ function computeVals(S, month, isPast, fmt, snapDismissed, view) {
   // moved this month, a Recoverable card carries them so Net cash flow stays the
   // true bank change (income − spending − recoverable === net) and the row reconciles.
   const hasRec = M.recoverable !== 0;
+  // Every tile links somewhere that explains its figure: the flow tiles open
+  // the register filtered to that month's rows (?is=<flow>, see txLinkFilter
+  // in txSearch.js); Savings / Savings rate are derived from net cash flow, so
+  // they open the Income v Expense report instead.
+  const ml = C.monthLabel(month);
+  const reg = flow => '/transactions?is=' + flow + '&month=' + month;
   v.sumCards = [
-    // Links to the register filtered to this month's income (txLinkFilter).
-    { label: 'Income', val: money(M.income), color: 'var(--text)', sub: C.monthLabel(month),
-      to: '/transactions?is=income&month=' + month, linkLabel: 'Show ' + C.monthLabel(month) + ' income transactions' },
-    { label: 'Expenses', val: money(M.spending), color: 'var(--text)', sub: hasRec ? 'excl. recoverable advances' : 'incl. transfer fees' },
-    ...(hasRec ? [{ label: 'Recoverable', val: moneyS(M.recoverable), color: 'var(--text)', sub: 'advances, net this month' }] : []),
-    { label: 'Net cash flow', val: moneyS(M.net), color: netColor, sub: hasRec ? 'income − expenses − recoverable' : 'income − expenses' },
-    { label: 'Savings', val: money(M.savings), color: 'var(--text)', sub: M.net < 0 ? 'overspent this month' : 'set aside so far' },
-    { label: 'Savings rate', val: M.rate == null ? '—' : C.fmtPct(M.rate), color: M.rate != null && M.rate < 0 ? 'var(--neg)' : 'var(--text)', sub: M.rate == null ? 'no income recorded' : 'of income' },
+    { label: 'Income', val: money(M.income), color: 'var(--text)', sub: ml,
+      to: reg('income'), linkLabel: 'Show ' + ml + ' income transactions' },
+    { label: 'Expenses', val: money(M.spending), color: 'var(--text)', sub: hasRec ? 'excl. recoverable advances' : 'incl. transfer fees',
+      to: reg('spending'), linkLabel: 'Show ' + ml + ' spending transactions' },
+    ...(hasRec ? [{ label: 'Recoverable', val: moneyS(M.recoverable), color: 'var(--text)', sub: 'advances, net this month',
+      to: reg('recoverable'), linkLabel: 'Show ' + ml + ' recoverable transactions' }] : []),
+    { label: 'Net cash flow', val: moneyS(M.net), color: netColor, sub: hasRec ? 'income − expenses − recoverable' : 'income − expenses',
+      to: reg('cashflow'), linkLabel: 'Show ' + ml + ' income and spending transactions' },
+    { label: 'Savings', val: money(M.savings), color: 'var(--text)', sub: M.net < 0 ? 'overspent this month' : 'set aside so far',
+      to: '/reflect/income-expense', linkLabel: 'Open the Income v Expense report' },
+    { label: 'Savings rate', val: M.rate == null ? '—' : C.fmtPct(M.rate), color: M.rate != null && M.rate < 0 ? 'var(--neg)' : 'var(--text)', sub: M.rate == null ? 'no income recorded' : 'of income',
+      to: '/reflect/income-expense', linkLabel: 'Open the Income v Expense report' },
   ];
   const daily = C.dailySpending(S, month, view, now); const dmax = Math.max(...daily.map(d => d.amt), 1);
   // Total from the true daily net (`net`), not the floored bars (`amt`): a refund
