@@ -8,15 +8,16 @@
 // initial range; every filter/lens/drill/focus/export choice on this page
 // lives here, independent of the other five tabs. The Reflect shell renders
 // no filter UI of its own at all (see Reflect.jsx).
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import { useStore } from '../../store/StoreProvider.jsx';
 import { useMoney } from '../../lib/format.js';
 import { useIsPhone } from '../../lib/useIsPhone.js';
 import { clampRange } from '../../lib/dateRange.js';
-import { PALETTE, breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows, drillOther, foldForDonut } from '../../lib/spendingReport.js';
+import { PALETTE, breakdownByCategory, breakdownByGroup, breakdownStats, categoryTxRows, drillOther, foldForDonut, otherLevelCounts } from '../../lib/spendingReport.js';
 import { exportSpendingReport } from '../../lib/spendingExport.js';
 import { useUI } from '../../ui/UIProvider.jsx';
+import { isTypingTarget } from '../../lib/shortcuts.js';
 import ReportFilterBar from '../../ui/reflect/ReportFilterBar.jsx';
 import SpendingDonut, { pctLabel } from '../../ui/reflect/SpendingDonut.jsx';
 import TransactionPopover from '../../ui/reflect/TransactionPopover.jsx';
@@ -29,6 +30,8 @@ const SKIP_KEY = 'raqam.reflect.exportConfirmSkip';
 
 // "1 transactions" reads wrong — pluralize the count-driven noun.
 const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+
+const NO_STEPS = [];
 
 // Same pill-toggle idiom as Plan.jsx's ViewToggle and the prior version of
 // this page.
@@ -61,9 +64,16 @@ export default function SpendingBreakdown() {
   const [range, setRange] = useState(() => ({ from: month, to: month }));
   const [catSel, setCatSel] = useState(null);   // null | Set
   const [acctSel, setAcctSel] = useState(null); // null | Set
-  const [lens, setLens] = useState('categories');
-  const [drillGroupId, setDrillGroupId] = useState(null);
-  const [otherDepth, setOtherDepth] = useState(0); // levels drilled into the donut's "Other"
+  const location = useLocation();
+  const navigate = useNavigate();
+  // The drill trail lives in the HISTORY ENTRY, not component state: each
+  // drill (into a group, or into the donut's "Other") pushes an entry, so the
+  // browser/phone Back gesture steps up one level before it leaves the page,
+  // and returning here with Back restores the drill. Shape:
+  // { lens, steps: [{ type: 'group', id } | { type: 'other' }] }.
+  const trail = location.state?.breakdownDrill;
+  const [lens, setLens] = useState(() => trail?.lens || 'categories');
+  const steps = trail && trail.lens === lens ? trail.steps : NO_STEPS;
   const [focus, setFocus] = useState(null);     // { id, anchor } | null
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -75,28 +85,43 @@ export default function SpendingBreakdown() {
   const opts = { from: range.from, to: range.to, acctIds: acctSel, catIds: catSel, includeExcluded: incRec };
   const catRows = useMemo(() => breakdownByCategory(S, opts), [S, range, catSel, acctSel, incRec]);
   const groupRows = useMemo(() => breakdownByGroup(S, opts), [S, range, catSel, acctSel, incRec]);
-  const drill = drillGroupId ? groupRows.find(g => g.id === drillGroupId) : null;
-
   // Visible rows: categories lens → catRows (zero rows hidden below); groups
   // lens → groupRows (zero rows hidden below); drilled → catRows subset
   // re-based so pct is within the group (YNAB: 82%/13%/5% inside Needs), all
   // members shown including zeros.
-  const baseRows = useMemo(() => {
-    if (lens === 'categories') return catRows;
-    if (!drill) return groupRows;
-    // Re-base pct within the group AND re-color by group-local rank. Members
-    // otherwise keep the color they got from their GLOBAL rank in
-    // breakdownByCategory, so a group made up of globally low-ranked categories
-    // (all color: null) would draw as several identical muted-gray arcs. Local
-    // ranking gives each member a distinct hue inside the drill — donut and list.
-    const member = catRows.filter(r => drill.catIds.includes(r.id));
-    const t = member.reduce((s, r) => s + r.amt, 0);
-    return member.map((r, i) => ({ ...r, pct: t ? r.amt / t : 0, color: i < PALETTE.length ? PALETTE[i] : null }));
-  }, [lens, drill, catRows, groupRows]);
-  // Drilled into "Other" (any lens, inside a group drill too): the page shows
-  // only the rows that slice folded, re-based within it; a still-long tail
-  // folds into its own "Other" below, so the drill can go deeper.
-  const rows = useMemo(() => (otherDepth ? drillOther(baseRows, otherDepth) : baseRows), [baseRows, otherDepth]);
+  // Replay the trail over the lens's rows. A group step swaps in that group's
+  // member categories — re-based pct AND re-colored by group-local rank (members
+  // otherwise keep the color of their GLOBAL rank, so a group of low-ranked
+  // categories would draw as identical muted-gray arcs); all members shown,
+  // zeros included. Each "Other" step drills one level deeper into the donut's
+  // folded tail, re-based within it; a still-long tail folds into its own
+  // "Other", so the drill can keep going. A step that no longer resolves (its
+  // group vanished under a filter, or that Other no longer folds) ends the
+  // replay there, so rows and crumbs only ever describe levels that exist.
+  const view = useMemo(() => {
+    let base = lens === 'categories' ? catRows : groupRows;
+    let drill = null, depth = 0;
+    const crumbs = [];
+    for (const st of steps) {
+      if (st.type === 'group') {
+        const g = lens === 'groups' && !drill && groupRows.find(x => x.id === st.id);
+        if (!g) break;
+        const member = catRows.filter(r => g.catIds.includes(r.id));
+        const t = member.reduce((s, r) => s + r.amt, 0);
+        base = member.map((r, i) => ({ ...r, pct: t ? r.amt / t : 0, color: i < PALETTE.length ? PALETTE[i] : null }));
+        drill = g; depth = 0;
+        crumbs.push(g.name);
+      } else {
+        const counts = otherLevelCounts(base, depth + 1);
+        if (counts.length <= depth) break;
+        depth += 1;
+        crumbs.push(`Other (${counts[depth - 1]})`);
+      }
+    }
+    return { drill, depth, crumbs, rows: depth ? drillOther(base, depth) : base };
+  }, [lens, steps, catRows, groupRows]);
+  const { drill, rows } = view;
+  const otherDepth = view.depth;
   // The category ids the Other drill covers (a group row carries its members),
   // so stats and export narrow to exactly what's on screen. null = not drilled.
   const otherCatIds = otherDepth ? new Set(rows.flatMap(r => r.catIds || [r.id])) : null;
@@ -117,30 +142,76 @@ export default function SpendingBreakdown() {
   // list shows every member category, zeros included (rendered without a bar).
   const visibleRows = drill ? rows : rows.filter(r => r.amt > 0);
 
+  // Drill = push a history entry carrying the longer trail.
+  const here = { pathname: location.pathname, search: location.search };
+  const pushStep = step => navigate(here, { state: { ...location.state, breakdownDrill: { lens, steps: [...steps, step] } } });
+  // Step back n levels. Normally that is literally history Back n — so Back
+  // afterwards can't re-enter a level the user just left. If fewer entries
+  // exist than that (a restored tab, a replaced entry) fall back to rewriting
+  // this entry, so we never navigate off the app. popped guards the effects
+  // below from issuing a second Back before the first one lands.
+  const popped = useRef(null);
+  const popSteps = n => {
+    if (n <= 0 || popped.current === location.key) return;
+    popped.current = location.key;
+    const idx = window.history.state?.idx;
+    if (typeof idx === 'number' && idx >= n) navigate(-n);
+    else navigate(here, { replace: true, state: { ...location.state, breakdownDrill: { lens, steps: steps.slice(0, steps.length - n) } } });
+  };
+
   // Clear the open popover whenever anything upstream of the row set changes
   // — its anchor/id may no longer refer to a visible row.
-  // The Other drill resets too: which rows fold into it depends on all of these.
-  useEffect(() => { setFocus(null); setOtherDepth(0); }, [range, catSel, acctSel, lens, drillGroupId, incRec]);
-  // If the drilled group disappears from the (filter-scoped) group list, back
-  // out of drill rather than pointing at nothing.
+  useEffect(() => { setFocus(null); }, [range, catSel, acctSel, lens, steps, incRec]);
+  // A filter/range/recoverable change re-slices every level, so the drill
+  // returns to the top. Keyed on the filter VALUES, not on effect runs:
+  // arriving here via Back onto a drilled entry (and StrictMode's double
+  // mount) must keep that drill, and neither changes a value.
+  const ids = sel => (sel ? [...sel].sort().join(',') : '*');
+  const filterKey = [range.from, range.to, ids(catSel), ids(acctSel), incRec].join('|');
+  const lastFilterKey = useRef(filterKey);
   useEffect(() => {
-    if (drillGroupId && !groupRows.some(g => g.id === drillGroupId)) setDrillGroupId(null);
-  }, [drillGroupId, groupRows]);
+    if (lastFilterKey.current === filterKey) return;
+    lastFilterKey.current = filterKey;
+    popSteps(steps.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on filter changes
+  }, [filterKey]);
 
+  // Escape steps up one level — unless something else owns the key: an open
+  // popover/dialog/overlay (they handle Escape first) or a text field.
+  const escRef = useRef(null);
+  escRef.current = () => {
+    if (!view.crumbs.length || focus || exportOpen) return false;
+    if (document.querySelector('[role="dialog"], [data-rq-overlay]')) return false;
+    popSteps(1);
+    return true;
+  };
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key !== 'Escape' || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (isTypingTarget(document.activeElement)) return;
+      if (escRef.current()) e.preventDefault();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  // In the groups lens (not yet inside a group) the rows ARE groups.
+  const rowsAreGroups = lens === 'groups' && !drill;
   const openFocus = useCallback((id, anchor) => {
     // The folded aggregate isn't one category: clicking it drills into its rows.
-    if (id === '__other__') { setFocus(null); setOtherDepth(d => d + 1); return; }
-    const g = lens === 'groups' && !drill ? groupRows.find(x => x.id === id) : null;
-    if (g) { setDrillGroupId(id); return; } // donut slice click in groups lens drills too
+    if (id === '__other__') { setFocus(null); pushStep({ type: 'other' }); return; }
+    if (rowsAreGroups && groupRows.some(x => x.id === id)) { pushStep({ type: 'group', id }); return; } // donut slice click in groups lens drills too
     setFocus({ id, anchor });
-  }, [lens, drill, groupRows]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pushStep reads the latest location each render
+  }, [rowsAreGroups, groupRows, location, steps, lens]);
 
   const rowClick = (r, e) => {
-    if (lens === 'groups' && !drill) { setDrillGroupId(r.id); return; }
+    if (rowsAreGroups) { pushStep({ type: 'group', id: r.id }); return; }
     openFocus(r.id, e.currentTarget);
   };
 
-  const changeLens = key => { setLens(key); setDrillGroupId(null); setFocus(null); };
+  // Switching lens leaves the drill: pop back to the top entry first.
+  const changeLens = key => { popSteps(steps.length); setLens(key); setFocus(null); };
 
   const focusRow = focus ? rows.find(r => r.id === focus.id) : null;
 
@@ -190,15 +261,24 @@ export default function SpendingBreakdown() {
   // The Header shell already renders the page's <h1> ("Reflect"), per
   // Header.jsx's one-h1-per-page rule — this is a section heading, so both
   // branches use <h2>.
-  // Breadcrumb trail: root › group (if drilled) › Other › Other … — every crumb
-  // but the last steps back to that level. Undrilled, it's the plain title.
-  const crumbs = [];
-  if (drill || otherDepth) {
-    crumbs.push({ key: 'root', label: lens === 'groups' ? 'All Groups' : 'All Categories', go: () => { setDrillGroupId(null); setOtherDepth(0); } });
-    if (drill) crumbs.push({ key: 'group', label: drill.name, go: () => setOtherDepth(0) });
-    for (let d = 1; d <= otherDepth; d += 1) crumbs.push({ key: 'other' + d, label: 'Other', go: () => setOtherDepth(d) });
-  }
-  const header = crumbs.length ? (
+  // Breadcrumb trail: root › each drilled level (group name / "Other (n)").
+  // Every crumb but the last pops back to its level. On a phone the trail
+  // collapses to one "‹ current" back button. Undrilled: the plain title.
+  const crumbs = view.crumbs.length
+    ? [{ key: 'root', label: lens === 'groups' ? 'All Groups' : 'All Categories' },
+      ...view.crumbs.map((label, i) => ({ key: 'l' + i, label }))]
+    : [];
+  const crumbGo = i => popSteps(crumbs.length - 1 - i);
+  const header = crumbs.length && isPhone ? (
+    <h2 style={{ display: 'flex', alignItems: 'center', minWidth: 0, fontSize: 18, fontWeight: 700, margin: 0 }}>
+      <button type="button" onClick={() => popSteps(1)} aria-label={`Back to ${crumbs[crumbs.length - 2].label}`}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, border: 'none', background: 'none', padding: 0, color: 'var(--text)', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}
+      >
+        <span aria-hidden="true" style={{ color: 'var(--accent)', fontWeight: 400 }}>‹</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{crumbs[crumbs.length - 1].label}</span>
+      </button>
+    </h2>
+  ) : crumbs.length ? (
     // Same 18/700 as the undrilled title below — the breadcrumb REPLACES it,
     // so a smaller size just made the whole page shift up on drill-in.
     <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontSize: 18, fontWeight: 700, margin: 0 }}>
@@ -206,7 +286,7 @@ export default function SpendingBreakdown() {
         <span key={c.key} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
       ) : (
         <span key={c.key} style={{ display: 'contents' }}>
-          <button type="button" onClick={c.go}
+          <button type="button" onClick={() => crumbGo(i)}
             style={{ border: 'none', background: 'none', padding: 0, color: 'var(--accent)', fontSize: 18, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >{c.label}</button>
           <span aria-hidden="true" style={{ color: 'var(--muted)', fontSize: 18, fontWeight: 400 }}>›</span>

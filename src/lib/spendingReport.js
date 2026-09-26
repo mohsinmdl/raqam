@@ -165,13 +165,28 @@ export function foldForDonut(rows, { max = MAX_SLICES } = {}) {
 // donut draws); depth is clamped to the last level that actually folded. pct
 // and color are re-based within the tail — same as a group drill — so the
 // drilled ring reads 40/25/… of THIS Other and gets distinct hues, not gray.
-export function drillOther(rows, depth, { max = MAX_SLICES } = {}) {
+// The positive rows left after peeling up to `depth` levels, and how many
+// levels actually folded — shared by drillOther and otherLevelCounts so the
+// rows and the breadcrumb can never disagree about how deep the drill is.
+function peelOther(rows, depth, max) {
   let cur = rows.filter(r => r.amt > 0);
-  let d = 0;
-  while (d < depth && cur.length > max + 1) { cur = cur.slice(max); d += 1; }
-  if (d === 0) return rows;
+  const counts = [];
+  while (counts.length < depth && cur.length > max + 1) { cur = cur.slice(max); counts.push(cur.length); }
+  return { cur, counts };
+}
+
+export function drillOther(rows, depth, { max = MAX_SLICES } = {}) {
+  const { cur, counts } = peelOther(rows, depth, max);
+  if (!counts.length) return rows;
   const t = cur.reduce((s, r) => s + r.amt, 0);
   return cur.map((r, i) => ({ ...r, pct: t ? r.amt / t : 0, color: i < PALETTE.length ? PALETTE[i] : null }));
+}
+
+// Row count inside each "Other" level drilled so far — the breadcrumb's
+// "Other (16) › Other (9)". Its length is the effective depth: clamped to the
+// levels that really fold, so a stale depth never shows a phantom crumb.
+export function otherLevelCounts(rows, depth, { max = MAX_SLICES } = {}) {
+  return peelOther(rows, depth, max).counts;
 }
 
 export function rangeMonths(store, from, to, now) {

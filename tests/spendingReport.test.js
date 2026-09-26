@@ -4,7 +4,7 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import {
   PALETTE, MAX_SLICES, reportTxns, breakdownByCategory, breakdownByGroup,
-  rangeMonths, breakdownStats, categoryTxRows, foldForDonut, drillOther,
+  rangeMonths, breakdownStats, categoryTxRows, foldForDonut, drillOther, otherLevelCounts,
 } from '../src/lib/spendingReport.js';
 import { daysInMonth } from '../src/lib/calc.js';
 import { addMonths, currentMonth } from '../src/lib/dates.js';
@@ -574,5 +574,32 @@ describe('drillOther', () => {
   it('only counts positive rows, as the donut does', () => {
     const rows = [...mkRows(MAX_SLICES + 2), { id: 'z', name: 'Zero', amt: 0, pct: 0, color: null }];
     expect(drillOther(rows, 1).map(r => r.id)).toEqual(['c' + MAX_SLICES, 'c' + (MAX_SLICES + 1)]);
+  });
+});
+
+// Breadcrumb labels: how many rows each drillable "Other" level holds, so the
+// trail reads "Other (16) › Other (9)" instead of "Other › Other". Its length
+// is also the EFFECTIVE depth — a stale depth (from history, after the data
+// changed) never shows a crumb for a level that no longer folds.
+describe('otherLevelCounts', () => {
+  const mkRows = n => Array.from({ length: n }, (_, i) => ({ id: 'c' + i, name: 'C' + i, amt: (n - i) * 1000, pct: 0 }));
+
+  it('one count per level actually drilled', () => {
+    const rows = mkRows(MAX_SLICES * 2 + 5);
+    expect(otherLevelCounts(rows, 0)).toEqual([]);
+    expect(otherLevelCounts(rows, 1)).toEqual([MAX_SLICES + 5]);
+    expect(otherLevelCounts(rows, 2)).toEqual([MAX_SLICES + 5, 5]);
+  });
+
+  it('clamps to the levels that exist and matches drillOther', () => {
+    const rows = mkRows(MAX_SLICES + 3);
+    expect(otherLevelCounts(rows, 4)).toEqual([3]);
+    expect(drillOther(rows, 4)).toHaveLength(3);
+    expect(otherLevelCounts(mkRows(MAX_SLICES + 1), 2)).toEqual([]);
+  });
+
+  it('ignores zero rows, like the donut', () => {
+    const rows = [...mkRows(MAX_SLICES + 2), { id: 'z', name: 'Z', amt: 0, pct: 0 }];
+    expect(otherLevelCounts(rows, 1)).toEqual([2]);
   });
 });
