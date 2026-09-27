@@ -150,17 +150,19 @@ export function RepeatIcon({ size = 14, title }) {
 }
 
 
-// "Excluded from budget" marker - a slashed circle. Stroke-based like the
-// chevron/eye icons, coloured by currentColor so callers set the muted tone.
-// Decorative unless given a title (then it announces "Excluded from budget").
+// "Excluded from budget" marker — a ↩ hook arrow (arrowhead bottom-left, hook
+// curving up on the right). A drawn path, not the U+21A9 text glyph, which
+// renders per-font and can turn into an emoji. Stroke-based like the chevron/eye
+// icons, coloured by currentColor so callers set the muted tone. Decorative
+// unless given a title (then it announces "Excluded from budget").
 export function ExcludedIcon({ size = 13, title }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" style={style}
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}
       role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'}>
       {title && <title>{title}</title>}
-      <circle cx="12" cy="12" r="9" />
-      <line x1="5.6" y1="5.6" x2="18.4" y2="18.4" />
+      <path d="M9 10 4 15l5 5" />
+      <path d="M4 15h10.5a5.5 5.5 0 0 0 0-11H11" />
     </svg>
   );
 }
