@@ -3,8 +3,10 @@
 // nothing when the balance is fine or the alert is off, so callers drop it in
 // unconditionally next to the amount:
 //   <LowBalanceHint balance={r.balance} threshold={thr} money={money} />
-// A small warn-toned "Low" pill — enough to prompt a top-up without shouting.
-// The <title> carries the reason (and the threshold) for hover + screen readers.
+// A tiny warn-toned dot — the quietest possible "top up" cue; the detail lives
+// in the hover tooltip (native title: never clipped by the scrolling sidebar)
+// and the aria-label. The padded wrapper gives the 6px dot a hover target a
+// pointer can actually land on.
 import { isLowBalance } from '../lib/lowBalance.js';
 
 export default function LowBalanceHint({ balance, threshold, money }) {
@@ -12,12 +14,10 @@ export default function LowBalanceHint({ balance, threshold, money }) {
   const tip = 'Low balance — below your ' + (money ? money(threshold) : threshold) + ' alert. Consider topping up.';
   return (
     <span
-      title={tip}
-      aria-label={tip}
-      style={{
-        flex: 'none', fontSize: 10, fontWeight: 600, lineHeight: 1.4, padding: '0 5px',
-        borderRadius: 999, background: 'var(--warn-soft)', color: 'var(--warn)', whiteSpace: 'nowrap',
-      }}
-    >Low</span>
+      role="img" title={tip} aria-label={tip}
+      style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', padding: 4, margin: -4, cursor: 'help' }}
+    >
+      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--warn)', opacity: 0.8 }} />
+    </span>
   );
 }
