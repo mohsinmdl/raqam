@@ -13,6 +13,8 @@ import { useMoney } from '../lib/format.js';
 import { openers } from '../drawers/openers.js';
 import { currentMonth, nowIso } from '../lib/dates.js';
 import { accountRows } from '../lib/sidebarAccounts.js';
+import { lowBalanceThreshold } from '../lib/lowBalance.js';
+import LowBalanceHint from '../ui/LowBalanceHint.jsx';
 
 // Small per-account glyph, keyed off the account's type. A mobile wallet reads
 // as a wallet; everything else is a bank. Stroke icons take currentColor.
@@ -23,7 +25,7 @@ const GLYPH = {
 const glyphFor = type => (type === 'Mobile wallet' ? 'wallet' : 'bank');
 
 export default function AccountList() {
-  const { data } = useStore();
+  const { data, prefs } = useStore();
   const { money, masked } = useMoney();
   const { openDrawer } = useDrawer();
   const navigate = useNavigate();
@@ -32,6 +34,7 @@ export default function AccountList() {
   const [addHover, setAddHover] = useState(false);
 
   const { rows, total } = accountRows(data, currentMonth(), nowIso());
+  const loThr = lowBalanceThreshold(prefs);
   const activeId = pathname.startsWith('/transactions/') ? decodeURIComponent(pathname.split('/')[2]) : null;
   const typeById = new Map(data.accounts.map(a => [a.id, a.type]));
 
@@ -73,6 +76,7 @@ export default function AccountList() {
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{GLYPH[glyphFor(typeById.get(r.id))]}</svg>
                 </span>
                 <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 13.5, color: 'var(--text)', fontWeight: active ? 600 : 500 }}>{r.nickname}</span>
+                {!masked && <LowBalanceHint balance={r.balance} threshold={loThr} money={money} />}
                 <span className="tnum" style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: neg ? 'var(--neg)' : 'var(--muted)', fontWeight: neg ? 600 : 500 }}>{money(r.balance)}</span>
               </button>
             );

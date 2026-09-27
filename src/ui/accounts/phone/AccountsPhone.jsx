@@ -13,13 +13,15 @@ import { freshInfo } from '../../../lib/txRow.js';
 import { openers } from '../../../drawers/openers.js';
 import { accountGroupsFor, archivedRowsFor } from './accountsPhone.js';
 import ArchivedSheet from './ArchivedSheet.jsx';
+import LowBalanceHint from '../../LowBalanceHint.jsx';
+import { lowBalanceThreshold } from '../../../lib/lowBalance.js';
 
 const cardStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' };
 
 export default function AccountsPhone() {
-  const { data: S } = useStore();
+  const { data: S, prefs } = useStore();
   const { balanceMonth } = useMonth();
-  const { money } = useMoney();
+  const { money, masked } = useMoney();
   const { openDrawer } = useDrawer();
   const nav = useNavigate();
   // Pinned once per mount, not recomputed each render: nowIso() returns a
@@ -33,6 +35,7 @@ export default function AccountsPhone() {
   const archived = useMemo(() => archivedRowsFor(S), [S]);
   const toggle = label => setCollapsed(c => { const n = new Set(c); n.has(label) ? n.delete(label) : n.add(label); return n; });
   const balColor = raw => (raw < 0 ? 'var(--neg)' : 'var(--text)');
+  const loThr = lowBalanceThreshold(prefs);
 
   return (
     <div style={{ padding: '16px 16px calc(var(--phone-nav-clearance) + 16px)', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -62,6 +65,7 @@ export default function AccountsPhone() {
                         <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.acct.nickname}</span>
                         {r.inst && <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{r.inst.name}</span>}
                       </span>
+                      {!masked && <LowBalanceHint balance={r.raw} threshold={loThr} money={money} />}
                       <span className="tnum" style={{ flex: 'none', fontSize: 14.5, fontWeight: 600, color: balColor(r.raw) }}>{money(r.raw)}</span>
                       <span aria-hidden="true" style={{ color: 'var(--muted)', fontSize: 14, flex: 'none' }}>›</span>
                     </button>
