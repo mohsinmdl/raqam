@@ -19,6 +19,7 @@ import { useMoney } from '../lib/format.js';
 import { nowIso } from '../lib/dates.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { categoryPickerSections } from '../lib/categoryPicker.js';
+import ExcludedTag from '../ui/ExcludedTag.jsx';
 
 export default function CategoryPickerPopover({ open, onOpenChange, anchor, catType = 'expense', onPick }) {
   const { data: S } = useStore();
@@ -65,7 +66,10 @@ export default function CategoryPickerPopover({ open, onOpenChange, anchor, catT
                         key={c.id} onClick={() => pick(c.id)} className="hv-elev"
                         style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 12px', border: 'none', background: 'none', color: 'var(--text)', font: 'inherit', fontSize: 14, cursor: 'pointer', textAlign: 'left' }}
                       >
-                        <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+                        <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+                          <ExcludedTag excluded={c.excludeFromBudget} />
+                        </span>
                         {showAmounts && <span className="tnum" style={{ flex: 'none', fontSize: 13, fontWeight: 600, color: availColor(avail) }}>{money(avail)}</span>}
                       </button>
                     );

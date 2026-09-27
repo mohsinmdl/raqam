@@ -21,6 +21,7 @@ import { instName, netTotal, schedNote, txGroups, withRunningBalances } from '..
 import { openers } from '../drawers/openers.js';
 import TxChips, { NeedsCategoryPill } from '../ui/TxChips.jsx';
 import { Chevron } from '../ui/icons.jsx';
+import ExcludedTag from '../ui/ExcludedTag.jsx';
 import { advanceDue, effectiveNextDate, longDate, ruleFromTx } from '../lib/schedule.js';
 import { deleteRule, deleteTransaction, deleteTransactions, duplicateTransactions, planDateMove, postTransactionNow, reorderTransactions, resyncOpening, setTransactionsAccount, setTransactionsCategory, setTransactionsDate, setTransactionsStatus, skipOccurrence } from '../store/actions.js';
 import { groupFromPick } from '../lib/txReorder.js';
@@ -409,7 +410,10 @@ function Row({ t, selId, checked, onToggleRow, scheduled, hideAccount, hideMemo,
           // takes back over (same t.needsCategory, saved just goes false).
           ? <NeedsCategoryPill tone={saved ? 'accent' : 'warn'} onClick={onCategorize ? e => onCategorize(t.id, e?.currentTarget) : undefined}
               suggestions={suggestions} onApply={onApplySuggestion ? cid => onApplySuggestion(t.id, cid) : undefined} />
-          : <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>}
+          : <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <span style={{ fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.catName}</span>
+              <ExcludedTag excluded={t.catExcluded} />
+            </span>}
       </td>
       {/* Memo: adjustment reason and/or free-text note, truncated with an ellipsis and the full value on hover. Dropped under ~1000px container width. */}
       {!hideMemo && (

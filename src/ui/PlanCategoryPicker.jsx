@@ -3,6 +3,7 @@ import { sortGroups, sortCats } from '../lib/categoryOrder.js';
 import { inflowPickerSections } from '../lib/categoryPicker.js';
 import { Combobox, ComboboxPanel } from './primitives/Combobox.jsx';
 import { CheckIcon, Chevron } from './icons.jsx';
+import ExcludedTag from './ExcludedTag.jsx';
 import { PlusCircle } from './ToolbarAction.jsx';
 
 const ringStyle = { outline: '1px solid var(--neg)', outlineOffset: '-1px' };
@@ -230,6 +231,7 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
                   is U+2713, which several stacks answer with an emoji check. */}
               <span aria-hidden="true" style={{ flex: 'none', display: 'inline-flex', color: 'var(--accent)' }}><CheckIcon size={10} /></span>
               <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedCat.name} <span style={{ color: 'var(--muted)' }}>({groupNameOf(selectedCat)})</span></span>
+              <ExcludedTag excluded={selectedCat.excludeFromBudget} />
             </span>
             {showAmounts && selectedCat.type === 'expense' && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(availOf(selectedCat.id)) }}>{money(availOf(selectedCat.id))}</span>}
           </button>
@@ -330,7 +332,10 @@ const PlanCategoryPicker = forwardRef(function PlanCategoryPicker({
                 const showAmt = showAmounts && (isRta || item.cat.type === 'expense');
                 return (
                   <Combobox.Item key={isRta ? 'rta' : item.cat.id} value={item} className="rq-combo-item hv-elev" style={rowStyle}>
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isRta ? 'Ready to Assign' : item.cat.name}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isRta ? 'Ready to Assign' : item.cat.name}</span>
+                      {!isRta && <ExcludedTag excluded={item.cat.excludeFromBudget} />}
+                    </span>
                     {showAmt && <span className="tnum" style={{ flex: 'none', fontWeight: 600, color: tone(val) }}>{money(val)}</span>}
                   </Combobox.Item>
                 );

@@ -22,6 +22,7 @@ import ReportFilterBar from '../../ui/reflect/ReportFilterBar.jsx';
 import SpendingDonut, { pctLabel } from '../../ui/reflect/SpendingDonut.jsx';
 import TransactionPopover from '../../ui/reflect/TransactionPopover.jsx';
 import ExportModal from '../../ui/reflect/ExportModal.jsx';
+import ExcludedTag from '../../ui/ExcludedTag.jsx';
 import RecoverableSwitch from '../../ui/RecoverableSwitch.jsx';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 };
@@ -357,7 +358,10 @@ export default function SpendingBreakdown() {
                 className="hv-soft"
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 13, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
+                  <span style={{ fontSize: 13, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
+                    <ExcludedTag excluded={r.excludeFromBudget} />
+                  </span>
                   <span className="tnum" style={{ fontSize: 13, fontWeight: 600, flex: 'none' }}>{money(r.amt)}</span>
                 </div>
                 {r.amt > 0 && (

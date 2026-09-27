@@ -15,6 +15,7 @@ import { useDrawer } from '../DrawerProvider.jsx';
 import { askDeleteCategory } from '../categoryActions.js';
 import EditNamePopover from './EditNamePopover.jsx';
 import PlanTotalsLines from './PlanTotalsLines.jsx';
+import ExcludedTag from '../ExcludedTag.jsx';
 
 // Borderless cards (YNAB-style): the white surface on the off-white page reads
 // as a panel without an outline. The single-select header/toggle rows reuse
@@ -222,6 +223,7 @@ function CategoryHeader({ cat, S, applyData, row, money, month }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 2px 0' }}>
       <div style={{ fontSize: 15, fontWeight: 700, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat.name}</div>
+      <ExcludedTag excluded={cat.excludeFromBudget} />
       <EditNamePopover
         name={cat.name} title={'Edit ' + cat.name} align="right"
         triggerClassName="hv-soft"
@@ -354,6 +356,7 @@ export default function Inspector({ S, env, envAt, month, money, applyData, sele
           {selCats.map(c => (
             <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+              <ExcludedTag excluded={c.excludeFromBudget} size={11} />
             </span>
           ))}
         </div>

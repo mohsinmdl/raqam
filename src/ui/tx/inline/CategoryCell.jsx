@@ -13,6 +13,7 @@ import { useMoney } from '../../../lib/format.js';
 import { currentMonth, nowIso } from '../../../lib/dates.js';
 import { envelopeFor } from '../../../lib/envelope.js';
 import PlanCategoryPicker from '../../PlanCategoryPicker.jsx';
+import ExcludedTag from '../../ExcludedTag.jsx';
 
 const footerBtn = { flex: 1, height: 30, border: 'none', borderRadius: 8, background: 'var(--soft)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' };
 
@@ -30,7 +31,7 @@ const CategoryCell = forwardRef(function CategoryCell({ value, onChange, onCreat
     // disabled TREATMENT (theme.css, .field[aria-disabled="true"]) — a filled
     // --elev ground with no border — so "not editable" is a shape, not a shade.
     const cat = value ? S.categories.find(c => c.id === value) : null;
-    return <span className="field" aria-disabled="true" style={{ display: 'flex', alignItems: 'center', height: 28, padding: '0 8px', fontSize: 13 }}>{cat ? cat.name : 'category'}</span>;
+    return <span className="field" aria-disabled="true" style={{ display: 'flex', alignItems: 'center', gap: 6, height: 28, padding: '0 8px', fontSize: 13 }}>{cat ? cat.name : 'category'}<ExcludedTag excluded={cat?.excludeFromBudget} /></span>;
   }
   const env = envelopeFor(S, month, nowIso());
   return (

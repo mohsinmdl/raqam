@@ -17,6 +17,7 @@ import { fieldsFor, tintFor, merchantLabel, payWithLabel, accountLabel } from '.
 import { useTxOpts, HINTS } from '../../../drawers/TxForm.jsx';
 import { Pill } from '../../../drawers/fields.jsx';
 import CategoryPickerSheet from '../../../components/CategoryPickerSheet.jsx';
+import ExcludedTag from '../../ExcludedTag.jsx';
 import { Menu, MenuTrigger, MenuPanel, MenuItem } from '../../primitives/Menu.jsx';
 import { BottomSheet, BottomSheetPanel } from '../../primitives/BottomSheet.jsx';
 
@@ -84,7 +85,9 @@ export default function TxSheet({ def, state, requestClose }) {
   const openRow = which => { commitKp(); setPicker(which); };
   const amountText = kp != null ? (displayOf(kp) || '0') : displayOf(String(f.amount || '0'));
 
-  const catName = f.category ? (S.categories.find(c => c.id === f.category)?.name || '') : '';
+  const catObj = f.category ? S.categories.find(c => c.id === f.category) : null;
+  const catName = catObj?.name || '';
+  const catExcluded = !!catObj?.excludeFromBudget;
   const optLabel = ref => [...bankOpts, ...creditOpts].find(o => o.id === ref)?.label || '';
   const prev = f.editId ? S.transactions.find(t => t.id === f.editId) : null;
 
@@ -259,7 +262,7 @@ export default function TxSheet({ def, state, requestClose }) {
                       aria-invalid={errors.category ? 'true' : undefined} aria-describedby={errors.category ? 'tx-err-category' : undefined}>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>Category</span>
-                        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 500 }}>{catName || 'Choose…'}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14.5, fontWeight: 500 }}>{catName || 'Choose…'}<ExcludedTag excluded={catExcluded} /></span>
                       </span>
                       <span aria-hidden="true" style={{ color: 'var(--muted)' }}>›</span>
                     </button>

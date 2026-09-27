@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { sortGroups, sortCats } from '../../../lib/categoryOrder.js';
 import MaskPositionEye from '../../MaskPositionEye.jsx';
+import ExcludedTag from '../../ExcludedTag.jsx';
 
 // Phone render path for the Plan screen — YNAB's mobile anatomy in ledger
 // tokens. Read-only skeleton in PR1: taps are wired by the keypad (PR2) and
@@ -129,8 +130,9 @@ export default function PlanPhone({
               borderBottom: hair,
               background: assignDraft && assignDraft.catId === item.cat.id ? 'var(--soft)' : 'transparent' }}>
             <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 500,
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {item.cat.name}
+              display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.cat.name}</span>
+              <ExcludedTag excluded={item.cat.excludeFromBudget} />
             </span>
             {(() => {
               const isDraft = !!(assignDraft && assignDraft.catId === item.cat.id);

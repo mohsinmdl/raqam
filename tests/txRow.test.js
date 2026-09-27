@@ -80,6 +80,18 @@ describe('chipIcon', () => {
   });
 });
 
+describe('catExcluded — the register’s excluded-from-budget marker', () => {
+  const SX = { ...S, categories: [...S.categories, { id: 'adv', name: 'Household advance', excludeFromBudget: true }] };
+  it('true when the row’s category is excluded from budget', () => {
+    expect(txRowOf(tx({ category: 'adv' }), SX, fmt).catExcluded).toBe(true);
+  });
+  it('false for a normal category, an uncategorised row, and a transfer', () => {
+    expect(txRowOf(tx({ category: 'rent' }), SX, fmt).catExcluded).toBe(false);
+    expect(txRowOf(tx({ category: null }), SX, fmt).catExcluded).toBe(false);
+    expect(txRowOf(transfer(), SX, fmt).catExcluded).toBe(false);
+  });
+});
+
 describe('outflow/inflow split', () => {
   it('expense → outflow side only', () => {
     const r = txRowOf(tx({ type: 'expense', amount: 500 }), S, fmt);
