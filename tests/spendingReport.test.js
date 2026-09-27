@@ -141,6 +141,12 @@ describe('breakdownByCategory', () => {
     expect(byId.adv).toMatchObject({ amt: 0, txCount: 0 }); // zero row present, no activity
     expect(byId.uncategorized).toMatchObject({ amt: 0, txCount: 0 }); // zero row present
 
+    // Rows carry excludeFromBudget for the "excluded from budget" marker; the
+    // synthetic uncategorized/deleted rows are never excluded.
+    expect(byId.adv.excludeFromBudget).toBe(true);
+    expect(byId.groc.excludeFromBudget).toBe(false);
+    expect(byId.uncategorized.excludeFromBudget).toBe(false);
+
     const total = rows.reduce((s, r) => s + r.amt, 0);
     expect(total).toBe(13000 + 15000);
     rows.forEach(r => expect(r.pct).toBeCloseTo(r.amt / total, 10));

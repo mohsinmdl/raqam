@@ -91,11 +91,13 @@ export function breakdownByCategory(store, opts = {}) {
   // questions.
   const rows = cats.map(c => ({
     id: c.id, name: c.name, icon: c.icon, color: c.color || null, groupId: c.groupId || null,
+    excludeFromBudget: !!c.excludeFromBudget, // for the "excluded from budget" marker downstream
     amt: Math.max(0, sums[c.id] || 0), txCount: counts[c.id] || 0,
   }));
   if (!catIds || catIds.has('uncategorized')) {
     rows.push({
       id: 'uncategorized', name: 'Uncategorized', icon: null, color: null, groupId: null,
+      excludeFromBudget: false, // a synthetic bucket is never an excluded category
       amt: Math.max(0, sums.uncategorized || 0), txCount: counts.uncategorized || 0,
     });
   }
@@ -109,6 +111,7 @@ export function breakdownByCategory(store, opts = {}) {
   if (counts.deleted) {
     rows.push({
       id: 'deleted', name: 'Deleted category', icon: null, color: null, groupId: null,
+      excludeFromBudget: false,
       amt: Math.max(0, sums.deleted), txCount: counts.deleted,
     });
   }

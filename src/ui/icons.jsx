@@ -148,3 +148,19 @@ export function RepeatIcon({ size = 14, title }) {
     </svg>
   );
 }
+
+
+// "Excluded from budget" marker - a slashed circle. Stroke-based like the
+// chevron/eye icons, coloured by currentColor so callers set the muted tone.
+// Decorative unless given a title (then it announces "Excluded from budget").
+export function ExcludedIcon({ size = 13, title }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" style={style}
+      role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'}>
+      {title && <title>{title}</title>}
+      <circle cx="12" cy="12" r="9" />
+      <line x1="5.6" y1="5.6" x2="18.4" y2="18.4" />
+    </svg>
+  );
+}

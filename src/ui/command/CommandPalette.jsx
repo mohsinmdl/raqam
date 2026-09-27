@@ -12,6 +12,7 @@ import { rankItems } from './matchRank.js';
 import { useCommandItems } from './useCommandItems.js';
 import { getRecents, pushRecent } from './recents.js';
 import { pickPerform } from './actions.js';
+import ExcludedTag from '../ExcludedTag.jsx';
 
 const GROUP_ORDER = ['Pages', 'Accounts', 'Categories', 'Payees', 'Actions'];
 
@@ -231,6 +232,7 @@ export default function CommandPalette() {
                       <span aria-hidden="true" style={{ flex: 'none', display: 'inline-flex', color: active ? 'var(--accent)' : 'var(--muted)' }}><Glyph kind={item.kind} /></span>
                       <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 14, color: 'var(--text)' }}>
                         {item.label}
+                        {item.excluded && <ExcludedTag excluded style={{ marginLeft: 6 }} />}
                         {item.sublabel && <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{'  —  ' + item.sublabel}</span>}
                       </span>
                       {active && <span aria-hidden="true" style={{ color: 'var(--muted)', fontSize: 14 }}>↵</span>}

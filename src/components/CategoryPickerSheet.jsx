@@ -13,6 +13,7 @@ import { envelopeFor } from '../lib/envelope.js';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { openers } from '../drawers/openers.js';
 import FocusTrap from '../ui/FocusTrap.jsx';
+import ExcludedTag from '../ui/ExcludedTag.jsx';
 
 export default function CategoryPickerSheet({ open, onClose, onPick, catType = 'expense', allowCreate = true }) {
   const { data: S } = useStore();
@@ -71,7 +72,10 @@ export default function CategoryPickerSheet({ open, onClose, onPick, catType = '
                   return (
                     <button key={c.id} onClick={() => onPick(c.id)} className="hv-elev"
                       style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48, padding: '8px 14px', border: 'none', borderBottom: i === sec.cats.length - 1 ? 'none' : '1px solid var(--border)', background: 'none', color: 'var(--text)', font: 'inherit', fontSize: 14, cursor: 'pointer', textAlign: 'left' }}>
-                      <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+                      <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+                        <ExcludedTag excluded={c.excludeFromBudget} />
+                      </span>
                       {showAmounts && <span className="tnum" style={{ flex: 'none', fontSize: 13.5, fontWeight: 600, color: availColor(avail) }}>{money(avail)}</span>}
                     </button>
                   );

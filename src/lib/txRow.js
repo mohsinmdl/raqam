@@ -96,6 +96,8 @@ export function txRowOf(t, S, fmt, forAccountId) {
     // Belongs to a recurring rule — including the transaction that seeded it.
     isRepeating: !!ruleFromTx(S, t.id),
     catName: cat ? cat.name : (t.type === 'transfer' ? 'Transfer' : '—'),
+    catExcluded: !!(cat && cat.excludeFromBudget), // drives the "excluded from budget" marker in the register
+
     // Category is optional at entry; categorizable types without one surface a
     // "This needs a category" pill wherever the category cell renders.
     needsCategory: !cat && (t.type === 'expense' || t.type === 'income' || t.type === 'refund'),
@@ -215,6 +217,7 @@ export function ruleRowOf(r, S, fmt, now) {
     hasChip: false, chip: null, chipBg: '', chipFg: '', chipIcon: null, transferOther: null,
     isRepeating: true,
     catName: cat ? cat.name : '—',
+    catExcluded: !!(cat && cat.excludeFromBudget),
     acctLabel: sourceLabel(S, r),
     // Estimated amounts keep the ~ they carry on the Recurring screen: this is
     // a forecast, and rounding it into a hard figure would be a small lie.

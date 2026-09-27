@@ -9,6 +9,7 @@ import { Popover as BasePopover } from '@base-ui/react/popover';
 import { useIsPhone } from '../../lib/useIsPhone.js';
 import { activityDrillTarget } from '../../lib/activityDrill.js';
 import { BottomSheet, BottomSheetPanel } from '../primitives/BottomSheet.jsx';
+import ExcludedTag from '../ExcludedTag.jsx';
 
 const fmtDate = ymd => {
   const [y, m, d] = String(ymd).slice(0, 10).split('-');
@@ -61,6 +62,7 @@ function Header({ title }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <span style={{ fontSize: 15, fontWeight: 700 }}>{title.name}</span>
+      <ExcludedTag excluded={title.excludeFromBudget} />
     </div>
   );
 }

@@ -51,7 +51,7 @@ export function buildItems({ data } = {}) {
     if (c.status && c.status !== 'active') continue; // BR-5
     items.push({
       id: 'category:' + c.id, kind: 'category', group: 'Categories',
-      label: c.name, sublabel: (c.groupId && groupName[c.groupId]) || 'Category',
+      label: c.name, excluded: !!c.excludeFromBudget, sublabel: (c.groupId && groupName[c.groupId]) || 'Category',
       priority: PRIORITY.category,
       perform: ctx => ctx.navigate('/budget'),
     });

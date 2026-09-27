@@ -43,6 +43,7 @@ import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon } from '../ui/ToolbarActi
 import { SHORTCUT_BY_ID } from '../lib/shortcuts.js';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import EditNamePopover from '../ui/plan/EditNamePopover.jsx';
+import ExcludedTag from '../ui/ExcludedTag.jsx';
 import { Popover, PopoverTrigger, PopoverPanel } from '../ui/primitives/Popover.jsx';
 import { CalcIcon, HistoryIcon } from '../ui/icons.jsx';
 import MaskPositionEye from '../ui/MaskPositionEye.jsx';
@@ -1138,6 +1139,7 @@ function CategoryRow({ cat, row, sectionGroupId, ctx }) {
               onDelete={() => askDeleteCategory(cat, { S, ask, notify, applyData, openDrawer })}
             >{cat.name}</EditNamePopover>
           </div>
+          <ExcludedTag excluded={cat.excludeFromBudget} />
           {view !== 'compact' && bar.show && (
             <span className="tnum" style={{ flex: '0 0 auto', fontSize: 11, color: bar.state === 'over' ? 'var(--neg)' : 'var(--muted)', whiteSpace: 'nowrap' }}>{bar.label}</span>
           )}

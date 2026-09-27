@@ -8,6 +8,7 @@
 import TxChips from '../ui/TxChips.jsx';
 import SuggestionChips from '../ui/ai/SuggestionChips.jsx';
 import { schedNote } from '../lib/txRow.js';
+import ExcludedTag from '../ui/ExcludedTag.jsx';
 
 const chipStyle = (bg, fg) => ({
   fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999,
@@ -42,7 +43,7 @@ function PhoneRow({ t, selId, checked, selectMode, onToggle, onTap, scheduled, h
       >This needs a category</span>
     )
     : t.catName
-      ? <span style={chipStyle('var(--soft)', 'var(--text)')}>{t.catName}</span>
+      ? <span style={{ ...chipStyle('var(--soft)', 'var(--text)'), display: 'inline-flex', alignItems: 'center', gap: 4 }}>{t.catName}<ExcludedTag excluded={t.catExcluded} size={11} /></span>
       : null;
   return (
     <button
