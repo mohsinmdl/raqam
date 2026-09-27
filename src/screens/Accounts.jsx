@@ -5,6 +5,8 @@ import { useMonth } from '../store/MonthContext.jsx';
 import { useDrawer } from '../ui/DrawerProvider.jsx';
 import { useUI } from '../ui/UIProvider.jsx';
 import { useMoney } from '../lib/format.js';
+import { lowBalanceThreshold } from '../lib/lowBalance.js';
+import LowBalanceHint from '../ui/LowBalanceHint.jsx';
 import { accountBalance, accountDeletePolicy, dayLabel, kindLabel, lastActivity } from '../lib/calc.js';
 import { nowIso } from '../lib/dates.js';
 import { freshInfo, instName } from '../lib/txRow.js';
@@ -17,11 +19,12 @@ const colHeader = { fontSize: 11, fontWeight: 600, letterSpacing: '.05em', color
 const gridCols = { display: 'grid', gridTemplateColumns: '2fr 1.1fr 1fr 1.1fr 100px 128px', gap: 12 };
 
 export default function Accounts() {
-  const { data: S, applyData } = useStore();
+  const { data: S, applyData, prefs } = useStore();
   // Balances clamp to the real current month — a future viewed month must
   // not fabricate zero balances (no opening snapshot exists yet).
   const { balanceMonth } = useMonth();
-  const { money } = useMoney();
+  const { money, masked } = useMoney();
+  const loThr = lowBalanceThreshold(prefs);
   const { openDrawer } = useDrawer();
   const { notify, ask } = useUI();
   const nav = useNavigate();
@@ -35,6 +38,7 @@ export default function Accounts() {
     return {
       // The bank's category IS the account's — no separate per-account flag.
       id: a.id, nick: a.nickname, inst: inst ? inst.name : '—', kind: inst ? kindLabel(inst.kind) : '—', type: a.type,
+      raw: accountBalance(a, S, balanceMonth, now),
       bal: money(accountBalance(a, S, balanceMonth, now)), asOf: dayLabel(lastActivity(a, S)),
       dot: f.dot, fresh: f.label, last4: a.last4 ? '•• ' + a.last4 : '—',
     };
@@ -84,7 +88,10 @@ export default function Accounts() {
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>{a.type}</div>
                 <div style={{ textAlign: 'right' }}>
-                  <div className="tnum" style={{ fontSize: 14.5, fontWeight: 600 }}>{a.bal}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                    {!masked && <LowBalanceHint balance={a.raw} threshold={loThr} money={money} />}
+                    <span className="tnum" style={{ fontSize: 14.5, fontWeight: 600 }}>{a.bal}</span>
+                  </div>
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>as of {a.asOf}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>

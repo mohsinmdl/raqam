@@ -22,6 +22,8 @@ import { useSuggestions } from '../ui/ai/useSuggestions.js';
 import GraduationOffer from '../ui/ai/GraduationOffer.jsx';
 import InsightsCard from '../ui/ai/InsightsCard.jsx';
 import RecoverableSwitch from '../ui/RecoverableSwitch.jsx';
+import LowBalanceHint from '../ui/LowBalanceHint.jsx';
+import { lowBalanceThreshold } from '../lib/lowBalance.js';
 import { effectiveNextDate, overdueRules, upcomingRules } from '../lib/schedule.js';
 import { envelopeFor } from '../lib/envelope.js';
 import { leftToSpend } from '../lib/leftToSpend.js';
@@ -150,6 +152,7 @@ export default function Dashboard() {
   const setup = setupState(S);
   // Shared with the Reflect shell (which hides its tab bar during first-use).
   const showFirstUse = isFirstUse(S, prefs);
+  const loThr = lowBalanceThreshold(prefs);
 
   // Chart-only lens (own pref, independent of the Budgets screen's toggle):
   // fold excluded (recoverable) categories back into the two spending charts.
@@ -402,6 +405,7 @@ export default function Dashboard() {
                       <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nick}</span>
                       <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{a.inst}</span>
                     </span>
+                    {!masked && <LowBalanceHint balance={a.raw} threshold={loThr} money={money} />}
                     <span className="tnum" style={{ fontSize: 13.5, fontWeight: 600 }}>{a.bal}</span>
                   </button>
                 ))}

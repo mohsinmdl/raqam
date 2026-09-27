@@ -23,7 +23,7 @@ import Dashboard from './screens/Dashboard.jsx';
 import Transactions from './screens/Transactions.jsx';
 import DevTools from './screens/DevTools.jsx';
 import Accounts from './screens/Accounts.jsx';
-import Planned from './screens/Planned.jsx';
+import Settings from './screens/Settings.jsx';
 import Plan from './screens/Plan.jsx';
 import Recurring from './screens/Recurring.jsx';
 import RecurringDetail from './screens/RecurringDetail.jsx';
@@ -138,7 +138,7 @@ function Shell() {
             <Route path="/accounts" element={<Accounts />} />
             <Route path="/recurring/:id" element={<RecurringDetail />} />
             <Route path="/reports" element={<Navigate to="/reflect" replace />} />
-            <Route path="/settings" element={<Planned />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/dev-tools" element={<DevTools />} />
             <Route path="/budget" element={<BudgetHub />}>
               <Route index element={<Plan />} />
