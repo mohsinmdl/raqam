@@ -95,6 +95,9 @@ export function DrawerProvider({ registry, children }) {
   // became "meaningful" (no amount, category, split, or transfer target —
   // just a payee/memo typed, or nothing at all) closes without asking, since
   // there's nothing in it a confirm dialog would actually be protecting.
+  // Resolves true when the drawer actually closed, false when the user kept it
+  // open at the discard confirm — so a caller can chain "close, then do X"
+  // (e.g. a click on another register row closes the editor, then selects it).
   const { ask } = useUI();
   const requestClose = useCallback(async () => {
     const s = stateRef.current;
@@ -106,9 +109,10 @@ export function DrawerProvider({ registry, children }) {
         body: 'This form has unsaved edits. Closing it now throws them away.',
         action: 'Discard changes',
       });
-      if (!ok) return;
+      if (!ok) return false;
     }
     setState(null);
+    return true;
   }, [ask, phone]);
 
   // Phone renders the addTx drawer as TxSheet (its own Base UI Dialog) instead

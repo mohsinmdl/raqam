@@ -983,7 +983,19 @@ export default function Transactions() {
     setPhoneQOpen(true);  // phone: never narrow the list with the search row (and its chip) collapsed
     setListFilter('all'); // a banner filter (uncleared / needs category) would hide the linked rows
   }, [isParam]); // eslint-disable-line react-hooks/exhaustive-deps
-  const toggleRow = (id, on, e) => {
+  // A click on ANY other row (posted or scheduled, body or checkbox) while a row
+  // is in the inline editor closes the editor first — through requestClose, so
+  // a meaningful unsaved draft gets the discard confirm — and only if it really
+  // closed does the click go on to its normal selection behaviour. Modifier
+  // flags are copied before the await (and shift's text-selection default is
+  // stopped synchronously) so a range/additive click still means what it did.
+  const leaveEditorThen = (e, fn) => {
+    if (e && e.shiftKey) e.preventDefault();
+    const ev = e && { shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey, preventDefault() {} };
+    requestClose().then(closed => { if (closed) fn(ev); });
+  };
+  const toggleRow = (id, on, e) => (inlineTx ? leaveEditorThen(e, ev => selectRow(id, on, ev)) : selectRow(id, on, e));
+  const selectRow = (id, on, e) => {
     setCursorId(id);
     setSchedSel(new Set()); // mutual exclusion with the scheduled selection
     // Shift+click selects the contiguous range from the anchor to here (rather
@@ -1019,7 +1031,8 @@ export default function Transactions() {
     setSelected(prev => (prev.size === 1 && prev.has(id)) ? new Set() : new Set([id]));
   };
   const toggleAll = on => { setSchedSel(new Set()); setSelected(on ? new Set(visibleIds) : new Set()); };
-  const toggleSched = (key, on, e) => {
+  const toggleSched = (key, on, e) => (inlineTx ? leaveEditorThen(e, ev => selectSched(key, on, ev)) : selectSched(key, on, e));
+  const selectSched = (key, on, e) => {
     // Same YNAB edit gesture as toggleRow: a plain second click on the sole
     // scheduled selection opens the editor instead of deselecting. Guarded on
     // `e` (absent from the checkbox's onChange) and modifier keys so the
