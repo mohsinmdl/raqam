@@ -34,6 +34,7 @@ import TxSearchField from '../ui/tx/TxSearchField.jsx';
 import { ToolbarAction, PlusCircle, UndoIcon, RedoIcon, SmsIcon, CameraIcon } from '../ui/ToolbarAction.jsx';
 import { useAI } from '../ui/ai/useAI.js';
 import { matchesSearch, searchSuggestions, txLinkFilter } from '../lib/txSearch.js';
+import { shouldCloseInlineOnOutsidePress } from '../lib/inlineOutsideClose.js';
 import { useIsPhone } from '../lib/useIsPhone.js';
 import { useContainerWidth } from '../lib/useContainerWidth.js';
 import { visibleColumnKeys } from '../lib/registerColumns.js';
@@ -566,11 +567,32 @@ export default function Transactions() {
   const { balanceMonth } = useMonth();
   const fmt = useMoney();
   const { enabled: aiEnabled } = useAI();
-  const { openDrawer, drawer } = useDrawer();
+  const { openDrawer, drawer, requestClose } = useDrawer();
   // The inline editor session (desktop only — phone renders TxSheet instead).
   const inlineTx = !phone && drawer?.name === 'addTx' ? drawer : null;
   const editingId = inlineTx ? inlineTx.form.editId : null;
   const navigate = useNavigate();
+
+  // Clicking outside the register table closes the open inline editor row.
+  // Pointerdown in capture so we decide before Base UI dismisses its own
+  // pickers. shouldCloseInlineOnOutsidePress keeps it safe: inside the table,
+  // inside an open picker/dialog, or with any picker open → leave the row (that
+  // press just dismisses the picker). The close goes through requestClose, so a
+  // meaningful unsaved draft still gets the "Discard your changes?" confirm.
+  useEffect(() => {
+    if (!inlineTx) return undefined;
+    const onDown = e => {
+      if (confirmOpen) return; // the discard dialog owns this press
+      const t = e.target;
+      if (!t || typeof t.closest !== 'function') return;
+      const inTable = !!tableWrapRef.current && tableWrapRef.current.contains(t);
+      const inOverlay = !!t.closest('[data-rq-overlay], [role="dialog"]');
+      const overlayOpen = !!document.querySelector('[data-rq-overlay]');
+      if (shouldCloseInlineOnOutsidePress({ inTable, inOverlay, overlayOpen })) requestClose();
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [inlineTx, confirmOpen, requestClose]);
   const [searchParams, setSearchParams] = useSearchParams();
   const searchRef = useRef(null);
   // Optional per-account scope: /transactions/:accountId shows one account's

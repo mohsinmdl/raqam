@@ -74,7 +74,7 @@ export const Select = forwardRef(function Select({ value, onValueChange, ariaLab
               rendered anywhere in this app. Adding either later would need
               Select.List pointed at the Viewport, or that internal math
               silently targets a non-scrolling element. */}
-          <BaseSelect.Popup style={popupStyle} finalFocus={finalFocus} onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>
+          <BaseSelect.Popup data-rq-overlay="" style={popupStyle} finalFocus={finalFocus} onKeyDown={e => { if (e.key === 'Escape') e.stopPropagation(); }}>
             <ScrollArea style={scrollBoxStyle}>
               {/* overflowX hidden: this list never needs horizontal scroll
                   (SelectItem truncates instead — see below), so there's no
