@@ -56,7 +56,10 @@ export function PopoverPanel({
         // Transactions' existing dropdown/popover band.
         style={{ zIndex: 30 }}
       >
-        <BasePopover.Popup style={{ ...popupStyle, ...(width ? { width } : null), ...style }} {...rest}>
+        {/* data-rq-overlay marks this portalled panel so app-wide click-away
+            logic (usePopoverDismiss, the inline-editor outside-close) treats a
+            press inside it as "inside", not an outside click. */}
+        <BasePopover.Popup data-rq-overlay="" style={{ ...popupStyle, ...(width ? { width } : null), ...style }} {...rest}>
           {arrow ? <BasePopover.Arrow className="rq-pop-arrow" /> : null}
           {children}
         </BasePopover.Popup>
